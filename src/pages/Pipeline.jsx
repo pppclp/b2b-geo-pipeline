@@ -92,6 +92,7 @@ export default function Pipeline() {
     const f = { status: "open" };
     if (params.get("view") === "assigned-to-me" || params.get("assigned") === "me") f.handler = profile?.id;
     if (params.get("view") === "support-needed" || params.get("support") === "1") f.support = "1";
+    if (params.get("support_type")) f.support_type = params.get("support_type");
     if (params.get("stuck") === "1") f.stuck = "1";
     if (params.get("region")) f.region = params.get("region");
     if (params.get("owner")) f.owner = params.get("owner");
@@ -135,6 +136,7 @@ export default function Pipeline() {
       if (filters.working_with && o.working_with !== filters.working_with) return false;
       if (filters.support === "1" && !o.support_needed) return false;
       if (filters.support === "0" && o.support_needed) return false;
+      if (filters.support_type && o.support_type !== filters.support_type) return false;
       if (filters.stuck === "1" && agingDays(o.stage_entered_at) <= (config?.aging_threshold_days || 14)) return false;
       if (filters.won_month && monthOf(o.won_at) !== filters.won_month) return false;
       if (filters.lost_month && monthOf(o.lost_at) !== filters.lost_month) return false;
