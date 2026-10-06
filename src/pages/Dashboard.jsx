@@ -4,8 +4,6 @@ import { useData } from "@/lib/dataContext";
 import { formatTHB, formatMonth, agingDays, ROLE_LABELS } from "@/lib/pipeline";
 import KpiCard from "@/components/dashboard/KpiCard";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
-import HBarChart from "@/components/dashboard/HBarChart";
-import MonthTrendChart from "@/components/dashboard/MonthTrendChart";
 import MonthPicker from "@/components/MonthPicker";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -23,14 +21,12 @@ export default function Dashboard() {
   const [closeMonth, setCloseMonth] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
   const [categoryDialog, setCategoryDialog] = useState(null);
-  const [aeRankMode, setAeRankMode] = useState("top");
-  const [aeRankMetric, setAeRankMetric] = useState("value");
 
   const role = profile?.app_role || "ae";
   const isManagementLike = role === "management" || role === "admin";
   const threshold = config?.aging_threshold_days || 14;
 
-  // Regions
+  // Available regions for quick filter
   const allRegions = useMemo(
     () => Object.values(maps.region || {}).filter((r) => r.active).sort((a, b) => (a.order || 0) - (b.order || 0)),
     [maps.region]
@@ -43,6 +39,7 @@ export default function Dashboard() {
 
   const showRegionFilter = isManagementLike || (role === "sm" && availableRegions.length > 1);
 
+  // Validate region filter against available regions
   const effectiveRegion = availableRegions.find((r) => r.id === regionFilter) ? regionFilter : "";
   const regionScoped = effectiveRegion
     ? scopedOpportunities.filter((o) => o.region_id === effectiveRegion)
@@ -64,12 +61,10 @@ export default function Dashboard() {
   const sumVal = (arr) => arr.reduce((a, o) => a + (o.pipeline_value || 0), 0);
   const monthLabel = (m) => (m ? formatMonth(m) : "All Months");
 
-  // Navigation helper — preserves dashboard filters
+  // Navigation helper — preserves region context
   const go = (params) => {
     const p = { ...params };
     if (effectiveRegion) p.region = effectiveRegion;
-    if (createdMonth && p.status !== "won" && p.status !== "lost" && !p.created_month) p.created_month = createdMonth;
-    if (closeMonth && p.status !== "won" && p.status !== "lost" && !p.close_month) p.close_month = closeMonth;
     navigate(`/pipeline?${new URLSearchParams(p).toString()}`);
   };
 
@@ -84,21 +79,22 @@ export default function Dashboard() {
   // Breakdowns
   const byStage = activeStages.map((s) => {
     const ops = open.filter((o) => o.stage_id === s.id);
-    return { id: s.id, name: s.name, count: ops.length, value: sumVal(ops) };
+    return { stage: s, count: ops.length, value: sumVal(ops) };
   });
+  const maxStageValue = Math.max(...byStage.map((x) => x.value), 1);
 
   const categories = Object.values(maps.category || {})
     .filter((c) => c.active)
     .sort((a, b) => (a.order || 0) - (b.order || 0));
   const byCategory = categories.map((c) => {
     const ops = open.filter((o) => o.product_category_id === c.id);
-    return { id: c.id, name: c.name, count: ops.length, value: sumVal(ops) };
+    return { category: c, count: ops.length, value: sumVal(ops) };
   });
 
   const byRegion = allRegions
     .map((r) => {
       const ops = open.filter((o) => o.region_id === r.id);
-      return { id: r.id, name: r.name, count: ops.length, value: sumVal(ops) };
+      return { region: r, count: ops.length, value: sumVal(ops) };
     })
     .filter((x) => x.count > 0)
     .sort((a, b) => b.value - a.value);
@@ -107,24 +103,16 @@ export default function Dashboard() {
   const byAE = aes
     .map((m) => {
       const ops = open.filter((o) => o.owner_id === m.id);
-      return { id: m.id, name: m.name, count: ops.length, value: sumVal(ops) };
+      return { member: m, count: ops.length, value: sumVal(ops) };
     })
     .filter((x) => x.count > 0)
     .sort((a, b) => b.value - a.value);
-
-  // Top/Bottom 10 AE — calculated AFTER role/region scope and dashboard filters
-  const rankedAE = useMemo(() => {
-    if (aeRankMode === "top") {
-      return [...byAE].sort((a, b) => (aeRankMetric === "value" ? b.value - a.value : b.count - a.count)).slice(0, 10);
-    }
-    return [...byAE].sort((a, b) => (aeRankMetric === "value" ? a.value - b.value : a.count - b.count)).slice(0, 10);
-  }, [byAE, aeRankMode, aeRankMetric]);
 
   const lostReasons = Object.values(maps.lostReason || {}).filter((r) => r.active);
   const lostByReason = lostReasons
     .map((r) => {
       const ops = lost.filter((o) => o.lost_reason_id === r.id);
-      return { id: r.id, name: r.name, count: ops.length, value: sumVal(ops) };
+      return { reason: r, count: ops.length, value: sumVal(ops) };
     })
     .filter((x) => x.count > 0)
     .sort((a, b) => b.value - a.value);
@@ -135,28 +123,7 @@ export default function Dashboard() {
   const supportByType = supportTypes
     .map((st) => {
       const ops = supportNeeded.filter((o) => o.support_type === st.id);
-      return { id: st.id, name: st.name, count: ops.length, value: sumVal(ops) };
-    })
-    .filter((x) => x.count > 0);
-
-  // Expected Close by Month
-  const closeByMonth = useMemo(() => {
-    const monthMap = {};
-    open.forEach((o) => {
-      const m = o.expected_close_month;
-      if (!m) return;
-      if (!monthMap[m]) monthMap[m] = { month: m, count: 0, value: 0 };
-      monthMap[m].count++;
-      monthMap[m].value += o.pipeline_value || 0;
-    });
-    return Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month)).slice(0, 6);
-  }, [open]);
-
-  // Stuck by Stage
-  const stuckByStage = activeStages
-    .map((s) => {
-      const ops = stuck.filter((o) => o.stage_id === s.id);
-      return { id: s.id, name: s.name, count: ops.length, value: sumVal(ops) };
+      return { type: st, count: ops.length, value: sumVal(ops) };
     })
     .filter((x) => x.count > 0);
 
@@ -167,19 +134,9 @@ export default function Dashboard() {
       .filter((p) => p.active && p.category_id === categoryDialog.id)
       .map((p) => {
         const ops = open.filter((o) => o.product_id === p.id);
-        return { id: p.id, name: p.name, count: ops.length, value: sumVal(ops) };
-      })
-      .filter((x) => x.count > 0)
-      .sort((a, b) => b.value - a.value);
+        return { product: p, count: ops.length, value: sumVal(ops) };
+      });
   }, [categoryDialog, maps.product, open]);
-
-  // Region chart visibility — only show when multi-region comparison is meaningful
-  const aeRegionCount = new Set(open.map((o) => o.region_id).filter(Boolean)).size;
-  const showRegionChart = isManagementLike
-    ? byRegion.length > 1
-    : role === "sm"
-    ? availableRegions.length > 1 && byRegion.length > 1
-    : aeRegionCount > 1 && byRegion.length > 1;
 
   // Role-specific lists
   const currentlyWithMe = open.filter((o) => o.current_handler_id === profile?.id);
@@ -233,7 +190,7 @@ export default function Dashboard() {
           value={formatTHB(sumVal(created))}
           context={`Created in ${monthLabel(createdMonth)}`}
           icon={PlusCircle}
-          onClick={() => go({ status: "open" })}
+          onClick={() => go({ status: "open", ...(createdMonth && { created_month: createdMonth }) })}
         />
         <KpiCard
           label="Expected to Close"
@@ -241,7 +198,7 @@ export default function Dashboard() {
           value={formatTHB(sumVal(expected))}
           context={`Expected in ${monthLabel(closeMonth)}`}
           icon={CalendarClock}
-          onClick={() => go({ status: "open" })}
+          onClick={() => go({ status: "open", ...(closeMonth && { close_month: closeMonth }) })}
         />
         <KpiCard
           label="Won"
@@ -281,97 +238,81 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Charts grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* Pipeline by Region — management always; SM if multi-region; AE if multi-region data */}
-        {showRegionChart && (
+      {/* Role-specific sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Pipeline by Region — management only (first) */}
+        {isManagementLike && (
           <Panel title="Pipeline by Region" empty={!byRegion.length}>
-            <HBarChart data={byRegion} onClick={(id) => setRegionFilter(id)} />
+            <BreakdownList
+              rows={byRegion.map((r) => ({ id: r.region.id, name: r.region.name, count: r.count, value: r.value }))}
+              onClick={(id) => setRegionFilter(id)}
+            />
           </Panel>
         )}
 
-        {/* Pipeline by AE — management + SM, with Top/Bottom 10 toggle */}
+        {/* Pipeline by AE — management + SM */}
         {(isManagementLike || role === "sm") && (
-          <Panel
-            title="Pipeline by AE (Owner)"
-            empty={!byAE.length}
-            action={
-              <div className="flex items-center gap-2">
-                <ToggleGroup
-                  options={[{ value: "top", label: "Top 10" }, { value: "bottom", label: "Bottom 10" }]}
-                  value={aeRankMode}
-                  onChange={setAeRankMode}
-                />
-                <ToggleGroup
-                  options={[{ value: "value", label: "Value" }, { value: "count", label: "Count" }]}
-                  value={aeRankMetric}
-                  onChange={setAeRankMetric}
-                />
-              </div>
-            }
-          >
-            <HBarChart data={rankedAE} onClick={(id) => go({ status: "open", owner: id })} />
+          <Panel title="Pipeline by AE (Owner)" empty={!byAE.length}>
+            <BreakdownList
+              rows={byAE.map((a) => ({ id: a.member.id, name: a.member.name, count: a.count, value: a.value }))}
+              onClick={(id) => go({ status: "open", owner: id })}
+            />
           </Panel>
         )}
 
         {/* Pipeline by Stage — all roles */}
         <Panel title="Pipeline by Stage">
-          <HBarChart data={byStage} preserveOrder onClick={(id) => go({ status: "open", stage: id })} />
+          <div className="space-y-2.5">
+            {byStage.map((s) => (
+              <button
+                key={s.stage.id}
+                type="button"
+                onClick={() => go({ status: "open", stage: s.stage.id })}
+                className="w-full text-left group"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[12px] font-medium">{s.stage.name}</span>
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                    {s.count} · {formatTHB(s.value)}
+                  </span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-brand/70 group-hover:bg-brand transition-all"
+                    style={{ width: `${(s.value / maxStageValue) * 100}%` }}
+                  />
+                </div>
+              </button>
+            ))}
+            {byStage.every((s) => s.count === 0) && <EmptyRow />}
+          </div>
         </Panel>
 
         {/* Pipeline by Product Category — all roles */}
         <Panel title="Pipeline by Product Category">
-          <HBarChart
-            data={byCategory}
+          <BreakdownList
+            rows={byCategory.map((c) => ({ id: c.category.id, name: c.category.name, count: c.count, value: c.value }))}
             onClick={(id) => setCategoryDialog(categories.find((c) => c.id === id))}
           />
         </Panel>
 
-        {/* Expected Close by Month — all roles if data */}
-        {closeByMonth.length > 0 && (
-          <Panel title="Expected Close by Month">
-            <MonthTrendChart data={closeByMonth} onClick={(m) => go({ status: "open", close_month: m })} />
-          </Panel>
-        )}
-
-        {/* Lost Reasons — all roles if data */}
-        {lostByReason.length > 0 && (
+        {/* Lost Reasons — management only */}
+        {isManagementLike && (
           <Panel title="Lost Reasons" empty={!lostByReason.length}>
-            <HBarChart
-              data={lostByReason}
+            <BreakdownList
+              rows={lostByReason.map((r) => ({ id: r.reason.id, name: r.reason.name, count: r.count, value: r.value }))}
               onClick={(id) => go({ status: "lost", ...(closeMonth && { lost_month: closeMonth }), lost_reason: id })}
             />
           </Panel>
         )}
 
-        {/* Support Needed by Type — all roles if data */}
+        {/* Support by Type — all roles if data */}
         {supportByType.length > 0 && (
           <Panel title="Support Needed by Type">
-            <HBarChart
-              data={supportByType}
-              onClick={(id) => go({ status: "open", support: "1", support_type: id })}
+            <BreakdownList
+              rows={supportByType.map((s) => ({ id: s.type.id, name: s.type.name, count: s.count, value: s.value }))}
+              onClick={() => go({ status: "open", support: "1" })}
             />
-          </Panel>
-        )}
-
-        {/* Stuck Pipeline by Stage — all roles if data */}
-        {stuckByStage.length > 0 && (
-          <Panel title="Stuck Pipeline by Stage">
-            <HBarChart
-              data={stuckByStage}
-              preserveOrder
-              onClick={(id) => go({ status: "open", stuck: "1", stage: id })}
-            />
-          </Panel>
-        )}
-      </div>
-
-      {/* Operational lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Assigned to Me — AE */}
-        {role === "ae" && (
-          <Panel title={`Assigned to Me (${assignedToMe.length})`} empty={!assignedToMe.length}>
-            <OpportunityMiniList ops={assignedToMe} maps={maps} navigate={navigate} />
           </Panel>
         )}
 
@@ -389,24 +330,17 @@ export default function Dashboard() {
           </Panel>
         )}
 
+        {/* Assigned to Me — AE */}
+        {role === "ae" && (
+          <Panel title={`Assigned to Me (${assignedToMe.length})`} empty={!assignedToMe.length}>
+            <OpportunityMiniList ops={assignedToMe} maps={maps} navigate={navigate} />
+          </Panel>
+        )}
+
         {/* Attention Needed — management */}
         {isManagementLike && (
           <Panel title="Attention Needed" empty={!attentionOps.length}>
             <OpportunityMiniList ops={attentionOps} maps={maps} navigate={navigate} showReason />
-          </Panel>
-        )}
-
-        {/* Support Needed list — all roles if data */}
-        {supportNeeded.length > 0 && (
-          <Panel title={`Support Needed (${supportNeeded.length})`}>
-            <OpportunityMiniList ops={supportNeeded.slice(0, 10)} maps={maps} navigate={navigate} showReason />
-          </Panel>
-        )}
-
-        {/* Stuck Opportunities list — all roles if data */}
-        {stuck.length > 0 && (
-          <Panel title={`Stuck Opportunities (${stuck.length})`}>
-            <OpportunityMiniList ops={stuck.slice(0, 10)} maps={maps} navigate={navigate} showReason />
           </Panel>
         )}
       </div>
@@ -423,15 +357,15 @@ export default function Dashboard() {
             )}
             {productsInCategory.map((p) => (
               <button
-                key={p.id}
+                key={p.product.id}
                 type="button"
                 onClick={() => {
-                  go({ status: "open", category: categoryDialog.id, product: p.id });
+                  go({ status: "open", product_category: categoryDialog.id, product: p.product.id });
                   setCategoryDialog(null);
                 }}
                 className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-secondary/70 transition-colors text-[12px]"
               >
-                <span className="font-medium">{p.name}</span>
+                <span className="font-medium">{p.product.name}</span>
                 <span className="text-muted-foreground tabular-nums">
                   {p.count} · {formatTHB(p.value)}
                 </span>
@@ -444,35 +378,32 @@ export default function Dashboard() {
   );
 }
 
-function ToggleGroup({ options, value, onChange }) {
+function Panel({ title, children, empty }) {
   return (
-    <div className="inline-flex rounded-lg bg-secondary p-0.5">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          className={`px-2.5 py-1 text-[11px] rounded-md font-medium transition-all ${
-            value === opt.value
-              ? "bg-card text-foreground shadow-soft"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <h3 className="text-[12px] font-semibold mb-4 text-foreground/80">{title}</h3>
+      {empty ? <EmptyRow /> : children}
     </div>
   );
 }
 
-function Panel({ title, children, empty, action }) {
+function BreakdownList({ rows, onClick }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-      <div className="flex items-center justify-between mb-4 gap-2">
-        <h3 className="text-[12px] font-semibold text-foreground/80">{title}</h3>
-        {action}
-      </div>
-      {empty ? <EmptyRow /> : children}
+    <div className="space-y-1">
+      {rows.map((r) => (
+        <button
+          key={r.id}
+          type="button"
+          onClick={() => onClick(r.id)}
+          className="w-full flex items-center justify-between py-2.5 px-3 -mx-3 rounded-lg text-[12px] hover:bg-secondary/70 transition-colors"
+        >
+          <span className="font-medium text-foreground/85">{r.name}</span>
+          <span className="text-muted-foreground tabular-nums">
+            {r.count} · {formatTHB(r.value)}
+          </span>
+        </button>
+      ))}
+      {rows.length === 0 && <EmptyRow />}
     </div>
   );
 }
