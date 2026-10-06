@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useData } from "@/lib/dataContext";
 import { formatTHB, formatMonth, agingDays, formatDate, STATUS_LABELS } from "@/lib/pipeline";
@@ -80,6 +80,7 @@ function exportCSV(ops, maps) {
 export default function Pipeline() {
   const { scopedOpportunities, activeStages, maps, profile, moveStage } = useData();
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [view, setView] = useState("board");
   const [sort, setSort] = useState("close_month");
   const [formOpen, setFormOpen] = useState(false);
@@ -251,7 +252,7 @@ export default function Pipeline() {
               </thead>
               <tbody>
                 {sorted.map((o) => (
-                  <tr key={o.id} className="border-t border-border hover:bg-secondary/30 cursor-pointer" onClick={() => (window.location.href = `#/opportunity/${o.id}`)}>
+                  <tr key={o.id} className="border-t border-border hover:bg-secondary/30 cursor-pointer" onClick={() => navigate(`/opportunity/${o.id}`)}>
                     <td className="px-3 py-2 font-medium">{o.customer_name}</td>
                     <td className="px-3 py-2 text-muted-foreground">{maps.category[o.product_category_id]?.name}{o.product_id ? ` · ${maps.product[o.product_id]?.name}` : ""}</td>
                     <td className="px-3 py-2">{maps.stage[o.stage_id]?.name}</td>
