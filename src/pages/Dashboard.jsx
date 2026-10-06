@@ -151,7 +151,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <h1 className="text-[22px] font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {ROLE_LABELS[role]} view
             {profile?.isProvisional ? " · Provisional admin" : ""}
@@ -271,8 +271,8 @@ export default function Dashboard() {
                 className="w-full text-left group"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[13px] font-medium">{s.stage.name}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">
+                  <span className="text-[12px] font-medium">{s.stage.name}</span>
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
                     {s.count} · {formatTHB(s.value)}
                   </span>
                 </div>
@@ -363,7 +363,7 @@ export default function Dashboard() {
                   go({ status: "open", product_category: categoryDialog.id, product: p.product.id });
                   setCategoryDialog(null);
                 }}
-                className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-secondary/70 transition-colors text-[13px]"
+                className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-secondary/70 transition-colors text-[12px]"
               >
                 <span className="font-medium">{p.product.name}</span>
                 <span className="text-muted-foreground tabular-nums">
@@ -381,7 +381,7 @@ export default function Dashboard() {
 function Panel({ title, children, empty }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-      <h3 className="text-[13px] font-semibold mb-4 text-foreground/80">{title}</h3>
+      <h3 className="text-[12px] font-semibold mb-4 text-foreground/80">{title}</h3>
       {empty ? <EmptyRow /> : children}
     </div>
   );
@@ -395,7 +395,7 @@ function BreakdownList({ rows, onClick }) {
           key={r.id}
           type="button"
           onClick={() => onClick(r.id)}
-          className="w-full flex items-center justify-between py-2.5 px-3 -mx-3 rounded-lg text-[13px] hover:bg-secondary/70 transition-colors"
+          className="w-full flex items-center justify-between py-2.5 px-3 -mx-3 rounded-lg text-[12px] hover:bg-secondary/70 transition-colors"
         >
           <span className="font-medium text-foreground/85">{r.name}</span>
           <span className="text-muted-foreground tabular-nums">
@@ -416,11 +416,11 @@ function OpportunityMiniList({ ops, maps, navigate, showReason }) {
           key={o.id}
           type="button"
           onClick={() => navigate(`/opportunity/${o.id}`)}
-          className="w-full flex items-center justify-between py-2 px-3 -mx-3 rounded-lg hover:bg-secondary/70 transition-colors text-[13px] text-left"
+          className="w-full flex items-center justify-between py-2 px-3 -mx-3 rounded-lg hover:bg-secondary/70 transition-colors text-[12px] text-left"
         >
           <div className="min-w-0">
             <div className="font-medium truncate">{o.customer_name}</div>
-            <div className="text-xs text-muted-foreground truncate">
+            <div className="text-[11px] text-muted-foreground truncate">
               {maps.stage[o.stage_id]?.name} · {maps.member[o.owner_id]?.name}
               {showReason && o.support_needed && " · Support"}
               {showReason && agingDays(o.stage_entered_at) > 14 && " · Stuck"}
