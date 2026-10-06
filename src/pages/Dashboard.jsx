@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatTHB, formatMonth, agingDays, ROLE_LABELS } from "@/lib/pipeline";
 import KpiCard from "@/components/dashboard/KpiCard";
+import BreakdownChart from "@/components/dashboard/BreakdownChart";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import MonthPicker from "@/components/MonthPicker";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,6 @@ export default function Dashboard() {
     const ops = open.filter((o) => o.stage_id === s.id);
     return { stage: s, count: ops.length, value: sumVal(ops) };
   });
-  const maxStageValue = Math.max(...byStage.map((x) => x.value), 1);
 
   const categories = Object.values(maps.category || {})
     .filter((c) => c.active)
@@ -241,10 +241,10 @@ export default function Dashboard() {
       {/* Role-specific sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Pipeline by Region — management only (first) */}
-        {isManagementLike && (
+        {isManagementLike && !effectiveRegion && (
           <Panel title="Pipeline by Region" empty={!byRegion.length}>
-            <BreakdownList
-              rows={byRegion.map((r) => ({ id: r.region.id, name: r.region.name, count: r.count, value: r.value }))}
+            <BreakdownChart
+              data={byRegion.map((r) => ({ id: r.region.id, name: r.region.name, count: r.count, value: r.value }))}
               onClick={(id) => setRegionFilter(id)}
             />
           </Panel>
@@ -253,8 +253,8 @@ export default function Dashboard() {
         {/* Pipeline by AE — management + SM */}
         {(isManagementLike || role === "sm") && (
           <Panel title="Pipeline by AE (Owner)" empty={!byAE.length}>
-            <BreakdownList
-              rows={byAE.map((a) => ({ id: a.member.id, name: a.member.name, count: a.count, value: a.value }))}
+            <BreakdownChart
+              data={byAE.map((a) => ({ id: a.member.id, name: a.member.name, count: a.count, value: a.value }))}
               onClick={(id) => go({ status: "open", owner: id })}
             />
           </Panel>
@@ -262,36 +262,16 @@ export default function Dashboard() {
 
         {/* Pipeline by Stage — all roles */}
         <Panel title="Pipeline by Stage">
-          <div className="space-y-2.5">
-            {byStage.map((s) => (
-              <button
-                key={s.stage.id}
-                type="button"
-                onClick={() => go({ status: "open", stage: s.stage.id })}
-                className="w-full text-left group"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[13px] font-medium">{s.stage.name}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {s.count} · {formatTHB(s.value)}
-                  </span>
-                </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-brand/70 group-hover:bg-brand transition-all"
-                    style={{ width: `${(s.value / maxStageValue) * 100}%` }}
-                  />
-                </div>
-              </button>
-            ))}
-            {byStage.every((s) => s.count === 0) && <EmptyRow />}
-          </div>
+          <BreakdownChart
+            data={byStage.map((s) => ({ id: s.stage.id, name: s.stage.name, count: s.count, value: s.value }))}
+            onClick={(id) => go({ status: "open", stage: id })}
+          />
         </Panel>
 
         {/* Pipeline by Product Category — all roles */}
         <Panel title="Pipeline by Product Category">
-          <BreakdownList
-            rows={byCategory.map((c) => ({ id: c.category.id, name: c.category.name, count: c.count, value: c.value }))}
+          <BreakdownChart
+            data={byCategory.map((c) => ({ id: c.category.id, name: c.category.name, count: c.count, value: c.value }))}
             onClick={(id) => setCategoryDialog(categories.find((c) => c.id === id))}
           />
         </Panel>

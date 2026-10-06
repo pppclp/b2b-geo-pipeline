@@ -35,6 +35,15 @@ export function formatTHBFull(n) {
   return `฿${Number(n).toLocaleString()}`;
 }
 
+// Compact currency for charts (e.g. ฿11.45M, ฿320K)
+export function formatTHBCompact(n) {
+  if (n == null || isNaN(n)) return "฿0";
+  const num = Number(n);
+  if (Math.abs(num) >= 1e6) return `฿${(num / 1e6).toFixed(2)}M`;
+  if (Math.abs(num) >= 1e3) return `฿${(num / 1e3).toFixed(1)}K`;
+  return `฿${num.toLocaleString()}`;
+}
+
 // Month stored as "YYYY-MM". Display as "Oct 2026".
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
