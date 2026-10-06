@@ -1,0 +1,20 @@
+{
+  "name": "Territory",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "region_id": {
+      "type": "string"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "region_id"
+  ]
+}

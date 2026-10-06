@@ -1,0 +1,20 @@
+{
+  "name": "WorkingWithOption",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "order": {
+      "type": "number",
+      "default": 0
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

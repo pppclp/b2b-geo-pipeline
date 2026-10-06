@@ -1,0 +1,129 @@
+{
+  "name": "Opportunity",
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": "string"
+    },
+    "business_id": {
+      "type": "string"
+    },
+    "customer_type": {
+      "type": "string"
+    },
+    "region_id": {
+      "type": "string"
+    },
+    "territory_id": {
+      "type": "string"
+    },
+    "owner_id": {
+      "type": "string"
+    },
+    "current_handler_id": {
+      "type": "string"
+    },
+    "product_category_id": {
+      "type": "string"
+    },
+    "product_id": {
+      "type": "string"
+    },
+    "stage_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "won",
+        "lost",
+        "archived"
+      ],
+      "default": "open"
+    },
+    "expected_close_month": {
+      "type": "string"
+    },
+    "pipeline_value": {
+      "type": "number",
+      "default": 0
+    },
+    "scenario_id": {
+      "type": "string"
+    },
+    "working_with": {
+      "type": "string"
+    },
+    "working_with_since": {
+      "type": "string"
+    },
+    "support_needed": {
+      "type": "boolean",
+      "default": false
+    },
+    "support_type": {
+      "type": "string"
+    },
+    "support_note": {
+      "type": "string"
+    },
+    "handler_since": {
+      "type": "string"
+    },
+    "stage_entered_at": {
+      "type": "string"
+    },
+    "won_at": {
+      "type": "string"
+    },
+    "won_by": {
+      "type": "string"
+    },
+    "lost_at": {
+      "type": "string"
+    },
+    "lost_by": {
+      "type": "string"
+    },
+    "lost_reason_id": {
+      "type": "string"
+    },
+    "lost_note": {
+      "type": "string"
+    },
+    "created_month": {
+      "type": "string"
+    },
+    "quantity": {
+      "type": "number"
+    },
+    "rc": {
+      "type": "number"
+    },
+    "oc": {
+      "type": "number"
+    },
+    "discount": {
+      "type": "number"
+    },
+    "contract_period": {
+      "type": "number"
+    },
+    "archived_at": {
+      "type": "string"
+    },
+    "last_remark": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "customer_name",
+    "region_id",
+    "owner_id",
+    "current_handler_id",
+    "product_category_id",
+    "stage_id",
+    "pipeline_value"
+  ]
+}

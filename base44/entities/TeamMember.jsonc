@@ -1,0 +1,45 @@
+{
+  "name": "TeamMember",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "app_role": {
+      "type": "string",
+      "enum": [
+        "ae",
+        "sm",
+        "management",
+        "admin"
+      ],
+      "default": "ae"
+    },
+    "region_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "territory_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "app_role"
+  ]
+}

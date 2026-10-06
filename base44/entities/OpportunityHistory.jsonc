@@ -1,0 +1,34 @@
+{
+  "name": "OpportunityHistory",
+  "type": "object",
+  "properties": {
+    "opportunity_id": {
+      "type": "string"
+    },
+    "actor_name": {
+      "type": "string"
+    },
+    "actor_id": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string"
+    },
+    "field": {
+      "type": "string"
+    },
+    "previous_value": {
+      "type": "string"
+    },
+    "new_value": {
+      "type": "string"
+    },
+    "remark": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "opportunity_id",
+    "event_type"
+  ]
+}
