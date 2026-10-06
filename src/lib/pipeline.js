@@ -27,10 +27,7 @@ export const ROLE_LABELS = {
 // Currency: Thai Baht, compact (e.g. ฿1.2M)
 export function formatTHB(n) {
   if (n == null || isNaN(n)) return "฿0";
-  const v = Number(n);
-  if (Math.abs(v) >= 1_000_000) return `฿${(v / 1_000_000).toFixed(2)}M`;
-  if (Math.abs(v) >= 1_000) return `฿${(v / 1_000).toFixed(0)}K`;
-  return `฿${v.toLocaleString()}`;
+  return `฿${Number(n).toLocaleString("en-US")}`;
 }
 
 export function formatTHBFull(n) {

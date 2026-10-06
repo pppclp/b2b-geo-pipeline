@@ -23,6 +23,8 @@ const SORTS = [
   { value: "support_first", label: "Support Needed First" },
 ];
 
+function monthOf(iso) { if (!iso) return ""; return iso.slice(0, 7); }
+
 function applySort(ops, sort) {
   const arr = [...ops];
   switch (sort) {
@@ -78,7 +80,7 @@ function exportCSV(ops, maps) {
 }
 
 export default function Pipeline() {
-  const { scopedOpportunities, activeStages, maps, profile, moveStage } = useData();
+  const { scopedOpportunities, activeStages, maps, profile, moveStage, config } = useData();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState("board");
@@ -90,6 +92,7 @@ export default function Pipeline() {
     const f = { status: "open" };
     if (params.get("assigned") === "me") f.handler = profile?.id;
     if (params.get("support") === "1") f.support = "1";
+    if (params.get("stuck") === "1") f.stuck = "1";
     if (params.get("region")) f.region = params.get("region");
     if (params.get("owner")) f.owner = params.get("owner");
     if (params.get("handler")) f.handler = params.get("handler");
@@ -97,8 +100,12 @@ export default function Pipeline() {
     if (params.get("product")) f.product = params.get("product");
     if (params.get("close_month")) f.close_month = params.get("close_month");
     if (params.get("created_month")) f.created_month = params.get("created_month");
+    if (params.get("won_month")) f.won_month = params.get("won_month");
+    if (params.get("lost_month")) f.lost_month = params.get("lost_month");
+    if (params.get("lost_reason")) f.lost_reason = params.get("lost_reason");
     if (params.get("stage")) f.stage = params.get("stage");
     if (params.get("status")) f.status = params.get("status");
+    if (params.get("sort")) setSort(params.get("sort"));
     setFilters(f);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, profile?.id]);
@@ -107,6 +114,7 @@ export default function Pipeline() {
     if (key === "clear") {
       setFilters({ status: "open" });
       setParams({});
+      setSort("close_month");
       return;
     }
     setFilters((f) => ({ ...f, [key]: value || "" }));
@@ -127,9 +135,13 @@ export default function Pipeline() {
       if (filters.working_with && o.working_with !== filters.working_with) return false;
       if (filters.support === "1" && !o.support_needed) return false;
       if (filters.support === "0" && o.support_needed) return false;
+      if (filters.stuck === "1" && agingDays(o.stage_entered_at) <= (config?.aging_threshold_days || 14)) return false;
+      if (filters.won_month && monthOf(o.won_at) !== filters.won_month) return false;
+      if (filters.lost_month && monthOf(o.lost_at) !== filters.lost_month) return false;
+      if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
       return true;
     });
-  }, [scopedOpportunities, filters]);
+  }, [scopedOpportunities, filters, config]);
 
   const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
 
