@@ -81,7 +81,7 @@ export default function AppLayout() {
   };
 
   const NavList = () => (
-    <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
+    <nav className="flex-1 px-3 py-3 space-y-1.5 overflow-y-auto">
       {items.map((it) => {
         const Icon = it.icon;
         const active = isItemActive(it);
@@ -90,14 +90,14 @@ export default function AppLayout() {
             key={it.to}
             to={it.to}
             onClick={() => setOpen(false)}
-            className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
+            className={`group relative flex items-center gap-2.5 md:gap-3 px-4 md:px-5 py-3 md:py-3.5 rounded-2xl text-[15px] md:text-[16px] font-semibold transition-all ${
               active
                 ? "bg-brand-tint text-brand"
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/70"
             }`}
           >
-            {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-brand" />}
-            <Icon className="w-[18px] h-[18px] shrink-0" />
+            {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-brand" />}
+            <Icon className="w-[18px] h-[18px] md:w-5 md:h-5 shrink-0" />
             {it.label}
           </Link>
         );
