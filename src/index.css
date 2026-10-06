@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -55,9 +56,9 @@
     --shadow-card: 0 1px 2px hsl(222 16% 14% / 0.05), 0 4px 12px hsl(222 16% 14% / 0.04);
     --shadow-lift: 0 4px 10px hsl(222 16% 14% / 0.06), 0 12px 28px hsl(222 16% 14% / 0.07);
 
-    --font-heading: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-heading: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menaco, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
     --sidebar-background: 0 0% 100%;

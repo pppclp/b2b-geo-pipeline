@@ -90,8 +90,8 @@ export default function Pipeline() {
 
   useEffect(() => {
     const f = { status: "open" };
-    if (params.get("assigned") === "me") f.handler = profile?.id;
-    if (params.get("support") === "1") f.support = "1";
+    if (params.get("view") === "assigned-to-me" || params.get("assigned") === "me") f.handler = profile?.id;
+    if (params.get("view") === "support-needed" || params.get("support") === "1") f.support = "1";
     if (params.get("stuck") === "1") f.stuck = "1";
     if (params.get("region")) f.region = params.get("region");
     if (params.get("owner")) f.owner = params.get("owner");

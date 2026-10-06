@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useMemo } from "react";
+import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { useData } from "@/lib/dataContext";
 import { ROLE_LABELS } from "@/lib/pipeline";
@@ -12,9 +12,9 @@ const LOGO_URL = "https://media.base44.com/images/public/6ac51b65ecc4f77b629b884
 const navFor = (role) => {
   const base = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-    { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
-    { to: "/pipeline?assigned=me", label: "Assigned to Me", icon: HandHelping },
-    { to: "/pipeline?support=1", label: "Support Needed", icon: AlertCircle },
+    { to: "/pipeline", label: "Pipeline", icon: KanbanSquare, view: "all" },
+    { to: "/pipeline?view=assigned-to-me", label: "Assigned to Me", icon: HandHelping, view: "assigned-to-me" },
+    { to: "/pipeline?view=support-needed", label: "Support Needed", icon: AlertCircle, view: "support-needed" },
   ];
   if (role === "admin") {
     base.push({ to: "/admin", label: "Admin", icon: Settings });
@@ -64,32 +64,42 @@ export default function AppLayout() {
     </div>
   );
 
+  const currentView = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const view = params.get("view");
+    if (view === "assigned-to-me" || params.get("assigned") === "me") return "assigned-to-me";
+    if (view === "support-needed" || params.get("support") === "1") return "support-needed";
+    return "all";
+  }, [location.search]);
+
+  const isItemActive = (item) => {
+    if (item.view) {
+      return location.pathname === "/pipeline" && currentView === item.view;
+    }
+    if (item.end) return location.pathname === item.to;
+    return location.pathname.startsWith(item.to.split("?")[0]);
+  };
+
   const NavList = () => (
-    <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
+    <nav className="flex-1 px-3 py-3 space-y-1.5 overflow-y-auto">
       {items.map((it) => {
         const Icon = it.icon;
+        const active = isItemActive(it);
         return (
-          <NavLink
+          <Link
             key={it.to}
             to={it.to}
-            end={it.end}
             onClick={() => setOpen(false)}
-            className={({ isActive }) =>
-              `group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] transition-all ${
-                isActive
-                  ? "bg-brand-tint text-brand font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/70"
-              }`
-            }
+            className={`group relative flex items-center gap-2.5 md:gap-3 px-4 md:px-5 py-3 md:py-3.5 rounded-2xl text-[15px] md:text-[16px] font-semibold transition-all ${
+              active
+                ? "bg-brand-tint text-brand"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/70"
+            }`}
           >
-            {({ isActive }) => (
-              <>
-                {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-brand" />}
-                <Icon className="w-[18px] h-[18px]" />
-                {it.label}
-              </>
-            )}
-          </NavLink>
+            {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-brand" />}
+            <Icon className="w-[18px] h-[18px] md:w-5 md:h-5 shrink-0" />
+            {it.label}
+          </Link>
         );
       })}
     </nav>
