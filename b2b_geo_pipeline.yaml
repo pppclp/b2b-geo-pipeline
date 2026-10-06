@@ -1,0 +1,2292 @@
+
+# ============================================================
+# B2B GEO PIPELINE
+# DATA LINEAGE + INTEGRATION + UI + EXPORT MAPPING CONTRACT
+# ============================================================
+
+application:
+  name: "B2B GEO Pipeline"
+  phase: "Prototype / UAT"
+
+  core_principle:
+    - "Master Excel files are INITIAL SEED / BULK UPDATE sources only."
+    - "After import, Application Database becomes the Source of Truth."
+    - "Web App reads and writes data through Application Database / API."
+    - "Export files are OUTPUT only."
+    - "Never use exported Excel files as the live Pipeline database."
+    - "All relationships must use stable IDs."
+    - "Display names are for UI / reports only, not relational keys."
+
+# ============================================================
+# 0. HIGH-LEVEL DATA FLOW
+# ============================================================
+
+data_flow:
+
+  master_data:
+    flow:
+      - "Excel / Google Sheet"
+      - "Import Mapping"
+      - "Validation"
+      - "API / Backend"
+      - "Application Database"
+      - "Web App UI"
+
+  pipeline_usage:
+    flow:
+      - "AE / SM / Management / Admin"
+      - "Web App"
+      - "API / Backend"
+      - "Application Database"
+
+  history:
+    flow:
+      - "Opportunity Change"
+      - "Backend Business Logic"
+      - "Opportunity Event"
+      - "Append-only Change Log"
+
+  month_end:
+    flow:
+      - "Application Database"
+      - "Month-End Snapshot Process"
+      - "Monthly Snapshot Table"
+
+  export:
+    flow:
+      - "Application Database"
+      - "Permission Filter"
+      - "Active UI Filters"
+      - "Export Generator"
+      - "Excel Output"
+
+
+# ============================================================
+# 1. SOURCE FILE 01
+# USER & ORGANIZATION MASTER
+# ============================================================
+
+source_01_user_org_master:
+
+  file:
+    name: "B2B_GEO_User_Org_Master.xlsx"
+    source_id: "USER_ORG_MASTER"
+    purpose: "Users, Roles, Regions, Territories, User-Region access mapping"
+    direction: "SOURCE_TO_APP"
+
+  # ----------------------------------------------------------
+  # USERS
+  # ----------------------------------------------------------
+
+  sheet_users:
+
+    source_sheet: "Users"
+    target_entity: "users"
+    primary_key: "user_id"
+
+    fields:
+
+      user_id:
+        source: "Users.user_id"
+        target: "users.user_id"
+        type: "string"
+        required: true
+        immutable: true
+
+        used_by:
+          - "opportunities.owner_user_id"
+          - "opportunities.original_owner_user_id"
+          - "opportunities.current_handler_user_id"
+          - "opportunities.created_by_user_id"
+          - "opportunities.won_by_user_id"
+          - "opportunities.lost_by_user_id"
+          - "opportunity_events.actor_user_id"
+          - "user_regions.user_id"
+
+        ui_display:
+          - "Opportunity Owner"
+          - "Current Handler"
+          - "Created By"
+          - "Won By"
+          - "Lost By"
+          - "AE Filter"
+          - "Current Handler Filter"
+          - "Dashboard by AE"
+
+      employee_id:
+        source: "Users.employee_id"
+        target: "users.employee_id"
+
+        ui_display:
+          - "Admin > User Management"
+
+        import_usage:
+          - "May be used to resolve legacy AE names during pipeline migration"
+
+      display_name:
+        source: "Users.display_name"
+        target: "users.display_name"
+
+        ui_display:
+          - "User name shown throughout the app"
+          - "Owner Name"
+          - "Current Handler Name"
+          - "AE Dashboard"
+          - "Export display column"
+
+        relationship_key: false
+
+      email:
+        source: "Users.email"
+        target: "users.email"
+
+        ui_display:
+          - "Admin > User Management"
+
+        possible_usage:
+          - "UAT authentication"
+          - "User matching during import"
+
+        relationship_key: false
+
+      role:
+        source: "Users.role"
+        target: "users.role"
+
+        allowed_values:
+          - "AE"
+          - "SM"
+          - "Management"
+          - "Admin"
+
+        controls:
+          - "Permission Scope"
+          - "Available Navigation"
+          - "Dashboard Scope"
+          - "Edit Permission"
+          - "Export Permission"
+
+      status:
+        source: "Users.status"
+        target: "users.status"
+
+        allowed_values:
+          - "Active"
+          - "Inactive"
+
+        business_rule:
+          - "Never hard-delete historical users."
+          - "Inactive users remain readable in Opportunity history."
+
+      default_region_id:
+        source: "Users.default_region_id"
+        target: "users.default_region_id"
+        foreign_key: "regions.region_id"
+
+        usage:
+          - "Default UX selection only"
+          - "Do NOT use as the only permission source"
+
+      default_territory_id:
+        source: "Users.default_territory_id"
+        target: "users.default_territory_id"
+        foreign_key: "territories.territory_id"
+
+
+  # ----------------------------------------------------------
+  # USER_REGION
+  # ----------------------------------------------------------
+
+  sheet_user_region:
+
+    source_sheet: "User_Region"
+    target_entity: "user_regions"
+    primary_key: "user_region_id"
+
+    purpose:
+      - "Many-to-many User ↔ Region permission mapping"
+
+    fields:
+
+      user_region_id:
+        target: "user_regions.user_region_id"
+        immutable: true
+
+      user_id:
+        source: "User_Region.user_id"
+        target: "user_regions.user_id"
+        foreign_key: "users.user_id"
+
+      region_id:
+        source: "User_Region.region_id"
+        target: "user_regions.region_id"
+        foreign_key: "regions.region_id"
+
+      is_primary:
+        source: "User_Region.is_primary"
+        target: "user_regions.is_primary"
+
+      active:
+        source: "User_Region.active"
+        target: "user_regions.active"
+
+      effective_from:
+        source: "User_Region.effective_from"
+        target: "user_regions.effective_from"
+
+      effective_to:
+        source: "User_Region.effective_to"
+        target: "user_regions.effective_to"
+
+    used_for:
+
+      AE:
+        - "Determine permitted Region scope"
+
+      SM:
+        - "Determine which Regions SM manages"
+
+      Management:
+        - "Optional restricted Management scope"
+
+      export:
+        - "Restrict data before generating Excel"
+
+
+  # ----------------------------------------------------------
+  # REGIONS
+  # ----------------------------------------------------------
+
+  sheet_regions:
+
+    source_sheet: "Regions"
+    target_entity: "regions"
+    primary_key: "region_id"
+
+    fields:
+
+      region_id:
+        source: "Regions.region_id"
+        target: "regions.region_id"
+
+        referenced_by:
+          - "user_regions.region_id"
+          - "territories.region_id"
+          - "opportunities.region_id"
+          - "monthly_snapshots.region_id"
+
+      region_name:
+        source: "Regions.region_name"
+        target: "regions.region_name"
+
+        ui_display:
+          - "Pipeline Filter"
+          - "Opportunity Form"
+          - "Management Dashboard"
+          - "Region Detail Page"
+          - "Exports"
+
+      sort_order:
+        target: "regions.sort_order"
+
+      active:
+        target: "regions.active"
+
+    UI_flow:
+      - "Dashboard > Region"
+      - "Click Region"
+      - "Region Detail"
+      - "Filtered Pipeline"
+
+
+  # ----------------------------------------------------------
+  # TERRITORIES
+  # ----------------------------------------------------------
+
+  sheet_territories:
+
+    source_sheet: "Territories"
+    target_entity: "territories"
+    primary_key: "territory_id"
+
+    fields:
+
+      territory_id:
+        source: "Territories.territory_id"
+        target: "territories.territory_id"
+
+      territory_name:
+        source: "Territories.territory_name"
+        target: "territories.territory_name"
+
+      region_id:
+        source: "Territories.region_id"
+        target: "territories.region_id"
+        foreign_key: "regions.region_id"
+
+      active:
+        target: "territories.active"
+
+    referenced_by:
+      - "opportunities.territory_id"
+
+    validation:
+      - "Selected Territory must belong to selected Region."
+
+
+# ============================================================
+# 2. SOURCE FILE 02
+# PRODUCT MASTER
+# ============================================================
+
+source_02_product_master:
+
+  file:
+    name: "B2B_Product_Master.xlsx"
+    source_id: "PRODUCT_MASTER"
+    direction: "SOURCE_TO_APP"
+
+  hierarchy:
+    - "Product Category"
+    - "Product"
+
+  prohibited_structure:
+    - "Product Subcategory"
+
+  # ----------------------------------------------------------
+  # PRODUCT CATEGORY
+  # ----------------------------------------------------------
+
+  sheet_product_categories:
+
+    source_sheet: "Product_Categories"
+    target_entity: "product_categories"
+    primary_key: "category_id"
+
+    fields:
+
+      category_id:
+        source: "Product_Categories.category_id"
+        target: "product_categories.category_id"
+
+        referenced_by:
+          - "products.category_id"
+
+      category_name:
+        source: "Product_Categories.category_name"
+        target: "product_categories.category_name"
+
+        initial_values:
+          - "TOL"
+          - "TMH"
+          - "TVS"
+          - "Solution"
+
+        ui_display:
+          - "Create / Edit Opportunity"
+          - "Pipeline Filter"
+          - "Dashboard Product Category"
+          - "Product Analysis"
+          - "Export"
+
+      sort_order:
+        target: "product_categories.sort_order"
+
+      active:
+        target: "product_categories.active"
+
+
+  # ----------------------------------------------------------
+  # PRODUCTS
+  # ----------------------------------------------------------
+
+  sheet_products:
+
+    source_sheet: "Products"
+    target_entity: "products"
+    primary_key: "product_id"
+
+    fields:
+
+      product_id:
+        source: "Products.product_id"
+        target: "products.product_id"
+
+        referenced_by:
+          - "opportunities.product_id"
+          - "monthly_snapshots.product_id"
+
+      product_name:
+        source: "Products.product_name"
+        target: "products.product_name"
+
+        ui_display:
+          - "Opportunity Product"
+          - "Pipeline Card"
+          - "Pipeline List"
+          - "Dashboard Product Detail"
+          - "Export"
+
+      category_id:
+        source: "Products.category_id"
+        target: "products.category_id"
+        foreign_key: "product_categories.category_id"
+
+      sort_order:
+        target: "products.sort_order"
+
+      active:
+        target: "products.active"
+
+    UI_behavior:
+
+      opportunity_form:
+        step_1:
+          field: "Product Category"
+
+        step_2:
+          field: "Product"
+          behavior: "Show only Products where products.category_id = selected category_id"
+
+    dashboard_navigation:
+      - "Product Category"
+      - "Product"
+      - "Filtered Pipeline"
+
+
+# ============================================================
+# 3. SOURCE FILE 03
+# PIPELINE CONFIGURATION MASTER
+# ============================================================
+
+source_03_pipeline_config:
+
+  file:
+    name: "B2B_GEO_Pipeline_Config.xlsx"
+    source_id: "PIPELINE_CONFIG_MASTER"
+    direction: "SOURCE_TO_APP"
+
+  # ----------------------------------------------------------
+  # STAGES
+  # ----------------------------------------------------------
+
+  sheet_stages:
+
+    source_sheet: "Stages"
+    target_entity: "stages"
+    primary_key: "stage_id"
+
+    fields:
+
+      stage_id:
+        target: "stages.stage_id"
+
+        referenced_by:
+          - "opportunities.stage_id"
+          - "monthly_snapshots.stage_id"
+
+      stage_name:
+        target: "stages.stage_name"
+
+        UI_display:
+          - "Pipeline Board column"
+          - "Opportunity Detail"
+          - "Pipeline Filter"
+          - "Dashboard Stage"
+          - "Export"
+
+      sort_order:
+        target: "stages.sort_order"
+
+        controls:
+          - "Kanban column order"
+
+      weight_pct:
+        target: "stages.weight_pct"
+
+        used_to_calculate:
+          formula: "weighted_pipeline_value = pipeline_value * weight_pct / 100"
+
+      active:
+        target: "stages.active"
+
+    business_rules:
+      - "Stage name is configurable."
+      - "Stage weight is Admin controlled."
+      - "AE / SM must not enter Probability manually."
+      - "Historical Stage must not be hard deleted."
+
+
+  # ----------------------------------------------------------
+  # SCENARIOS
+  # ----------------------------------------------------------
+
+  sheet_scenarios:
+
+    source_sheet: "Scenarios"
+    target_entity: "scenarios"
+    primary_key: "scenario_id"
+
+    fields:
+
+      scenario_id:
+        referenced_by:
+          - "opportunities.scenario_id"
+
+      scenario_name:
+        UI_display:
+          - "Opportunity Form"
+          - "Pipeline Filter"
+          - "Export"
+
+    business_rule:
+      - "Scenario is optional."
+      - "Scenario does not control routing/workflow in MVP."
+
+
+  # ----------------------------------------------------------
+  # LOST REASONS
+  # ----------------------------------------------------------
+
+  sheet_lost_reasons:
+
+    source_sheet: "Lost_Reasons"
+    target_entity: "lost_reasons"
+    primary_key: "reason_id"
+
+    fields:
+
+      reason_id:
+        referenced_by:
+          - "opportunities.lost_reason_id"
+
+      reason_name:
+        UI_display:
+          - "Mark as Lost dialog"
+          - "Lost Dashboard"
+          - "Closed Lost Export"
+          - "Lost Reason Summary"
+
+    business_rules:
+      - "Required when status = Lost."
+      - "Admin configurable."
+      - "Deactivate instead of delete."
+
+    example_values:
+      - "Price"
+      - "Competitor"
+      - "Budget Issue"
+      - "Customer Postponed"
+      - "No Response"
+      - "Requirement Changed"
+      - "Internal Limitation"
+      - "Duplicate / Invalid Opportunity"
+      - "Other"
+
+
+  # ----------------------------------------------------------
+  # WORKING WITH
+  # ----------------------------------------------------------
+
+  sheet_working_with:
+
+    source_sheet: "Working_With"
+    target_entity: "working_with_options"
+    primary_key: "team_id"
+
+    fields:
+
+      team_id:
+        referenced_by:
+          - "opportunities.working_with_id"
+
+      team_name:
+        UI_display:
+          - "Opportunity Detail"
+          - "Pipeline Filter"
+          - "Pipeline Card optional tag"
+          - "Current Pipeline Export"
+
+    initial_values:
+      - "Presales"
+      - "Pricing"
+      - "Product"
+      - "Fulfillment"
+      - "Operation"
+      - "Other"
+
+    business_rule:
+      - "These are internal teams, NOT application Users."
+
+
+  # ----------------------------------------------------------
+  # SUPPORT TYPES
+  # ----------------------------------------------------------
+
+  sheet_support_types:
+
+    source_sheet: "Support_Types"
+    target_entity: "support_types"
+    primary_key: "support_type_id"
+
+    fields:
+
+      support_type_id:
+        referenced_by:
+          - "opportunities.support_type_id"
+
+      support_type_name:
+        UI_display:
+          - "Support Needed section"
+          - "Management Dashboard"
+          - "Pipeline Detail"
+          - "Export"
+
+    initial_values:
+      - "Pricing"
+      - "Product"
+      - "Internal Coordination"
+      - "Customer Issue"
+      - "Other"
+
+
+  # ----------------------------------------------------------
+  # AGING SETTINGS
+  # ----------------------------------------------------------
+
+  sheet_aging_settings:
+
+    source_sheet: "Aging_Settings"
+    target_entity: "pipeline_settings"
+    primary_key: "setting_id"
+
+    field:
+      threshold_days:
+        used_to_calculate:
+          formula: "stuck_pipeline = stage_aging_days > threshold_days"
+
+    UI_display:
+      - "Admin > Pipeline Configuration"
+
+    dashboard_usage:
+      - "Stuck Pipeline Count"
+      - "Stuck Pipeline Value"
+
+
+# ============================================================
+# 4. SOURCE FILE 04 — OPTIONAL
+# EXISTING PIPELINE IMPORT
+# ============================================================
+
+source_04_existing_pipeline_import:
+
+  file:
+    name: "B2B_GEO_Pipeline_Import.xlsx"
+    source_id: "EXISTING_PIPELINE_IMPORT"
+    optional: true
+
+    purpose:
+      - "Migration of existing Opportunity data"
+      - "Controlled bulk import"
+
+    permanent_master: false
+
+  import_flow:
+    - "Upload"
+    - "Column Mapping"
+    - "Validate"
+    - "Preview"
+    - "Confirm"
+    - "Import"
+
+  source_sheet:
+    name: "Pipeline_Import"
+
+  target_entity:
+    name: "opportunities"
+
+  reference_resolution:
+
+    owner:
+      source_examples:
+        - "Sales Name"
+        - "AE Name"
+        - "Employee ID"
+
+      resolve_to:
+        entity: "users"
+        key: "user_id"
+
+    current_handler:
+      resolve_to:
+        entity: "users"
+        key: "user_id"
+
+    region:
+      resolve_to:
+        entity: "regions"
+        key: "region_id"
+
+    territory:
+      resolve_to:
+        entity: "territories"
+        key: "territory_id"
+
+    product_category:
+      resolve_to:
+        entity: "product_categories"
+        key: "category_id"
+
+    product:
+      resolve_to:
+        entity: "products"
+        key: "product_id"
+
+    stage:
+      resolve_to:
+        entity: "stages"
+        key: "stage_id"
+
+    scenario:
+      resolve_to:
+        entity: "scenarios"
+        key: "scenario_id"
+
+    working_with:
+      resolve_to:
+        entity: "working_with_options"
+        key: "team_id"
+
+    support_type:
+      resolve_to:
+        entity: "support_types"
+        key: "support_type_id"
+
+    lost_reason:
+      resolve_to:
+        entity: "lost_reasons"
+        key: "reason_id"
+
+  validation_rules:
+    - "Do not silently create missing master records."
+    - "Unmatched Product / User / Stage / Region must show validation error."
+    - "Optional fields may be blank."
+    - "Status = Lost requires Lost Reason."
+    - "Territory must belong to Region."
+    - "Product must belong to selected Product Category."
+
+
+# ============================================================
+# 5. CORE ENTITY — OPPORTUNITIES
+# ============================================================
+
+opportunity_entity:
+
+  target_entity: "opportunities"
+  primary_key: "opportunity_id"
+
+  field_lineage:
+
+    opportunity_id:
+      generated_by: "Application"
+      displayed_as:
+        - "Internal Opportunity ID"
+        - "Export ID"
+
+    customer_name:
+      source:
+        new_record: "AE / SM input"
+        migration: "Pipeline Import.customer_name"
+
+      displayed_as:
+        - "Pipeline Card title"
+        - "Pipeline List"
+        - "Opportunity Detail"
+        - "Exports"
+
+    business_id:
+      source:
+        new_record: "AE / SM input"
+        migration: "Pipeline Import.business_id"
+
+      displayed_as:
+        - "Opportunity Detail"
+        - "List / Export"
+
+    customer_type:
+      source:
+        new_record: "AE / SM input"
+
+      displayed_as:
+        - "Opportunity Detail"
+        - "Export"
+
+    scenario_id:
+      source: "scenarios.scenario_id"
+
+      displayed_value:
+        from: "scenarios.scenario_name"
+
+    region_id:
+      source: "regions.region_id"
+
+      displayed_value:
+        from: "regions.region_name"
+
+    territory_id:
+      source: "territories.territory_id"
+
+      displayed_value:
+        from: "territories.territory_name"
+
+    original_owner_user_id:
+      source: "users.user_id"
+      generated_on: "Opportunity Creation"
+
+      business_rule:
+        - "Never change after creation."
+
+    owner_user_id:
+      source: "users.user_id"
+
+      displayed_value:
+        from: "users.display_name"
+
+      business_meaning:
+        - "Commercial / customer relationship owner"
+
+    current_handler_user_id:
+      source: "users.user_id"
+
+      displayed_value:
+        from: "users.display_name"
+
+      business_meaning:
+        - "Person currently responsible for next action"
+
+      business_rule:
+        - "Changing Current Handler does NOT change Owner."
+
+    product_id:
+      source: "products.product_id"
+
+      displayed_value:
+        from: "products.product_name"
+
+      indirect_category:
+        relation: "products.category_id → product_categories.category_id"
+
+    stage_id:
+      source: "stages.stage_id"
+
+      displayed_value:
+        from: "stages.stage_name"
+
+      stage_weight:
+        from: "stages.weight_pct"
+
+    status:
+      allowed:
+        - "Open"
+        - "Won"
+        - "Lost"
+        - "Archived"
+
+      business_rule:
+        - "Status is separate from Stage."
+
+    expected_close_month:
+      source: "AE / SM input"
+      format: "YYYY-MM"
+
+      displayed_as:
+        - "Pipeline Card"
+        - "Pipeline List"
+        - "Dashboard Expected to Close"
+        - "Filter"
+        - "Exports"
+
+    quantity:
+      source: "AE / SM input"
+
+    rc:
+      source: "AE / SM input"
+
+    oc:
+      source: "AE / SM input"
+
+    discount_pct:
+      source: "AE / SM input"
+
+    contract_period_months:
+      source: "AE / SM input"
+
+    pipeline_value:
+      source: "AE / SM input OR calculated business rule after confirmed"
+
+      current_status:
+        - "Generic primary Pipeline Value for UAT"
+
+      TODO:
+        - "Confirm whether final business metric = Net RC, Contract Value, or another value."
+
+      displayed_as:
+        - "Pipeline Card"
+        - "Dashboard"
+        - "Product Analysis"
+        - "Region Analysis"
+        - "AE Analysis"
+        - "Exports"
+
+    weighted_pipeline_value:
+      source: "CALCULATED"
+
+      formula:
+        "pipeline_value * stages.weight_pct / 100"
+
+      user_editable: false
+
+    created_at:
+      source: "SYSTEM"
+      immutable: true
+
+    created_month:
+      source: "CALCULATED"
+
+      formula:
+        "YYYY-MM(created_at)"
+
+      displayed_as:
+        - "Created Month Filter"
+        - "Pipeline Created Dashboard"
+
+    created_by_user_id:
+      source: "Authenticated User"
+
+    stage_entered_at:
+      source: "SYSTEM"
+
+      update_when:
+        - "stage_id changes"
+
+    stage_aging_days:
+      source: "CALCULATED"
+
+      formula:
+        "today - stage_entered_at"
+
+      displayed_as:
+        - "Pipeline Card"
+        - "Pipeline List"
+        - "Stuck Pipeline logic"
+
+    handler_since:
+      source: "SYSTEM"
+
+      update_when:
+        - "current_handler_user_id changes"
+
+    handler_aging_days:
+      source: "CALCULATED"
+
+      formula:
+        "today - handler_since"
+
+    working_with_id:
+      source: "working_with_options.team_id"
+
+    working_with_since:
+      source: "SYSTEM"
+
+      update_when:
+        - "working_with_id changes"
+
+    working_with_aging_days:
+      source: "CALCULATED"
+
+      formula:
+        "today - working_with_since"
+
+    support_needed:
+      source: "AE / SM input"
+      type: "boolean"
+
+      displayed_as:
+        - "Small Support Needed pill on Pipeline Card"
+        - "Management Dashboard Count / Value"
+
+    support_type_id:
+      source: "support_types.support_type_id"
+
+      visible_when:
+        "support_needed = true"
+
+    support_note:
+      source: "AE / SM input"
+      optional: true
+
+    won_at:
+      source: "SYSTEM"
+      set_when:
+        "status → Won"
+
+    won_by_user_id:
+      source: "Current authenticated user"
+
+    lost_at:
+      source: "SYSTEM"
+      set_when:
+        "status → Lost"
+
+    lost_by_user_id:
+      source: "Current authenticated user"
+
+    lost_reason_id:
+      source: "lost_reasons.reason_id"
+
+      required_when:
+        "status = Lost"
+
+    lost_note:
+      source: "AE / SM input"
+      optional: true
+
+
+# ============================================================
+# 6. OPPORTUNITY EVENT / CHANGE LOG
+# ============================================================
+
+opportunity_events:
+
+  entity: "opportunity_events"
+  primary_key: "event_id"
+  append_only: true
+  manually_editable: false
+
+  generated_from:
+
+    opportunity_creation:
+      event_type: "OPPORTUNITY_CREATED"
+
+    owner_change:
+      event_type: "OWNER_CHANGED"
+
+    handler_change:
+      event_type: "HANDLER_CHANGED"
+
+    stage_change:
+      event_type: "STAGE_CHANGED"
+
+    expected_close_change:
+      event_type: "EXPECTED_CLOSE_CHANGED"
+
+    working_with_change:
+      event_type: "WORKING_WITH_CHANGED"
+
+    support_on:
+      event_type: "SUPPORT_RAISED"
+
+    support_off:
+      event_type: "SUPPORT_CLEARED"
+
+    general_status_change:
+      event_type: "STATUS_CHANGED"
+
+    win:
+      event_type: "WON"
+
+    loss:
+      event_type: "LOST"
+
+    archive:
+      event_type: "ARCHIVED"
+
+  fields:
+
+    event_id:
+      generated: true
+
+    opportunity_id:
+      foreign_key: "opportunities.opportunity_id"
+
+    event_type:
+      controlled_enum: true
+
+    field_name:
+      description: "Field affected"
+
+    previous_value_id:
+      description: "Stable ID before change"
+
+    previous_value:
+      description: "Display text before change"
+
+    new_value_id:
+      description: "Stable ID after change"
+
+    new_value:
+      description: "Display text after change"
+
+    actor_user_id:
+      foreign_key: "users.user_id"
+
+    event_at:
+      generated: true
+
+    remark:
+      optional: true
+
+
+# ============================================================
+# 7. WEB APP DISPLAY MAPPING
+# ============================================================
+
+web_app:
+
+  pipeline_card:
+
+    data_source:
+      - "opportunities"
+      - "users"
+      - "products"
+      - "product_categories"
+      - "stages"
+      - "working_with_options"
+
+    fields_displayed:
+      customer:
+        from: "opportunities.customer_name"
+
+      product:
+        from: "products.product_name"
+
+      pipeline_value:
+        from: "opportunities.pipeline_value"
+
+      expected_close:
+        from: "opportunities.expected_close_month"
+
+      owner:
+        join:
+          "opportunities.owner_user_id → users.user_id"
+        show:
+          "users.display_name"
+
+      current_handler:
+        join:
+          "opportunities.current_handler_user_id → users.user_id"
+        show:
+          "users.display_name"
+
+      stage_aging:
+        calculate:
+          "today - opportunities.stage_entered_at"
+
+      working_with:
+        join:
+          "opportunities.working_with_id → working_with_options.team_id"
+        optional: true
+
+      support_needed:
+        from: "opportunities.support_needed"
+        display:
+          "Small Support Needed pill only"
+
+
+  pipeline_filters:
+
+    created_month:
+      from: "opportunities.created_at"
+      derived: "YYYY-MM"
+
+      options:
+        - "All Months"
+        - "Available Created Months"
+
+      rule:
+        - "All Months means DO NOT apply created_month WHERE condition."
+
+    expected_close_month:
+      from: "opportunities.expected_close_month"
+
+      options:
+        - "All Months"
+        - "Available Expected Close Months"
+
+      rule:
+        - "All Months means DO NOT apply expected_close WHERE condition."
+
+    region:
+      join:
+        "opportunities.region_id → regions.region_id"
+
+    owner:
+      join:
+        "opportunities.owner_user_id → users.user_id"
+
+    current_handler:
+      join:
+        "opportunities.current_handler_user_id → users.user_id"
+
+    stage:
+      join:
+        "opportunities.stage_id → stages.stage_id"
+
+    status:
+      from: "opportunities.status"
+
+    product_category:
+      relation:
+        - "opportunities.product_id → products.product_id"
+        - "products.category_id → product_categories.category_id"
+
+    product:
+      join:
+        "opportunities.product_id → products.product_id"
+
+    scenario:
+      join:
+        "opportunities.scenario_id → scenarios.scenario_id"
+
+    working_with:
+      join:
+        "opportunities.working_with_id → working_with_options.team_id"
+
+    support_needed:
+      from: "opportunities.support_needed"
+
+
+# ============================================================
+# 8. DASHBOARD DATA MAPPING
+# ============================================================
+
+dashboard:
+
+  pipeline_created:
+
+    question:
+      "How much new Pipeline was created during the selected month?"
+
+    source:
+      "opportunities.created_at"
+
+    filter_by:
+      "created_month"
+
+    metrics:
+      count:
+        formula: "COUNT(opportunity_id)"
+
+      value:
+        formula: "SUM(pipeline_value)"
+
+    group_by:
+      - "Region"
+      - "AE / Owner"
+      - "Product Category"
+      - "Product"
+
+
+  expected_to_close:
+
+    source:
+      "opportunities.expected_close_month"
+
+    metrics:
+      - "COUNT(opportunity_id)"
+      - "SUM(pipeline_value)"
+
+
+  won:
+
+    source:
+      - "opportunities.status"
+      - "opportunities.won_at"
+
+    condition:
+      "status = Won AND won_month = selected month"
+
+    metrics:
+      - "Won Count"
+      - "Won Value"
+
+
+  lost:
+
+    source:
+      - "opportunities.status"
+      - "opportunities.lost_at"
+      - "lost_reasons"
+
+    metrics:
+      - "Lost Count"
+      - "Lost Value"
+
+    group_by:
+      - "Lost Reason"
+
+
+  pipeline_by_region:
+
+    relation:
+      "opportunities.region_id → regions.region_id"
+
+    metrics:
+      - "Count"
+      - "Pipeline Value"
+
+
+  pipeline_by_ae:
+
+    relation:
+      "opportunities.owner_user_id → users.user_id"
+
+    metrics:
+      - "Count"
+      - "Pipeline Value"
+
+
+  pipeline_by_stage:
+
+    relation:
+      "opportunities.stage_id → stages.stage_id"
+
+    metrics:
+      - "Count"
+      - "Pipeline Value"
+      - "Weighted Pipeline Value"
+
+
+  pipeline_by_product_category:
+
+    joins:
+      - "opportunities.product_id → products.product_id"
+      - "products.category_id → product_categories.category_id"
+
+    metrics:
+      - "Opportunity Count"
+      - "Pipeline Value"
+
+
+  support_needed:
+
+    condition:
+      "opportunities.support_needed = true"
+
+    metrics:
+      - "Opportunity Count"
+      - "Pipeline Value"
+
+    click_behavior:
+      "Navigate to Pipeline with Support Needed filter = true"
+
+
+  stuck_pipeline:
+
+    source:
+      - "opportunities.stage_entered_at"
+      - "pipeline_settings.threshold_days"
+
+    formula:
+      "stage_aging_days > configured threshold"
+
+    metrics:
+      - "Count"
+      - "Pipeline Value"
+
+
+# ============================================================
+# 9. EXPORT TEMPLATE 01
+# CURRENT PIPELINE EXPORT
+# ============================================================
+
+export_01_current_pipeline:
+
+  file:
+    name: "B2B_GEO_Current_Pipeline_Export_Template.xlsx"
+
+  source:
+    primary: "opportunities"
+
+    joins:
+      users_owner:
+        "opportunities.owner_user_id → users.user_id"
+
+      original_owner:
+        "opportunities.original_owner_user_id → users.user_id"
+
+      handler:
+        "opportunities.current_handler_user_id → users.user_id"
+
+      region:
+        "opportunities.region_id → regions.region_id"
+
+      territory:
+        "opportunities.territory_id → territories.territory_id"
+
+      product:
+        "opportunities.product_id → products.product_id"
+
+      product_category:
+        "products.category_id → product_categories.category_id"
+
+      stage:
+        "opportunities.stage_id → stages.stage_id"
+
+      scenario:
+        "opportunities.scenario_id → scenarios.scenario_id"
+
+      working_with:
+        "opportunities.working_with_id → working_with_options.team_id"
+
+      support_type:
+        "opportunities.support_type_id → support_types.support_type_id"
+
+      lost_reason:
+        "opportunities.lost_reason_id → lost_reasons.reason_id"
+
+  output_sheet:
+    "Current_Pipeline_Export"
+
+  grain:
+    "1 row = 1 Opportunity"
+
+  output_groups:
+
+    identity:
+      - "opportunity_id"
+      - "customer_name"
+      - "business_id"
+      - "customer_type"
+
+    scenario:
+      - "scenario_id"
+      - "scenario_name"
+
+    organization:
+      - "region_id"
+      - "region_name"
+      - "territory_id"
+      - "territory_name"
+
+    ownership:
+      - "original_owner_user_id"
+      - "original_owner_name"
+      - "owner_user_id"
+      - "owner_name"
+      - "current_handler_user_id"
+      - "current_handler_name"
+
+    product:
+      - "category_id"
+      - "category_name"
+      - "product_id"
+      - "product_name"
+
+    commercial:
+      - "quantity"
+      - "rc"
+      - "oc"
+      - "discount_pct"
+      - "contract_period_months"
+      - "pipeline_value"
+
+    pipeline:
+      - "stage_id"
+      - "stage_name"
+      - "stage_weight_pct"
+      - "weighted_pipeline_value"
+      - "status"
+      - "expected_close_month"
+
+    creation:
+      - "created_at"
+      - "created_month"
+      - "created_by_user_id"
+      - "created_by_name"
+      - "updated_at"
+
+    aging:
+      - "stage_entered_at"
+      - "stage_aging_days"
+      - "handler_since"
+      - "handler_aging_days"
+
+    working_with:
+      - "working_with_id"
+      - "working_with_name"
+      - "working_with_since"
+      - "working_with_aging_days"
+
+    support:
+      - "support_needed"
+      - "support_type_id"
+      - "support_type_name"
+      - "support_note"
+
+    closure:
+      - "won_at"
+      - "won_by_user_id"
+      - "won_by_name"
+      - "lost_at"
+      - "lost_by_user_id"
+      - "lost_by_name"
+      - "lost_reason_id"
+      - "lost_reason_name"
+      - "lost_note"
+
+  rules:
+    - "Respect user permission scope."
+    - "Respect current active filters."
+    - "Do not export Opportunities user cannot view."
+    - "One row per Opportunity."
+    - "No merged cells."
+    - "Numbers must remain numeric."
+    - "IDs and names both included."
+
+
+# ============================================================
+# 10. EXPORT TEMPLATE 02
+# CHANGE LOG EXPORT
+# ============================================================
+
+export_02_change_log:
+
+  file:
+    name: "B2B_GEO_Change_Log_Export_Template.xlsx"
+
+  source:
+    primary: "opportunity_events"
+
+    joins:
+
+      opportunity:
+        "opportunity_events.opportunity_id → opportunities.opportunity_id"
+
+      actor:
+        "opportunity_events.actor_user_id → users.user_id"
+
+      owner:
+        "opportunities.owner_user_id → users.user_id"
+
+      region:
+        "opportunities.region_id → regions.region_id"
+
+  output_sheet:
+    "Change_Log_Export"
+
+  grain:
+    "1 row = 1 Event"
+
+  output_fields:
+
+    event_identity:
+      - "event_id"
+      - "opportunity_id"
+
+    opportunity_context:
+      - "customer_name"
+      - "business_id"
+      - "region_id"
+      - "region_name"
+      - "owner_user_id"
+      - "owner_name"
+
+    event_detail:
+      - "event_type"
+      - "field_name"
+      - "previous_value_id"
+      - "previous_value"
+      - "new_value_id"
+      - "new_value"
+
+    actor:
+      - "actor_user_id"
+      - "actor_name"
+      - "actor_role"
+
+    timing:
+      - "event_at"
+      - "event_month"
+
+    optional:
+      - "remark"
+
+    system:
+      - "source"
+      - "exported_at"
+
+  examples:
+
+    handler_changed:
+      previous:
+        "AE Sample 01"
+
+      new:
+        "SM Sample 01"
+
+    stage_changed:
+      previous:
+        "Stage 1"
+
+      new:
+        "Stage 2"
+
+    expected_close_changed:
+      previous:
+        "2026-10"
+
+      new:
+        "2026-11"
+
+  rule:
+    - "Normal users cannot edit Change Log."
+
+
+# ============================================================
+# 11. EXPORT TEMPLATE 03
+# MONTH-END EXPORT
+# ============================================================
+
+export_03_month_end:
+
+  file:
+    name: "B2B_GEO_Month_End_Export_Template.xlsx"
+
+  purpose:
+    - "Monthly management review"
+    - "Historical forecasting"
+    - "Forecast vs Actual"
+    - "Pipeline Slippage Analysis"
+
+  sheets:
+
+    Summary:
+
+      source:
+        - "opportunities"
+        - "monthly_snapshots"
+        - "products"
+        - "product_categories"
+        - "lost_reasons"
+
+      metrics:
+
+        open_pipeline:
+          source: "monthly_snapshots"
+          condition: "status = Open"
+
+        expected_close:
+          source: "monthly_snapshots"
+          condition:
+            "expected_close_month = reporting_month"
+
+        won:
+          source: "opportunities"
+          condition:
+            "won_month = reporting_month"
+
+        lost:
+          source: "opportunities"
+          condition:
+            "lost_month = reporting_month"
+
+        pipeline_created:
+          source: "opportunities.created_at"
+          condition:
+            "created_month = reporting_month"
+
+        support_needed:
+          source: "monthly_snapshots"
+          condition:
+            "support_needed = true"
+
+        stuck_pipeline:
+          source: "monthly_snapshots"
+          condition:
+            "stage_aging > configured threshold"
+
+        product_category_summary:
+          group_by:
+            "Product Category"
+
+          outputs:
+            - "Open Opportunity Count"
+            - "Pipeline Value"
+
+        lost_reason_summary:
+          group_by:
+            "Lost Reason"
+
+          outputs:
+            - "Lost Count"
+            - "Lost Value"
+
+
+    Closed_Won:
+
+      source:
+        "opportunities"
+
+      filter:
+        - "status = Won"
+        - "won_month = reporting_month"
+
+      grain:
+        "1 row = 1 Won Opportunity"
+
+
+    Closed_Lost:
+
+      source:
+        "opportunities"
+
+      filter:
+        - "status = Lost"
+        - "lost_month = reporting_month"
+
+      joins:
+        - "lost_reasons"
+
+      grain:
+        "1 row = 1 Lost Opportunity"
+
+
+    Open_Pipeline_Snapshot:
+
+      source:
+        "monthly_snapshots"
+
+      filter:
+        "snapshot_month = reporting_month"
+
+      grain:
+        "1 row = 1 Open Opportunity at Month-End"
+
+      purpose:
+        - "Preserve what the Pipeline looked like at that point in time."
+
+
+# ============================================================
+# 12. MONTH-END SNAPSHOT ENTITY
+# ============================================================
+
+monthly_snapshots:
+
+  source:
+    "Current Opportunity state at month-end"
+
+  generated_by:
+    "System / Controlled Month-End process"
+
+  fields:
+
+    snapshot_id:
+      generated: true
+
+    snapshot_month:
+      format: "YYYY-MM"
+
+    opportunity_id:
+      foreign_key: "opportunities.opportunity_id"
+
+    owner_user_id:
+      snapshot_of:
+        "opportunities.owner_user_id"
+
+    current_handler_user_id:
+      snapshot_of:
+        "opportunities.current_handler_user_id"
+
+    region_id:
+      snapshot_of:
+        "opportunities.region_id"
+
+    product_id:
+      snapshot_of:
+        "opportunities.product_id"
+
+    stage_id:
+      snapshot_of:
+        "opportunities.stage_id"
+
+    status:
+      snapshot_of:
+        "opportunities.status"
+
+    expected_close_month:
+      snapshot_of:
+        "opportunities.expected_close_month"
+
+    pipeline_value:
+      snapshot_of:
+        "opportunities.pipeline_value"
+
+    support_needed:
+      snapshot_of:
+        "opportunities.support_needed"
+
+  important_rule:
+    - "Historical snapshot must not automatically change when current Opportunity changes later."
+
+
+# ============================================================
+# 13. COMPLETE RELATIONSHIP MAP
+# ============================================================
+
+relationships:
+
+  user_region_user:
+    "user_regions.user_id → users.user_id"
+
+  user_region_region:
+    "user_regions.region_id → regions.region_id"
+
+  territory_region:
+    "territories.region_id → regions.region_id"
+
+  product_category:
+    "products.category_id → product_categories.category_id"
+
+  opportunity_owner:
+    "opportunities.owner_user_id → users.user_id"
+
+  opportunity_original_owner:
+    "opportunities.original_owner_user_id → users.user_id"
+
+  opportunity_handler:
+    "opportunities.current_handler_user_id → users.user_id"
+
+  opportunity_region:
+    "opportunities.region_id → regions.region_id"
+
+  opportunity_territory:
+    "opportunities.territory_id → territories.territory_id"
+
+  opportunity_product:
+    "opportunities.product_id → products.product_id"
+
+  opportunity_stage:
+    "opportunities.stage_id → stages.stage_id"
+
+  opportunity_scenario:
+    "opportunities.scenario_id → scenarios.scenario_id"
+
+  opportunity_working_with:
+    "opportunities.working_with_id → working_with_options.team_id"
+
+  opportunity_support:
+    "opportunities.support_type_id → support_types.support_type_id"
+
+  opportunity_lost_reason:
+    "opportunities.lost_reason_id → lost_reasons.reason_id"
+
+  event_opportunity:
+    "opportunity_events.opportunity_id → opportunities.opportunity_id"
+
+  event_actor:
+    "opportunity_events.actor_user_id → users.user_id"
+
+  snapshot_opportunity:
+    "monthly_snapshots.opportunity_id → opportunities.opportunity_id"
+
+
+# ============================================================
+# 14. LOAD ORDER
+# ============================================================
+
+initial_load_order:
+
+  step_1:
+    source:
+      "B2B_GEO_User_Org_Master.xlsx"
+
+    load:
+      - "regions"
+      - "territories"
+      - "users"
+      - "user_regions"
+
+  step_2:
+    source:
+      "B2B_Product_Master.xlsx"
+
+    load:
+      - "product_categories"
+      - "products"
+
+  step_3:
+    source:
+      "B2B_GEO_Pipeline_Config.xlsx"
+
+    load:
+      - "stages"
+      - "scenarios"
+      - "lost_reasons"
+      - "working_with_options"
+      - "support_types"
+      - "pipeline_settings"
+
+  step_4_optional:
+    source:
+      "B2B_GEO_Pipeline_Import.xlsx"
+
+    load:
+      - "opportunities"
+
+    prerequisite:
+      - "All master data must already exist."
+
+
+# ============================================================
+# 15. SOURCE OF TRUTH
+# ============================================================
+
+source_of_truth:
+
+  before_initial_import:
+    master_seed:
+      - "Excel / Google Sheets"
+
+  after_initial_import:
+
+    master_data:
+      source:
+        "Application Database"
+
+      editable_by:
+        "Admin through Web App"
+
+    opportunities:
+      source:
+        "Application Database"
+
+    change_history:
+      source:
+        "opportunity_events"
+
+    historical_month_end:
+      source:
+        "monthly_snapshots"
+
+    dashboards:
+      source:
+        "Application Database"
+
+    exports:
+      source:
+        "Application Database"
+
+  forbidden:
+    - "Do not read Current Pipeline Export back into live Pipeline automatically."
+    - "Do not use Change Log Export as live database."
+    - "Do not use Month-End Export as live database."
+    - "Do not create duplicate application records based only on matching display names."
+
+
+# ============================================================
+# 16. ITEMS STILL REQUIRING BUSINESS CONFIRMATION
+# ============================================================
+
+business_decisions_pending:
+
+  primary_pipeline_value:
+    status: "NOT FINAL"
+
+    question:
+      "When Management says Pipeline Value, should the number mean Net RC, Contract Value, or another commercial metric?"
+
+  stage_names:
+    status: "NOT FINAL"
+
+    confirm_with:
+      - "SM"
+      - "AE"
+
+  lost_reasons:
+    status: "DRAFT"
+
+    confirm_with:
+      - "SM"
+      - "AE"
+
+  working_with_options:
+    status: "DRAFT"
+
+    confirm_with:
+      - "SM"
+      - "AE"
+
+  support_types:
+    status: "DRAFT"
+
+    confirm_with:
+      - "SM"
+      - "AE"
+
+  stuck_threshold:
+    status: "DRAFT"
+
+    current_uat_example:
+      "14 days"
+
+    confirm_with:
+      - "SM"
+      - "Management"
+
+  product_multiplicity:
+    status: "TO CONFIRM"
+
+    question:
+      "Can one Opportunity contain multiple Products, or should one Opportunity represent one Product in MVP?"
+
+
+# ============================================================
+# END OF DATA LINEAGE CONTRACT
+# ============================================================
+
+# ============================================================
+# 17. ACCESS CONTROL (RUNTIME)
+# The backend (local dev server now, Apps Script later) reads this
+# section to decide which Excel / Google Sheet file + sheet backs each
+# entity and which role may do what. Edit here — not in code.
+#
+# actions:
+#   read    — list / get rows
+#   create  — add rows
+#   update  — edit rows
+#   delete  — remove rows (master data should be deactivated instead)
+#   import  — bulk import into the sheet
+#   export  — download as Excel
+#
+# scope (opportunity-like sheets only):
+#   all     — every row
+#   region  — rows whose region_id is in the user's active User_Region rows
+#             (Management with no User_Region rows = all)
+#   own     — rows where owner_user_id or current_handler_user_id = user
+# ============================================================
+
+access_control:
+
+  status: "DRAFT — confirm with SM / Management"
+
+  roles:
+    - "AE"
+    - "SM"
+    - "Management"
+    - "Admin"
+
+  scope:
+    AE: "own"
+    SM: "region"
+    Management: "region"
+    Admin: "all"
+
+  # Admin may preview the app as another user (Demo As).
+  # The backend then applies the demo user's role and scope.
+  demo_as_allowed_for:
+    - "Admin"
+
+  # Only sheets listed under files.<file>.sheets are reachable from the app.
+  # Documentation tabs in the source files are never read or written.
+  excluded_sheets:
+    - "README"
+    - "Data_Dictionary"
+
+  # Deleting a master row is refused while other rows still reference its ID
+  # (per referenced_by / used_by above) — deactivate it instead.
+  files:
+
+    "B2B_GEO_User_Org_Master.xlsx":
+      sheets:
+        Users:
+          entity: "users"
+          primary_key: "user_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        User_Region:
+          entity: "user_regions"
+          primary_key: "user_region_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Regions:
+          entity: "regions"
+          primary_key: "region_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Territories:
+          entity: "territories"
+          primary_key: "territory_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+
+    "B2B_Product_Master.xlsx":
+      sheets:
+        Product_Categories:
+          entity: "product_categories"
+          primary_key: "category_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Products:
+          entity: "products"
+          primary_key: "product_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+
+    "B2B_GEO_Pipeline_Config.xlsx":
+      sheets:
+        Stages:
+          entity: "stages"
+          primary_key: "stage_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Scenarios:
+          entity: "scenarios"
+          primary_key: "scenario_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Lost_Reasons:
+          entity: "lost_reasons"
+          primary_key: "reason_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Working_With:
+          entity: "working_with_options"
+          primary_key: "team_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Support_Types:
+          entity: "support_types"
+          primary_key: "support_type_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+        Aging_Settings:
+          entity: "pipeline_settings"
+          primary_key: "setting_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: ["Admin"]
+
+    # Application database for live data (not a source file).
+    # Locally: data/B2B_GEO_Pipeline_DB.xlsx. Later: a Google Sheet.
+    "B2B_GEO_Pipeline_DB.xlsx":
+      sheets:
+        Opportunities:
+          entity: "opportunities"
+          primary_key: "opportunity_id"
+          scoped: true
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["AE", "SM", "Admin"]
+            update: ["AE", "SM", "Admin"]
+            delete: []
+            import: ["SM", "Admin"]
+            export: ["SM", "Management", "Admin"]
+        Opportunity_Events:
+          entity: "opportunity_events"
+          primary_key: "event_id"
+          scoped: true
+          append_only: true
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["AE", "SM", "Admin"]
+            update: []
+            delete: []
+            export: ["SM", "Management", "Admin"]
+        Monthly_Snapshots:
+          entity: "monthly_snapshots"
+          primary_key: "snapshot_id"
+          scoped: true
+          permissions:
+            read: ["SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: []
+            delete: ["Admin"]
+            export: ["SM", "Management", "Admin"]
+
+    "B2B_GEO_Pipeline_Import.xlsx":
+      upload_only: true
+      permissions:
+        import: ["SM", "Admin"]
+
+    # Output files: written by the backend after each action, never read back
+    # as data. Sheets not listed under `output` (README, Data_Dictionary,
+    # Event_Type_Reference …) are never touched.
+    #   mode replace — sheet rewritten from the Application Database
+    #   mode append  — one row added per event (audit trail)
+    #   mode cells   — only fixed cells are set (formula layout)
+
+    "B2B_GEO_Current_Pipeline_Export_Template.xlsx":
+      output_only: true
+      permissions:
+        export: ["SM", "Management", "Admin"]
+      output:
+        Current_Pipeline_Export:
+          mode: "replace"
+          when: "Any Opportunity create / update / delete"
+
+    "B2B_GEO_Change_Log_Export_Template.xlsx":
+      output_only: true
+      permissions:
+        export: ["SM", "Management", "Admin"]
+      output:
+        Change_Log_Export:
+          mode: "append"
+          when: "Every Opportunity event (by AE / SM / Admin) and every master-data change (MASTER_CREATED / MASTER_UPDATED / MASTER_DELETED)"
+
+    "B2B_GEO_Month_End_Export_Template.xlsx":
+      output_only: true
+      permissions:
+        export: ["SM", "Management", "Admin"]
+      output:
+        Open_Pipeline_Snapshot:
+          mode: "replace"
+          when: "Admin captures a month-end snapshot (latest captured month)"
+        Closed_Won:
+          mode: "replace"
+          when: "Admin captures a month-end snapshot — Won in that month"
+        Closed_Lost:
+          mode: "replace"
+          when: "Admin captures a month-end snapshot — Lost in that month"
+        Summary:
+          mode: "cells"
+          cells: ["B3 = Reporting Month", "B5 = Generated At"]
+
+# ============================================================
+# END OF ACCESS CONTROL
+# ============================================================

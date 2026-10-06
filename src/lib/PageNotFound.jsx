@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { db } from '@/api/client';
 import { useQuery } from '@tanstack/react-query';
 
 
@@ -11,7 +11,7 @@ export default function PageNotFound({}) {
         queryKey: ['user'],
         queryFn: async () => {
             try {
-                const user = await base44.auth.me();
+                const user = await db.session.me();
                 return { user, isAuthenticated: true };
             } catch (error) {
                 return { user: null, isAuthenticated: false };
@@ -59,7 +59,7 @@ export default function PageNotFound({}) {
                     {/* Action Button */}
                     <div className="pt-6">
                         <button 
-                            onClick={() => window.location.href = '/'} 
+                            onClick={() => window.location.href = import.meta.env.BASE_URL} 
                             className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
                         >
                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

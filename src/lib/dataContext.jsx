@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
-import { base44 } from "@/api/base44Client";
+import { db } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { currentMonthKey } from "@/lib/pipeline";
 
@@ -22,7 +22,7 @@ const MASTER_ENTITIES = [
 
 async function fetchAll(entity, limit = 500) {
   try {
-    const items = await base44.entities[entity].list("-created_date", limit);
+    const items = await db.entities[entity].list("-created_date", limit);
     return Array.isArray(items) ? items : items?.items || [];
   } catch (e) {
     console.warn(`Failed to load ${entity}`, e);
@@ -100,11 +100,13 @@ export function DataProvider({ children }) {
   const demoAs = useCallback((memberId) => {
     setDemoMemberId(memberId);
     try { localStorage.setItem("geo_demo_as", memberId); } catch (e) {}
-  }, []);
+    loadAll(); // backend scopes data to the demo user
+  }, [loadAll]);
   const exitDemo = useCallback(() => {
     setDemoMemberId("");
     try { localStorage.removeItem("geo_demo_as"); } catch (e) {}
-  }, []);
+    loadAll();
+  }, [loadAll]);
 
   // Lookup maps
   const maps = useMemo(() => {
@@ -178,7 +180,7 @@ export function DataProvider({ children }) {
         remark: entry.remark || "",
       };
       try {
-        await base44.entities.OpportunityHistory.create(rec);
+        await db.entities.OpportunityHistory.create(rec);
         setHistory((h) => [rec, ...h]);
       } catch (e) {
         console.warn("history write failed", e);
@@ -189,13 +191,13 @@ export function DataProvider({ children }) {
 
   // ---- Master data CRUD ----
   const createMaster = useCallback(async (entity, data) => {
-    const rec = await base44.entities[entity].create(data);
+    const rec = await db.entities[entity].create(data);
     setMaster((m) => ({ ...m, [entity]: [...(m[entity] || []), rec] }));
     return rec;
   }, []);
 
   const updateMaster = useCallback(async (entity, id, data) => {
-    const rec = await base44.entities[entity].update(id, data);
+    const rec = await db.entities[entity].update(id, data);
     setMaster((m) => ({
       ...m,
       [entity]: (m[entity] || []).map((x) => (x.id === id ? { ...x, ...rec } : x)),
@@ -204,13 +206,13 @@ export function DataProvider({ children }) {
   }, []);
 
   const deleteMaster = useCallback(async (entity, id) => {
-    await base44.entities[entity].delete(id);
+    await db.entities[entity].delete(id);
     setMaster((m) => ({ ...m, [entity]: (m[entity] || []).filter((x) => x.id !== id) }));
   }, []);
 
   // ---- Opportunity CRUD with history ----
   const refreshOp = useCallback(async (id) => {
-    const rec = await base44.entities.Opportunity.get(id);
+    const rec = await db.entities.Opportunity.get(id);
     setOpportunities((ops) => ops.map((o) => (o.id === id ? rec : o)));
     return rec;
   }, []);
@@ -229,7 +231,7 @@ export function DataProvider({ children }) {
         created_month: currentMonthKey(),
       };
       if (!payload.stage_id && firstStage) payload.stage_id = firstStage.id;
-      const rec = await base44.entities.Opportunity.create(payload);
+      const rec = await db.entities.Opportunity.create(payload);
       setOpportunities((ops) => [rec, ...ops]);
       await addHistory(rec.id, {
         event_type: "create",
@@ -243,7 +245,7 @@ export function DataProvider({ children }) {
   // Generic update that also logs history for a named field
   const updateWithHistory = useCallback(
     async (id, changes, histEntry) => {
-      const rec = await base44.entities.Opportunity.update(id, changes);
+      const rec = await db.entities.Opportunity.update(id, changes);
       setOpportunities((ops) => ops.map((o) => (o.id === id ? rec : o)));
       if (histEntry) await addHistory(id, histEntry);
       return rec;
@@ -440,11 +442,11 @@ export function DataProvider({ children }) {
       if (!rows.length) return { captured: 0 };
       // Remove any existing snapshot rows for this month to allow re-capture
       try {
-        const existing = await base44.entities.MonthlySnapshot.filter({ snapshot_month: snapshotMonth }, "-created_date", 500);
+        const existing = await db.entities.MonthlySnapshot.filter({ snapshot_month: snapshotMonth }, "-created_date", 500);
         const ex = Array.isArray(existing) ? existing : existing?.items || [];
-        if (ex.length) await base44.entities.MonthlySnapshot.deleteMany({ snapshot_month: snapshotMonth });
+        if (ex.length) await db.entities.MonthlySnapshot.deleteMany({ snapshot_month: snapshotMonth });
       } catch (e) { console.warn("snapshot cleanup failed", e); }
-      const createdRows = await base44.entities.MonthlySnapshot.bulkCreate(rows);
+      const createdRows = await db.entities.MonthlySnapshot.bulkCreate(rows);
       setMaster((m) => ({ ...m, MonthlySnapshot: [...(m.MonthlySnapshot || []), ...createdRows] }));
       return { captured: createdRows.length };
     },

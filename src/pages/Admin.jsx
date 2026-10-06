@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import MonthPicker from "@/components/MonthPicker";
 import { Pencil, Trash2, Plus, Check, X, Download, Camera } from "lucide-react";
+import SheetEditor from "@/components/SheetEditor";
 
 export default function Admin() {
   const { profile } = useData();
@@ -24,8 +25,9 @@ export default function Admin() {
     <div className="p-5 md:p-7 max-w-[1200px] mx-auto">
       <h1 className="text-2xl font-semibold tracking-tight mb-1">Admin · Master Data</h1>
       <p className="text-sm text-muted-foreground mb-5">Configure reference data used across the pipeline.</p>
-      <Tabs defaultValue="regions">
+      <Tabs defaultValue="sheets">
         <TabsList className="flex flex-wrap h-auto bg-secondary rounded-xl p-1 mb-5">
+          <TabsTrigger value="sheets">Source Sheets</TabsTrigger>
           <TabsTrigger value="regions">Regions</TabsTrigger>
           <TabsTrigger value="territories">Territories</TabsTrigger>
           <TabsTrigger value="stages">Stages</TabsTrigger>
@@ -41,6 +43,7 @@ export default function Admin() {
           <TabsTrigger value="config">Config</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="sheets"><SheetEditor /></TabsContent>
         <TabsContent value="regions"><RegionManager /></TabsContent>
         <TabsContent value="territories"><TerritoryManager /></TabsContent>
         <TabsContent value="stages"><StageManager /></TabsContent>
@@ -295,7 +298,7 @@ function ConfigManager() {
         </div>
         <div>
           <Label>Pipeline Value Metric</Label>
-          <Select value={metric} onValueChange={(v) => { setMetric(v); save("pipeline_value_metric", v); }}>
+          <Select disabled value={metric} onValueChange={(v) => { setMetric(v); save("pipeline_value_metric", v); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="pipeline_value">pipeline_value (entered)</SelectItem>
@@ -303,11 +306,11 @@ function ConfigManager() {
               <SelectItem value="contract_value">contract_value (when defined)</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">Pending business definition. Currently uses the entered Pipeline Value.</p>
+          <p className="text-xs text-muted-foreground mt-1">Pending business definition (business_decisions_pending in the YAML). Currently uses the entered Pipeline Value.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Checkbox checked={weighted} onCheckedChange={(v) => { setWeighted(!!v); save("weighted_enabled", String(!!v)); }} id="w" />
-          <Label htmlFor="w">Enable Weighted Pipeline (uses stage weights)</Label>
+          <Checkbox disabled checked={weighted} onCheckedChange={(v) => { setWeighted(!!v); save("weighted_enabled", String(!!v)); }} id="w" />
+          <Label htmlFor="w">Enable Weighted Pipeline (uses stage weights) — not stored in a source sheet yet</Label>
         </div>
       </div>
     </Card>

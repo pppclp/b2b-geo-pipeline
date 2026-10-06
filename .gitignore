@@ -37,3 +37,14 @@ dist-ssr
 
 # Local link to a Base44 app, written by `base44 link`
 base44/.app.jsonc
+
+# Local Excel data (customer data — never commit)
+/data
+
+# Apps Script build output (npm run gas:build) and clasp project link
+apps-script/GeoCore.js
+apps-script/Contract.js
+apps-script/SheetIds.js
+apps-script/appsscript.json
+.clasp.json
+apps-script/Code.combined.gs
