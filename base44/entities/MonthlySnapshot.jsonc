@@ -1,0 +1,48 @@
+{
+  "name": "MonthlySnapshot",
+  "type": "object",
+  "properties": {
+    "snapshot_month": {
+      "type": "string"
+    },
+    "opportunity_id": {
+      "type": "string"
+    },
+    "customer_name": {
+      "type": "string"
+    },
+    "owner_id": {
+      "type": "string"
+    },
+    "current_handler_id": {
+      "type": "string"
+    },
+    "region_id": {
+      "type": "string"
+    },
+    "product_id": {
+      "type": "string"
+    },
+    "stage_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "expected_close_month": {
+      "type": "string"
+    },
+    "pipeline_value": {
+      "type": "number",
+      "default": 0
+    },
+    "support_needed": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "snapshot_month",
+    "opportunity_id"
+  ]
+}

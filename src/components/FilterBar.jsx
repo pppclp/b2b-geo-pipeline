@@ -49,12 +49,12 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
       {showCreatedMonth && (
         <div className="flex flex-col gap-1">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Created Month</span>
-          <MonthPicker value={filters.created_month || ""} onChange={(v) => onFilter("created_month", v)} placeholder="All" className="w-[140px]" />
+          <MonthPicker value={filters.created_month || ""} onChange={(v) => onFilter("created_month", v)} placeholder="All Months" allowAll className="w-[140px]" />
         </div>
       )}
       <div className="flex flex-col gap-1">
         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close</span>
-        <MonthPicker value={filters.close_month || ""} onChange={(v) => onFilter("close_month", v)} placeholder="All" className="w-[140px]" />
+        <MonthPicker value={filters.close_month || ""} onChange={(v) => onFilter("close_month", v)} placeholder="All Months" allowAll className="w-[140px]" />
       </div>
 
       <SelectWrap label="Region" value={filters.region} onChange={(v) => onFilter("region", v === "all" ? "" : v)}>

@@ -5,6 +5,7 @@ import { useData } from "@/lib/dataContext";
 import { ROLE_LABELS } from "@/lib/pipeline";
 import { LayoutDashboard, KanbanSquare, AlertCircle, Settings, Upload, LogOut, Menu, X, HandHelping } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import DemoAsBar from "@/components/DemoAsBar";
 
 const navFor = (role) => {
   const base = [
@@ -24,7 +25,7 @@ const navFor = (role) => {
 };
 
 export default function AppLayout() {
-  const { profile } = useData();
+  const { profile, realProfile, isDemoing } = useData();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,8 +80,14 @@ export default function AppLayout() {
           <div className="text-[11px] text-muted-foreground truncate">
             {ROLE_LABELS[profile?.app_role] || "—"}
             {profile?.isProvisional ? " · Provisional" : ""}
+            {isDemoing ? ` · (really ${ROLE_LABELS[realProfile?.app_role] || realProfile?.app_role})` : ""}
           </div>
         </div>
+        {realProfile?.app_role === "admin" && (
+          <div className="px-2 pb-2">
+            <DemoAsBar variant="trigger" />
+          </div>
+        )}
         <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" onClick={handleLogout}>
           <LogOut className="w-4 h-4 mr-2" /> Sign out
         </Button>
@@ -115,8 +122,13 @@ export default function AppLayout() {
             <Menu className="w-5 h-5" />
           </button>
           <span className="font-semibold text-sm">B2B GEO Pipeline</span>
-          <div className="w-5" />
+          <div className="flex items-center gap-2">
+            <DemoAsBar variant="trigger" />
+            <div className="w-1" />
+          </div>
         </header>
+
+        <DemoAsBar variant="banner" />
 
         <main className="flex-1 overflow-auto">
           <Outlet />

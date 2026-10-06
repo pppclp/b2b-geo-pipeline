@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
-import { formatTHB, formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS, SUPPORT_TYPES } from "@/lib/pipeline";
+import { formatTHB, formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import HistoryTimeline from "@/components/HistoryTimeline";
 import OpportunityForm from "@/components/OpportunityForm";
 import EmptyState from "@/components/EmptyState";
@@ -36,6 +36,7 @@ export default function OpportunityDetail() {
   }
 
   const owner = maps.member[op.owner_id];
+  const originalOwner = maps.member[op.original_owner_id];
   const handler = maps.member[op.current_handler_id];
   const region = maps.region[op.region_id];
   const territory = maps.territory[op.territory_id];
@@ -110,6 +111,7 @@ export default function OpportunityDetail() {
 
           <Section title="Ownership & Assignment">
             <Field label="Opportunity Owner" value={owner?.name} />
+            {originalOwner && originalOwner.id !== op.owner_id && <Field label="Original Owner" value={originalOwner?.name} />}
             <Field label="Current Handler" value={handler?.name} />
             <Field label="Region" value={region?.name} />
             <Field label="Territory" value={territory?.name} />
@@ -185,7 +187,7 @@ export default function OpportunityDetail() {
             <DialogTitle>{actionTitle(action?.type)}</DialogTitle>
           </DialogHeader>
           <ActionBody action={action} setAction={setAction} remark={remark} setRemark={setRemark}
-            members={members} stages={activeStages} lostReasons={(master?.LostReason || []).filter((r) => r.active)} op={op} />
+            members={members} stages={activeStages} lostReasons={(master?.LostReason || []).filter((r) => r.active)} supportTypes={(master?.SupportType || []).filter((s) => s.active)} op={op} />
           <DialogFooter>
             <Button variant="outline" onClick={closeAction}>Cancel</Button>
             <Button onClick={runAction} disabled={!actionValid(action)}>Confirm</Button>
@@ -214,7 +216,7 @@ function actionValid(a) {
   return true;
 }
 
-function ActionBody({ action, setAction, remark, setRemark, members, stages, lostReasons, op }) {
+function ActionBody({ action, setAction, remark, setRemark, members, stages, lostReasons, supportTypes, op }) {
   if (!action) return null;
   const t = action.type;
   const memberOpts = members.map((m) => ({ id: m.id, label: `${m.name} (${m.app_role.toUpperCase()})` }));
@@ -295,7 +297,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, los
         <Label>Support Type</Label>
         <Select value={action.type_ || ""} onValueChange={(v) => setAction({ ...action, type_: v })} disabled={!action.needed}>
           <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-          <SelectContent>{SUPPORT_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          <SelectContent>{(supportTypes || []).map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
         </Select>
         <Label>Support Note</Label>
         <Textarea value={action.note || ""} onChange={(e) => setAction({ ...action, note: e.target.value })} rows={2} />

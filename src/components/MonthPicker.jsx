@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatMonth } from "@/lib/pipeline";
 
-// Month picker returning "YYYY-MM". Lightweight popover.
-export default function MonthPicker({ value, onChange, placeholder = "Select month", className = "" }) {
+// Month picker returning "YYYY-MM". Lightweight popover. allowAll adds an "All Months" (clear) option.
+export default function MonthPicker({ value, onChange, placeholder = "Select month", className = "", allowAll = false }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(() => {
     const [y, m] = (value || currentMonthKey()).split("-").map(Number);
@@ -24,15 +24,24 @@ export default function MonthPicker({ value, onChange, placeholder = "Select mon
       <Button
         type="button"
         variant="outline"
-        className="w-full justify-start font-normal"
+        className={`w-full justify-start font-normal ${!value ? "text-muted-foreground" : ""}`}
         onClick={() => setOpen((o) => !o)}
       >
-        {value ? formatMonth(value) : <span className="text-muted-foreground">{placeholder}</span>}
+        {value ? formatMonth(value) : placeholder}
       </Button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute z-40 mt-1 bg-popover border border-border rounded-md shadow-md p-3 w-64">
+            {allowAll && (
+              <button
+                type="button"
+                onClick={() => { onChange(""); setOpen(false); }}
+                className={`w-full text-left text-sm px-2 py-1.5 rounded mb-2 hover:bg-secondary ${!value ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+              >
+                All Months
+              </button>
+            )}
             <div className="flex items-center justify-between mb-2">
               <button
                 type="button"

@@ -14,8 +14,10 @@ const MASTER_ENTITIES = [
   "Scenario",
   "LostReason",
   "WorkingWithOption",
+  "SupportType",
   "TeamMember",
   "AppConfig",
+  "MonthlySnapshot",
 ];
 
 async function fetchAll(entity, limit = 500) {
@@ -35,6 +37,9 @@ export function DataProvider({ children }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [demoMemberId, setDemoMemberId] = useState(() => {
+    try { return localStorage.getItem("geo_demo_as") || ""; } catch { return ""; }
+  });
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -62,8 +67,8 @@ export function DataProvider({ children }) {
     if (isAuthenticated) loadAll();
   }, [isAuthenticated, loadAll]);
 
-  // Resolve current user's team member profile
-  const profile = useMemo(() => {
+  // Resolve current user's real team member profile (never affected by Demo As)
+  const realProfile = useMemo(() => {
     if (!master) return null;
     const members = master.TeamMember || [];
     const match = user?.email ? members.find((m) => (m.email || "").toLowerCase() === user.email.toLowerCase()) : null;
@@ -81,6 +86,26 @@ export function DataProvider({ children }) {
     };
   }, [master, user]);
 
+  // Demo As — admin can simulate another role/user. Does not change the real account.
+  const isDemoing = !!demoMemberId && realProfile?.app_role === "admin";
+  const demoMember = useMemo(() => {
+    if (!isDemoing || !master) return null;
+    return (master.TeamMember || []).find((m) => m.id === demoMemberId) || null;
+  }, [isDemoing, master, demoMemberId]);
+  const profile = useMemo(() => {
+    if (isDemoing && demoMember) return { ...demoMember, isDemo: true, isProvisional: false };
+    return realProfile ? { ...realProfile, isDemo: false } : realProfile;
+  }, [isDemoing, demoMember, realProfile]);
+
+  const demoAs = useCallback((memberId) => {
+    setDemoMemberId(memberId);
+    try { localStorage.setItem("geo_demo_as", memberId); } catch (e) {}
+  }, []);
+  const exitDemo = useCallback(() => {
+    setDemoMemberId("");
+    try { localStorage.removeItem("geo_demo_as"); } catch (e) {}
+  }, []);
+
   // Lookup maps
   const maps = useMemo(() => {
     if (!master) return {};
@@ -94,6 +119,7 @@ export function DataProvider({ children }) {
       scenario: byId(master.Scenario),
       lostReason: byId(master.LostReason),
       workingWith: byId(master.WorkingWithOption),
+      supportType: byId(master.SupportType),
       member: byId(master.TeamMember),
     };
   }, [master]);
@@ -197,6 +223,7 @@ export function DataProvider({ children }) {
         ...data,
         status: data.status || "open",
         current_handler_id: data.current_handler_id || data.owner_id,
+        original_owner_id: data.original_owner_id || data.owner_id,
         handler_since: now,
         stage_entered_at: now,
         created_month: currentMonthKey(),
@@ -391,6 +418,39 @@ export function DataProvider({ children }) {
 
   const historyFor = useCallback((opId) => history.filter((h) => h.opportunity_id === opId), [history]);
 
+  // Capture a month-end snapshot of all open opportunities (admin action)
+  const captureSnapshot = useCallback(
+    async (snapshotMonth) => {
+      const rows = scopedOpportunities
+        .filter((o) => o.status === "open" || o.status === "won" || o.status === "lost")
+        .map((o) => ({
+          snapshot_month: snapshotMonth,
+          opportunity_id: o.id,
+          customer_name: o.customer_name || "",
+          owner_id: o.owner_id || "",
+          current_handler_id: o.current_handler_id || "",
+          region_id: o.region_id || "",
+          product_id: o.product_id || "",
+          stage_id: o.stage_id || "",
+          status: o.status,
+          expected_close_month: o.expected_close_month || "",
+          pipeline_value: o.pipeline_value || 0,
+          support_needed: !!o.support_needed,
+        }));
+      if (!rows.length) return { captured: 0 };
+      // Remove any existing snapshot rows for this month to allow re-capture
+      try {
+        const existing = await base44.entities.MonthlySnapshot.filter({ snapshot_month: snapshotMonth }, "-created_date", 500);
+        const ex = Array.isArray(existing) ? existing : existing?.items || [];
+        if (ex.length) await base44.entities.MonthlySnapshot.deleteMany({ snapshot_month: snapshotMonth });
+      } catch (e) { console.warn("snapshot cleanup failed", e); }
+      const createdRows = await base44.entities.MonthlySnapshot.bulkCreate(rows);
+      setMaster((m) => ({ ...m, MonthlySnapshot: [...(m.MonthlySnapshot || []), ...createdRows] }));
+      return { captured: createdRows.length };
+    },
+    [scopedOpportunities]
+  );
+
   const value = {
     loading,
     error,
@@ -400,6 +460,10 @@ export function DataProvider({ children }) {
     activeStages,
     stageWeightMap,
     profile,
+    realProfile,
+    isDemoing,
+    demoAs,
+    exitDemo,
     opportunities,
     scopedOpportunities,
     scopeFilter,
@@ -422,6 +486,7 @@ export function DataProvider({ children }) {
     archiveOp,
     reopen,
     refreshOp,
+    captureSnapshot,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

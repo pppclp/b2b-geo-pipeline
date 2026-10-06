@@ -1,15 +1,25 @@
 import React, { useState } from "react";
 import { useData } from "@/lib/dataContext";
-import { ROLE_LABELS } from "@/lib/pipeline";
+import { ROLE_LABELS, formatTHB, formatMonth, formatDateTime, currentMonthKey } from "@/lib/pipeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import MonthPicker from "@/components/MonthPicker";
+import { Pencil, Trash2, Plus, Check, X, Download, Camera } from "lucide-react";
 
 export default function Admin() {
+  const { profile } = useData();
+  if (profile?.app_role !== "admin") {
+    return (
+      <div className="p-6 max-w-[600px] mx-auto text-center">
+        <h1 className="text-xl font-semibold mb-1">Admin</h1>
+        <p className="text-sm text-muted-foreground">Master data management is restricted to Admin users.</p>
+      </div>
+    );
+  }
   return (
     <div className="p-4 md:p-6 max-w-[1200px] mx-auto">
       <h1 className="text-xl font-semibold mb-1">Admin · Master Data</h1>
@@ -24,7 +34,10 @@ export default function Admin() {
           <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
           <TabsTrigger value="lostreasons">Lost Reasons</TabsTrigger>
           <TabsTrigger value="workingwith">Working With</TabsTrigger>
+          <TabsTrigger value="supporttypes">Support Types</TabsTrigger>
           <TabsTrigger value="members">Team Members</TabsTrigger>
+          <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
+          <TabsTrigger value="exports">Exports</TabsTrigger>
           <TabsTrigger value="config">Config</TabsTrigger>
         </TabsList>
 
@@ -36,7 +49,10 @@ export default function Admin() {
         <TabsContent value="scenarios"><SimpleManager entity="Scenario" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="lostreasons"><SimpleManager entity="LostReason" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="workingwith"><SimpleManager entity="WorkingWithOption" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
+        <TabsContent value="supporttypes"><SimpleManager entity="SupportType" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="members"><TeamMemberManager /></TabsContent>
+        <TabsContent value="snapshots"><SnapshotManager /></TabsContent>
+        <TabsContent value="exports"><ExportsManager /></TabsContent>
         <TabsContent value="config"><ConfigManager /></TabsContent>
       </Tabs>
     </div>
@@ -292,6 +308,133 @@ function ConfigManager() {
         <div className="flex items-center gap-2">
           <Checkbox checked={weighted} onCheckedChange={(v) => { setWeighted(!!v); save("weighted_enabled", String(!!v)); }} id="w" />
           <Label htmlFor="w">Enable Weighted Pipeline (uses stage weights)</Label>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function SnapshotManager() {
+  const { master, maps, captureSnapshot } = useData();
+  const [month, setMonth] = useState(currentMonthKey());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const snapshots = (master?.MonthlySnapshot || []).slice();
+  const byMonth = {};
+  snapshots.forEach((s) => { (byMonth[s.snapshot_month] = byMonth[s.snapshot_month] || []).push(s); });
+  const months = Object.keys(byMonth).sort().reverse();
+
+  const capture = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await captureSnapshot(month);
+      setMsg(`Captured ${res.captured} opportunity snapshots for ${formatMonth(month)}.`);
+    } catch (e) { setMsg("Capture failed: " + (e.message || e)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Card>
+      <div className="space-y-4">
+        <div>
+          <Label>Capture month-end snapshot for</Label>
+          <div className="flex items-end gap-2 mt-1">
+            <MonthPicker value={month} onChange={setMonth} className="w-[180px]" />
+            <Button size="sm" onClick={capture} disabled={busy}><Camera className="w-4 h-4 mr-1" /> {busy ? "Capturing…" : "Capture Snapshot"}</Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Captures the current state of all open/won/lost opportunities. Re-capturing a month replaces its previous snapshot. Used for month-end history comparison.</p>
+          {msg && <p className="text-sm mt-2">{msg}</p>}
+        </div>
+        <div className="border-t pt-3">
+          <h3 className="text-sm font-medium mb-2">Existing Snapshots</h3>
+          {months.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No snapshots captured yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {months.map((m) => {
+                const rows = byMonth[m];
+                const value = rows.reduce((a, s) => a + (s.pipeline_value || 0), 0);
+                return (
+                  <div key={m} className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{formatMonth(m)}</span>
+                    <span className="text-muted-foreground tabular-nums">{rows.length} opportunities · {formatTHB(value)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ExportsManager() {
+  const { history, scopedOpportunities, maps, master } = useData();
+
+  const download = (name, headers, rows) => {
+    const csv = [headers, ...rows]
+      .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportChangeLog = () => {
+    const headers = ["Event At", "Opportunity ID", "Customer", "Event Type", "Field", "Previous Value", "New Value", "Actor", "Remark"];
+    const rows = history
+      .slice()
+      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+      .map((h) => {
+        const op = scopedOpportunities.find((o) => o.id === h.opportunity_id);
+        return [
+          formatDateTime(h.created_date), h.opportunity_id, op?.customer_name || "",
+          h.event_type, h.field || "", h.previous_value || "", h.new_value || "",
+          h.actor_name || "", h.remark || "",
+        ];
+      });
+    download("change_log", headers, rows);
+  };
+
+  const exportMonthEnd = () => {
+    const headers = ["Opportunity ID", "Customer", "Region", "Owner", "Current Handler", "Product", "Stage", "Status", "Expected Close", "Pipeline Value", "Support Needed"];
+    const rows = scopedOpportunities.map((o) => [
+      o.id, o.customer_name, maps.region[o.region_id]?.name || "",
+      maps.member[o.owner_id]?.name || "", maps.member[o.current_handler_id]?.name || "",
+      maps.product[o.product_id]?.name || "", maps.stage[o.stage_id]?.name || "",
+      o.status, formatMonth(o.expected_close_month), o.pipeline_value || 0,
+      o.support_needed ? "Yes" : "No",
+    ]);
+    download("month_end_pipeline", headers, rows);
+  };
+
+  const snapshotCount = (master?.MonthlySnapshot || []).length;
+
+  return (
+    <Card>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="font-medium text-sm">Change Log Export</div>
+            <p className="text-xs text-muted-foreground">All opportunity events ({history.length}) for audit and handoff analysis. CSV, one row per event.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={exportChangeLog}><Download className="w-4 h-4 mr-1" /> Export Change Log</Button>
+        </div>
+        <div className="border-t pt-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="font-medium text-sm">Month-End Pipeline Export</div>
+            <p className="text-xs text-muted-foreground">Current pipeline ({scopedOpportunities.length} opportunities) as a flat, pivot-friendly table. CSV.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={exportMonthEnd}><Download className="w-4 h-4 mr-1" /> Export Pipeline</Button>
+        </div>
+        <div className="border-t pt-3 text-xs text-muted-foreground">
+          {snapshotCount > 0 ? `${snapshotCount} snapshot rows stored (see Snapshots tab).` : "No snapshots stored yet."}
+          <span className="block mt-1">Note: exports are CSV (Excel opens them directly). A multi-sheet .xlsx workbook is on the roadmap.</span>
         </div>
       </div>
     </Card>

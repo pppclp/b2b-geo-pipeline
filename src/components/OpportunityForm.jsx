@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useData } from "@/lib/dataContext";
-import { CUSTOMER_TYPES, SUPPORT_TYPES } from "@/lib/pipeline";
+import { CUSTOMER_TYPES } from "@/lib/pipeline";
 import MonthPicker from "@/components/MonthPicker";
 import SearchableSelect from "@/components/SearchableSelect";
 
@@ -84,6 +84,10 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
   );
   const workingWithOptions = useMemo(
     () => (master?.WorkingWithOption || []).filter((w) => w.active).map((w) => ({ value: w.name, label: w.name })),
+    [master]
+  );
+  const supportTypeOptions = useMemo(
+    () => (master?.SupportType || []).filter((s) => s.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((s) => ({ value: s.name, label: s.name })),
     [master]
   );
 
@@ -273,7 +277,7 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
               <Select value={form.support_type} onValueChange={(v) => set("support_type", v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
-                  {SUPPORT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {supportTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

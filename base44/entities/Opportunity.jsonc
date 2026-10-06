@@ -20,6 +20,9 @@
     "owner_id": {
       "type": "string"
     },
+    "original_owner_id": {
+      "type": "string"
+    },
     "current_handler_id": {
       "type": "string"
     },
