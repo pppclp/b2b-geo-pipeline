@@ -61,15 +61,6 @@ function fuzzyMatch(header, key, label) {
 export default function Import() {
   const { master, activeStages, createOpportunity, profile } = useData();
   const [step, setStep] = useState("upload"); // upload | map | preview | done
-
-  if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
-    return (
-      <div className="p-6 max-w-[600px] mx-auto text-center">
-        <h1 className="text-xl font-semibold mb-1">Import</h1>
-        <p className="text-sm text-muted-foreground">Import is available to Admin and SM users only.</p>
-      </div>
-    );
-  }
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
   const [mapping, setMapping] = useState({}); // fieldKey -> headerIndex
@@ -147,6 +138,15 @@ export default function Import() {
       return { row: i + 2, rec, errors };
     });
   }, [rows, mapping, resolve, step, activeStages]);
+
+  if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
+    return (
+      <div className="p-6 max-w-[600px] mx-auto text-center">
+        <h1 className="text-xl font-semibold mb-1">Import</h1>
+        <p className="text-sm text-muted-foreground">Import is available to Admin and SM users only.</p>
+      </div>
+    );
+  }
 
   const validRows = validated.filter((v) => v.errors.length === 0);
   const invalidRows = validated.filter((v) => v.errors.length > 0);
