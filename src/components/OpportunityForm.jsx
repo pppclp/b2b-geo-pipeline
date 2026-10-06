@@ -93,8 +93,9 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
     if (!valid) return;
     setSaving(true);
     try {
+      const { id, created_date, updated_date, created_by_id, ...rest } = form;
       const payload = {
-        ...form,
+        ...rest,
         pipeline_value: Number(form.pipeline_value) || 0,
         quantity: form.quantity ? Number(form.quantity) : null,
         rc: form.rc ? Number(form.rc) : null,
