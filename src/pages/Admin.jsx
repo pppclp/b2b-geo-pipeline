@@ -14,18 +14,18 @@ export default function Admin() {
   const { profile } = useData();
   if (profile?.app_role !== "admin") {
     return (
-      <div className="p-6 max-w-[600px] mx-auto text-center">
-        <h1 className="text-xl font-semibold mb-1">Admin</h1>
+      <div className="p-10 max-w-[600px] mx-auto text-center">
+        <h1 className="text-2xl font-semibold tracking-tight mb-1">Admin</h1>
         <p className="text-sm text-muted-foreground">Master data management is restricted to Admin users.</p>
       </div>
     );
   }
   return (
-    <div className="p-4 md:p-6 max-w-[1200px] mx-auto">
-      <h1 className="text-xl font-semibold mb-1">Admin · Master Data</h1>
-      <p className="text-sm text-muted-foreground mb-4">Configure reference data used across the pipeline.</p>
+    <div className="p-5 md:p-7 max-w-[1200px] mx-auto">
+      <h1 className="text-2xl font-semibold tracking-tight mb-1">Admin · Master Data</h1>
+      <p className="text-sm text-muted-foreground mb-5">Configure reference data used across the pipeline.</p>
       <Tabs defaultValue="regions">
-        <TabsList className="flex flex-wrap h-auto">
+        <TabsList className="flex flex-wrap h-auto bg-secondary rounded-xl p-1 mb-5">
           <TabsTrigger value="regions">Regions</TabsTrigger>
           <TabsTrigger value="territories">Territories</TabsTrigger>
           <TabsTrigger value="stages">Stages</TabsTrigger>
@@ -65,10 +65,10 @@ function useMaster(entity) {
 }
 
 function Row({ children }) {
-  return <div className="grid grid-cols-12 gap-2 items-center py-1">{children}</div>;
+  return <div className="grid grid-cols-12 gap-2 items-center py-1.5">{children}</div>;
 }
 function Header({ children }) {
-  return <div className="grid grid-cols-12 gap-2 items-center py-2 border-b font-medium text-xs text-muted-foreground uppercase">{children}</div>;
+  return <div className="grid grid-cols-12 gap-2 items-center py-2.5 border-b border-border font-medium text-[10px] text-muted-foreground uppercase tracking-wide">{children}</div>;
 }
 
 function RegionManager() {
@@ -442,10 +442,10 @@ function ExportsManager() {
 }
 
 function Card({ children }) {
-  return <div className="rounded-lg border border-border bg-card p-4">{children}</div>;
+  return <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">{children}</div>;
 }
 function AddBar({ children }) {
-  return <div className="grid grid-cols-12 gap-2 items-center mt-3 pt-3 border-t">{children}</div>;
+  return <div className="grid grid-cols-12 gap-2 items-center mt-4 pt-4 border-t border-border">{children}</div>;
 }
 function Toggle({ active, onToggle }) {
   return (

@@ -86,7 +86,6 @@ export default function Pipeline() {
   const [formOpen, setFormOpen] = useState(false);
   const [filters, setFilters] = useState({ status: "open" });
 
-  // Hydrate filters from URL params
   useEffect(() => {
     const f = { status: "open" };
     if (params.get("assigned") === "me") f.handler = profile?.id;
@@ -144,37 +143,37 @@ export default function Pipeline() {
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
 
   return (
-    <div className="p-4 md:p-6 max-w-[1600px] mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div className="p-5 md:p-7 max-w-[1600px] mx-auto">
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
         <div>
-          <h1 className="text-xl font-semibold">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{sorted.length} opportunities · {formatTHB(totalValue)}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{sorted.length} opportunities · {formatTHB(totalValue)}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => exportCSV(sorted, maps)}>
-            <Download className="w-4 h-4 mr-1" /> Export CSV
+          <Button variant="outline" size="sm" className="rounded-lg" onClick={() => exportCSV(sorted, maps)}>
+            <Download className="w-4 h-4 mr-1.5" /> Export CSV
           </Button>
-          <Button size="sm" onClick={() => setFormOpen(true)}>
-            <Plus className="w-4 h-4 mr-1" /> New Opportunity
+          <Button size="sm" className="rounded-lg" onClick={() => setFormOpen(true)}>
+            <Plus className="w-4 h-4 mr-1.5" /> New Opportunity
           </Button>
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-3 mb-4">
+      <div className="rounded-2xl border border-border bg-card shadow-soft p-4 mb-5">
         <FilterBar filters={filters} onFilter={onFilter} />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="inline-flex rounded-md border border-border overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="inline-flex rounded-xl bg-secondary p-1">
           <button
             onClick={() => setView("board")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm ${view === "board" ? "bg-primary text-primary-foreground" : "bg-card hover:bg-secondary"}`}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg transition-all ${view === "board" ? "bg-card text-foreground shadow-soft font-medium" : "text-muted-foreground hover:text-foreground"}`}
           >
             <KanbanSquare className="w-4 h-4" /> Board
           </button>
           <button
             onClick={() => setView("list")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm ${view === "list" ? "bg-primary text-primary-foreground" : "bg-card hover:bg-secondary"}`}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg transition-all ${view === "list" ? "bg-card text-foreground shadow-soft font-medium" : "text-muted-foreground hover:text-foreground"}`}
           >
             <List className="w-4 h-4" /> List
           </button>
@@ -182,7 +181,7 @@ export default function Pipeline() {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Sort</span>
           <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="w-[200px] h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[210px] h-9 rounded-lg"><SelectValue /></SelectTrigger>
             <SelectContent>
               {SORTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -200,16 +199,16 @@ export default function Pipeline() {
               const stageValue = stageOps.reduce((a, o) => a + (o.pipeline_value || 0), 0);
               return (
                 <div key={stage.id} className="flex flex-col w-72 shrink-0">
-                  <div className="flex items-center justify-between mb-2 px-1">
-                    <span className="font-medium text-sm">{stage.name}</span>
-                    <span className="text-xs text-muted-foreground">{stageOps.length} · {formatTHB(stageValue)}</span>
+                  <div className="flex items-center justify-between mb-2.5 px-1">
+                    <span className="font-medium text-[13px]">{stage.name}</span>
+                    <span className="text-[11px] text-muted-foreground tabular-nums bg-secondary rounded-md px-2 py-0.5">{stageOps.length} · {formatTHB(stageValue)}</span>
                   </div>
                   <Droppable droppableId={stage.id}>
                     {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
-                        className={`flex-1 space-y-2 p-2 rounded-lg min-h-[120px] transition-colors ${snapshot.isDraggingOver ? "bg-secondary" : "bg-secondary/40"}`}
+                        className={`flex-1 space-y-2.5 p-2 rounded-xl min-h-[120px] transition-colors ${snapshot.isDraggingOver ? "bg-brand-tint" : "bg-secondary/50"}`}
                       >
                         {stageOps.map((op, idx) => (
                           <Draggable key={op.id} draggableId={op.id} index={idx}>
@@ -233,36 +232,36 @@ export default function Pipeline() {
           </div>
         </DragDropContext>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-secondary/60 text-muted-foreground">
+              <thead className="bg-secondary/50 text-muted-foreground">
                 <tr>
-                  <th className="text-left font-medium px-3 py-2">Customer</th>
-                  <th className="text-left font-medium px-3 py-2">Product</th>
-                  <th className="text-left font-medium px-3 py-2">Stage</th>
-                  <th className="text-left font-medium px-3 py-2">Status</th>
-                  <th className="text-left font-medium px-3 py-2">Owner</th>
-                  <th className="text-left font-medium px-3 py-2">Handler</th>
-                  <th className="text-right font-medium px-3 py-2">Value</th>
-                  <th className="text-left font-medium px-3 py-2">Close</th>
-                  <th className="text-right font-medium px-3 py-2">Stage Age</th>
-                  <th className="text-left font-medium px-3 py-2">Support</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Customer</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Product</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Stage</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Status</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Owner</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Handler</th>
+                  <th className="text-right font-medium px-4 py-3 text-xs uppercase tracking-wide">Value</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Close</th>
+                  <th className="text-right font-medium px-4 py-3 text-xs uppercase tracking-wide">Stage Age</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Support</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {sorted.map((o) => (
-                  <tr key={o.id} className="border-t border-border hover:bg-secondary/30 cursor-pointer" onClick={() => navigate(`/opportunity/${o.id}`)}>
-                    <td className="px-3 py-2 font-medium">{o.customer_name}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{maps.category[o.product_category_id]?.name}{o.product_id ? ` · ${maps.product[o.product_id]?.name}` : ""}</td>
-                    <td className="px-3 py-2">{maps.stage[o.stage_id]?.name}</td>
-                    <td className="px-3 py-2">{STATUS_LABELS[o.status]}</td>
-                    <td className="px-3 py-2">{maps.member[o.owner_id]?.name}</td>
-                    <td className="px-3 py-2">{maps.member[o.current_handler_id]?.name}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatTHB(o.pipeline_value)}</td>
-                    <td className="px-3 py-2">{formatMonth(o.expected_close_month)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{agingDays(o.stage_entered_at)}d</td>
-                    <td className="px-3 py-2">{o.support_needed ? <span className="text-amber-600">Yes</span> : "—"}</td>
+                  <tr key={o.id} className="hover:bg-secondary/40 cursor-pointer transition-colors" onClick={() => navigate(`/opportunity/${o.id}`)}>
+                    <td className="px-4 py-3 font-medium">{o.customer_name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{maps.category[o.product_category_id]?.name}{o.product_id ? ` · ${maps.product[o.product_id]?.name}` : ""}</td>
+                    <td className="px-4 py-3">{maps.stage[o.stage_id]?.name}</td>
+                    <td className="px-4 py-3">{STATUS_LABELS[o.status]}</td>
+                    <td className="px-4 py-3">{maps.member[o.owner_id]?.name}</td>
+                    <td className="px-4 py-3">{maps.member[o.current_handler_id]?.name}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-medium">{formatTHB(o.pipeline_value)}</td>
+                    <td className="px-4 py-3">{formatMonth(o.expected_close_month)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{agingDays(o.stage_entered_at)}d</td>
+                    <td className="px-4 py-3">{o.support_needed ? <span className="inline-flex items-center rounded-md bg-amber-100 text-amber-700 px-1.5 py-0.5 text-xs">Yes</span> : "—"}</td>
                   </tr>
                 ))}
               </tbody>

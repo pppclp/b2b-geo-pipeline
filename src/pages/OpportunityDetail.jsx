@@ -15,10 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Pencil, ArrowRightLeft, Users, GitBranch, Trophy, XCircle, Archive, RefreshCw, CalendarClock, Wrench } from "lucide-react";
 
 const statusColor = {
-  open: "bg-blue-100 text-blue-700",
-  won: "bg-emerald-100 text-emerald-700",
-  lost: "bg-rose-100 text-rose-700",
-  archived: "bg-gray-200 text-gray-600",
+  open: "bg-blue-100 text-blue-700 border border-blue-200",
+  won: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+  lost: "bg-rose-100 text-rose-700 border border-rose-200",
+  archived: "bg-secondary text-muted-foreground border border-border",
 };
 
 export default function OpportunityDetail() {
@@ -71,31 +71,31 @@ export default function OpportunityDetail() {
   const canEdit = profile?.app_role === "admin" || profile?.app_role === "sm" || op.owner_id === profile?.id || op.current_handler_id === profile?.id;
 
   return (
-    <div className="p-4 md:p-6 max-w-[1200px] mx-auto">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3">
+    <div className="p-5 md:p-7 max-w-[1200px] mx-auto">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4 px-2.5 py-1 rounded-lg hover:bg-secondary transition-colors">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{op.customer_name}</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-semibold tracking-tight">{op.customer_name}</h1>
             <Badge className={statusColor[op.status]}>{STATUS_LABELS[op.status]}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1.5">
             {category?.name}{product ? ` · ${product.name}` : ""} · {stage?.name} · {formatTHB(op.pipeline_value)} · Close {formatMonth(op.expected_close_month)}
           </p>
         </div>
         {canEdit && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1" /> Edit</Button>
-            <Button variant="outline" size="sm" onClick={() => setAction({ type: "stage" })}><GitBranch className="w-4 h-4 mr-1" /> Move Stage</Button>
-            <Button variant="outline" size="sm" onClick={() => setAction({ type: "handoff" })}><ArrowRightLeft className="w-4 h-4 mr-1" /> Handoff</Button>
-            <Button variant="outline" size="sm" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1" /> Reassign</Button>
-            {op.status === "open" && <Button variant="outline" size="sm" className="text-emerald-600" onClick={() => setAction({ type: "won" })}><Trophy className="w-4 h-4 mr-1" /> Won</Button>}
-            {op.status === "open" && <Button variant="outline" size="sm" className="text-rose-600" onClick={() => setAction({ type: "lost" })}><XCircle className="w-4 h-4 mr-1" /> Lost</Button>}
-            {op.status !== "archived" && <Button variant="outline" size="sm" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1" /> Archive</Button>}
-            {op.status !== "open" && <Button variant="outline" size="sm" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1" /> Reopen</Button>}
+            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
+            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "stage" })}><GitBranch className="w-4 h-4 mr-1.5" /> Move Stage</Button>
+            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "handoff" })}><ArrowRightLeft className="w-4 h-4 mr-1.5" /> Handoff</Button>
+            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>
+            {op.status === "open" && <Button variant="outline" size="sm" className="rounded-lg text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={() => setAction({ type: "won" })}><Trophy className="w-4 h-4 mr-1.5" /> Won</Button>}
+            {op.status === "open" && <Button variant="outline" size="sm" className="rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => setAction({ type: "lost" })}><XCircle className="w-4 h-4 mr-1.5" /> Lost</Button>}
+            {op.status !== "archived" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1.5" /> Archive</Button>}
+            {op.status !== "open" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1.5" /> Reopen</Button>}
           </div>
         )}
       </div>
@@ -164,9 +164,9 @@ export default function OpportunityDetail() {
         <div className="space-y-4">
           <Section title="Quick Actions" stacked>
             <div className="grid grid-cols-1 gap-2">
-              <Button variant="outline" size="sm" onClick={() => setAction({ type: "closemonth" })} className="justify-start"><CalendarClock className="w-4 h-4 mr-2" /> Change Close Month</Button>
-              <Button variant="outline" size="sm" onClick={() => setAction({ type: "workingwith" })} className="justify-start"><Wrench className="w-4 h-4 mr-2" /> Set Working With</Button>
-              <Button variant="outline" size="sm" onClick={() => setAction({ type: "support", needed: !op.support_needed })} className="justify-start">
+              <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "closemonth" })}><CalendarClock className="w-4 h-4 mr-2" /> Change Close Month</Button>
+              <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "workingwith" })}><Wrench className="w-4 h-4 mr-2" /> Set Working With</Button>
+              <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: !op.support_needed })}>
                 <Wrench className="w-4 h-4 mr-2" /> {op.support_needed ? "Disable Support" : "Enable Support"}
               </Button>
             </div>
@@ -320,9 +320,9 @@ function RemarkField({ remark, setRemark }) {
 
 function Section({ title, children, stacked }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="text-sm font-medium mb-3">{title}</h3>
-      {stacked ? children : <div className="grid grid-cols-2 gap-x-4 gap-y-3">{children}</div>}
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <h3 className="text-[13px] font-semibold mb-4 text-foreground/80">{title}</h3>
+      {stacked ? children : <div className="grid grid-cols-2 gap-x-5 gap-y-4">{children}</div>}
     </div>
   );
 }
@@ -330,8 +330,8 @@ function Section({ title, children, stacked }) {
 function Field({ label, value }) {
   return (
     <div>
-      <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</div>
-      <div className="text-sm mt-0.5">{value || value === 0 ? value : "—"}</div>
+      <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</div>
+      <div className="text-[13px] mt-1 text-foreground/90">{value || value === 0 ? value : "—"}</div>
     </div>
   );
 }

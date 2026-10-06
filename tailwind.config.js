@@ -7,10 +7,15 @@ module.exports = {
   		opacity: Object.fromEntries(Array.from({ length: 101 }, (_, i) => [i, `${i / 100}`])),
   		borderRadius: {
   			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			md: 'calc(var(--radius) - 4px)',
+  			sm: 'calc(var(--radius) - 8px)',
+  			xl: 'calc(var(--radius) + 4px)',
+  			'2xl': 'calc(var(--radius) + 8px)'
   		},
   		colors: {
+  			shell: 'hsl(var(--shell))',
+  			surface: 'hsl(var(--surface))',
+  			'surface-2': 'hsl(var(--surface-2))',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -44,6 +49,17 @@ module.exports = {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
+  			brand: {
+  				DEFAULT: 'hsl(var(--brand))',
+  				foreground: 'hsl(var(--brand-foreground))',
+  				tint: 'hsl(var(--brand-tint))',
+  				'tint-2': 'hsl(var(--brand-tint-2))'
+  			},
+  			ink: {
+  				DEFAULT: 'hsl(var(--ink))',
+  				foreground: 'hsl(var(--ink-foreground))',
+  				muted: 'hsl(var(--ink-muted))'
+  			},
   			chart: {
   				'1': 'hsl(var(--chart-1))',
   				'2': 'hsl(var(--chart-2))',
@@ -68,22 +84,19 @@ module.exports = {
   			display: ['var(--font-display)'],
   			mono: ['var(--font-mono)']
   		},
+  		boxShadow: {
+  			soft: 'var(--shadow-soft)',
+  			card: 'var(--shadow-card)',
+  			lift: 'var(--shadow-lift)'
+  		},
   		keyframes: {
   			'accordion-down': {
-  				from: {
-  					height: '0'
-  				},
-  				to: {
-  					height: 'var(--radix-accordion-content-height)'
-  				}
+  				from: { height: '0' },
+  				to: { height: 'var(--radix-accordion-content-height)' }
   			},
   			'accordion-up': {
-  				from: {
-  					height: 'var(--radix-accordion-content-height)'
-  				},
-  				to: {
-  					height: '0'
-  				}
+  				from: { height: 'var(--radix-accordion-content-height)' },
+  				to: { height: '0' }
   			}
   		},
   		animation: {

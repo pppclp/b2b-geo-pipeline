@@ -9,16 +9,20 @@ export default function StatCard({ label, value, sub, to, onClick, accent, icon:
     <Comp
       {...props}
       className={cn(
-        "group text-left w-full rounded-lg border border-border bg-card p-4 transition-colors hover:border-foreground/20",
-        to && "cursor-pointer"
+        "group text-left w-full rounded-xl border border-border bg-card p-4 shadow-soft transition-all duration-200",
+        (to || onClick) && "cursor-pointer hover:shadow-card hover:-translate-y-0.5 hover:border-foreground/15"
       )}
     >
-      <div className="flex items-start justify-between">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
-        {Icon && <Icon className="w-4 h-4 text-muted-foreground" />}
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
+        {Icon && (
+          <span className={cn("w-7 h-7 rounded-lg flex items-center justify-center bg-secondary text-muted-foreground group-hover:bg-brand-tint group-hover:text-brand transition-colors", accent && "bg-brand-tint text-brand")}>
+            <Icon className="w-4 h-4" />
+          </span>
+        )}
       </div>
-      <div className={cn("mt-2 text-2xl font-semibold tabular-nums", accent)}>{value}</div>
-      {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      <div className={cn("mt-2.5 text-2xl font-semibold tabular-nums tracking-tight", accent)}>{value}</div>
+      {sub && <div className="mt-1 text-xs text-muted-foreground tabular-nums">{sub}</div>}
       {children}
     </Comp>
   );
