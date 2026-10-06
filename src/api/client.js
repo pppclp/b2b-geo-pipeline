@@ -24,33 +24,54 @@ export const session = {
 // VITE_GEO_API_URL ending in /exec = Apps Script web app; otherwise a REST base (default /api).
 const IS_APPS_SCRIPT = /\/exec$/.test(API_BASE);
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Apps Script answers { status, body }. Google sometimes redirects a call before
+// running it and the request arrives as a bare GET (health-check reply, or an
+// HTML error page): nothing ran, so it is safe to retry.
+async function appsScript(method, payload) {
+  for (let attempt = 1; ; attempt++) {
+    const res =
+      method === "GET"
+        ? await fetch(`${API_BASE}?req=${encodeURIComponent(JSON.stringify(payload))}`)
+        : await fetch(API_BASE, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => null);
+    const health = data?.health || data?.body?.service === "B2B GEO Pipeline API";
+    if (data && typeof data.status === "number" && "body" in data && !health) return data;
+    if (attempt >= 4 || (data === null && method !== "GET")) {
+      throw Object.assign(new Error("The backend did not answer properly — please try again"), { status: 503 });
+    }
+    await sleep(400 * attempt);
+  }
+}
+
 async function request(method, path, { query, body } = {}) {
   const q = Object.fromEntries(
     Object.entries(query || {})
       .filter(([, v]) => v != null)
       .map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])
   );
-  let res;
+  let status, data;
   if (IS_APPS_SCRIPT) {
-    // Apps Script reads neither custom headers nor HTTP methods: send everything in a
-    // text/plain POST (no CORS preflight) and unwrap { status, body }.
-    res = await fetch(API_BASE, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ method, path: path.replace(/^\//, ""), query: q, body, userId: session.userId(), demoAs: storage.get(DEMO_KEY) }),
-    });
+    ({ status, body: data } = await appsScript(method, {
+      method,
+      path: path.replace(/^\//, ""),
+      query: q,
+      body,
+      userId: session.userId(),
+      demoAs: storage.get(DEMO_KEY),
+    }));
   } else {
     const url = new URL(`${API_BASE}${path}`, window.location.origin);
     Object.entries(q).forEach(([k, v]) => url.searchParams.set(k, v));
     const headers = { "Content-Type": "application/json" };
     if (session.userId()) headers["X-User-Id"] = session.userId();
     if (storage.get(DEMO_KEY)) headers["X-Demo-As"] = storage.get(DEMO_KEY);
-    res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    status = res.status;
+    data = await res.json().catch(() => ({}));
   }
-  let data = await res.json().catch(() => ({}));
-  let status = res.status;
-  if (IS_APPS_SCRIPT && res.ok) ({ status, body: data } = data);
-  if (status >= 400 || !res.ok) {
+  if (status >= 400) {
     const err = new Error(data?.message || `${method} ${path} failed (${status})`);
     err.status = status;
     throw err;
@@ -79,6 +100,8 @@ export const db = {
     me: () => request("GET", "/session/me"),
   },
   access: () => request("GET", "/access"),
+  // Several reads in one round trip: [{ path, query }] -> [{ status, body }]
+  batch: (requests) => request(IS_APPS_SCRIPT ? "GET" : "POST", "/batch", { body: { requests } }),
   // Raw row editor over the source sheets bound in access_control.
   sheets: {
     list: () => request("GET", "/sheets"),

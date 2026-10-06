@@ -380,6 +380,19 @@ export function createCore({ contract, store, now, uuid }) {
         .map((u) => ({ id: u.user_id, name: u.display_name, email: u.email, role: u.role }));
     }
 
+    // Several read requests in one round trip (Apps Script calls are slow): { requests: [{ path, query }] }
+    if (parts[0] === "batch") {
+      const requests = (req.body && req.body.requests) || [];
+      return requests.map((sub) => {
+        try {
+          return { status: 200, body: handle({ ...sub, method: "GET", userId: req.userId, demoAs: req.demoAs }) };
+        } catch (e) {
+          if (!e.status) throw e;
+          return { status: e.status, body: { message: e.message } };
+        }
+      });
+    }
+
     const actor = actorFrom(req.userId, req.demoAs);
 
     if (parts[0] === "session" && parts[1] === "me") {

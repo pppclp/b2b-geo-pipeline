@@ -3,18 +3,28 @@
 // server/core.js, bundled into GeoCore.js by `npm run gas:build` together with
 // Contract.js (from b2b_geo_pipeline.yaml) and SheetIds.js (from .env.local).
 //
-// Request (POST, Content-Type text/plain to avoid a CORS preflight):
-//   { method, path, query, body, userId, demoAs }
+// Request: { method, path, query, body, userId, demoAs } as JSON —
+//   reads:  GET  ?req=<json>
+//   writes: POST body (Content-Type text/plain, so no CORS preflight)
 // Response: { status, body } — Apps Script cannot set HTTP status codes.
 
-function doGet() {
-  return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API" } });
+// Reads arrive as GET ?req=<json> (a POST can be redirected by Google and lose
+// its body). Without ?req it is a health check — clients treat that shape as
+// "not executed" and retry.
+function doGet(e) {
+  var raw = e && e.parameter && e.parameter.req;
+  if (!raw) return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API" }, health: true });
+  return serve_(raw);
 }
 
 function doPost(e) {
+  return serve_((e.postData && e.postData.contents) || "{}");
+}
+
+function serve_(raw) {
   var out;
   try {
-    var req = JSON.parse((e.postData && e.postData.contents) || "{}");
+    var req = JSON.parse(raw);
     out = { status: 200, body: handle_(req) };
   } catch (err) {
     if (!err.status) console.error(err && err.stack ? err.stack : err);

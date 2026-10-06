@@ -20,14 +20,13 @@ const MASTER_ENTITIES = [
   "MonthlySnapshot",
 ];
 
-async function fetchAll(entity, limit = 500) {
-  try {
-    const items = await db.entities[entity].list("-created_date", limit);
-    return Array.isArray(items) ? items : items?.items || [];
-  } catch (e) {
-    console.warn(`Failed to load ${entity}`, e);
-    return [];
-  }
+// One round trip for everything the app needs; an entity the user may not read comes back empty.
+async function fetchAllEntities(entities) {
+  const results = await db.batch(entities.map((e) => ({ path: `entities/${e}`, query: { sort: "-created_date" } })));
+  return results.map((r, i) => {
+    if (r.status !== 200) console.warn(`Failed to load ${entities[i]}: ${r.body?.message}`);
+    return r.status === 200 && Array.isArray(r.body) ? r.body : [];
+  });
 }
 
 export function DataProvider({ children }) {
@@ -45,11 +44,7 @@ export function DataProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const results = await Promise.all([
-        ...MASTER_ENTITIES.map((e) => fetchAll(e)),
-        fetchAll("Opportunity"),
-        fetchAll("OpportunityHistory"),
-      ]);
+      const results = await fetchAllEntities([...MASTER_ENTITIES, "Opportunity", "OpportunityHistory"]);
       const masterObj = {};
       MASTER_ENTITIES.forEach((e, i) => (masterObj[e] = results[i]));
       setMaster(masterObj);

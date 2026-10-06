@@ -40,7 +40,7 @@ function initials(name = "") {
 }
 
 export default function AppLayout() {
-  const { profile, realProfile, isDemoing } = useData();
+  const { profile, realProfile, isDemoing, master, error } = useData();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -184,7 +184,21 @@ export default function AppLayout() {
         <DemoAsBar variant="banner" />
 
         <main className="flex-1 rounded-2xl bg-card border border-border shadow-soft overflow-auto">
-          <Outlet />
+          {master ? (
+            <Outlet />
+          ) : (
+            // First load from Google Sheets can take ~10 s; don't show empty numbers meanwhile.
+            <div className="h-full min-h-[320px] flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+              {error ? (
+                <span className="text-destructive">Could not load data: {error.message}</span>
+              ) : (
+                <>
+                  <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                  Loading pipeline data…
+                </>
+              )}
+            </div>
+          )}
         </main>
       </div>
     </div>
