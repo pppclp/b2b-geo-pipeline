@@ -1,14 +1,12 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, agingDays, daysAgoLabel } from "@/lib/pipeline";
-import { AlertCircle, Wrench } from "lucide-react";
+import { AlertCircle, Wrench, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function PipelineCard({ op, onDragStart }) {
+export default function PipelineCard({ op, onOpen }) {
   const { maps, config } = useData();
-  const navigate = useNavigate();
 
   const owner = maps.member[op.owner_id];
   const handler = maps.member[op.current_handler_id];
@@ -21,9 +19,11 @@ export default function PipelineCard({ op, onDragStart }) {
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart?.(e, op)}
-      onClick={() => navigate(`/opportunity/${op.id}`)}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open Quick View for ${op.customer_name}`}
+      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen?.(op.id); } }}
+      onClick={() => onOpen?.(op.id)}
       className={cn(
         "group bg-card border rounded-xl p-3.5 cursor-pointer transition-all hover:shadow-card hover:-translate-y-0.5",
         stuck ? "border-amber-300/70 shadow-soft" : "border-border shadow-soft hover:border-foreground/15"
@@ -31,6 +31,7 @@ export default function PipelineCard({ op, onDragStart }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="font-medium text-[13px] leading-snug line-clamp-2">{op.customer_name}</div>
+        <button type="button" className="ml-auto -mr-1 -mt-1 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground opacity-60 group-hover:opacity-100 focus:opacity-100" title="Quick actions" aria-label={`Quick actions for ${op.customer_name}`} onClick={(event) => { event.stopPropagation(); onOpen?.(op.id); }}><MoreHorizontal className="w-4 h-4"/></button>
         {op.support_needed && (
           <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700">
             <AlertCircle className="w-3 h-3" /> Support
