@@ -907,7 +907,10 @@ opportunity_entity:
         - "Exports"
 
     quantity:
-      source: "AE / SM input"
+      source: "AE / SM input (Number of Subs, required for new pipelines)"
+
+    price_per_sub:
+      source: "AE / SM input (THB per Sub per month, required for new pipelines)"
 
     rc:
       source: "AE / SM input"
@@ -922,13 +925,13 @@ opportunity_entity:
       source: "AE / SM input"
 
     pipeline_value:
-      source: "AE / SM input OR calculated business rule after confirmed"
+      source: "CALCULATED Net RC = (quantity * price_per_sub) + (oc / 12)"
 
       current_status:
-        - "Generic primary Pipeline Value for UAT"
+        - "Net RC in THB/month for new and explicitly repriced pipeline records"
+        - "Legacy records retain their prior manual value until explicitly repriced."
 
-      TODO:
-        - "Confirm whether final business metric = Net RC, Contract Value, or another value."
+      user_editable: false
 
       displayed_as:
         - "Pipeline Card"
