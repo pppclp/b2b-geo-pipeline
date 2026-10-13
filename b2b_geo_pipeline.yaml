@@ -18,6 +18,23 @@ application:
     - "Display names are for UI / reports only, not relational keys."
 
 # ============================================================
+# UAT PASSWORD GATE
+# ============================================================
+
+uat_auth:
+  mode: "UAT_PASSWORD_GATE"
+  username_field: "employee_id"
+  credential_store:
+    local_dev: "GEO_UAT_CREDENTIALS_JSON environment variable"
+    apps_script: "GEO_UAT_CREDENTIALS_JSON Script Property"
+  rules:
+    - "UAT only — this is not production authentication."
+    - "Username is the employee ID from Users.employee_id."
+    - "No plaintext UAT passwords are committed to GitHub."
+    - "A correct username/password unlocks the existing user session flow."
+    - "Existing role, region and pipeline permissions remain unchanged."
+
+# ============================================================
 # 0. HIGH-LEVEL DATA FLOW
 # ============================================================
 
