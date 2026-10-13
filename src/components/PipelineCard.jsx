@@ -1,7 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
-import { formatTHB, formatMonth, agingDays, daysAgoLabel } from "@/lib/pipeline";
+import { formatNetRc as formatTHB } from "@/lib/netRc";
+import { formatMonth, agingDays, daysAgoLabel } from "@/lib/pipeline";
 import { AlertCircle, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
