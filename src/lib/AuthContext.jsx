@@ -1,9 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { db, session } from '@/api/client';
 
-// Dev sign-in: the user picks who they are from the Users sheet and the
-// backend applies that user's role from b2b_geo_pipeline.yaml.
-// Replace with real authentication (e.g. Google Sign-In) before UAT.
+// UAT password gate: validate Employee ID + temporary password once,
+// then keep the existing user-id based app session flow.
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -38,8 +37,9 @@ export const AuthProvider = ({ children }) => {
     checkUserAuth();
   }, [checkUserAuth]);
 
-  const login = useCallback(async (userId) => {
-    session.setUserId(userId);
+  const login = useCallback(async (username, password) => {
+    const result = await db.session.login(username, password);
+    session.setUserId(result.user_id);
     await checkUserAuth();
   }, [checkUserAuth]);
 
