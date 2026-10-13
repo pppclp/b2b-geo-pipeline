@@ -9,6 +9,15 @@ import { seedData } from "./seed.js";
 
 const MASTER_FILES = ["B2B_GEO_User_Org_Master.xlsx", "B2B_Product_Master.xlsx", "B2B_GEO_Pipeline_Config.xlsx"];
 
+function verifyUatCredentials(username, password) {
+  try {
+    const credentials = JSON.parse(process.env.GEO_UAT_CREDENTIALS_JSON || "{}");
+    return String(credentials[String(username)] ?? "") === String(password ?? "");
+  } catch {
+    return false;
+  }
+}
+
 function uatCredentials() {
   try {
     return JSON.parse(process.env.GEO_UAT_CREDENTIALS_JSON || "{}");
