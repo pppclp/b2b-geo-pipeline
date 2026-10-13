@@ -59,18 +59,19 @@ function handle_(req) {
 }
 
 // ---- UAT password gate ----
-// Store GEO_UAT_CREDENTIALS_JSON as a Script Property. Example:
-// {"90009592":"temporary-password","90056469":"temporary-password"}
+// Temporary passwords stay outside GitHub; only their SHA-256 hashes are embedded
+// in GEO_CONTRACT. This is intentionally a lightweight UAT gate, not production auth.
 function verifyUatCredential_(username, password) {
-  var raw = PropertiesService.getScriptProperties().getProperty("GEO_UAT_CREDENTIALS_JSON") || "{}";
-  var credentials;
-  try {
-    credentials = JSON.parse(raw);
-  } catch (e) {
-    credentials = {};
-  }
+  var hashes = (GEO_CONTRACT.uatAuth && GEO_CONTRACT.uatAuth.credential_hashes) || {};
   var key = String(username || "").trim();
-  return Object.prototype.hasOwnProperty.call(credentials, key) && String(credentials[key]) === String(password || "");
+  var expected = hashes[key];
+  if (!expected) return false;
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(password || ""), Utilities.Charset.UTF_8);
+  var actual = bytes.map(function (b) {
+    var n = b < 0 ? b + 256 : b;
+    return ("0" + n.toString(16)).slice(-2);
+  }).join("");
+  return actual === expected;
 }
 
 // ---- Sheet IDs: SheetIds.js (generated) first, then Script Properties ----
