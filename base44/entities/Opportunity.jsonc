@@ -8,6 +8,13 @@
     "business_id": {
       "type": "string"
     },
+    "sales_channel": { "type": "string" },
+    "partner_name": { "type": "string" },
+    "contact_name": { "type": "string" },
+    "contact_phone": { "type": "string" },
+    "remark": { "type": "string" },
+    "product_details": { "type": "string" },
+    "ccp_check_result": { "type": "string" },
     "customer_type": {
       "type": "string"
     },
