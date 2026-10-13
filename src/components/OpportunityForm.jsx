@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import CreatePipelineModal from "@/components/CreatePipelineModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,7 @@ const empty = {
   support_note: "",
 };
 
-export default function OpportunityForm({ open, onClose, opportunity, onSaved }) {
+function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const { maps, master, activeStages, profile, createOpportunity, updateWithHistory } = useData();
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -144,7 +145,7 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{opportunity ? "Edit Opportunity" : "New Opportunity"}</DialogTitle>
+          <DialogTitle>Edit Pipeline</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -317,4 +318,8 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
       </DialogContent>
     </Dialog>
   );
+}
+// Keep historical-record editing unchanged while giving Create its dedicated modal.
+export default function OpportunityForm(props) {
+  return props.opportunity ? <EditOpportunityForm {...props} /> : <CreatePipelineModal {...props} />;
 }
