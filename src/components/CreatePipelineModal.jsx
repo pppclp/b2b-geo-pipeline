@@ -23,7 +23,7 @@ function SectionHeading({ number, children, trailing }) {
   return (
     <div className="flex items-center gap-3 mb-3">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 text-sm font-semibold">{number}</span>
-      <h3 className="font-semibold text-[15px] text-foreground">{children}</h3>
+      <h3 id={`section-${number}`} className="font-semibold text-[15px] text-foreground">{children}</h3>
       {trailing && <span className="ml-auto text-xs font-medium text-muted-foreground">{trailing}</span>}
     </div>
   );
@@ -177,7 +177,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
 
         <form id="new-pipeline-form" onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto px-6 md:px-7 py-5 space-y-5">
-            <section aria-labelledby="customer-section">
+            <section aria-labelledby="section-1">
               <SectionHeading number="1">Customer Information</SectionHeading>
               {!ownerIsAE && (
                 <div className="mb-4 max-w-sm">
@@ -226,7 +226,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
               </div>
             </section>
 
-            <section aria-labelledby="product-section" className="border-t pt-5">
+            <section aria-labelledby="section-2" className="border-t pt-5">
               <SectionHeading number="2">Product &amp; Value</SectionHeading>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <Field label="Product Category" required error={submitted && errors.product_category_id}>
@@ -264,7 +264,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
               </div>
             </section>
 
-            <section aria-labelledby="sm-section" className="border-t pt-5">
+            <section aria-labelledby="section-3" className="border-t pt-5">
               <SectionHeading number="3" trailing="SM Review">Additional Information</SectionHeading>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Scenario">
