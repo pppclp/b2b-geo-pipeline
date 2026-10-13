@@ -275,7 +275,7 @@ export function createCore({ contract, store, now, uuid, verifyUatCredential = (
           for (const key of ["customer_name", "business_id", "customer_type", "sales_channel", "contact_name", "contact_phone", "product_category_id", "expected_close_month"]) {
             if (!String(data[key] ?? "").trim()) throw new HttpError(400, key + " is required");
           }
-          if (!/^\\d+$/.test(String(data.business_id))) throw new HttpError(400, "Business ID must contain digits only");
+          if (!/^[0-9]+$/.test(String(data.business_id))) throw new HttpError(400, "Business ID must contain digits only");
           if (String(data.remark || "").length > 500) throw new HttpError(400, "Remark exceeds 500 characters");
         }
       }
