@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Maximize2, Clock3 } from "lucide-react";
+import { Maximize2 } from "lucide-react";
 
 const NONE = "__none__";
 const textOrDash = (value) => value || "—";
@@ -16,7 +16,7 @@ const textOrDash = (value) => value || "—";
  * One Save issues a single Opportunity update; timers reset only when their
  * respective field changes. Used by Quick View and Full Detail page.
  */
-export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, compact = false }) {
+export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, onDirtyChange }) {
   const { master, maps, activeStages, profile, updateQuickActions } = useData();
   const [stageId, setStageId] = useState(initialStageId || op.stage_id);
   const [handlerId, setHandlerId] = useState(op.current_handler_id || "");
@@ -62,6 +62,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, co
     handlerId !== (op.current_handler_id || "") ||
     workingWith !== (op.working_with || "");
   const hasPending = Boolean(initialStageId && initialStageId !== op.stage_id);
+  useEffect(() => { onDirtyChange?.(changed); }, [changed, onDirtyChange]);
 
   const save = async (event) => {
     event.preventDefault();
@@ -149,22 +150,29 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, co
 
 export default function PipelineQuickView({ op, open, onClose, onExpand, initialStageId }) {
   const { maps } = useData();
+  const [dirty, setDirty] = useState(false);
+  const requestClose = () => {
+    if (!dirty || window.confirm("Discard unsaved Pipeline changes?")) onClose();
+  };
+  const requestExpand = () => {
+    if (!dirty || window.confirm("Open Full Detail and discard unsaved changes?")) onExpand();
+  };
   if (!op) return null;
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
   const product = maps.product?.[op.product_id];
 
   return (
-    <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
+    <Dialog open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[710px] max-h-[92vh] overflow-y-auto rounded-2xl p-0 gap-0 [&>button]:hidden">
         <DialogHeader className="border-b px-5 sm:px-7 py-5 text-left relative pr-28">
           <DialogTitle className="text-xl tracking-tight">{op.customer_name}</DialogTitle>
           <DialogDescription className="text-xs mt-1">{textOrDash(category?.name)}{product ? ` · ${product.name}` : ""} · {formatMonth(op.expected_close_month)}</DialogDescription>
           <div className="absolute right-5 top-4 flex items-center gap-1">
-            <Button type="button" variant="ghost" size="icon" className="h-9 w-9" title="Open Full Detail page" aria-label="Open Full Detail page" onClick={onExpand}>
+            <Button type="button" variant="ghost" size="icon" className="h-9 w-9" title="Open Full Detail page" aria-label="Open Full Detail page" onClick={requestExpand}>
               <Maximize2 className="h-4 w-4"/>
             </Button>
-            <Button type="button" variant="ghost" size="icon" className="h-9 w-9" title="Close" aria-label="Close" onClick={onClose}>
+            <Button type="button" variant="ghost" size="icon" className="h-9 w-9" title="Close" aria-label="Close" onClick={requestClose}>
               <span className="text-lg leading-none">×</span>
             </Button>
           </div>
@@ -180,11 +188,11 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
               <p className="text-sm font-medium mt-1">{STATUS_LABELS[op.status] || op.status}</p>
             </div>
           </div>
-          <PipelineQuickActions op={op} initialStageId={initialStageId} onCancel={onClose} onSaved={onClose}/>
+          <PipelineQuickActions op={op} initialStageId={initialStageId} onCancel={requestClose} onDirtyChange={setDirty} onSaved={() => { setDirty(false); onClose(); }}/>
           <div className="border-t pt-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Pipeline Summary</h3>
-              <Button variant="outline" size="sm" type="button" onClick={onExpand}>View Full Detail</Button>
+              <Button variant="outline" size="sm" type="button" onClick={requestExpand}>View Full Detail</Button>
             </div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 mt-3 text-sm">
               <div><dt className="text-xs text-muted-foreground">Customer</dt><dd className="font-medium mt-1">{op.customer_name}</dd></div>
