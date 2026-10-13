@@ -97,6 +97,7 @@ export const db = {
   entities: new Proxy({}, { get: (_, name) => entity(String(name)) }),
   session: {
     users: () => request("GET", "/session/users"),
+    login: (username, password) => request("POST", "/session/login", { body: { username, password } }),
     me: () => request("GET", "/session/me"),
   },
   access: () => request("GET", "/access"),

@@ -48,6 +48,7 @@ function handle_(req) {
       store: store,
       now: function () { return new Date().toISOString(); },
       uuid: function () { return Utilities.getUuid(); },
+      verifyUatCredential: verifyUatCredential_,
     });
     var result = core.handle(req);
     store.flush();
@@ -55,6 +56,22 @@ function handle_(req) {
   } finally {
     if (writes) lock.releaseLock();
   }
+}
+
+// ---- UAT password gate ----
+// Temporary passwords stay outside GitHub; only their SHA-256 hashes are embedded
+// in GEO_CONTRACT. This is intentionally a lightweight UAT gate, not production auth.
+function verifyUatCredential_(username, password) {
+  var hashes = (GEO_CONTRACT.uatAuth && GEO_CONTRACT.uatAuth.credential_hashes) || {};
+  var key = String(username || "").trim();
+  var expected = hashes[key];
+  if (!expected) return false;
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(password || ""), Utilities.Charset.UTF_8);
+  var actual = bytes.map(function (b) {
+    var n = b < 0 ? b + 256 : b;
+    return ("0" + n.toString(16)).slice(-2);
+  }).join("");
+  return actual === expected;
 }
 
 // ---- Sheet IDs: SheetIds.js (generated) first, then Script Properties ----
