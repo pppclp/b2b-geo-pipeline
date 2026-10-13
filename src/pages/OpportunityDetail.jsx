@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
-import { formatTHB, formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS } from "@/lib/pipeline";
+import { formatNetRc as formatTHB } from "@/lib/netRc";
+import { formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import HistoryTimeline from "@/components/HistoryTimeline";
 import OpportunityForm from "@/components/OpportunityForm";
 import EmptyState from "@/components/EmptyState";
@@ -124,13 +125,14 @@ export default function OpportunityDetail() {
           </Section>
 
           <Section title="Commercial">
-            <Field label="Pipeline Value" value={formatTHB(op.pipeline_value)} />
-            <Field label="Quantity" value={op.quantity} />
+            <Field label={op.price_per_sub == null ? "Pipeline Value (legacy)" : "Net RC (THB/Month)"} value={formatTHB(op.pipeline_value)} />
+            <Field label="Number of Subs" value={op.quantity} />
+            <Field label="Price per Sub (THB/Month)" value={op.price_per_sub != null ? formatTHB(op.price_per_sub) : "—"} />
             <Field label="RC (recurring)" value={op.rc != null ? formatTHB(op.rc) : ""} />
             <Field label="OC (one-time)" value={op.oc != null ? formatTHB(op.oc) : ""} />
             <Field label="Discount (%)" value={op.discount} />
             <Field label="Contract Period (months)" value={op.contract_period} />
-            <p className="text-xs text-muted-foreground col-span-2 mt-1">Commercial formulas (Net RC, Contract Value) are not calculated until business definitions are confirmed.</p>
+            <p className="text-xs text-muted-foreground col-span-2 mt-1">Net RC = Number of Subs × Price per Sub + OC ÷ 12. Contract Value follows a separate rule.</p>
           </Section>
 
           <Section title="Pipeline">
