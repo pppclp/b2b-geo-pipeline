@@ -167,7 +167,7 @@ export default function Pipeline() {
             <Download className="w-4 h-4 mr-1.5" /> Export CSV
           </Button>
           <Button size="sm" className="rounded-lg" onClick={() => setFormOpen(true)}>
-            <Plus className="w-4 h-4 mr-1.5" /> New Opportunity
+            <Plus className="w-4 h-4 mr-1.5" /> New Pipeline
           </Button>
         </div>
       </div>
