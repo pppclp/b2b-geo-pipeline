@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { db } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { currentMonthKey } from "@/lib/pipeline";
+import { buildQuickActionChanges } from "@/lib/quickActionChanges";
 
 const DataContext = createContext(null);
 
@@ -252,46 +253,16 @@ export function DataProvider({ children }) {
   // independent timestamps and audit events for each changed field.
   const updateQuickActions = useCallback(async (id, { stageId, handlerId, workingWith }) => {
     const op = opportunities.find((item) => item.id === id);
-    if (!op) throw new Error("Pipeline not found");
-    if (op.status !== "open") throw new Error("Only open Pipelines can be changed");
-    const changes = {};
-    const events = [];
-    const now = new Date().toISOString();
-    if (stageId && stageId !== op.stage_id) {
-      if (!activeStages.some((stage) => stage.id === stageId)) throw new Error("Invalid Stage");
-      changes.stage_id = stageId;
-      changes.stage_entered_at = now;
-      events.push({
-        event_type: "stage_change", field: "stage",
-        previous_value: maps.stage[op.stage_id]?.name || op.stage_id,
-        new_value: maps.stage[stageId]?.name || stageId,
-      });
-    }
-    if (handlerId && handlerId !== op.current_handler_id) {
-      changes.current_handler_id = handlerId;
-      changes.handler_since = now;
-      events.push({
-        event_type: "handler_change", field: "current_handler",
-        previous_value: maps.member[op.current_handler_id]?.name || op.current_handler_id || "",
-        new_value: maps.member[handlerId]?.name || handlerId,
-      });
-    }
-    const team = workingWith || "";
-    if (team !== (op.working_with || "")) {
-      changes.working_with = team;
-      changes.working_with_since = team ? now : "";
-      events.push({
-        event_type: "working_with_change", field: "working_with",
-        previous_value: op.working_with || "", new_value: team,
-      });
-    }
+    const { changes, events } = buildQuickActionChanges(
+      op, { stageId, handlerId, workingWith },
+      { stages: activeStages, maps, now: new Date().toISOString() }
+    );
     if (!Object.keys(changes).length) return op;
-    // The record is saved once, so a combined Stage+Handler change cannot
-    // overwrite the other value using stale state.
+    // One record update; Stage and Handler aging remain independent.
     const saved = await updateWithHistory(id, changes, null);
     for (const event of events) await addHistory(id, event);
     return saved;
-  }, [opportunities, activeStages, maps.stage, maps.member, updateWithHistory, addHistory]);
+  }, [opportunities, activeStages, maps, updateWithHistory, addHistory]);
 
   const moveStage = useCallback(
     async (id, newStageId, remark) => {
