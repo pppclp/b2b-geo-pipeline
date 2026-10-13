@@ -68,6 +68,46 @@ uat_auth:
     - "Existing role, region and pipeline permissions remain unchanged."
 
 # ============================================================
+# UAT CREDENTIAL SOURCE
+# ============================================================
+
+source_04_uat_credentials:
+  file:
+    name: "B2B_GEO_UAT_Credentials_Distribution.xlsx"
+    source_id: "UAT_CREDENTIALS"
+    purpose: "UAT-only username/password validation"
+    direction: "SOURCE_TO_APP_PRIVATE"
+
+  sheet_uat_credentials:
+    source_sheet: "UAT_Credentials"
+    target_entity: "uat_credentials"
+    primary_key: "user_id"
+
+    fields:
+      user_id:
+        source: "UAT_Credentials.user_id"
+        target: "uat_credentials.user_id"
+        type: "string"
+        required: true
+
+      employee_id_username:
+        source: "UAT_Credentials.employee_id / username"
+        target: "uat_credentials.employee_id_username"
+        type: "string"
+        required: true
+
+      temporary_password:
+        source: "UAT_Credentials.temporary_password"
+        target: "uat_credentials.temporary_password"
+        type: "string"
+        required: true
+
+      account_status:
+        source: "UAT_Credentials.account_status"
+        target: "uat_credentials.account_status"
+        type: "string"
+
+# ============================================================
 # 0. HIGH-LEVEL DATA FLOW
 # ============================================================
 
@@ -2149,6 +2189,17 @@ access_control:
   # Deleting a master row is refused while other rows still reference its ID
   # (per referenced_by / used_by above) — deactivate it instead.
   files:
+
+    "B2B_GEO_UAT_Credentials_Distribution.xlsx":
+      sheets:
+        UAT_Credentials:
+          entity: "uat_credentials"
+          primary_key: "user_id"
+          permissions:
+            read: []
+            create: []
+            update: []
+            delete: []
 
     "B2B_GEO_User_Org_Master.xlsx":
       sheets:
