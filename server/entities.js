@@ -127,6 +127,7 @@ export const ENTITIES = {
       support_needed: { col: "support_needed", ...bool },
       pipeline_value: { col: "pipeline_value", ...number },
       quantity: { col: "quantity", ...number },
+      price_per_sub: { col: "price_per_sub", ...number },
       rc: { col: "rc", ...number },
       oc: { col: "oc", ...number },
     },
