@@ -85,6 +85,13 @@ export function createCore({ contract, store, now, uuid, verifyUatCredential = (
     return u ? findUser(u.user_id) : null;
   }
 
+  function findUserByEmployeeId(employeeId) {
+    const username = String(employeeId ?? "").trim();
+    if (!username) return null;
+    const row = rows("users").find((u) => String(u.employee_id ?? "").trim() === username);
+    return row ? findUser(row.user_id) : null;
+  }
+
   function actorFrom(userId, demoAs) {
     const real = findUser(userId);
     if (!real) throw new HttpError(401, "Not signed in");
