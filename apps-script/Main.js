@@ -73,17 +73,6 @@ function verifyUatCredential_(username, password) {
   return Object.prototype.hasOwnProperty.call(credentials, key) && String(credentials[key]) === String(password || "");
 }
 
-// UAT-only credential lookup. Set GEO_UAT_CREDENTIALS_JSON as a Script Property.
-function verifyUatCredentials_(username, password) {
-  try {
-    var raw = PropertiesService.getScriptProperties().getProperty("GEO_UAT_CREDENTIALS_JSON") || "{}";
-    var credentials = JSON.parse(raw);
-    return String(credentials[String(username)] || "") === String(password || "");
-  } catch (e) {
-    return false;
-  }
-}
-
 // ---- Sheet IDs: SheetIds.js (generated) first, then Script Properties ----
 function sheetIdFor_(file) {
   var key = "GEO_SHEET_ID_" + file.replace(/\.xlsx$/, "");
