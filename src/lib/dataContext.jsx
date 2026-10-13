@@ -6,6 +6,13 @@ import { buildQuickActionChanges } from "@/lib/quickActionChanges";
 
 const DataContext = createContext(null);
 
+const VALID_APP_ROLES = new Set(["ae", "sm", "management", "admin"]);
+
+function normalizeAppRole(value) {
+  const role = String(value || "").trim().toLowerCase();
+  return VALID_APP_ROLES.has(role) ? role : "";
+}
+
 const MASTER_ENTITIES = [
   "Region",
   "Territory",
@@ -63,18 +70,35 @@ export function DataProvider({ children }) {
     if (isAuthenticated) loadAll();
   }, [isAuthenticated, loadAll]);
 
-  // Resolve current user's real team member profile (never affected by Demo As)
+  // Resolve the authenticated user's real profile from User Master.
+  // user_id is the primary identity key for every role; email is only a legacy fallback.
+  // If the master row is temporarily unavailable, preserve the backend session role
+  // instead of escalating the user to Admin.
   const realProfile = useMemo(() => {
     if (!master) return null;
     const members = master.TeamMember || [];
-    const match = user?.email ? members.find((m) => (m.email || "").toLowerCase() === user.email.toLowerCase()) : null;
-    if (match) return { ...match, isProvisional: false };
-    // Provisional admin so the first logged-in user can configure the app
+
+    const matchById = user?.id
+      ? members.find((m) => String(m.id) === String(user.id))
+      : null;
+    const matchByEmail = !matchById && user?.email
+      ? members.find((m) => (m.email || "").toLowerCase() === user.email.toLowerCase())
+      : null;
+    const match = matchById || matchByEmail;
+
+    if (match) {
+      return {
+        ...match,
+        app_role: normalizeAppRole(match.app_role) || normalizeAppRole(user?.role) || "ae",
+        isProvisional: false,
+      };
+    }
+
     return {
       id: user?.id || "provisional",
-      name: user?.full_name || user?.email || "Administrator",
+      name: user?.full_name || user?.email || "User",
       email: user?.email || "",
-      app_role: "admin",
+      app_role: normalizeAppRole(user?.role) || "ae",
       region_ids: [],
       territory_ids: [],
       active: true,
