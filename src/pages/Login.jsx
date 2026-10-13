@@ -1,76 +1,80 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { db } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogIn, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 
-const ROLE_ORDER = ["Admin", "Management", "SM", "AE"];
-
-// Dev sign-in: choose a user from the Users sheet. Not real authentication.
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [users, setUsers] = useState(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [pending, setPending] = useState("");
+  const [pending, setPending] = useState(false);
 
-  useEffect(() => {
-    db.session
-      .users()
-      .then((list) => (Array.isArray(list) ? setUsers(list) : setError("Unexpected response from the backend — try reloading")))
-      .catch((e) => setError(e.message));
-  }, []);
-
-  const choose = async (id) => {
-    setPending(id);
-    await login(id);
-    navigate("/", { replace: true });
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setPending(true);
+    try {
+      await login(username.trim(), password);
+      navigate("/", { replace: true });
+    } catch (e) {
+      setError(e.status === 401 ? "รหัสพนักงานหรือ Password ไม่ถูกต้อง" : (e.message || "ไม่สามารถเข้าสู่ระบบได้"));
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
     <AuthLayout
       icon={LogIn}
       title="B2B GEO Pipeline"
-      subtitle="Local dev — sign in as a user from the Users sheet"
-      footer="Roles and permissions come from access_control in b2b_geo_pipeline.yaml"
+      subtitle="UAT Login"
+      footer="Username ใช้รหัสพนักงาน (Employee ID)"
     >
       {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
-      {!users && !error && (
-        <div className="flex justify-center py-6">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+
+      <form onSubmit={submit} className="space-y-4">
+        <div className="space-y-1.5">
+          <label htmlFor="employee-id" className="text-sm font-medium">Username</label>
+          <input
+            id="employee-id"
+            name="username"
+            type="text"
+            inputMode="numeric"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="รหัสพนักงาน เช่น 90009592"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            disabled={pending}
+            required
+          />
         </div>
-      )}
-      <div className="space-y-5">
-        {users &&
-          ROLE_ORDER.map((role) => {
-            const group = users.filter((u) => u.role === role);
-            if (!group.length) return null;
-            return (
-              <div key={role}>
-                <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{role}</div>
-                <div className="space-y-2">
-                  {group.map((u) => (
-                    <Button
-                      key={u.id}
-                      variant="outline"
-                      className="w-full h-auto py-2.5 justify-between text-left"
-                      disabled={!!pending}
-                      onClick={() => choose(u.id)}
-                    >
-                      <span>
-                        <span className="block text-sm font-medium">{u.name}</span>
-                        <span className="block text-xs text-muted-foreground">{u.email}</span>
-                      </span>
-                      {pending === u.id && <Loader2 className="w-4 h-4 animate-spin" />}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-      </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="password" className="text-sm font-medium">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Temporary Password สำหรับ UAT"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            disabled={pending}
+            required
+          />
+        </div>
+
+        <Button type="submit" className="w-full" disabled={pending || !username.trim() || !password}>
+          {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+          เข้าสู่ระบบ
+        </Button>
+      </form>
     </AuthLayout>
   );
 }
