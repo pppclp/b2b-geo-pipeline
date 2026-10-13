@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { db } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { currentMonthKey } from "@/lib/pipeline";
+import { buildQuickActionChanges } from "@/lib/quickActionChanges";
 
 const DataContext = createContext(null);
 
@@ -248,6 +249,21 @@ export function DataProvider({ children }) {
     [addHistory]
   );
 
+  // One persisted update for the three frequent Pipeline actions, with
+  // independent timestamps and audit events for each changed field.
+  const updateQuickActions = useCallback(async (id, { stageId, handlerId, workingWith }) => {
+    const op = opportunities.find((item) => item.id === id);
+    const { changes, events } = buildQuickActionChanges(
+      op, { stageId, handlerId, workingWith },
+      { stages: activeStages, maps, now: new Date().toISOString() }
+    );
+    if (!Object.keys(changes).length) return op;
+    // One record update; Stage and Handler aging remain independent.
+    const saved = await updateWithHistory(id, changes, null);
+    for (const event of events) await addHistory(id, event);
+    return saved;
+  }, [opportunities, activeStages, maps, updateWithHistory, addHistory]);
+
   const moveStage = useCallback(
     async (id, newStageId, remark) => {
       const op = opportunities.find((o) => o.id === id);
@@ -472,6 +488,7 @@ export function DataProvider({ children }) {
     deleteMaster,
     createOpportunity,
     updateWithHistory,
+    updateQuickActions,
     moveStage,
     handoff,
     reassign,
