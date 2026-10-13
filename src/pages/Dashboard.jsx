@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
-import { formatTHB, formatMonth, agingDays, ROLE_LABELS } from "@/lib/pipeline";
+import { formatNetRc as formatTHB } from "@/lib/netRc";
+import { formatMonth, agingDays, ROLE_LABELS } from "@/lib/pipeline";
 import KpiCard from "@/components/dashboard/KpiCard";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import MonthPicker from "@/components/MonthPicker";
