@@ -7,6 +7,7 @@ import { formatMonth, agingDays, formatDate, STATUS_LABELS } from "@/lib/pipelin
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import OpportunityForm from "@/components/OpportunityForm";
+import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -81,12 +82,13 @@ function exportCSV(ops, maps) {
 }
 
 export default function Pipeline() {
-  const { scopedOpportunities, activeStages, maps, profile, moveStage, config } = useData();
+  const { scopedOpportunities, activeStages, maps, profile, config } = useData();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState("board");
   const [sort, setSort] = useState("close_month");
   const [formOpen, setFormOpen] = useState(false);
+  const [quickView, setQuickView] = useState(null); // { id, targetStageId? }
   const [filters, setFilters] = useState({ status: "open" });
 
   useEffect(() => {
@@ -147,11 +149,14 @@ export default function Pipeline() {
   const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
 
   const onDragEnd = (res) => {
-    if (!res.destination) return;
-    const opId = res.draggableId;
-    const destStageId = res.destination.droppableId;
-    moveStage(opId, destStageId, "");
+    if (!res.destination || res.source.droppableId === res.destination.droppableId) return;
+    const op = scopedOpportunities.find((item) => item.id === res.draggableId);
+    if (!op || op.status !== "open") return;
+    // Keep the existing card in its original column until Save Changes.
+    setQuickView({ id: op.id, targetStageId: res.destination.droppableId });
   };
+  const openQuickView = (id) => setQuickView({ id, targetStageId: null });
+  const selectedPipeline = quickView ? scopedOpportunities.find((item) => item.id === quickView.id) : null;
 
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
 
@@ -203,7 +208,7 @@ export default function Pipeline() {
       </div>
 
       {sorted.length === 0 ? (
-        <EmptyState title="No opportunities match" description="Try adjusting filters or create a new opportunity." icon={KanbanSquare} />
+        <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
       ) : view === "board" ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="flex gap-3 overflow-x-auto pb-4">
@@ -227,7 +232,7 @@ export default function Pipeline() {
                           <Draggable key={op.id} draggableId={op.id} index={idx}>
                             {(p) => (
                               <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps}>
-                                <PipelineCard op={op} />
+                                <PipelineCard op={op} onOpen={openQuickView} />
                               </div>
                             )}
                           </Draggable>
@@ -264,7 +269,7 @@ export default function Pipeline() {
               </thead>
               <tbody className="divide-y divide-border">
                 {sorted.map((o) => (
-                  <tr key={o.id} className="hover:bg-secondary/40 cursor-pointer transition-colors" onClick={() => navigate(`/opportunity/${o.id}`)}>
+                  <tr key={o.id} className="hover:bg-secondary/40 cursor-pointer transition-colors" onClick={() => openQuickView(o.id)}>
                     <td className="px-4 py-3 font-medium">{o.customer_name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{maps.category[o.product_category_id]?.name}{o.product_id ? ` · ${maps.product[o.product_id]?.name}` : ""}</td>
                     <td className="px-4 py-3">{maps.stage[o.stage_id]?.name}</td>
@@ -284,6 +289,19 @@ export default function Pipeline() {
       )}
 
       <OpportunityForm open={formOpen} onClose={() => setFormOpen(false)} />
+      <PipelineQuickView
+        key={quickView?.id || "closed"}
+        open={!!quickView && !!selectedPipeline}
+        op={selectedPipeline}
+        initialStageId={quickView?.targetStageId || null}
+        onClose={() => setQuickView(null)}
+        onExpand={() => {
+          if (!quickView) return;
+          const id = quickView.id;
+          setQuickView(null);
+          navigate(`/opportunity/${id}`);
+        }}
+      />
     </div>
   );
 }
