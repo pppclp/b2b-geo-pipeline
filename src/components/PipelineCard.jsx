@@ -51,10 +51,10 @@ export default function PipelineCard({ op, onOpen }) {
 
       <div className="mt-2.5 pt-2.5 border-t border-border/70 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         <span title="Owner" className="inline-flex items-center gap-1">
-          <span className="font-medium text-foreground/70">O</span> {owner?.name || "—"}
+          <span className="font-medium text-foreground/70">O</span> {owner?.name || op.owner_id || "Unassigned"}
         </span>
         <span title="Current Handler" className="inline-flex items-center gap-1">
-          <span className="font-medium text-foreground/70">H</span> {handler?.name || "—"}
+          <span className="font-medium text-foreground/70">H</span> {handler?.name || op.current_handler_id || "Unassigned"}
         </span>
       </div>
 
