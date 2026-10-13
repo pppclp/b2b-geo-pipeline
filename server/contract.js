@@ -41,7 +41,7 @@ export function buildContract(yamlText) {
   if (doc.opportunity_events?.fields) columns.opportunity_events = Object.keys(doc.opportunity_events.fields);
   if (doc.monthly_snapshots?.fields) columns.monthly_snapshots = Object.keys(doc.monthly_snapshots.fields);
 
-  return { access: doc.access_control, references, columns };
+  return { access: doc.access_control, references, columns, uatAuth: doc.uat_auth || {} };
 }
 
 export function loadContract(yamlPath) {
