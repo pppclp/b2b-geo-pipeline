@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES } from "@/lib/pipeline";
+import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 import SearchableSelect from "@/components/SearchableSelect";
 
@@ -24,6 +25,7 @@ const empty = {
   stage_id: "",
   expected_close_month: "",
   pipeline_value: "",
+  price_per_sub: "",
   scenario_id: "",
   quantity: "",
   rc: "",
@@ -91,7 +93,18 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
     [master]
   );
 
-  const valid = form.customer_name && form.region_id && form.owner_id && form.product_category_id && form.stage_id && Number(form.pipeline_value) >= 0;
+  const legacyEdit = Boolean(opportunity && (opportunity.price_per_sub === "" || opportunity.price_per_sub == null));
+  const hasUnitPrice = form.price_per_sub !== "" && form.price_per_sub != null;
+  let calculatedNetRc = null;
+  if (hasUnitPrice) {
+    try {
+      calculatedNetRc = calculateNetRc({ quantity: form.quantity, pricePerSub: form.price_per_sub, oc: form.oc });
+    } catch { /* Do not show a calculation until inputs are valid. */ }
+  }
+  const valid = Boolean(
+    form.customer_name && form.region_id && form.owner_id && form.product_category_id && form.stage_id &&
+    (legacyEdit && !hasUnitPrice ? true : calculatedNetRc !== null)
+  );
 
   const submit = async () => {
     if (!valid) return;
@@ -100,14 +113,21 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
       const { id, created_date, updated_date, created_by_id, ...rest } = form;
       const payload = {
         ...rest,
-        pipeline_value: Number(form.pipeline_value) || 0,
-        quantity: form.quantity ? Number(form.quantity) : null,
-        rc: form.rc ? Number(form.rc) : null,
-        oc: form.oc ? Number(form.oc) : null,
+        pipeline_value: calculatedNetRc,
+        quantity: form.quantity === "" || form.quantity == null ? null : Number(form.quantity),
+        price_per_sub: hasUnitPrice ? Number(form.price_per_sub) : null,
+        rc: form.rc === "" || form.rc == null ? null : Number(form.rc),
+        oc: form.oc === "" || form.oc == null ? null : Number(form.oc),
         discount: form.discount ? Number(form.discount) : null,
         contract_period: form.contract_period ? Number(form.contract_period) : null,
         current_handler_id: form.current_handler_id || form.owner_id,
       };
+      if (legacyEdit && !hasUnitPrice) {
+        delete payload.pipeline_value;
+        delete payload.quantity;
+        delete payload.price_per_sub;
+        delete payload.oc;
+      }
       if (opportunity) {
         await updateWithHistory(opportunity.id, payload, null);
       } else {
@@ -220,8 +240,8 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
           </div>
 
           <div>
-            <Label>Pipeline Value (฿) *</Label>
-            <Input type="number" value={form.pipeline_value} onChange={(e) => set("pipeline_value", e.target.value)} placeholder="0" />
+            <Label>{legacyEdit && !hasUnitPrice ? "Existing Pipeline Value (legacy)" : "Net RC (THB/Month)"}</Label>
+            <Input readOnly value={calculatedNetRc !== null ? formatNetRc(calculatedNetRc) : legacyEdit ? formatNetRc(opportunity.pipeline_value) : "—"} className="bg-muted/40 font-semibold tabular-nums" />
           </div>
           <div>
             <Label>Scenario</Label>
@@ -234,16 +254,16 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
           </div>
 
           <div>
-            <Label>Quantity</Label>
-            <Input type="number" value={form.quantity ?? ""} onChange={(e) => set("quantity", e.target.value)} />
+            <Label>Number of Subs *</Label>
+            <Input type="number" min="1" step="1" disabled={legacyEdit && !hasUnitPrice} value={form.quantity ?? ""} onChange={(e) => set("quantity", e.target.value)} />
           </div>
           <div>
-            <Label>RC (recurring)</Label>
-            <Input type="number" value={form.rc ?? ""} onChange={(e) => set("rc", e.target.value)} />
+            <Label>Price per Sub (THB/Month) *</Label>
+            <Input type="number" min="0" step="0.01" value={form.price_per_sub ?? ""} onChange={(e) => set("price_per_sub", e.target.value)} />
           </div>
           <div>
-            <Label>OC (one-time)</Label>
-            <Input type="number" value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
+            <Label>OC (THB)</Label>
+            <Input type="number" min="0" step="0.01" disabled={legacyEdit && !hasUnitPrice} value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
           </div>
           <div>
             <Label>Discount (%)</Label>
