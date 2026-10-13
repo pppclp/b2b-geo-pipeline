@@ -277,6 +277,20 @@ export function createCore({ contract, store, now, uuid }) {
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, data.key, data.value);
       need(actor, b, "create");
       const stamp = now();
+      if (uiEntity === "Opportunity") {
+        // New AE modal fields must be validated server-side as well.
+        // Imported historical data without sales_channel is handled separately.
+        if (actor.role === "ae" && (data.scenario_id || data.ccp_check_result)) {
+          throw new HttpError(403, "Only SM or Management can set Scenario and CCP+ Check");
+        }
+        if ("sales_channel" in data) {
+          for (const key of ["customer_name", "business_id", "customer_type", "sales_channel", "contact_name", "contact_phone", "product_category_id", "expected_close_month"]) {
+            if (!String(data[key] ?? "").trim()) throw new HttpError(400, key + " is required");
+          }
+          if (!/^[0-9]+$/.test(String(data.business_id))) throw new HttpError(400, "Business ID must contain digits only");
+          if (String(data.remark || "").length > 500) throw new HttpError(400, "Remark exceeds 500 characters");
+        }
+      }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
       const row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
@@ -306,6 +320,14 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "update");
       const row = findRow(b, actor, id);
       const before = { ...row };
+      if (uiEntity === "Opportunity" && actor.role === "ae") {
+        const current = toUi(uiEntity, b.primary_key, row);
+        for (const field of ["scenario_id", "ccp_check_result"]) {
+          if (field in data && String(data[field] || "") !== String(current[field] || "")) {
+            throw new HttpError(403, "Only SM or Management can update " + field);
+          }
+        }
+      }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data, toUi(uiEntity, b.primary_key, row)) : data;
       const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       delete changes[b.primary_key];

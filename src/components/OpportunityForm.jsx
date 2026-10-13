@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import CreatePipelineModal from "@/components/CreatePipelineModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,13 @@ const empty = {
   customer_name: "",
   business_id: "",
   customer_type: "",
+  sales_channel: "",
+  partner_name: "",
+  contact_name: "",
+  contact_phone: "",
+  remark: "",
+  product_details: "",
+  ccp_check_result: "",
   region_id: "",
   territory_id: "",
   owner_id: "",
@@ -38,10 +46,11 @@ const empty = {
   support_note: "",
 };
 
-export default function OpportunityForm({ open, onClose, opportunity, onSaved }) {
+function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const { maps, master, activeStages, profile, createOpportunity, updateWithHistory } = useData();
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const canReview = ["sm", "management", "admin"].includes(profile?.app_role);
 
   useEffect(() => {
     if (opportunity) {
@@ -144,7 +153,7 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{opportunity ? "Edit Opportunity" : "New Opportunity"}</DialogTitle>
+          <DialogTitle>Edit Pipeline</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -167,6 +176,25 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
             </Select>
           </div>
 
+          <div>
+            <Label>Sales Channel</Label>
+            <Select value={form.sales_channel || ""} onValueChange={(v) => set("sales_channel", v)}>
+              <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
+              <SelectContent>{["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          {form.sales_channel === "B2B Premium Partner" && (
+            <div>
+              <Label>Partner Name</Label>
+              <Input value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
+            </div>
+          )}
+          <div><Label>Contact Name</Label><Input value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
+          <div><Label>Contact Phone</Label><Input type="tel" value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
+          <div className="sm:col-span-2">
+            <Label>Remark</Label>
+            <Textarea maxLength={500} rows={2} value={form.remark || ""} onChange={(e) => set("remark", e.target.value)} />
+          </div>
           <div>
             <Label>Region *</Label>
             <Select value={form.region_id} onValueChange={(v) => set("region_id", v)}>
@@ -226,6 +254,10 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
           </div>
 
           <div>
+            <Label>Product Details</Label>
+            <Input value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} />
+          </div>
+          <div>
             <Label>Stage *</Label>
             <Select value={form.stage_id} onValueChange={(v) => set("stage_id", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
@@ -245,12 +277,29 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
           </div>
           <div>
             <Label>Scenario</Label>
-            <Select value={form.scenario_id} onValueChange={(v) => set("scenario_id", v)}>
-              <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
-              <SelectContent>
-                {scenarioOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {canReview ? (
+              <Select value={form.scenario_id || ""} onValueChange={(v) => set("scenario_id", v)}>
+                <SelectTrigger><SelectValue placeholder="Pending SM Review" /></SelectTrigger>
+                <SelectContent>{scenarioOptions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+              </Select>
+            ) : (
+              <Input readOnly value={maps.scenario?.[form.scenario_id]?.name || "Pending SM Review"} className="bg-slate-50 text-slate-500" />
+            )}
+          </div>
+          <div>
+            <Label>CCP+ Check</Label>
+            {canReview ? (
+              <Select value={form.ccp_check_result || ""} onValueChange={(v) => set("ccp_check_result", v)}>
+                <SelectTrigger><SelectValue placeholder="Pending SM Review" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
+                  <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
+                  <SelectItem value="pending">Pending Review</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input readOnly value={{ not_in_base: "Not in Base (New Customer)", enterprise_base: "Enterprise Existing Base", pending: "Pending Review" }[form.ccp_check_result] || "Pending SM Review"} className="bg-slate-50 text-slate-500" />
+            )}
           </div>
 
           <div>
@@ -317,4 +366,8 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
       </DialogContent>
     </Dialog>
   );
+}
+// Keep historical-record editing unchanged while giving Create its dedicated modal.
+export default function OpportunityForm(props) {
+  return props.opportunity ? <EditOpportunityForm {...props} /> : <CreatePipelineModal {...props} />;
 }
