@@ -104,6 +104,9 @@
     "rc": {
       "type": "number"
     },
+    "price_per_sub": {
+      "type": "number"
+    },
     "oc": {
       "type": "number"
     },

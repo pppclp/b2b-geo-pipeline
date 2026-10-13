@@ -66,6 +66,20 @@ writes the Google Sheets directly.
 After any backend or YAML change, run `npm run gas:push` and update the deployment (Deploy →
 Manage deployments → Edit → New version) so the `/exec` URL serves the new code.
 
+## Net RC calculation (new and repriced Pipelines)
+
+Net RC (THB/month) = (Number of Subs × Price per Sub/month) + (OC ÷ 12).
+OC is optional (blank = 0); divisor is always 12, not Contract Period.
+The backend is authoritative and the frontend displays a read-only preview.
+The existing `pipeline_value` column supplies Cards, Dashboard, CSV and
+output sheets and represents Net RC for newly created or repriced records.
+
+**Legacy values:** Existing records without `price_per_sub` are not silently
+recalculated. They retain the older manually entered amount until the unit
+price is supplied. Review these records before using mixed-era Dashboard totals
+as confirmed Net RC. Local Excel and Google Sheets backends will need the new
+`price_per_sub` column; redeploy Apps Script after backend changes.
+
 ## Layout
 
 - `b2b_geo_pipeline.yaml`: data contract and `access_control`.
