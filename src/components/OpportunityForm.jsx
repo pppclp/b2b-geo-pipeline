@@ -255,7 +255,7 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
 
           <div>
             <Label>Number of Subs *</Label>
-            <Input type="number" min="1" step="1" disabled={legacyEdit && !hasUnitPrice} value={form.quantity ?? ""} onChange={(e) => set("quantity", e.target.value)} />
+            <Input type="number" min="1" step="1" value={form.quantity ?? ""} onChange={(e) => set("quantity", e.target.value)} />
           </div>
           <div>
             <Label>Price per Sub (THB/Month) *</Label>
@@ -263,7 +263,7 @@ export default function OpportunityForm({ open, onClose, opportunity, onSaved })
           </div>
           <div>
             <Label>OC (THB)</Label>
-            <Input type="number" min="0" step="0.01" disabled={legacyEdit && !hasUnitPrice} value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
+            <Input type="number" min="0" step="0.01" value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
           </div>
           <div>
             <Label>Discount (%)</Label>
