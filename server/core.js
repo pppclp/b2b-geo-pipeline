@@ -42,7 +42,7 @@ function normalizeOpportunityPricing(data, existing = null) {
   }
 }
 
-export function createCore({ contract, store, now, uuid, verifyUatCredential = () => false }) {
+export function createCore({ contract, store, now, uuid }) {
   const ac = contract.access;
   const bindings = {}; // yaml entity -> { file, sheet, ...rule }
   const sheetRules = {}; // "file/sheet" -> { file, sheet, ...rule }
@@ -107,6 +107,18 @@ export function createCore({ contract, store, now, uuid, verifyUatCredential = (
     if (!username) return null;
     const u = rows("users").find((r) => String(r.employee_id ?? "").trim() === username);
     return u ? findUser(u.user_id) : null;
+  }
+
+  function verifyUatCredential(username, password) {
+    const key = String(username ?? "").trim();
+    const supplied = String(password ?? "");
+    if (!key || !supplied) return false;
+    const row = rows("uat_credentials").find((r) => {
+      const raw = r["employee_id / username"] ?? r.employee_id_username ?? "";
+      return String(raw).trim() === key;
+    });
+    if (!row) return false;
+    return String(row.temporary_password ?? "") === supplied;
   }
 
   function actorFrom(userId, demoAs) {
