@@ -8,6 +8,7 @@
 //   touch(file, sheet)  — mark the table as changed so the adapter saves it
 import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
 import { createOutputs } from "./outputs.js";
+import { calculateNetRc } from "../src/lib/netRc.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -17,6 +18,29 @@ export class HttpError extends Error {
 }
 
 const isActive = (v) => v === "" || v == null || bool.toUi(v);
+
+// Existing records without a unit price retain their original manual value
+// until an AE/SM explicitly enters unit pricing. Never silently backfill.
+function normalizeOpportunityPricing(data, existing = null) {
+  const merged = { ...(existing || {}), ...data };
+  const hasPrice = merged.price_per_sub !== "" && merged.price_per_sub != null;
+  if (!hasPrice) {
+    if (!existing) throw new HttpError(400, "Price per Sub is required");
+    if (["pipeline_value", "quantity", "oc"].some((k) => k in data && data[k] !== existing[k])) {
+      throw new HttpError(400, "Enter Price per Sub before changing legacy financial values");
+    }
+    return { ...data };
+  }
+  try {
+    return { ...data, pipeline_value: calculateNetRc({
+      quantity: merged.quantity,
+      pricePerSub: merged.price_per_sub,
+      oc: merged.oc,
+    }) };
+  } catch (error) {
+    throw new HttpError(400, error.message);
+  }
+}
 
 export function createCore({ contract, store, now, uuid }) {
   const ac = contract.access;
@@ -234,7 +258,8 @@ export function createCore({ contract, store, now, uuid }) {
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, data.key, data.value);
       need(actor, b, "create");
       const stamp = now();
-      const row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, data));
+      const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
+      const row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
       if (b.append_only) {
         // Events are system records: actor and time are set by the backend.
@@ -262,7 +287,8 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "update");
       const row = findRow(b, actor, id);
       const before = { ...row };
-      const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, data));
+      const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data, toUi(uiEntity, b.primary_key, row)) : data;
+      const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       delete changes[b.primary_key];
       Object.assign(row, fitColumns(b, { ...changes, updated_at: now() }));
       touch(b);
