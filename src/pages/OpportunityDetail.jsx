@@ -5,6 +5,7 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import HistoryTimeline from "@/components/HistoryTimeline";
 import OpportunityForm from "@/components/OpportunityForm";
+import { PipelineQuickActions } from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -90,8 +91,6 @@ export default function OpportunityDetail() {
         {canEdit && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
-            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "stage" })}><GitBranch className="w-4 h-4 mr-1.5" /> Move Stage</Button>
-            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "handoff" })}><ArrowRightLeft className="w-4 h-4 mr-1.5" /> Handoff</Button>
             <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>
             {op.status === "open" && <Button variant="outline" size="sm" className="rounded-lg text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={() => setAction({ type: "won" })}><Trophy className="w-4 h-4 mr-1.5" /> Won</Button>}
             {op.status === "open" && <Button variant="outline" size="sm" className="rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => setAction({ type: "lost" })}><XCircle className="w-4 h-4 mr-1.5" /> Lost</Button>}
@@ -111,9 +110,9 @@ export default function OpportunityDetail() {
           </Section>
 
           <Section title="Ownership & Assignment">
-            <Field label="Opportunity Owner" value={owner?.name} />
+            <Field label="AE Owner" value={owner?.name || op.owner_id} />
             {originalOwner && originalOwner.id !== op.owner_id && <Field label="Original Owner" value={originalOwner?.name} />}
-            <Field label="Current Handler" value={handler?.name} />
+            <Field label="Current Handler" value={handler?.name || op.current_handler_id} />
             <Field label="Region" value={region?.name} />
             <Field label="Territory" value={territory?.name} />
             <Field label="Handler Since" value={`${formatDate(op.handler_since)} (${handlerAging} days)`} />
@@ -165,14 +164,17 @@ export default function OpportunityDetail() {
 
         <div className="space-y-4">
           <Section title="Quick Actions" stacked>
+            <PipelineQuickActions op={op} />
+          </Section>
+
+          {canEdit && <Section title="Other Actions" stacked>
             <div className="grid grid-cols-1 gap-2">
               <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "closemonth" })}><CalendarClock className="w-4 h-4 mr-2" /> Change Close Month</Button>
-              <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "workingwith" })}><Wrench className="w-4 h-4 mr-2" /> Set Working With</Button>
               <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: !op.support_needed })}>
                 <Wrench className="w-4 h-4 mr-2" /> {op.support_needed ? "Disable Support" : "Enable Support"}
               </Button>
             </div>
-          </Section>
+          </Section>}
 
           <Section title="History" stacked>
             <HistoryTimeline opportunityId={op.id} />
@@ -202,7 +204,7 @@ export default function OpportunityDetail() {
 
 function actionTitle(t) {
   return ({
-    stage: "Move Stage", handoff: "Handoff", reassign: "Reassign", closemonth: "Change Close Month",
+    reassign: "Reassign", closemonth: "Change Close Month",
     won: "Mark Won", lost: "Mark Lost", archive: "Archive", reopen: "Reopen",
     workingwith: "Set Working With", support: "Toggle Support Needed",
   })[t] || "Action";
