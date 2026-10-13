@@ -21,7 +21,7 @@ export default function Login() {
       await login(username.trim(), password);
       navigate("/", { replace: true });
     } catch (e) {
-      setError(e.status === 401 ? "รหัสพนักงานหรือ Password ไม่ถูกต้อง" : (e.message || "ไม่สามารถเข้าสู่ระบบได้"));
+      setError(e.status === 401 ? "Employee ID or password is incorrect" : e.message);
     } finally {
       setPending(false);
     }
@@ -31,25 +31,23 @@ export default function Login() {
     <AuthLayout
       icon={LogIn}
       title="B2B GEO Pipeline"
-      subtitle="UAT Login"
-      footer="Username ใช้รหัสพนักงาน (Employee ID)"
+      subtitle="UAT sign in with your Employee ID and temporary password"
+      footer="Use the UAT credentials provided to you individually"
     >
       {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
 
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <label htmlFor="employee-id" className="text-sm font-medium">Username</label>
+          <label htmlFor="employee-id" className="text-sm font-medium">Employee ID</label>
           <input
             id="employee-id"
             name="username"
-            type="text"
             inputMode="numeric"
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="รหัสพนักงาน เช่น 90009592"
+            placeholder="e.g. 90009592"
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            disabled={pending}
             required
           />
         </div>
@@ -63,16 +61,15 @@ export default function Login() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Temporary Password สำหรับ UAT"
+            placeholder="Enter your UAT password"
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            disabled={pending}
             required
           />
         </div>
 
         <Button type="submit" className="w-full" disabled={pending || !username.trim() || !password}>
           {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-          เข้าสู่ระบบ
+          Sign in
         </Button>
       </form>
     </AuthLayout>
