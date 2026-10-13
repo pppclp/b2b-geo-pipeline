@@ -48,7 +48,6 @@ function handle_(req) {
       store: store,
       now: function () { return new Date().toISOString(); },
       uuid: function () { return Utilities.getUuid(); },
-      verifyUatCredential: verifyUatCredential_,
     });
     var result = core.handle(req);
     store.flush();
