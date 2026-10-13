@@ -9,17 +9,11 @@ import { seedData } from "./seed.js";
 
 const MASTER_FILES = ["B2B_GEO_User_Org_Master.xlsx", "B2B_Product_Master.xlsx", "B2B_GEO_Pipeline_Config.xlsx"];
 
-function uatCredentials() {
-  try {
-    return JSON.parse(process.env.GEO_UAT_CREDENTIALS_JSON || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function verifyUatCredential(username, password) {
-  const credentials = uatCredentials();
-  return Object.prototype.hasOwnProperty.call(credentials, username) && String(credentials[username]) === String(password);
+function verifyUatCredential(contract, username, password) {
+  const expected = contract.uatAuth?.credential_hashes?.[String(username)];
+  if (!expected) return false;
+  const actual = crypto.createHash("sha256").update(String(password), "utf8").digest("hex");
+  return actual === expected;
 }
 
 export function createApi({ yamlPath, dataDir }) {
@@ -80,7 +74,7 @@ export function createApi({ yamlPath, dataDir }) {
           store,
           now: () => new Date().toISOString(),
           uuid: () => crypto.randomUUID(),
-          verifyUatCredential,
+          verifyUatCredential: (username, password) => verifyUatCredential(c, username, password),
         });
         try {
           const out = core.handle({
