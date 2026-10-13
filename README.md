@@ -80,6 +80,23 @@ price is supplied. Review these records before using mixed-era Dashboard totals
 as confirmed Net RC. Local Excel and Google Sheets backends will need the new
 `price_per_sub` column; redeploy Apps Script after backend changes.
 
+## Create Pipeline UI (UAT)
+
+The **New Pipeline** action opens a centered, expandable modal with
+Customer Information, Product & Value, and Additional Information sections.
+AE fields are required as indicated in the form; Remark and Product Details
+are optional. Scenario and CCP+ Check are displayed to AE as read-only
+**Pending SM Review** placeholders. Region, Territory, owner, and creation
+timestamps are derived from User Master / session information, not entered
+again by AE.
+
+New fields `contact_name`, `contact_phone`, `sales_channel`,
+`partner_name`, `remark`, `product_details`, and `ccp_check_result`
+are persisted as additional Opportunity sheet columns by the local Excel
+or Google Sheets backend. Existing historical records and the Edit
+Pipeline form are intentionally preserved. Configure a default Region
+for any AE assigned to more than one Region before creating their Pipeline.
+
 ## Layout
 
 - `b2b_geo_pipeline.yaml`: data contract and `access_control`.
