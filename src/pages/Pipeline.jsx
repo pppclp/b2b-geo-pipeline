@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useData } from "@/lib/dataContext";
-import { formatTHB, formatMonth, agingDays, formatDate, STATUS_LABELS } from "@/lib/pipeline";
+import { formatNetRc as formatTHB } from "@/lib/netRc";
+import { formatMonth, agingDays, formatDate, STATUS_LABELS } from "@/lib/pipeline";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import OpportunityForm from "@/components/OpportunityForm";
@@ -46,7 +47,7 @@ function exportCSV(ops, maps) {
     "Opportunity ID", "Customer Name", "Business ID", "Customer Type", "Scenario",
     "Region", "Territory", "Opportunity Owner", "Current Handler",
     "Product Category", "Product", "Stage", "Status",
-    "Created At", "Created Month", "Expected Close Month", "Pipeline Value",
+    "Created At", "Created Month", "Expected Close Month", "Net RC (THB/Month)",
     "Stage Aging (days)", "Handler Aging (days)",
     "Working With", "Working With Aging (days)",
     "Support Needed", "Support Type", "Support Note",
@@ -60,7 +61,7 @@ function exportCSV(ops, maps) {
     maps.member[o.owner_id]?.name || "", maps.member[o.current_handler_id]?.name || "",
     maps.category[o.product_category_id]?.name || "", maps.product[o.product_id]?.name || "",
     maps.stage[o.stage_id]?.name || "", STATUS_LABELS[o.status] || o.status,
-    formatDate(o.created_date), o.created_month || "", formatMonth(o.expected_close_month), o.pipeline_value || 0,
+    formatDate(o.created_date), o.created_month || "", formatMonth(o.expected_close_month), Number(o.pipeline_value || 0).toFixed(2),
     agingDays(o.stage_entered_at), agingDays(o.handler_since),
     o.working_with || "", o.working_with ? agingDays(o.working_with_since) : "",
     o.support_needed ? "Yes" : "No", o.support_type || "", o.support_note || "",
@@ -255,7 +256,7 @@ export default function Pipeline() {
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Status</th>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Owner</th>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Handler</th>
-                  <th className="text-right font-medium px-4 py-3 text-xs uppercase tracking-wide">Value</th>
+                  <th className="text-right font-medium px-4 py-3 text-xs uppercase tracking-wide">Net RC</th>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Close</th>
                   <th className="text-right font-medium px-4 py-3 text-xs uppercase tracking-wide">Stage Age</th>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Support</th>
