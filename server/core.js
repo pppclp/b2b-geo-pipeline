@@ -42,7 +42,7 @@ function normalizeOpportunityPricing(data, existing = null) {
   }
 }
 
-export function createCore({ contract, store, now, uuid }) {
+export function createCore({ contract, store, now, uuid, verifyUatCredential = () => false }) {
   const ac = contract.access;
   const bindings = {}; // yaml entity -> { file, sheet, ...rule }
   const sheetRules = {}; // "file/sheet" -> { file, sheet, ...rule }
@@ -100,6 +100,13 @@ export function createCore({ contract, store, now, uuid }) {
     const u = rows("users").find((r) => r.user_id === userId);
     if (!u || String(u.status || "Active").toLowerCase() !== "active") return null;
     return { id: u.user_id, name: u.display_name, email: u.email, role: u.role, region_ids: regionIdsFor(u.user_id) };
+  }
+
+  function findUserByEmployeeId(employeeId) {
+    const username = String(employeeId || "").trim();
+    if (!username) return null;
+    const u = rows("users").find((r) => String(r.employee_id ?? "").trim() === username);
+    return u ? findUser(u.user_id) : null;
   }
 
   function actorFrom(userId, demoAs) {
@@ -399,7 +406,19 @@ export function createCore({ contract, store, now, uuid }) {
     const query = req.query || {};
     const q = query.q ? (typeof query.q === "string" ? JSON.parse(query.q) : query.q) : undefined;
 
-    // Dev sign-in list. Replace with real authentication before UAT.
+    // UAT password gate only: validate Employee ID + temporary password,
+    // then continue using the existing user-id based app flow.
+    if (parts[0] === "session" && parts[1] === "login" && method === "POST") {
+      const username = String(req.body?.username || "").trim();
+      const password = String(req.body?.password || "");
+      const user = findUserByEmployeeId(username);
+      if (!user || !verifyUatCredential(username, password)) {
+        throw new HttpError(401, "Invalid username or password");
+      }
+      return { user_id: user.id, id: user.id, full_name: user.name, role: user.role };
+    }
+
+    // Dev sign-in list. Kept for local troubleshooting; the UAT UI no longer uses it.
     if (parts[0] === "session" && parts[1] === "users" && method === "GET") {
       return rows("users")
         .filter((u) => String(u.status || "Active").toLowerCase() === "active")
