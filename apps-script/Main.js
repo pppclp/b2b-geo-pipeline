@@ -48,6 +48,7 @@ function handle_(req) {
       store: store,
       now: function () { return new Date().toISOString(); },
       uuid: function () { return Utilities.getUuid(); },
+      verifyUatCredential: verifyUatCredential_,
     });
     var result = core.handle(req);
     store.flush();
@@ -55,6 +56,21 @@ function handle_(req) {
   } finally {
     if (writes) lock.releaseLock();
   }
+}
+
+// ---- UAT password gate ----
+// Store GEO_UAT_CREDENTIALS_JSON as a Script Property. Example:
+// {"90009592":"temporary-password","90056469":"temporary-password"}
+function verifyUatCredential_(username, password) {
+  var raw = PropertiesService.getScriptProperties().getProperty("GEO_UAT_CREDENTIALS_JSON") || "{}";
+  var credentials;
+  try {
+    credentials = JSON.parse(raw);
+  } catch (e) {
+    credentials = {};
+  }
+  var key = String(username || "").trim();
+  return Object.prototype.hasOwnProperty.call(credentials, key) && String(credentials[key]) === String(password || "");
 }
 
 // ---- Sheet IDs: SheetIds.js (generated) first, then Script Properties ----
