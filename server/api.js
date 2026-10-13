@@ -9,6 +9,19 @@ import { seedData } from "./seed.js";
 
 const MASTER_FILES = ["B2B_GEO_User_Org_Master.xlsx", "B2B_Product_Master.xlsx", "B2B_GEO_Pipeline_Config.xlsx"];
 
+function uatCredentials() {
+  try {
+    return JSON.parse(process.env.GEO_UAT_CREDENTIALS_JSON || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function verifyUatCredential(username, password) {
+  const credentials = uatCredentials();
+  return Object.prototype.hasOwnProperty.call(credentials, username) && String(credentials[username]) === String(password);
+}
+
 export function createApi({ yamlPath, dataDir }) {
   const store = new ExcelStore(dataDir);
   let cached = { mtime: 0, contract: null };
@@ -62,7 +75,13 @@ export function createApi({ yamlPath, dataDir }) {
         const c = contract();
         await ensureFiles(c);
         await store.loadAll([...boundFiles(c), ...outputFiles(c)]);
-        const core = createCore({ contract: c, store, now: () => new Date().toISOString(), uuid: () => crypto.randomUUID() });
+        const core = createCore({
+          contract: c,
+          store,
+          now: () => new Date().toISOString(),
+          uuid: () => crypto.randomUUID(),
+          verifyUatCredential,
+        });
         try {
           const out = core.handle({
             method: req.method,
