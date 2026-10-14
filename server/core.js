@@ -538,7 +538,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (method === "GET") return entityApi.get(entity, actor, id);
       if (method === "POST" && id === "bulk") {
         const created = (req.body || []).map((item) => entityApi.create(entity, actor, item));
-        if (entity === "MonthlySnapshot" && created[0]) outputs.monthEnd(created[0].snapshot_month);
+        if (entity === "MonthlySnapshot" && created[0]) outputs.monthEnd(created[0].snapshot_period);
         return created;
       }
       if (method === "POST") return entityApi.create(entity, actor, req.body || {});
