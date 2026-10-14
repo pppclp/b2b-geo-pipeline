@@ -47,7 +47,7 @@ function validateConfigMaster(uiEntity, data, previous = null) {
   if (!["StageSLA", "ActionSLA", "FieldOption"].includes(uiEntity)) return;
   const merged = { ...(previous || {}), ...data };
   if (uiEntity === "FieldOption") {
-    if (!["sales_channel", "customer_type", "ccp_check_result", "status"].includes(merged.field_key)) {
+    if (!["sales_channel", "customer_type", "ccp_check_result"].includes(merged.field_key)) {
       throw new HttpError(400, "Unsupported Field Option key");
     }
     if (!String(merged.value || "").trim() || !String(merged.label || "").trim()) {
