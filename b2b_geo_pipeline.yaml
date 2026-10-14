@@ -1247,7 +1247,6 @@ web_app:
     data_source:
       - "opportunities"
       - "users"
-      - "products"
       - "product_categories"
       - "stages"
       - "working_with_options"
@@ -1256,8 +1255,14 @@ web_app:
       customer:
         from: "opportunities.customer_name"
 
-      product:
-        from: "products.product_name"
+      product_category:
+        join:
+          "opportunities.product_category_id → product_categories.category_id"
+        show:
+          "product_categories.category_name"
+
+      product_details:
+        from: "opportunities.product_details"
 
       pipeline_value:
         from: "opportunities.pipeline_value"
@@ -1335,13 +1340,14 @@ web_app:
       from: "opportunities.status"
 
     product_category:
-      relation:
-        - "opportunities.product_id → products.product_id"
-        - "products.category_id → product_categories.category_id"
-
-    product:
       join:
-        "opportunities.product_id → products.product_id"
+        "opportunities.product_category_id → product_categories.category_id"
+
+    sales_channel:
+      from: "opportunities.sales_channel"
+
+    ccp_check_result:
+      from: "opportunities.ccp_check_result"
 
     scenario:
       join:
@@ -1383,7 +1389,6 @@ dashboard:
       - "Region"
       - "AE / Owner"
       - "Product Category"
-      - "Product"
 
 
   expected_to_close:
@@ -1458,9 +1463,8 @@ dashboard:
 
   pipeline_by_product_category:
 
-    joins:
-      - "opportunities.product_id → products.product_id"
-      - "products.category_id → product_categories.category_id"
+    relation:
+      "opportunities.product_category_id → product_categories.category_id"
 
     metrics:
       - "Opportunity Count"
@@ -1523,11 +1527,8 @@ export_01_current_pipeline:
       territory:
         "opportunities.territory_id → territories.territory_id"
 
-      product:
-        "opportunities.product_id → products.product_id"
-
       product_category:
-        "products.category_id → product_categories.category_id"
+        "opportunities.product_category_id → product_categories.category_id"
 
       stage:
         "opportunities.stage_id → stages.stage_id"
@@ -1557,10 +1558,16 @@ export_01_current_pipeline:
       - "customer_name"
       - "business_id"
       - "customer_type"
+      - "sales_channel"
+      - "partner_name"
+      - "contact_name"
+      - "contact_phone"
+      - "remark"
 
     scenario:
       - "scenario_id"
       - "scenario_name"
+      - "ccp_check_result"
 
     organization:
       - "region_id"
@@ -1577,16 +1584,14 @@ export_01_current_pipeline:
       - "current_handler_name"
 
     product:
-      - "category_id"
+      - "product_category_id"
       - "category_name"
-      - "product_id"
-      - "product_name"
+      - "product_details"
 
     commercial:
       - "quantity"
-      - "rc"
+      - "price_per_sub"
       - "oc"
-      - "discount_pct"
       - "contract_period_months"
       - "pipeline_value"
 
