@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES } from "@/lib/pipeline";
+import { optionsForField } from "@/lib/slaConfig";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 
@@ -47,6 +48,13 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const canReview = ["sm", "management", "admin"].includes(profile?.app_role);
+  const salesChannelChoices = optionsForField(master?.FieldOption, "sales_channel", ["AE B2B GEO", "AE Self", "B2B Premium Partner"]);
+  const customerTypeChoices = optionsForField(master?.FieldOption, "customer_type", CUSTOMER_TYPES);
+  const ccpChoices = optionsForField(master?.FieldOption, "ccp_check_result", [
+    { value:"not_in_base", label:"Not in Base (New Customer)" },
+    { value:"enterprise_base", label:"Enterprise Existing Base" },
+    { value:"pending", label:"Pending Review" },
+  ]);
 
   useEffect(() => {
     if (opportunity) {
@@ -191,7 +199,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Select value={form.customer_type} onValueChange={(v) => set("customer_type", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
-                {CUSTOMER_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {customerTypeChoices.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -200,7 +208,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Label>Sales Channel *</Label>
             <Select value={form.sales_channel || ""} onValueChange={(v) => set("sales_channel", v)}>
               <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
-              <SelectContent>{["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+              <SelectContent>{salesChannelChoices.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {form.sales_channel === "B2B Premium Partner" && (
@@ -301,9 +309,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
               <Select value={form.ccp_check_result || ""} onValueChange={(v) => set("ccp_check_result", v)}>
                 <SelectTrigger><SelectValue placeholder="Pending SM Review" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
-                  <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
-                  <SelectItem value="pending">Pending Review</SelectItem>
+                  {ccpChoices.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             ) : (
