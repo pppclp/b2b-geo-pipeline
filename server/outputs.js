@@ -85,12 +85,17 @@ export function createOutputs({ contract, store, rows, now, uuid, log = () => {}
   }
 
   function opportunityBase(o, L) {
-    const product = L.product[String(o.product_id)];
-    const categoryId = product?.category_id || o.product_category_id || "";
+    const categoryId = o.product_category_id || "";
     return {
       opportunity_id: o.opportunity_id,
       customer_name: o.customer_name,
       business_id: o.business_id,
+      customer_type: o.customer_type,
+      sales_channel: o.sales_channel,
+      partner_name: o.partner_name,
+      contact_name: o.contact_name,
+      contact_phone: o.contact_phone,
+      remark: o.remark,
       region_id: o.region_id,
       region_name: name(L.region, o.region_id, "region_name"),
       territory_id: o.territory_id,
@@ -101,8 +106,7 @@ export function createOutputs({ contract, store, rows, now, uuid, log = () => {}
       current_handler_name: name(L.user, o.current_handler_user_id, "display_name"),
       category_id: categoryId,
       category_name: name(L.category, categoryId, "category_name"),
-      product_id: o.product_id,
-      product_name: product?.product_name || "",
+      product_details: o.product_details,
       stage_id: o.stage_id,
       stage_name: name(L.stage, o.stage_id, "stage_name"),
       pipeline_value: o.pipeline_value === "" ? "" : Number(o.pipeline_value) || 0,
@@ -124,16 +128,15 @@ export function createOutputs({ contract, store, rows, now, uuid, log = () => {}
           const weight = Number(name(L.stage, o.stage_id, "weight_pct")) || 0;
           return {
             ...opportunityBase(o, L),
-            customer_type: o.customer_type,
             scenario_id: o.scenario_id,
             scenario_name: name(L.scenario, o.scenario_id, "scenario_name"),
             original_owner_user_id: o.original_owner_user_id,
             original_owner_name: name(L.user, o.original_owner_user_id, "display_name"),
             quantity: o.quantity,
-            rc: o.rc,
+            price_per_sub: o.price_per_sub,
             oc: o.oc,
-            discount_pct: o.discount_pct,
             contract_period_months: o.contract_period_months,
+            ccp_check_result: o.ccp_check_result,
             stage_weight_pct: weight,
             weighted_pipeline_value: (Number(o.pipeline_value) || 0) * weight / 100,
             status: o.status,
