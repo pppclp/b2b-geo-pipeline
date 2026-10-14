@@ -662,24 +662,6 @@ source_03_pipeline_config:
       - "Only approved editable dropdown fields use this master."
       - "System status transitions remain controlled in code, not this sheet."
 
-  sheet_scenario_rules:
-    source_sheet: "Scenario_Rules"
-    target_entity: "scenario_rules"
-    primary_key: "scenario_rule_id"
-    fields:
-      scenario_rule_id: {}
-      scenario_id: {}
-      description: {}
-      sales_execution: {}
-      gateway_approval: {}
-      workflow: {}
-      trigger_condition: {}
-      credit_treatment: {}
-      integration_status: {}
-      active: {}
-    business_rules:
-      - "Reference-only: does not automatically change scenario approval or ENT routing."
-
   # ----------------------------------------------------------
   # LOST REASONS
   # ----------------------------------------------------------
@@ -2368,14 +2350,6 @@ access_control:
             read: ["AE", "SM", "Management", "Admin"]
             create: ["Admin"]
             update: ["Admin"]
-            delete: []
-        Scenario_Rules:
-          entity: "scenario_rules"
-          primary_key: "scenario_rule_id"
-          permissions:
-            read: ["AE", "SM", "Management", "Admin"]
-            create: []
-            update: []
             delete: []
         Aging_Settings:
           entity: "pipeline_settings"
