@@ -256,46 +256,53 @@ export function createOutputs({ contract, store, rows, now, uuid, log = () => {}
     });
   }
 
-  // ---- Month-end workbook: latest captured month ----
-  function monthEnd(snapshotMonth) {
-    if (!snapshotMonth) return;
+  // ---- Month-end workbook: latest captured reporting period ----
+  // The source Snapshot row is historical and self-contained. Do not rehydrate
+  // historical fields from the current Pipeline because that would drift later.
+  function monthEnd(snapshotPeriod) {
+    if (!snapshotPeriod) return;
     safely("Month-end export", () => {
       const L = lookups();
       const at = now();
-      const [y, m] = snapshotMonth.split("-").map(Number);
+      const [y, m] = snapshotPeriod.split("-").map(Number);
       const monthEndIso = new Date(Date.UTC(y, m, 0, 23, 59, 59)).toISOString();
-      const opps = index("opportunities", "opportunity_id");
 
       replace(
         "Open_Pipeline_Snapshot",
         rows("monthly_snapshots")
-          .filter((s) => s.snapshot_month === snapshotMonth && String(s.status).toLowerCase() === "open")
+          .filter((s) => s.snapshot_period === snapshotPeriod && String(s.status).toLowerCase() === "open")
           .map((s) => {
-            const o = { ...(opps[String(s.opportunity_id)] || {}), ...s };
+            const snap = {
+              ...s,
+              created_at: s.lead_created_at,
+              stage_entered_at: s.stage_last_updated_at,
+              handler_since: s.handoff_at,
+            };
             const weight = Number(name(L.stage, s.stage_id, "weight_pct")) || 0;
             return {
               snapshot_id: s.snapshot_id,
-              snapshot_month: s.snapshot_month,
-              ...opportunityBase(o, L),
+              // Keep the legacy export-template column name for backward compatibility.
+              snapshot_month: s.snapshot_period,
+              ...opportunityBase(snap, L),
               stage_weight_pct: weight,
               status: s.status,
               weighted_pipeline_value: (Number(s.pipeline_value) || 0) * weight / 100,
-              stage_entered_at: o.stage_entered_at,
-              stage_aging_days: days(o.stage_entered_at, monthEndIso),
-              handler_since: o.handler_since,
-              handler_aging_days: days(o.handler_since, monthEndIso),
-              working_with_id: o.working_with_id,
-              working_with_name: name(L.team, o.working_with_id, "team_name"),
+              stage_entered_at: s.stage_last_updated_at,
+              stage_aging_days: days(s.stage_last_updated_at, monthEndIso),
+              handler_since: s.handoff_at,
+              handler_aging_days: s.handoff_at ? days(s.handoff_at, monthEndIso) : "",
+              working_with_id: "",
+              working_with_name: "",
               support_needed: flag(s.support_needed),
-              support_type_name: name(L.support, o.support_type_id, "support_type_name"),
-              snapshot_created_at: at,
+              support_type_name: name(L.support, s.support_type_id, "support_type_name"),
+              snapshot_created_at: s.captured_at || at,
             };
           })
       );
 
       const closed = (status, atCol) =>
         rows("opportunities")
-          .filter((o) => String(o.status).toLowerCase() === status && month(o[atCol]) === snapshotMonth)
+          .filter((o) => String(o.status).toLowerCase() === status && month(o[atCol]) === snapshotPeriod)
           .map((o) => ({ ...opportunityBase(o, L), exported_at: at, o }));
 
       replace(
@@ -324,10 +331,10 @@ export function createOutputs({ contract, store, rows, now, uuid, log = () => {}
         }))
       );
 
-      // Summary is a formula layout: only its Reporting Month / Generated At cells are set.
+      // Summary is a formula layout: only Reporting Month / Generated At cells are set.
       const summary = targets.Summary;
       if (summary && store.setCell) {
-        store.setCell(summary.file, "Summary", "B3", snapshotMonth);
+        store.setCell(summary.file, "Summary", "B3", snapshotPeriod);
         store.setCell(summary.file, "Summary", "B5", at);
       }
     });
