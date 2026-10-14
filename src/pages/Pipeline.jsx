@@ -45,24 +45,28 @@ function applySort(ops, sort) {
 
 function exportCSV(ops, maps) {
   const headers = [
-    "Opportunity ID", "Customer Name", "Business ID", "Customer Type", "Scenario",
+    "Opportunity ID", "Customer Name", "Business ID", "Customer Type",
+    "Sales Channel", "Partner Name", "Contact Name", "Contact Phone", "Remark",
+    "Product Category", "Product Details", "Number of Subs", "Price per Sub", "OC", "Contract Period",
+    "Net RC (THB/Month)", "Scenario", "CCP+ Check",
     "Region", "Territory", "Opportunity Owner", "Current Handler",
-    "Product Category", "Product", "Stage", "Status",
-    "Created At", "Created Month", "Expected Close Month", "Net RC (THB/Month)",
+    "Stage", "Status", "Created At", "Created Month", "Expected Close Month",
     "Stage Aging (days)", "Handler Aging (days)",
     "Working With", "Working With Aging (days)",
     "Support Needed", "Support Type", "Support Note",
-    "Won At", "Lost At", "Lost Reason", "Lost Note",
-    "Created By", "Updated At",
+    "Won At", "Lost At", "Lost Reason", "Lost Note", "Created By", "Updated At",
   ];
   const rows = ops.map((o) => [
     o.id, o.customer_name, o.business_id || "", o.customer_type || "",
-    maps.scenario[o.scenario_id]?.name || "",
+    o.sales_channel || "", o.partner_name || "", o.contact_name || "", o.contact_phone || "", o.remark || "",
+    maps.category[o.product_category_id]?.name || "", o.product_details || "",
+    o.quantity ?? "", o.price_per_sub ?? "", o.oc ?? "", o.contract_period ?? "",
+    Number(o.pipeline_value || 0).toFixed(2),
+    maps.scenario[o.scenario_id]?.name || "", o.ccp_check_result || "",
     maps.region[o.region_id]?.name || "", maps.territory[o.territory_id]?.name || "",
     maps.member[o.owner_id]?.name || "", maps.member[o.current_handler_id]?.name || "",
-    maps.category[o.product_category_id]?.name || "", maps.product[o.product_id]?.name || "",
     maps.stage[o.stage_id]?.name || "", STATUS_LABELS[o.status] || o.status,
-    formatDate(o.created_date), o.created_month || "", formatMonth(o.expected_close_month), Number(o.pipeline_value || 0).toFixed(2),
+    formatDate(o.created_date), o.created_month || "", formatMonth(o.expected_close_month),
     agingDays(o.stage_entered_at), agingDays(o.handler_since),
     o.working_with || "", o.working_with ? agingDays(o.working_with_since) : "",
     o.support_needed ? "Yes" : "No", o.support_type || "", o.support_note || "",
@@ -100,7 +104,8 @@ export default function Pipeline() {
     if (params.get("owner")) f.owner = params.get("owner");
     if (params.get("handler")) f.handler = params.get("handler");
     if (params.get("category")) f.product_category = params.get("category");
-    if (params.get("product")) f.product = params.get("product");
+    if (params.get("sales_channel")) f.sales_channel = params.get("sales_channel");
+    if (params.get("ccp_check_result")) f.ccp_check_result = params.get("ccp_check_result");
     if (params.get("close_month")) f.close_month = params.get("close_month");
     if (params.get("created_month")) f.created_month = params.get("created_month");
     if (params.get("won_month")) f.won_month = params.get("won_month");
@@ -133,7 +138,8 @@ export default function Pipeline() {
       if (filters.stage && o.stage_id !== filters.stage) return false;
       if (filters.status && o.status !== filters.status) return false;
       if (filters.product_category && o.product_category_id !== filters.product_category) return false;
-      if (filters.product && o.product_id !== filters.product) return false;
+      if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
+      if (filters.ccp_check_result && o.ccp_check_result !== filters.ccp_check_result) return false;
       if (filters.scenario && o.scenario_id !== filters.scenario) return false;
       if (filters.working_with && o.working_with !== filters.working_with) return false;
       if (filters.support === "1" && !o.support_needed) return false;
@@ -256,7 +262,7 @@ export default function Pipeline() {
               <thead className="bg-secondary/50 text-muted-foreground">
                 <tr>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Customer</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Product</th>
+                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Product & Details</th>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Stage</th>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Status</th>
                   <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Owner</th>
@@ -271,7 +277,7 @@ export default function Pipeline() {
                 {sorted.map((o) => (
                   <tr key={o.id} className="hover:bg-secondary/40 cursor-pointer transition-colors" onClick={() => openQuickView(o.id)}>
                     <td className="px-4 py-3 font-medium">{o.customer_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{maps.category[o.product_category_id]?.name}{o.product_id ? ` · ${maps.product[o.product_id]?.name}` : ""}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{maps.category[o.product_category_id]?.name}{o.product_details ? ` · ${o.product_details}` : ""}</td>
                     <td className="px-4 py-3">{maps.stage[o.stage_id]?.name}</td>
                     <td className="px-4 py-3">{STATUS_LABELS[o.status]}</td>
                     <td className="px-4 py-3">{maps.member[o.owner_id]?.name}</td>
