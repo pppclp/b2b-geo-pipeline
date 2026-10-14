@@ -279,6 +279,11 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "create");
       const stamp = now();
       if (uiEntity === "Opportunity") {
+        // New Pipelines always start Open. Close them via the audited
+        // Won/Lost update flow, which requires a Lost Reason when applicable.
+        if (String(data.status || "open").toLowerCase() !== "open") {
+          throw new HttpError(400, "Create Pipeline as Open, then use Mark Won or Mark Lost");
+        }
         // New AE modal fields must be validated server-side as well.
         // Imported historical data without sales_channel is handled separately.
         if (actor.role === "ae" && (data.scenario_id || data.ccp_check_result)) {
