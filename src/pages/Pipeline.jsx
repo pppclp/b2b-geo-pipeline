@@ -4,6 +4,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, agingDays, formatDate, STATUS_LABELS } from "@/lib/pipeline";
+import { isStageOverdue } from "@/lib/slaConfig";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import OpportunityForm from "@/components/OpportunityForm";
@@ -86,7 +87,7 @@ function exportCSV(ops, maps) {
 }
 
 export default function Pipeline() {
-  const { scopedOpportunities, activeStages, maps, profile, config } = useData();
+  const { scopedOpportunities, activeStages, maps, profile, config, master } = useData();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState("board");
@@ -144,7 +145,7 @@ export default function Pipeline() {
       if (filters.working_with && o.working_with !== filters.working_with) return false;
       if (filters.support === "1" && !o.support_needed) return false;
       if (filters.support === "0" && o.support_needed) return false;
-      if (filters.stuck === "1" && agingDays(o.stage_entered_at) <= (config?.aging_threshold_days || 14)) return false;
+      if (filters.stuck === "1" && !isStageOverdue(o, master?.StageSLA || [], config?.aging_threshold_days || 14, agingDays)) return false;
       if (filters.won_month && monthOf(o.won_at) !== filters.won_month) return false;
       if (filters.lost_month && monthOf(o.lost_at) !== filters.lost_month) return false;
       if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
