@@ -44,7 +44,6 @@ export default function OpportunityDetail() {
   const region = maps.region[op.region_id];
   const territory = maps.territory[op.territory_id];
   const category = maps.category[op.product_category_id];
-  const product = maps.product[op.product_id];
   const stage = maps.stage[op.stage_id];
   const scenario = maps.scenario[op.scenario_id];
   const lostReason = maps.lostReason[op.lost_reason_id];
@@ -84,7 +83,7 @@ export default function OpportunityDetail() {
             <Badge className={statusColor[op.status]}>{STATUS_LABELS[op.status]}</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1.5">
-            {category?.name}{product ? ` · ${product.name}` : ""} · {stage?.name} · {formatTHB(op.pipeline_value)} · Close {formatMonth(op.expected_close_month)}
+            {category?.name}{op.product_details ? ` · ${op.product_details}` : ""} · {stage?.name} · {formatTHB(op.pipeline_value)} · Close {formatMonth(op.expected_close_month)}
           </p>
         </div>
         {canEdit && (
@@ -104,7 +103,17 @@ export default function OpportunityDetail() {
             <Field label="Customer Name" value={op.customer_name} />
             <Field label="Business ID" value={op.business_id} />
             <Field label="Customer Type" value={op.customer_type} />
+            <Field label="Sales Channel" value={op.sales_channel} />
+            {op.partner_name && <Field label="Partner Name" value={op.partner_name} />}
+            <Field label="Contact Name" value={op.contact_name} />
+            <Field label="Contact Phone" value={op.contact_phone} />
+            <Field label="Remark" value={op.remark} />
             <Field label="Scenario" value={scenario?.name} />
+            <Field label="CCP+ Check" value={{
+              not_in_base: "Not in Base (New Customer)",
+              enterprise_base: "Enterprise Existing Base",
+              pending: "Pending Review",
+            }[op.ccp_check_result] || op.ccp_check_result || "Pending SM Review"} />
           </Section>
 
           <Section title="Ownership & Assignment">
@@ -118,18 +127,16 @@ export default function OpportunityDetail() {
 
           <Section title="Product">
             <Field label="Product Category" value={category?.name} />
-            <Field label="Product" value={product?.name} />
+            <Field label="Product Details" value={op.product_details} />
           </Section>
 
           <Section title="Commercial">
             <Field label={op.price_per_sub == null ? "Pipeline Value (legacy)" : "Net RC (THB/Month)"} value={formatTHB(op.pipeline_value)} />
             <Field label="Number of Subs" value={op.quantity} />
             <Field label="Price per Sub (THB/Month)" value={op.price_per_sub != null ? formatTHB(op.price_per_sub) : "—"} />
-            <Field label="RC (recurring)" value={op.rc != null ? formatTHB(op.rc) : ""} />
             <Field label="OC (one-time)" value={op.oc != null ? formatTHB(op.oc) : ""} />
-            <Field label="Discount (%)" value={op.discount} />
             <Field label="Contract Period (months)" value={op.contract_period} />
-            <p className="text-xs text-muted-foreground col-span-2 mt-1">Net RC = Number of Subs × Price per Sub + OC ÷ 12. Contract Value follows a separate rule.</p>
+            <p className="text-xs text-muted-foreground col-span-2 mt-1">Net RC = Number of Subs × Price per Sub + OC ÷ 12.</p>
           </Section>
 
           <Section title="Pipeline">
