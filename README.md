@@ -66,6 +66,54 @@ writes the Google Sheets directly.
 After any backend or YAML change, run `npm run gas:push` and update the deployment (Deploy →
 Manage deployments → Edit → New version) so the `/exec` URL serves the new code.
 
+## Pipeline configuration (Stage SLA / Action SLA)
+
+Updated source workbook: `B2B_GEO_Pipeline_Config_SLA_Updated.xlsx`.
+The **logical source filename remains** `B2B_GEO_Pipeline_Config.xlsx` in YAML.
+The following existing sheets/IDs are unchanged: `Stages`, `Scenarios`,
+`Lost_Reasons`, `Working_With`, `Support_Types`, `Aging_Settings`.
+
+The new runtime tabs in the **same mapped Google Spreadsheet** are:
+
+- `Stage_SLA`: optional per-stage calendar-day limit; blank falls back to the
+  existing global Stuck threshold. Business-day Stage SLA is deliberately
+  **not flagged overdue** until an approved company holiday calendar exists.
+- `Action_SLA`: optional internal action definitions, optional Working With
+  team and optional SLA duration. Pricing approval example:
+  **12 working days total = Pricer 2 + N3 2 + N2 3 + N1 5**. N1/N2/N3 are
+  approval levels, not Working With teams. The process total must not be
+  counted in addition to its steps.
+- `Field_Options`: configurable dropdown values for `sales_channel`,
+  `customer_type` and `ccp_check_result`. System status transitions are
+  never editable from this sheet.
+- `Scenario_Rules`: **read-only reference data**, not an Enterprise approval
+  or automatic handoff engine.
+- `Pipeline_Fields`, `Net_RC_Example`, and `Data_Dictionary` remain
+  documentation. `Change_Log` was removed from the workbook (application
+  audit remains in separate Opportunity Events and backend logs).
+
+### Required rollout steps (do NOT overwrite the live source blindly)
+
+1. **Back up** the current Google Sheets Pipeline Config, including any edits
+   made in the Admin app since the last exported workbook.
+2. Compare the six existing master tabs by stable ID. Merge needed changes,
+   **preserving production IDs/rows**, rather than replacing current data.
+3. Add the four new runtime tabs from the updated Excel to that same Google
+   Spreadsheet, preserving their exact names and column headers.
+4. Keep the current `GEO_SHEET_ID_B2B_GEO_Pipeline_Config` and logical YAML
+   filename; no new API URL or separate Sheet ID is required.
+5. After merging this PR, run `npm run gas:push` from a configured development
+   machine, then Apps Script **Manage deployments → Edit → New version → Deploy**.
+   Github Pages deployment alone does **not** deploy the changed Apps Script.
+6. Verify role-scoped master reads, Admin edits, Stage SLA fallback, existing
+   Pipeline history and alerts in UAT before enabling this for users.
+
+**Not implemented by this update:** Action SLA runtime clocks/alerts (they
+require action-instance start/completion events and a business holiday calendar),
+Enterprise S3/S4 approval routing, and automatic approvals. Empty SLAs do
+not create fake alerts or imply approval. Dashboard Stuck checks only use
+Stage SLA (with global fallback).
+
 ## Net RC calculation (new and repriced Pipelines)
 
 Net RC (THB/month) = (Number of Subs × Price per Sub/month) + (OC ÷ 12).
