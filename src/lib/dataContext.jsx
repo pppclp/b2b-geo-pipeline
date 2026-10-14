@@ -28,7 +28,6 @@ const MASTER_ENTITIES = [
   "StageSLA",
   "ActionSLA",
   "FieldOption",
-  "ScenarioRule",
   "MonthlySnapshot",
 ];
 
