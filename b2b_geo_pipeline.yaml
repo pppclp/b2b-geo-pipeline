@@ -431,6 +431,8 @@ source_02_product_master:
 
         referenced_by:
           - "products.category_id"
+          - "opportunities.product_category_id"
+          - "monthly_snapshots.product_category_id"
 
       category_name:
         source: "Product_Categories.category_name"
@@ -472,20 +474,13 @@ source_02_product_master:
         source: "Products.product_id"
         target: "products.product_id"
 
-        referenced_by:
-          - "opportunities.product_id"
-          - "monthly_snapshots.product_id"
-
       product_name:
         source: "Products.product_name"
         target: "products.product_name"
 
         ui_display:
-          - "Opportunity Product"
-          - "Pipeline Card"
-          - "Pipeline List"
-          - "Dashboard Product Detail"
-          - "Export"
+          - "Admin > Product Master"
+          - "Product reference / knowledge use"
 
       category_id:
         source: "Products.category_id"
@@ -499,18 +494,13 @@ source_02_product_master:
         target: "products.active"
 
     UI_behavior:
-
-      opportunity_form:
-        step_1:
-          field: "Product Category"
-
-        step_2:
-          field: "Product"
-          behavior: "Show only Products where products.category_id = selected category_id"
+      latest_pipeline_form:
+        field: "Product Category"
+        details_field: "Product Details"
+        note: "Latest Pipeline Create/Edit does not store product_id."
 
     dashboard_navigation:
       - "Product Category"
-      - "Product"
       - "Filtered Pipeline"
 
 
@@ -1911,9 +1901,13 @@ monthly_snapshots:
       snapshot_of:
         "opportunities.region_id"
 
-    product_id:
+    product_category_id:
       snapshot_of:
-        "opportunities.product_id"
+        "opportunities.product_category_id"
+
+    product_details:
+      snapshot_of:
+        "opportunities.product_details"
 
     stage_id:
       snapshot_of:
@@ -1972,8 +1966,8 @@ relationships:
   opportunity_territory:
     "opportunities.territory_id → territories.territory_id"
 
-  opportunity_product:
-    "opportunities.product_id → products.product_id"
+  opportunity_product_category:
+    "opportunities.product_category_id → product_categories.category_id"
 
   opportunity_stage:
     "opportunities.stage_id → stages.stage_id"
@@ -2143,11 +2137,11 @@ business_decisions_pending:
       - "SM"
       - "Management"
 
-  product_multiplicity:
-    status: "TO CONFIRM"
+  product_capture:
+    status: "CURRENT UAT"
 
-    question:
-      "Can one Opportunity contain multiple Products, or should one Opportunity represent one Product in MVP?"
+    decision:
+      "Opportunity stores Product Category + free-text Product Details. product_id is legacy compatibility only."
 
 
 # ============================================================
