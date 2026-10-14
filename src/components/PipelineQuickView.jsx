@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Maximize2 } from "lucide-react";
+import PipelineCloseActions from "@/components/PipelineCloseActions";
 
 const NONE = "__none__";
 const textOrDash = (value) => value || "—";
@@ -189,6 +190,12 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
             </div>
           </div>
           <PipelineQuickActions op={op} initialStageId={initialStageId} onCancel={requestClose} onDirtyChange={setDirty} onSaved={() => { setDirty(false); onClose(); }}/>
+          <div className="border-t pt-4 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold">Close Pipeline</h3>
+            <PipelineCloseActions op={op}
+              beforeOpen={() => !dirty || window.confirm("Discard unsaved Stage / Handler / Working With changes?")}
+              onClosed={() => { setDirty(false); onClose(); }}/>
+          </div>
           <div className="border-t pt-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Pipeline Summary</h3>
