@@ -590,9 +590,65 @@ source_03_pipeline_config:
           - "Export"
 
     business_rule:
-      - "Scenario is optional."
-      - "Scenario does not control routing/workflow in MVP."
+      - "Scenario and CCP+ are SM-reviewed, not optional at the SM Gateway."
+      - "No automatic S3/S3-EX/S4 ENT routing until ENT permissions and assignments exist."
 
+
+  # Per-stage thresholds. Stage_SLA blanks fall back to Aging_Settings.
+  sheet_stage_sla:
+    source_sheet: "Stage_SLA"
+    target_entity: "stage_sla"
+    primary_key: "sla_id"
+    fields:
+      stage_id: {}
+      sla_days: {}
+      day_type: {}
+      active: {}
+      notes: {}
+    runtime_rules:
+      - "Calendar-day Stage SLA can be used by Stuck Pipeline alerts."
+      - "Blank SLA uses Aging_Settings.threshold_days (14 by default)."
+      - "Business-day Stage SLA requires a holiday calendar; do not misreport overdue."
+      - "Stage Aging and Handler Aging remain independent."
+
+  # Definitions only; no Action SLA clock without start/finish event records.
+  sheet_action_sla:
+    source_sheet: "Action_SLA"
+    target_entity: "action_sla"
+    primary_key: "action_sla_id"
+    fields:
+      process_key: {}
+      action_name: {}
+      step_order: {}
+      scenario_id: {}
+      working_with_id: {}
+      approval_level: {}
+      sla_days: {}
+      day_type: {}
+      active: {}
+      notes: {}
+    runtime_rules:
+      - "Working With and Action SLA duration are optional."
+      - "The special-price approval process totals 12 working days: Pricer 2 / N3 2 / N2 3 / N1 5."
+      - "N1 N2 N3 are approval levels, not teams. Do not count process total twice."
+      - "No Action SLA alerts until action instance timestamps and business calendar are implemented."
+
+  # User-editable dropdown values; stable option values must not change.
+  sheet_field_options:
+    source_sheet: "Field_Options"
+    target_entity: "field_options"
+    primary_key: "option_id"
+    fields:
+      field_key: {}
+      option_value: {}
+      option_label: {}
+      sort_order: {}
+      active: {}
+      notes: {}
+    runtime_rules:
+      - "Only sales_channel, customer_type, ccp_check_result are configurable."
+      - "Do not allow arbitrary status/role/permission changes via Field Options."
+      - "AE can see CCP+ but only SM and authorized management roles can edit."
 
   # ----------------------------------------------------------
   # LOST REASONS
@@ -2425,6 +2481,30 @@ access_control:
             create: ["Admin"]
             update: ["Admin"]
             delete: ["Admin"]
+        Stage_SLA:
+          entity: "stage_sla"
+          primary_key: "sla_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: []
+        Action_SLA:
+          entity: "action_sla"
+          primary_key: "action_sla_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: []
+        Field_Options:
+          entity: "field_options"
+          primary_key: "option_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: []
         Aging_Settings:
           entity: "pipeline_settings"
           primary_key: "setting_id"

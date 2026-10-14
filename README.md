@@ -86,6 +86,55 @@ Manage deployments → Edit → New version) so the `/exec` URL serves the new c
 replacing the runtime DB with a different Google Sheet also requires the Script Property
 `GEO_SHEET_ID_B2B_GEO_Pipeline_DB` to point to that exact Sheet ID.
 
+## Pipeline Config — current app alignment
+
+The nine-sheet Config workbook supplied separately in this conversation preserves
+existing `Stages`, `Scenarios`, `Lost_Reasons`, `Working_With`,
+`Support_Types`, `Aging_Settings` and their Stable IDs. It adds only
+`Stage_SLA`, `Action_SLA`, `Field_Options`. Documentation sheets are excluded.
+
+- `Aging_Settings`: default 14 **calendar days** for Stage Aging.
+- `Stage_SLA`: optional per-Stage threshold; blank uses global fallback. A
+  business-day Stage SLA **does not trigger overdue warnings** until the
+  corporate holiday calendar is integrated.
+- `Action_SLA`: optional action process, approval level, optional
+  `working_with_id` and optional time target. Special price approval is
+  **12 working days in total** (Pricer 2, N3 2, N2 3, N1 5). Definitions do
+  not create action-instance clocks or automatic Action SLA alerts.
+- `Field_Options`: source of Sales Channel, Customer Type and CCP+ choices,
+  with migration-time UI fallback to existing static values. Status and
+  Permissions are **not** configured by this sheet.
+- `Scenario` and `CCP+`: reviewed by SM; this config does **not** grant ENT
+  login, Enterprise routing, or S3/S4 approval permissions.
+- `Lost_Reasons` remains the source of required reason when closing a
+  Pipeline as Lost. Existing Won/Lost and audit workflows are retained.
+- Net RC remains `(Subs × Price/Month) + (OC / 12)`. No config sheet
+  overrides that calculation.
+
+### Migration and Apps Script release — UAT first
+
+1. Back up the **current linked Google Sheets** Config workbook. Export its
+   six existing Master tabs and compare IDs and Admin edits against the new
+   nine-sheet XLSX; don't replace production Master rows blindly.
+2. In the **existing mapped Google Sheets** (`GEO_SHEET_ID_B2B_GEO_Pipeline_Config`),
+   merge the six existing tabs by stable IDs and add three new tabs with exact
+   names/columns: `Stage_SLA`, `Action_SLA`, `Field_Options`.
+   Do **not** delete Pipeline DB or Opportunity Events.
+3. Validate locally with `npm run config:check -- /path/to/config.xlsx`.
+4. Merge the code change only after sheets are prepared. On the authorized
+   Apps Script development machine run `npm run gas:push`.
+5. From Apps Script editor run `verifyPipelineConfigSchema()` to check the
+   actual linked Google Sheets before release. Correct any missing tabs/headers.
+6. **Deploy → Manage deployments → Edit → New version → Deploy**. Keep
+   existing Web App deployment URL and Spreadsheet ID.
+7. Test AE/SM/Management/Admin reading, edits to dropdowns, Stage SLA Alerts,
+   Won/Lost with Lost Reason, and preserved history. Use UAT data.
+
+Apps Script `Main.js` performs the preflight, while the generated `GeoCore.js`
+and `Contract.js` include the updated Backend Core and YAML mapping.
+GitHub Pages deploys **frontend only**; it does not change Apps Script.
+The new Excel file is a **new copy**, not an overwrite of live Google Sheets.
+
 ## Net RC calculation (new and repriced Pipelines)
 
 Net RC (THB/month) = (Number of Subs × Price per Sub/month) + (OC ÷ 12).

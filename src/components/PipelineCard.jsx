@@ -2,11 +2,12 @@ import React from "react";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, agingDays, daysAgoLabel } from "@/lib/pipeline";
+import { isStageOverdue } from "@/lib/slaConfig";
 import { AlertCircle, Wrench, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function PipelineCard({ op, onOpen }) {
-  const { maps, config } = useData();
+  const { maps, config, master } = useData();
 
   const owner = maps.member[op.owner_id];
   const handler = maps.member[op.current_handler_id];
@@ -14,7 +15,7 @@ export default function PipelineCard({ op, onOpen }) {
   const stageAging = agingDays(op.stage_entered_at);
   const handlerAging = agingDays(op.handler_since);
   const wwAging = op.working_with ? agingDays(op.working_with_since) : 0;
-  const stuck = stageAging > config.aging_threshold_days;
+  const stuck = isStageOverdue(op, master?.StageSLA || [], config?.aging_threshold_days || 14, agingDays);
 
   return (
     <div

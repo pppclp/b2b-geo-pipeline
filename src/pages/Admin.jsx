@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import MonthPicker from "@/components/MonthPicker";
 import { Pencil, Trash2, Plus, Check, X, Download, Camera } from "lucide-react";
 import SheetEditor from "@/components/SheetEditor";
+import { StageSlaManager, ActionSlaManager } from "@/components/admin/SlaManagers";
 
 export default function Admin() {
   const { profile } = useData();
@@ -31,6 +32,9 @@ export default function Admin() {
           <TabsTrigger value="regions">Regions</TabsTrigger>
           <TabsTrigger value="territories">Territories</TabsTrigger>
           <TabsTrigger value="stages">Stages</TabsTrigger>
+          <TabsTrigger value="stage-sla">Stage SLA</TabsTrigger>
+          <TabsTrigger value="action-sla">Action SLA</TabsTrigger>
+          <TabsTrigger value="field-options">Field Options</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
@@ -47,6 +51,9 @@ export default function Admin() {
         <TabsContent value="regions"><RegionManager /></TabsContent>
         <TabsContent value="territories"><TerritoryManager /></TabsContent>
         <TabsContent value="stages"><StageManager /></TabsContent>
+        <TabsContent value="stage-sla"><StageSlaManager /></TabsContent>
+        <TabsContent value="action-sla"><ActionSlaManager /></TabsContent>
+        <TabsContent value="field-options"><SimpleManager entity="FieldOption" fields={[{ key: "field_key", label: "Field Key" },{ key: "value", label: "Value" },{ key: "label", label: "Label" },{ key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="categories"><CategoryManager /></TabsContent>
         <TabsContent value="products"><ProductManager /></TabsContent>
         <TabsContent value="scenarios"><SimpleManager entity="Scenario" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
