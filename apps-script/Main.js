@@ -57,10 +57,36 @@ function handle_(req) {
   }
 }
 
-// ---- Sheet IDs: SheetIds.js (generated) first, then Script Properties ----
+// ---- Sheet IDs: Script Properties first, generated SheetIds.js as fallback ----
+// Runtime deployments may move to a new Google Sheet without rebuilding the bundle.
+// Script Properties must therefore be authoritative; otherwise an old generated
+// GEO_SHEET_IDS value can silently keep the web app pointed at the previous DB.
 function sheetIdFor_(file) {
   var key = "GEO_SHEET_ID_" + file.replace(/\.xlsx$/, "");
-  return (typeof GEO_SHEET_IDS !== "undefined" && GEO_SHEET_IDS[file]) || PropertiesService.getScriptProperties().getProperty(key);
+  var runtimeId = PropertiesService.getScriptProperties().getProperty(key);
+  return runtimeId || (typeof GEO_SHEET_IDS !== "undefined" && GEO_SHEET_IDS[file]) || "";
+}
+
+// Run manually in Apps Script when changing the runtime Pipeline DB.
+// It is read-only and helps confirm the deployed web app is bound to the intended sheet.
+function debugPipelineDbBinding() {
+  var file = "B2B_GEO_Pipeline_DB.xlsx";
+  var id = sheetIdFor_(file);
+  if (!id) throw new Error("Missing GEO_SHEET_ID_B2B_GEO_Pipeline_DB");
+  var book = SpreadsheetApp.openById(id);
+  var expected = ["Pipelines", "Pipeline_Events", "Snapshots"];
+  var details = expected.map(function (name) {
+    var ws = book.getSheetByName(name);
+    return {
+      sheet: name,
+      exists: !!ws,
+      rows: ws ? Math.max(0, ws.getLastRow() - 1) : 0,
+      columns: ws ? ws.getLastColumn() : 0,
+    };
+  });
+  var out = { id: id, title: book.getName(), sheets: details };
+  console.log(JSON.stringify(out, null, 2));
+  return out;
 }
 
 // ---- Table store over Google Sheets (same interface as server/store.js) ----

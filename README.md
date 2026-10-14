@@ -86,6 +86,12 @@ Manage deployments → Edit → New version) so the `/exec` URL serves the new c
 replacing the runtime DB with a different Google Sheet also requires the Script Property
 `GEO_SHEET_ID_B2B_GEO_Pipeline_DB` to point to that exact Sheet ID.
 
+Apps Script resolves Sheet IDs from **Script Properties first** and only falls back to the
+generated `SheetIds.js`. This prevents an older bundled Sheet ID from overriding a newly
+configured runtime DB. After changing the property, run `debugPipelineDbBinding()` in the
+Apps Script editor and confirm the output shows `Pipelines`, `Pipeline_Events`, and
+`Snapshots` with the expected row counts.
+
 ## Net RC calculation (new and repriced Pipelines)
 
 Net RC (THB/month) = (Number of Subs × Price per Sub/month) + (OC ÷ 12).
