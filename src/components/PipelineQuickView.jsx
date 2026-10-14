@@ -161,7 +161,6 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
   if (!op) return null;
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
-  const product = maps.product?.[op.product_id];
   const canClose = op.status === "open" && (
     profile?.app_role === "admin" || profile?.app_role === "sm" ||
     (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
@@ -172,7 +171,7 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[710px] max-h-[92vh] overflow-y-auto rounded-2xl p-0 gap-0 [&>button]:hidden">
         <DialogHeader className="border-b px-5 sm:px-7 py-5 text-left relative pr-28">
           <DialogTitle className="text-xl tracking-tight">{op.customer_name}</DialogTitle>
-          <DialogDescription className="text-xs mt-1">{textOrDash(category?.name)}{product ? ` · ${product.name}` : ""} · {formatMonth(op.expected_close_month)}</DialogDescription>
+          <DialogDescription className="text-xs mt-1">{textOrDash(category?.name)}{op.product_details ? ` · ${op.product_details}` : ""} · {formatMonth(op.expected_close_month)}</DialogDescription>
           <div className="absolute right-5 top-4 flex items-center gap-1">
             <Button type="button" variant="ghost" size="icon" className="h-9 w-9" title="Open Full Detail page" aria-label="Open Full Detail page" onClick={requestExpand}>
               <Maximize2 className="h-4 w-4"/>
@@ -210,6 +209,8 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 mt-3 text-sm">
               <div><dt className="text-xs text-muted-foreground">Customer</dt><dd className="font-medium mt-1">{op.customer_name}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Business ID</dt><dd className="font-medium tabular-nums mt-1">{textOrDash(op.business_id)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Sales Channel</dt><dd className="font-medium mt-1">{textOrDash(op.sales_channel)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Contact</dt><dd className="font-medium mt-1">{textOrDash(op.contact_name)}{op.contact_phone ? ` · ${op.contact_phone}` : ""}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Expected Close</dt><dd className="font-medium mt-1">{formatMonth(op.expected_close_month)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">AE Owner</dt><dd className="font-medium mt-1">{textOrDash(owner?.name)}</dd></div>
             </dl>
