@@ -57,6 +57,32 @@ function handle_(req) {
   }
 }
 
+// Run manually in Apps Script BEFORE deploying a new configuration version.
+// Checks the same nine runtime tabs and headers that the bundled backend will
+// read. Does not create, overwrite or delete any spreadsheet content.
+function verifyPipelineConfigSchema() {
+  var file = "B2B_GEO_Pipeline_Config.xlsx";
+  var rules = GEO_CONTRACT.access.files[file] && GEO_CONTRACT.access.files[file].sheets;
+  var id = sheetIdFor_(file);
+  if (!id) throw new Error("Missing GEO_SHEET_ID_B2B_GEO_Pipeline_Config");
+  if (!rules) throw new Error("Config workbook is not registered in YAML contract");
+  var ss = SpreadsheetApp.openById(id);
+  var missing = [];
+  Object.keys(rules).forEach(function (name) {
+    var ws = ss.getSheetByName(name);
+    if (!ws) { missing.push("Missing sheet: " + name); return; }
+    var required = GEO_CONTRACT.columns[rules[name].entity] || [rules[name].primary_key];
+    var last = ws.getLastColumn();
+    var headers = last > 0 ? ws.getRange(1, 1, 1, last).getValues()[0].map(function (v) { return String(v).trim(); }) : [];
+    required.forEach(function (col) {
+      if (col && headers.indexOf(col) < 0) missing.push(name + ": missing column " + col);
+    });
+  });
+  if (missing.length) throw new Error("Pipeline Config schema mismatch:\\n" + missing.join("\\n"));
+  Logger.log("Pipeline Config verified: " + Object.keys(rules).length + " sheets. No data changed.");
+  return { ok: true, sheets: Object.keys(rules).length };
+}
+
 // ---- Sheet IDs: SheetIds.js (generated) first, then Script Properties ----
 function sheetIdFor_(file) {
   var key = "GEO_SHEET_ID_" + file.replace(/\.xlsx$/, "");
