@@ -68,7 +68,7 @@ Manage deployments → Edit → New version) so the `/exec` URL serves the new c
 
 ## Pipeline configuration (Stage SLA / Action SLA)
 
-Updated source workbook: `B2B_GEO_Pipeline_Config_SLA_Updated.xlsx`.
+Updated source workbook: `B2B_GEO_Pipeline_Config_Runtime_Clean.xlsx`.
 The **logical source filename remains** `B2B_GEO_Pipeline_Config.xlsx` in YAML.
 The following existing sheets/IDs are unchanged: `Stages`, `Scenarios`,
 `Lost_Reasons`, `Working_With`, `Support_Types`, `Aging_Settings`.
@@ -86,11 +86,11 @@ The new runtime tabs in the **same mapped Google Spreadsheet** are:
 - `Field_Options`: configurable dropdown values for `sales_channel`,
   `customer_type` and `ccp_check_result`. System status transitions are
   never editable from this sheet.
-- `Scenario_Rules`: **read-only reference data**, not an Enterprise approval
-  or automatic handoff engine.
-- `Pipeline_Fields`, `Net_RC_Example`, and `Data_Dictionary` remain
-  documentation. `Change_Log` was removed from the workbook (application
-  audit remains in separate Opportunity Events and backend logs).
+The workbook deliberately contains only **nine runtime tabs**. Old documentation
+tabs `README`, `Pipeline_Fields`, `Data_Dictionary`, `Net_RC_Example`,
+`Scenario_Rules`, and `Change_Log` are omitted. Scenario approval and
+ENT routing still require separately approved application workflow rules.
+The application's Opportunity Events / backend audit logs are NOT removed.
 
 ### Required rollout steps (do NOT overwrite the live source blindly)
 
@@ -98,7 +98,7 @@ The new runtime tabs in the **same mapped Google Spreadsheet** are:
    made in the Admin app since the last exported workbook.
 2. Compare the six existing master tabs by stable ID. Merge needed changes,
    **preserving production IDs/rows**, rather than replacing current data.
-3. Add the four new runtime tabs from the updated Excel to that same Google
+3. Add the three new runtime tabs from the updated Excel to that same Google
    Spreadsheet, preserving their exact names and column headers.
 4. Keep the current `GEO_SHEET_ID_B2B_GEO_Pipeline_Config` and logical YAML
    filename; no new API URL or separate Sheet ID is required.
