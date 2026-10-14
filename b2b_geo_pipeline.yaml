@@ -600,9 +600,67 @@ source_03_pipeline_config:
           - "Export"
 
     business_rule:
-      - "Scenario is optional."
-      - "Scenario does not control routing/workflow in MVP."
+      - "Scenario is reviewed by SM after AE creates a Pipeline."
+      - "Scenario review must not default to S1 before CCP+ verification."
+      - "Enterprise approval/routing is not activated by the reference rules sheet alone."
 
+
+  # New machine-readable runtime configuration; existing IDs remain unchanged.
+  sheet_stage_sla:
+    source_sheet: "Stage_SLA"
+    target_entity: "stage_sla"
+    primary_key: "sla_id"
+    fields:
+      sla_id: {}
+      stage_id: {}
+      sla_days: {}
+      day_type: {}
+      active: {}
+      notes: {}
+      fallback: {}
+    business_rules:
+      - "Blank sla_days falls back to the legacy global Aging_Settings threshold."
+      - "Only calendar-day Stage SLA is active; business-day dates require a corporate holiday calendar."
+      - "Stage Aging is independent from Handler Aging."
+
+  sheet_action_sla:
+    source_sheet: "Action_SLA"
+    target_entity: "action_sla"
+    primary_key: "action_sla_id"
+    fields:
+      action_sla_id: {}
+      process_key: {}
+      action_name: {}
+      step_order: {}
+      scenario_id: {}
+      working_with_id: {}
+      approval_level: {}
+      sla_days: {}
+      day_type: {}
+      active: {}
+      notes: {}
+    business_rules:
+      - "Action SLA is optional and may have no Working With team."
+      - "Overall process target and individual steps must not be double-counted."
+      - "Business-day calculation needs an approved holiday calendar before live alerts."
+      - "Configuration does not create action instances or start action clocks."
+
+  sheet_field_options:
+    source_sheet: "Field_Options"
+    target_entity: "field_options"
+    primary_key: "option_id"
+    fields:
+      option_id: {}
+      field_key: {}
+      option_value: {}
+      option_label: {}
+      sort_order: {}
+      active: {}
+      managed_by: {}
+      notes: {}
+    business_rules:
+      - "Only approved editable dropdown fields use this master."
+      - "System status transitions remain controlled in code, not this sheet."
 
   # ----------------------------------------------------------
   # LOST REASONS
@@ -2155,6 +2213,8 @@ access_control:
   excluded_sheets:
     - "README"
     - "Data_Dictionary"
+    - "Pipeline_Fields"
+    - "Net_RC_Example"
 
   # Deleting a master row is refused while other rows still reference its ID
   # (per referenced_by / used_by above) — deactivate it instead.
@@ -2267,6 +2327,30 @@ access_control:
             create: ["Admin"]
             update: ["Admin"]
             delete: ["Admin"]
+        Stage_SLA:
+          entity: "stage_sla"
+          primary_key: "sla_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: []
+        Action_SLA:
+          entity: "action_sla"
+          primary_key: "action_sla_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: []
+        Field_Options:
+          entity: "field_options"
+          primary_key: "option_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: ["Admin"]
+            update: ["Admin"]
+            delete: []
         Aging_Settings:
           entity: "pipeline_settings"
           primary_key: "setting_id"

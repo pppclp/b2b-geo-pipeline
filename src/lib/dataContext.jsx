@@ -25,6 +25,9 @@ const MASTER_ENTITIES = [
   "SupportType",
   "TeamMember",
   "AppConfig",
+  "StageSLA",
+  "ActionSLA",
+  "FieldOption",
   "MonthlySnapshot",
 ];
 
@@ -142,6 +145,9 @@ export function DataProvider({ children }) {
       lostReason: byId(master.LostReason),
       workingWith: byId(master.WorkingWithOption),
       supportType: byId(master.SupportType),
+      stageSla: byId(master.StageSLA),
+      actionSla: byId(master.ActionSLA),
+      fieldOption: byId(master.FieldOption),
       member: byId(master.TeamMember),
     };
   }, [master]);
