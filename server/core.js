@@ -42,6 +42,34 @@ function normalizeOpportunityPricing(data, existing = null) {
   }
 }
 
+// Validate configurable SLA masters at the server boundary, not only in Admin.
+function validateConfigMaster(uiEntity, data, previous = null) {
+  if (!["StageSLA", "ActionSLA", "FieldOption"].includes(uiEntity)) return;
+  const merged = { ...(previous || {}), ...data };
+  if (uiEntity === "FieldOption") {
+    if (!["sales_channel", "customer_type", "ccp_check_result", "status"].includes(merged.field_key)) {
+      throw new HttpError(400, "Unsupported Field Option key");
+    }
+    if (!String(merged.value || "").trim() || !String(merged.label || "").trim()) {
+      throw new HttpError(400, "Field Option value and label are required");
+    }
+    return;
+  }
+  const rawDays = merged.sla_days;
+  if (rawDays !== "" && rawDays != null && (!Number.isSafeInteger(Number(rawDays)) || Number(rawDays) < 1)) {
+    throw new HttpError(400, "SLA days must be a positive whole number or blank");
+  }
+  if (merged.day_type && !["calendar", "business"].includes(merged.day_type)) {
+    throw new HttpError(400, "SLA day type must be calendar or business");
+  }
+  if (uiEntity === "StageSLA" && !String(merged.stage_id || "").trim()) {
+    throw new HttpError(400, "Stage ID is required");
+  }
+  if (uiEntity === "ActionSLA" && (!String(merged.process_key || "").trim() || !String(merged.action_name || "").trim())) {
+    throw new HttpError(400, "Action process and name are required");
+  }
+}
+
 export function createCore({ contract, store, now, uuid }) {
   const ac = contract.access;
   const bindings = {}; // yaml entity -> { file, sheet, ...rule }
@@ -291,6 +319,7 @@ export function createCore({ contract, store, now, uuid }) {
           if (String(data.remark || "").length > 500) throw new HttpError(400, "Remark exceeds 500 characters");
         }
       }
+      validateConfigMaster(uiEntity, data);
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
       const row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
@@ -328,6 +357,7 @@ export function createCore({ contract, store, now, uuid }) {
           }
         }
       }
+      validateConfigMaster(uiEntity, data, toUi(uiEntity, b.primary_key, row));
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data, toUi(uiEntity, b.primary_key, row)) : data;
       const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       delete changes[b.primary_key];
