@@ -68,17 +68,17 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
       <div className={compact ? "flex items-center gap-2" : "flex flex-wrap items-center gap-2"}>
         <Button type="button" variant="outline" size="sm" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
           onClick={() => openAction("won")}>
-          <Trophy className="h-4 w-4 mr-1.5" /> Mark Won
+          <Trophy className="h-4 w-4 mr-1.5" /> Won
         </Button>
         <Button type="button" variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50"
           onClick={() => openAction("lost")}>
-          <XCircle className="h-4 w-4 mr-1.5" /> Mark Lost
+          <XCircle className="h-4 w-4 mr-1.5" /> Lost
         </Button>
       </div>
       <Dialog open={!!choice} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{choice === "won" ? "Mark Pipeline as Won" : "Mark Pipeline as Lost"}</DialogTitle>
+            <DialogTitle>{choice === "won" ? "Confirm Won" : "Confirm Lost"}</DialogTitle>
             <DialogDescription>
               {choice === "won"
                 ? "Confirm that this Pipeline has been won."
