@@ -7,7 +7,6 @@ import KpiCard from "@/components/dashboard/KpiCard";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import MonthPicker from "@/components/MonthPicker";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Trophy, XCircle, AlertCircle, Clock, PlusCircle, CalendarClock, RotateCcw } from "lucide-react";
 
 function monthOf(iso) {
@@ -21,7 +20,6 @@ export default function Dashboard() {
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
-  const [categoryDialog, setCategoryDialog] = useState(null);
 
   const role = profile?.app_role || "ae";
   const isManagementLike = role === "management" || role === "admin";
@@ -127,17 +125,6 @@ export default function Dashboard() {
       return { type: st, count: ops.length, value: sumVal(ops) };
     })
     .filter((x) => x.count > 0);
-
-  // Products in selected category (for drill-down dialog)
-  const productsInCategory = useMemo(() => {
-    if (!categoryDialog) return [];
-    return Object.values(maps.product || {})
-      .filter((p) => p.active && p.category_id === categoryDialog.id)
-      .map((p) => {
-        const ops = open.filter((o) => o.product_id === p.id);
-        return { product: p, count: ops.length, value: sumVal(ops) };
-      });
-  }, [categoryDialog, maps.product, open]);
 
   // Role-specific lists
   const currentlyWithMe = open.filter((o) => o.current_handler_id === profile?.id);
@@ -293,7 +280,7 @@ export default function Dashboard() {
         <Panel title="Pipeline by Product Category">
           <BreakdownList
             rows={byCategory.map((c) => ({ id: c.category.id, name: c.category.name, count: c.count, value: c.value }))}
-            onClick={(id) => setCategoryDialog(categories.find((c) => c.id === id))}
+            onClick={(id) => go({ status: "open", product_category: id })}
           />
         </Panel>
 
@@ -346,35 +333,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Category drill-down dialog */}
-      <Dialog open={!!categoryDialog} onOpenChange={(o) => !o && setCategoryDialog(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{categoryDialog?.name} — Products</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-1 py-2">
-            {productsInCategory.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4 text-center">No products in this category.</p>
-            )}
-            {productsInCategory.map((p) => (
-              <button
-                key={p.product.id}
-                type="button"
-                onClick={() => {
-                  go({ status: "open", product_category: categoryDialog.id, product: p.product.id });
-                  setCategoryDialog(null);
-                }}
-                className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-secondary/70 transition-colors text-[12px]"
-              >
-                <span className="font-medium">{p.product.name}</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {p.count} · {formatTHB(p.value)}
-                </span>
-              </button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
