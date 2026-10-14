@@ -104,6 +104,42 @@ export const ENTITIES = {
     idPrefix: "SUP",
     fields: { name: "support_type_name", order: { col: "sort_order", ...number }, active: { col: "active", ...bool } },
   },
+  StageSLA: {
+    entity: "stage_sla", idPrefix: "SLS",
+    fields: {
+      stage_id: "stage_id",
+      sla_days: { col: "sla_days", ...number },
+      day_type: "day_type",
+      active: { col: "active", ...bool },
+      notes: "notes",
+    },
+  },
+  ActionSLA: {
+    entity: "action_sla", idPrefix: "ACT",
+    fields: {
+      process_key: "process_key",
+      action_name: "action_name",
+      order: { col: "step_order", ...number },
+      scenario_id: "scenario_id",
+      working_with_id: "working_with_id",
+      approval_level: "approval_level",
+      sla_days: { col: "sla_days", ...number },
+      day_type: "day_type",
+      active: { col: "active", ...bool },
+      notes: "notes",
+    },
+  },
+  FieldOption: {
+    entity: "field_options", idPrefix: "OPT",
+    fields: {
+      field_key: "field_key",
+      value: "option_value",
+      label: "option_label",
+      order: { col: "sort_order", ...number },
+      active: { col: "active", ...bool },
+      notes: "notes",
+    },
+  },
   AppConfig: {
     // Virtual key/value view over Aging_Settings (see appConfig in core.js).
     entity: "pipeline_settings",
