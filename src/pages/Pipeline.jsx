@@ -71,7 +71,7 @@ function exportCSV(ops, maps) {
     o.working_with || "", o.working_with ? agingDays(o.working_with_since) : "",
     o.support_needed ? "Yes" : "No", o.support_type || "", o.support_note || "",
     formatDate(o.won_at), formatDate(o.lost_at), maps.lostReason[o.lost_reason_id]?.name || "", o.lost_note || "",
-    maps.member[o.created_by_id]?.name || "", formatDate(o.updated_date),
+    maps.member[o.created_by_user_id]?.name || "", formatDate(o.updated_date),
   ]);
   const csv = [headers, ...rows]
     .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
