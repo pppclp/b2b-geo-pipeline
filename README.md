@@ -45,6 +45,23 @@ Columns the templates computed with formulas (event_month, aging days, weighted 
 written as values. `setup()` in Apps Script and `npm run sheets:pull` clear the template sample
 rows once.
 
+## Pipeline DB runtime workbook
+
+`B2B_GEO_Pipeline_DB` is now the live transaction database and must contain only these
+three runtime sheets:
+
+- `Pipelines` — current state, one row per Pipeline.
+- `Pipeline_Events` — append-only audit trail of changes.
+- `Snapshots` — one row per Pipeline × snapshot period for analysis / commission.
+
+`Snapshots` stores only the latest `stage_id` at capture time plus
+`stage_last_updated_at`. Historical Stage changes belong in `Pipeline_Events`, not
+duplicated in `Snapshots`. Re-capturing the same `snapshot_period` replaces that
+period so it does not create duplicate commission rows.
+
+The runtime DB does **not** duplicate User, Region, Product or Pipeline Config masters;
+those remain in their dedicated master workbooks.
+
 ## Use Google Sheets (Apps Script backend)
 
 The same backend logic (`server/core.js`) runs as an Apps Script web app that reads and
@@ -55,7 +72,8 @@ writes the Google Sheets directly.
 3. `npx clasp create-script --type standalone --title "B2B GEO Pipeline API" --rootDir apps-script`
 4. `npm run gas:push` builds `apps-script/` from the YAML and `.env.local`, then pushes it.
 5. `npx clasp open-script`, then run **`setup`** and allow access. It checks every sheet and
-   creates `B2B_GEO_Pipeline_DB`. Copy the ID it logs into `.env.local` as
+   creates `B2B_GEO_Pipeline_DB` only when no DB is configured. The configured DB must contain
+   `Pipelines`, `Pipeline_Events`, and `Snapshots`. Copy the Sheet ID into `.env.local` as
    `GEO_SHEET_ID_B2B_GEO_Pipeline_DB`, then run `npm run gas:push` again.
 6. In the editor, choose Deploy → New deployment → Web app.
    - Execute as: Me
@@ -64,7 +82,9 @@ writes the Google Sheets directly.
    Copy the `/exec` URL into `.env.local` as `VITE_GEO_API_URL`, then restart `npm run dev`.
 
 After any backend or YAML change, run `npm run gas:push` and update the deployment (Deploy →
-Manage deployments → Edit → New version) so the `/exec` URL serves the new code.
+Manage deployments → Edit → New version) so the `/exec` URL serves the new code. Renaming or
+replacing the runtime DB with a different Google Sheet also requires the Script Property
+`GEO_SHEET_ID_B2B_GEO_Pipeline_DB` to point to that exact Sheet ID.
 
 ## Net RC calculation (new and repriced Pipelines)
 
