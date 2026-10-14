@@ -294,7 +294,13 @@ export function createCore({ contract, store, now, uuid }) {
             if (!String(data[key] ?? "").trim()) throw new HttpError(400, key + " is required");
           }
           if (!/^[0-9]+$/.test(String(data.business_id))) throw new HttpError(400, "Business ID must contain digits only");
+          if (!["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
+            throw new HttpError(400, "Invalid Sales Channel");
+          }
           if (String(data.remark || "").length > 500) throw new HttpError(400, "Remark exceeds 500 characters");
+        }
+        if ("ccp_check_result" in data && data.ccp_check_result && !["not_in_base", "enterprise_base", "pending"].includes(String(data.ccp_check_result))) {
+          throw new HttpError(400, "Invalid CCP+ Check value");
         }
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
