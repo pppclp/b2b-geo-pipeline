@@ -103,7 +103,7 @@ export default function Pipeline() {
     if (params.get("region")) f.region = params.get("region");
     if (params.get("owner")) f.owner = params.get("owner");
     if (params.get("handler")) f.handler = params.get("handler");
-    if (params.get("category")) f.product_category = params.get("category");
+    if (params.get("category") || params.get("product_category")) f.product_category = params.get("category") || params.get("product_category");
     if (params.get("sales_channel")) f.sales_channel = params.get("sales_channel");
     if (params.get("ccp_check_result")) f.ccp_check_result = params.get("ccp_check_result");
     if (params.get("close_month")) f.close_month = params.get("close_month");
