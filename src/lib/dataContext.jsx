@@ -396,24 +396,27 @@ export function DataProvider({ children }) {
   const markWon = useCallback(
     async (id) => {
       const op = opportunities.find((o) => o.id === id);
-      if (!op) return;
+      if (!op || op.status !== "open") throw new Error("Only an open Pipeline can be marked Won");
       const now = new Date().toISOString();
-      await updateWithHistory(id, { status: "won", won_at: now, won_by: op.owner_id }, {
+      await updateWithHistory(id, { status: "won", won_at: now, won_by: profile?.id || "" }, {
         event_type: "won",
         field: "status",
         previous_value: op.status,
         new_value: "won",
       });
     },
-    [opportunities, updateWithHistory]
+    [opportunities, updateWithHistory, profile?.id]
   );
 
   const markLost = useCallback(
     async (id, { reason_id, note }) => {
       const op = opportunities.find((o) => o.id === id);
-      if (!op) return;
+      if (!op || op.status !== "open") throw new Error("Only an open Pipeline can be marked Lost");
+      if (!(master?.LostReason || []).some((reason) => reason.active && reason.id === reason_id)) {
+        throw new Error("Select an active Lost Reason");
+      }
       const now = new Date().toISOString();
-      await updateWithHistory(id, { status: "lost", lost_at: now, lost_by: op.owner_id, lost_reason_id: reason_id, lost_note: note || "" }, {
+      await updateWithHistory(id, { status: "lost", lost_at: now, lost_by: profile?.id || "", lost_reason_id: reason_id, lost_note: note || "" }, {
         event_type: "lost",
         field: "status",
         previous_value: op.status,
@@ -421,7 +424,7 @@ export function DataProvider({ children }) {
         remark: maps.lostReason[reason_id]?.name || "",
       });
     },
-    [opportunities, updateWithHistory, maps.lostReason]
+    [opportunities, updateWithHistory, maps.lostReason, master?.LostReason, profile?.id]
   );
 
   const archiveOp = useCallback(
