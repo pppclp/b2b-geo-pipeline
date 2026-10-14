@@ -144,7 +144,7 @@ export default function OpportunityDetail() {
             <Field label="Stage Entered" value={`${formatDate(op.stage_entered_at)} (${stageAging} days)`} />
             <Field label="Expected Close Month" value={formatMonth(op.expected_close_month)} />
             <Field label="Created" value={`${formatDate(op.created_date)} (${op.created_month || "—"})`} />
-            <Field label="Created By" value={maps.member[op.created_by_id]?.name || "—"} />
+            <Field label="Created By" value={maps.member[op.created_by_user_id]?.name || "—"} />
           </Section>
 
           <Section title="Support / Internal Coordination">
