@@ -104,7 +104,8 @@ export function createOutputs({ contract, store, rows, now, uuid, log = () => {}
       owner_name: name(L.user, o.owner_user_id, "display_name"),
       current_handler_user_id: o.current_handler_user_id,
       current_handler_name: name(L.user, o.current_handler_user_id, "display_name"),
-      category_id: categoryId,
+      product_category_id: categoryId,
+      category_id: categoryId, // legacy export-template alias
       category_name: name(L.category, categoryId, "category_name"),
       product_details: o.product_details,
       stage_id: o.stage_id,
