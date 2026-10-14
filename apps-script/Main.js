@@ -43,6 +43,16 @@ function handle_(req) {
   if (writes) lock.waitLock(30000);
   try {
     var store = new SheetStore_();
+
+    // UAT login gate: plaintext temporary passwords are read only from the
+    // restricted credential workbook. This is intentionally UAT-only.
+    if (
+      req.method === "POST" &&
+      String(req.path || "").replace(/^\\/+/, "") === "session/login"
+    ) {
+      return uatLogin_(store, req.body || {});
+    }
+
     var core = GeoCoreLib.createCore({
       contract: GEO_CONTRACT,
       store: store,
@@ -55,6 +65,56 @@ function handle_(req) {
   } finally {
     if (writes) lock.releaseLock();
   }
+}
+
+function uatLogin_(store, body) {
+  var username = normalizeEmployeeId_(body.username);
+  var password = String(body.password || "");
+
+  if (!username || !password) {
+    throwUatError_(400, "Username and password are required");
+  }
+
+  var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
+  var user = users.find(function (row) {
+    return normalizeEmployeeId_(row.employee_id) === username;
+  });
+
+  if (!user || String(user.status || "Active").toLowerCase() !== "active") {
+    throwUatError_(401, "Invalid username or password");
+  }
+
+  var credentials = store
+    .table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials")
+    .rows;
+
+  var credential = credentials.find(function (row) {
+    return normalizeEmployeeId_(row["employee_id / username"]) === username;
+  });
+
+  if (!credential || String(credential.temporary_password || "") !== password) {
+    throwUatError_(401, "Invalid username or password");
+  }
+
+  return {
+    user_id: String(user.user_id || ""),
+    id: String(user.user_id || ""),
+    full_name: String(user.display_name || ""),
+    role: String(user.role || "AE"),
+  };
+}
+
+function normalizeEmployeeId_(value) {
+  if (value === null || value === undefined || value === "") return "";
+  var s = String(value).trim();
+  if (/^[0-9]+\\.0+$/.test(s)) s = s.replace(/\\.0+$/, "");
+  return s;
+}
+
+function throwUatError_(status, message) {
+  var error = new Error(message);
+  error.status = status;
+  throw error;
 }
 
 // ---- Sheet IDs: Script Properties first, generated SheetIds.js as fallback ----
