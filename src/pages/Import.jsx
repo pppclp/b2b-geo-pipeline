@@ -124,7 +124,9 @@ export default function Import() {
           else if (f.resolve === "scenario") rec.scenario_id = ent.id;
           else if (f.resolve === "stage") rec.stage_id = ent.id;
         } else if (f.type === "number") {
-          rec[f.key] = Number(val) || 0;
+          const parsed = Number(val);
+          if (!Number.isFinite(parsed)) errors.push(`${f.label} must be a number`);
+          else rec[f.key] = parsed;
         } else {
           rec[f.key] = val;
         }
