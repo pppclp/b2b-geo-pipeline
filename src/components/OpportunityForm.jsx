@@ -11,7 +11,6 @@ import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES } from "@/lib/pipeline";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
-import SearchableSelect from "@/components/SearchableSelect";
 
 const empty = {
   customer_name: "",
@@ -29,16 +28,13 @@ const empty = {
   owner_id: "",
   current_handler_id: "",
   product_category_id: "",
-  product_id: "",
   stage_id: "",
   expected_close_month: "",
   pipeline_value: "",
   price_per_sub: "",
   scenario_id: "",
   quantity: "",
-  rc: "",
   oc: "",
-  discount: "",
   contract_period: "",
   working_with: "",
   support_needed: false,
@@ -85,10 +81,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     () => (master?.ProductCategory || []).filter((c) => c.active).sort((a, b) => a.order - b.order).map((c) => ({ value: c.id, label: c.name })),
     [master]
   );
-  const productOptions = useMemo(
-    () => (master?.Product || []).filter((p) => p.active && p.category_id === form.product_category_id).map((p) => ({ value: p.id, label: p.name })),
-    [master, form.product_category_id]
-  );
   const scenarioOptions = useMemo(
     () => (master?.Scenario || []).filter((s) => s.active).sort((a, b) => a.order - b.order).map((s) => ({ value: s.id, label: s.name })),
     [master]
@@ -119,15 +111,13 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     if (!valid) return;
     setSaving(true);
     try {
-      const { id, created_date, updated_date, created_by_id, ...rest } = form;
+      const { id, created_date, updated_date, created_by_id, product_id, rc, discount, ...rest } = form;
       const payload = {
         ...rest,
         pipeline_value: calculatedNetRc,
         quantity: form.quantity === "" || form.quantity == null ? null : Number(form.quantity),
         price_per_sub: hasUnitPrice ? Number(form.price_per_sub) : null,
-        rc: form.rc === "" || form.rc == null ? null : Number(form.rc),
         oc: form.oc === "" || form.oc == null ? null : Number(form.oc),
-        discount: form.discount ? Number(form.discount) : null,
         contract_period: form.contract_period ? Number(form.contract_period) : null,
         current_handler_id: form.current_handler_id || form.owner_id,
       };
@@ -235,24 +225,13 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
           <div>
             <Label>Product Category *</Label>
-            <Select value={form.product_category_id} onValueChange={(v) => { set("product_category_id", v); set("product_id", ""); }}>
+            <Select value={form.product_category_id} onValueChange={(v) => set("product_category_id", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
                 {categoryOptions.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Product</Label>
-            <SearchableSelect
-              value={form.product_id}
-              onChange={(v) => set("product_id", v)}
-              options={productOptions}
-              placeholder="Select product"
-              disabled={!form.product_category_id}
-            />
-          </div>
-
           <div>
             <Label>Product Details</Label>
             <Input value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} />
@@ -313,10 +292,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           <div>
             <Label>OC (THB)</Label>
             <Input type="number" min="0" step="0.01" value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
-          </div>
-          <div>
-            <Label>Discount (%)</Label>
-            <Input type="number" value={form.discount ?? ""} onChange={(e) => set("discount", e.target.value)} />
           </div>
           <div>
             <Label>Contract Period (months)</Label>
