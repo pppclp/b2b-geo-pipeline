@@ -458,35 +458,83 @@ export function DataProvider({ children }) {
 
   const historyFor = useCallback((opId) => history.filter((h) => h.opportunity_id === opId), [history]);
 
-  // Capture a month-end snapshot of all open opportunities (admin action)
+  // Capture one immutable row per Pipeline for a reporting / commission period.
+  // Snapshots store only the latest Stage at capture time; full Stage history stays in Pipeline_Events.
   const captureSnapshot = useCallback(
-    async (snapshotMonth) => {
+    async (snapshotPeriod) => {
+      const capturedAt = new Date().toISOString();
       const rows = scopedOpportunities
         .filter((o) => o.status === "open" || o.status === "won" || o.status === "lost")
-        .map((o) => ({
-          snapshot_month: snapshotMonth,
-          opportunity_id: o.id,
-          customer_name: o.customer_name || "",
-          owner_id: o.owner_id || "",
-          current_handler_id: o.current_handler_id || "",
-          region_id: o.region_id || "",
-          product_category_id: o.product_category_id || "",
-          product_details: o.product_details || "",
-          stage_id: o.stage_id || "",
-          status: o.status,
-          expected_close_month: o.expected_close_month || "",
-          pipeline_value: o.pipeline_value || 0,
-          support_needed: !!o.support_needed,
-        }));
+        .map((o) => {
+          const contractPeriod = o.contract_period === "" || o.contract_period == null ? null : Number(o.contract_period);
+          const netRc = Number(o.pipeline_value || 0);
+          return {
+            snapshot_period: snapshotPeriod,
+            captured_at: capturedAt,
+            opportunity_id: o.id,
+            lead_created_at: o.created_date || "",
+            owner_id: o.owner_id || "",
+            current_handler_id: o.current_handler_id || "",
+            region_id: o.region_id || "",
+            territory_id: o.territory_id || "",
+            sales_channel: o.sales_channel || "",
+            partner_name: o.partner_name || "",
+            business_id: o.business_id || "",
+            customer_name: o.customer_name || "",
+            customer_type: o.customer_type || "",
+            contact_name: o.contact_name || "",
+            contact_phone: o.contact_phone || "",
+            remark: o.remark || "",
+            product_category_id: o.product_category_id || "",
+            product_details: o.product_details || "",
+            quantity: o.quantity ?? "",
+            price_per_sub: o.price_per_sub ?? "",
+            pipeline_value: netRc,
+            oc: o.oc ?? "",
+            contract_period_months: contractPeriod ?? "",
+            contract_value: contractPeriod == null ? "" : netRc * contractPeriod,
+            expected_close_month: o.expected_close_month || "",
+            ccp_check_result: o.ccp_check_result || "",
+            scenario_id: o.scenario_id || "",
+            handoff_at:
+              o.current_handler_id && o.current_handler_id !== o.owner_id
+                ? o.handler_since || ""
+                : "",
+            stage_id: o.stage_id || "",
+            stage_last_updated_at: o.stage_entered_at || "",
+            status: o.status,
+            support_needed: !!o.support_needed,
+            support_type_id: o.support_type || "",
+            support_note: o.support_note || "",
+            won_at: o.won_at || "",
+            lost_at: o.lost_at || "",
+            lost_reason_id: o.lost_reason_id || "",
+          };
+        });
+
       if (!rows.length) return { captured: 0 };
-      // Remove any existing snapshot rows for this month to allow re-capture
+
+      // One Pipeline x one snapshot period: recapture replaces the period.
       try {
-        const existing = await db.entities.MonthlySnapshot.filter({ snapshot_month: snapshotMonth }, "-created_date", 500);
+        const existing = await db.entities.MonthlySnapshot.filter(
+          { snapshot_period: snapshotPeriod },
+          "-captured_at",
+          500
+        );
         const ex = Array.isArray(existing) ? existing : existing?.items || [];
-        if (ex.length) await db.entities.MonthlySnapshot.deleteMany({ snapshot_month: snapshotMonth });
-      } catch (e) { console.warn("snapshot cleanup failed", e); }
+        if (ex.length) await db.entities.MonthlySnapshot.deleteMany({ snapshot_period: snapshotPeriod });
+      } catch (e) {
+        console.warn("snapshot cleanup failed", e);
+      }
+
       const createdRows = await db.entities.MonthlySnapshot.bulkCreate(rows);
-      setMaster((m) => ({ ...m, MonthlySnapshot: [...(m.MonthlySnapshot || []), ...createdRows] }));
+      setMaster((m) => ({
+        ...m,
+        MonthlySnapshot: [
+          ...((m.MonthlySnapshot || []).filter((x) => x.snapshot_period !== snapshotPeriod)),
+          ...createdRows,
+        ],
+      }));
       return { captured: createdRows.length };
     },
     [scopedOpportunities]
