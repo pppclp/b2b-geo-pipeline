@@ -9,6 +9,7 @@
 import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
+import { normalizeClosureUpdate } from "./closure.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -278,6 +279,11 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "create");
       const stamp = now();
       if (uiEntity === "Opportunity") {
+        // New Pipelines always start Open. Close them via the audited
+        // Won/Lost update flow, which requires a Lost Reason when applicable.
+        if (String(data.status || "open").toLowerCase() !== "open") {
+          throw new HttpError(400, "Create Pipeline as Open, then use Mark Won or Mark Lost");
+        }
         // New AE modal fields must be validated server-side as well.
         // Imported historical data without sales_channel is handled separately.
         if (actor.role === "ae" && (data.scenario_id || data.ccp_check_result)) {
@@ -328,7 +334,25 @@ export function createCore({ contract, store, now, uuid }) {
           }
         }
       }
-      const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data, toUi(uiEntity, b.primary_key, row)) : data;
+      // Validate loss reason and close only an Open Pipeline. The real actor
+      // and timestamp are taken from the backend, never from the browser.
+      let normalized = data;
+      if (uiEntity === "Opportunity") {
+        try {
+          normalized = normalizeClosureUpdate(
+            data,
+            toUi(uiEntity, b.primary_key, row),
+            rows("lost_reasons"),
+            actor.real.id,
+            now()
+          );
+        } catch (error) {
+          throw new HttpError(400, error.message);
+        }
+      }
+      const checked = uiEntity === "Opportunity"
+        ? normalizeOpportunityPricing(normalized, toUi(uiEntity, b.primary_key, row))
+        : data;
       const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       delete changes[b.primary_key];
       Object.assign(row, fitColumns(b, { ...changes, updated_at: now() }));

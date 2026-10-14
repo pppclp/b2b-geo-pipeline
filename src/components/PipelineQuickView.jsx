@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Maximize2 } from "lucide-react";
+import PipelineCloseActions from "@/components/PipelineCloseActions";
 
 const NONE = "__none__";
 const textOrDash = (value) => value || "—";
@@ -149,7 +150,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
 }
 
 export default function PipelineQuickView({ op, open, onClose, onExpand, initialStageId }) {
-  const { maps } = useData();
+  const { maps, profile } = useData();
   const [dirty, setDirty] = useState(false);
   const requestClose = () => {
     if (!dirty || window.confirm("Discard unsaved Pipeline changes?")) onClose();
@@ -161,6 +162,10 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
   const product = maps.product?.[op.product_id];
+  const canClose = op.status === "open" && (
+    profile?.app_role === "admin" || profile?.app_role === "sm" ||
+    (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
+  );
 
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
@@ -189,6 +194,14 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
             </div>
           </div>
           <PipelineQuickActions op={op} initialStageId={initialStageId} onCancel={requestClose} onDirtyChange={setDirty} onSaved={() => { setDirty(false); onClose(); }}/>
+          {canClose && (
+            <div className="border-t pt-4 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Close Pipeline</h3>
+              <PipelineCloseActions op={op}
+                beforeOpen={() => !dirty || window.confirm("Discard unsaved Stage / Handler / Working With changes?")}
+                onClosed={() => { setDirty(false); onClose(); }}/>
+            </div>
+          )}
           <div className="border-t pt-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Pipeline Summary</h3>

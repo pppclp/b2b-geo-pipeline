@@ -6,6 +6,7 @@ import { formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS } fro
 import HistoryTimeline from "@/components/HistoryTimeline";
 import OpportunityForm from "@/components/OpportunityForm";
 import { PipelineQuickActions } from "@/components/PipelineQuickView";
+import PipelineCloseActions from "@/components/PipelineCloseActions";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Pencil, ArrowRightLeft, Users, GitBranch, Trophy, XCircle, Archive, RefreshCw, CalendarClock, Wrench } from "lucide-react";
+import { ArrowLeft, Pencil, ArrowRightLeft, Users, GitBranch, Archive, RefreshCw, CalendarClock, Wrench } from "lucide-react";
 
 const statusColor = {
   open: "bg-blue-100 text-blue-700 border border-blue-200",
@@ -26,7 +27,7 @@ const statusColor = {
 export default function OpportunityDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { opportunities, maps, activeStages, master, profile, moveStage, handoff, reassign, markWon, markLost, archiveOp, reopen, changeCloseMonth, setWorkingWith, setSupport } = useData();
+  const { opportunities, maps, activeStages, master, profile, moveStage, handoff, reassign, archiveOp, reopen, changeCloseMonth, setWorkingWith, setSupport } = useData();
   const op = opportunities.find((o) => o.id === id);
 
   const [editOpen, setEditOpen] = useState(false);
@@ -61,8 +62,6 @@ export default function OpportunityDetail() {
     else if (a.type === "handoff") await handoff(op.id, a.handlerId, remark);
     else if (a.type === "reassign") await reassign(op.id, { owner_id: a.ownerId, current_handler_id: a.handlerId, remark });
     else if (a.type === "closemonth") await changeCloseMonth(op.id, a.month, remark);
-    else if (a.type === "lost") await markLost(op.id, { reason_id: a.reasonId, note: a.note });
-    else if (a.type === "won") await markWon(op.id);
     else if (a.type === "archive") await archiveOp(op.id);
     else if (a.type === "reopen") await reopen(op.id);
     else if (a.type === "workingwith") await setWorkingWith(op.id, a.value);
@@ -92,8 +91,7 @@ export default function OpportunityDetail() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
             <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>
-            {op.status === "open" && <Button variant="outline" size="sm" className="rounded-lg text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={() => setAction({ type: "won" })}><Trophy className="w-4 h-4 mr-1.5" /> Won</Button>}
-            {op.status === "open" && <Button variant="outline" size="sm" className="rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => setAction({ type: "lost" })}><XCircle className="w-4 h-4 mr-1.5" /> Lost</Button>}
+            <PipelineCloseActions op={op} compact/>
             {op.status !== "archived" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1.5" /> Archive</Button>}
             {op.status !== "open" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1.5" /> Reopen</Button>}
           </div>
@@ -205,7 +203,7 @@ export default function OpportunityDetail() {
 function actionTitle(t) {
   return ({
     reassign: "Reassign", closemonth: "Change Close Month",
-    won: "Mark Won", lost: "Mark Lost", archive: "Archive", reopen: "Reopen",
+    archive: "Archive", reopen: "Reopen",
     workingwith: "Set Working With", support: "Toggle Support Needed",
   })[t] || "Action";
 }
@@ -216,7 +214,6 @@ function actionValid(a) {
   if (a.type === "handoff") return !!a.handlerId;
   if (a.type === "reassign") return !!a.ownerId || !!a.handlerId;
   if (a.type === "closemonth") return !!a.month;
-  if (a.type === "lost") return !!a.reasonId;
   return true;
 }
 
@@ -271,18 +268,6 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, los
       </div>
     );
   }
-  if (t === "lost")
-    return (
-      <div className="space-y-2">
-        <Label>Lost Reason *</Label>
-        <Select value={action.reasonId || ""} onValueChange={(v) => setAction({ ...action, reasonId: v })}>
-          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-          <SelectContent>{lostReasons.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
-        </Select>
-        <Label>Lost Note</Label>
-        <Textarea value={action.note || ""} onChange={(e) => setAction({ ...action, note: e.target.value })} rows={2} />
-      </div>
-    );
   if (t === "workingwith") {
     const opts = ["", "Presales", "Pricing", "Product", "Fulfillment", "Operation", "Other"];
     return (
@@ -308,7 +293,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, los
       </div>
     );
   }
-  if (t === "won" || t === "archive" || t === "reopen")
+  if (t === "archive" || t === "reopen")
     return <DialogDescription>Confirm this action. A history entry will be recorded automatically.</DialogDescription>;
   return null;
 }
