@@ -236,9 +236,9 @@ export function seedData() {
       ],
     },
     "B2B_GEO_Pipeline_DB.xlsx": {
-      Opportunities: opps,
-      Opportunity_Events: events(opps),
-      Monthly_Snapshots: [],
+      Pipelines: opps,
+      Pipeline_Events: events(opps),
+      Snapshots: [],
     },
   };
 }
