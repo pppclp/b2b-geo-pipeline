@@ -15,10 +15,6 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
   );
   const memberOptions = useMemo(() => (master?.TeamMember || []).filter((m) => m.active), [master]);
   const categoryOptions = useMemo(() => (master?.ProductCategory || []).filter((c) => c.active), [master]);
-  const productOptions = useMemo(
-    () => (master?.Product || []).filter((p) => p.active && (!filters.product_category || p.category_id === filters.product_category)),
-    [master, filters.product_category]
-  );
   const stageOptions = useMemo(() => (master?.Stage || []).filter((s) => s.active).sort((a, b) => a.order - b.order), [master]);
   const scenarioOptions = useMemo(() => (master?.Scenario || []).filter((s) => s.active), [master]);
   const workingWithOptions = useMemo(() => (master?.WorkingWithOption || []).filter((w) => w.active), [master]);
@@ -84,8 +80,14 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
         {categoryOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
       </SelectWrap>
 
-      <SelectWrap label="Product" value={filters.product} onChange={(v) => onFilter("product", v === "all" ? "" : v)}>
-        {productOptions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+      <SelectWrap label="Sales Channel" value={filters.sales_channel} onChange={(v) => onFilter("sales_channel", v === "all" ? "" : v)}>
+        {["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+      </SelectWrap>
+
+      <SelectWrap label="CCP+ Check" value={filters.ccp_check_result} onChange={(v) => onFilter("ccp_check_result", v === "all" ? "" : v)}>
+        <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
+        <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
+        <SelectItem value="pending">Pending Review</SelectItem>
       </SelectWrap>
 
       <SelectWrap label="Scenario" value={filters.scenario} onChange={(v) => onFilter("scenario", v === "all" ? "" : v)}>
