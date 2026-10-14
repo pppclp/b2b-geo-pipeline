@@ -1862,37 +1862,50 @@ export_03_month_end:
         "monthly_snapshots"
 
       filter:
-        "snapshot_month = reporting_month"
+        "snapshot_period = reporting_month"
 
       grain:
-        "1 row = 1 Open Opportunity at Month-End"
+        "1 row = 1 Pipeline per Snapshot Period"
 
       purpose:
-        - "Preserve what the Pipeline looked like at that point in time."
+        - "Preserve the Pipeline state for analysis / commission at that capture period."
+        - "Store only the latest Stage at capture time; Stage history remains in Pipeline_Events."
 
 
 # ============================================================
-# 12. MONTH-END SNAPSHOT ENTITY
+# 12. SNAPSHOT ENTITY
 # ============================================================
 
 monthly_snapshots:
 
   source:
-    "Current Opportunity state at month-end"
+    "Current Pipeline state at controlled snapshot capture"
 
   generated_by:
-    "System / Controlled Month-End process"
+    "System / Controlled Snapshot process"
+
+  grain:
+    "1 row = 1 Pipeline × 1 snapshot_period"
 
   fields:
 
     snapshot_id:
       generated: true
 
-    snapshot_month:
+    snapshot_period:
       format: "YYYY-MM"
+      description: "Reporting / commission period."
+
+    captured_at:
+      source: "SYSTEM"
+      description: "Timestamp when the snapshot period was captured."
 
     opportunity_id:
       foreign_key: "opportunities.opportunity_id"
+
+    lead_created_at:
+      snapshot_of:
+        "opportunities.created_at"
 
     owner_user_id:
       snapshot_of:
@@ -1906,6 +1919,42 @@ monthly_snapshots:
       snapshot_of:
         "opportunities.region_id"
 
+    territory_id:
+      snapshot_of:
+        "opportunities.territory_id"
+
+    sales_channel:
+      snapshot_of:
+        "opportunities.sales_channel"
+
+    partner_name:
+      snapshot_of:
+        "opportunities.partner_name"
+
+    business_id:
+      snapshot_of:
+        "opportunities.business_id"
+
+    customer_name:
+      snapshot_of:
+        "opportunities.customer_name"
+
+    customer_type:
+      snapshot_of:
+        "opportunities.customer_type"
+
+    contact_name:
+      snapshot_of:
+        "opportunities.contact_name"
+
+    contact_phone:
+      snapshot_of:
+        "opportunities.contact_phone"
+
+    remark:
+      snapshot_of:
+        "opportunities.remark"
+
     product_category_id:
       snapshot_of:
         "opportunities.product_category_id"
@@ -1914,28 +1963,92 @@ monthly_snapshots:
       snapshot_of:
         "opportunities.product_details"
 
-    stage_id:
+    quantity:
       snapshot_of:
-        "opportunities.stage_id"
+        "opportunities.quantity"
 
-    status:
+    price_per_sub:
       snapshot_of:
-        "opportunities.status"
+        "opportunities.price_per_sub"
+
+    pipeline_value:
+      snapshot_of:
+        "opportunities.pipeline_value"
+      description: "Net RC at capture time."
+
+    oc:
+      snapshot_of:
+        "opportunities.oc"
+
+    contract_period_months:
+      snapshot_of:
+        "opportunities.contract_period_months"
+
+    contract_value:
+      source: "CALCULATED AT SNAPSHOT"
+      formula: "pipeline_value * contract_period_months"
 
     expected_close_month:
       snapshot_of:
         "opportunities.expected_close_month"
 
-    pipeline_value:
+    ccp_check_result:
       snapshot_of:
-        "opportunities.pipeline_value"
+        "opportunities.ccp_check_result"
+
+    scenario_id:
+      snapshot_of:
+        "opportunities.scenario_id"
+
+    handoff_at:
+      snapshot_of:
+        "opportunities.handler_since"
+      condition:
+        "current_handler_user_id != owner_user_id"
+
+    stage_id:
+      snapshot_of:
+        "opportunities.stage_id"
+      description: "LATEST Stage only at snapshot capture."
+
+    stage_last_updated_at:
+      snapshot_of:
+        "opportunities.stage_entered_at"
+      description: "Timestamp the latest Stage was entered."
+
+    status:
+      snapshot_of:
+        "opportunities.status"
 
     support_needed:
       snapshot_of:
         "opportunities.support_needed"
 
-  important_rule:
-    - "Historical snapshot must not automatically change when current Opportunity changes later."
+    support_type_id:
+      snapshot_of:
+        "opportunities.support_type_id"
+
+    support_note:
+      snapshot_of:
+        "opportunities.support_note"
+
+    won_at:
+      snapshot_of:
+        "opportunities.won_at"
+
+    lost_at:
+      snapshot_of:
+        "opportunities.lost_at"
+
+    lost_reason_id:
+      snapshot_of:
+        "opportunities.lost_reason_id"
+
+  capture_rules:
+    - "Only one persisted row per opportunity_id + snapshot_period."
+    - "Re-capturing the same snapshot_period replaces that period instead of appending duplicates."
+    - "Stage history is NOT duplicated here; Pipeline_Events is the audit trail."
+    - "Historical snapshot rows must not automatically change when current Pipeline changes later."
 
 
 # ============================================================
@@ -2073,7 +2186,7 @@ source_of_truth:
       source:
         "opportunity_events"
 
-    historical_month_end:
+    historical_snapshots:
       source:
         "monthly_snapshots"
 
@@ -2322,10 +2435,11 @@ access_control:
             delete: ["Admin"]
 
     # Application database for live data (not a source file).
+    # Runtime workbook must contain exactly: Pipelines, Pipeline_Events, Snapshots.
     # Locally: data/B2B_GEO_Pipeline_DB.xlsx. Later: a Google Sheet.
     "B2B_GEO_Pipeline_DB.xlsx":
       sheets:
-        Pipeline:
+        Pipelines:
           entity: "opportunities"
           primary_key: "opportunity_id"
           scoped: true
@@ -2336,7 +2450,7 @@ access_control:
             delete: []
             import: ["SM", "Admin"]
             export: ["SM", "Management", "Admin"]
-        Opportunity_Events:
+        Pipeline_Events:
           entity: "opportunity_events"
           primary_key: "event_id"
           scoped: true
