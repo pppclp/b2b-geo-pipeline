@@ -2325,7 +2325,7 @@ access_control:
     # Locally: data/B2B_GEO_Pipeline_DB.xlsx. Later: a Google Sheet.
     "B2B_GEO_Pipeline_DB.xlsx":
       sheets:
-        Opportunities:
+        Pipeline:
           entity: "opportunities"
           primary_key: "opportunity_id"
           scoped: true
@@ -2347,7 +2347,7 @@ access_control:
             update: []
             delete: []
             export: ["SM", "Management", "Admin"]
-        Monthly_Snapshots:
+        Snapshots:
           entity: "monthly_snapshots"
           primary_key: "snapshot_id"
           scoped: true
