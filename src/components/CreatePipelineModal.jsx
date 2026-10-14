@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES } from "@/lib/pipeline";
+import { optionsForField } from "@/lib/slaConfig";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 
@@ -76,6 +77,8 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     () => (master?.ProductCategory || []).filter((c) => c.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [master]
   );
+  const salesChannelChoices = optionsForField(master?.FieldOption, "sales_channel", SALES_CHANNELS);
+  const customerTypeChoices = optionsForField(master?.FieldOption, "customer_type", CUSTOMER_TYPES);
   const aeMembers = useMemo(
     () => (master?.TeamMember || []).filter((m) => m.active && m.app_role === "ae").sort((a, b) => a.name.localeCompare(b.name)),
     [master]
@@ -199,13 +202,13 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                 <Field label="Customer Type" required error={submitted && errors.customer_type}>
                   <Select value={form.customer_type} onValueChange={(v) => set("customer_type", v)}>
                     <SelectTrigger aria-label="Customer Type"><SelectValue placeholder="Select customer type" /></SelectTrigger>
-                    <SelectContent>{CUSTOMER_TYPES.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
+                    <SelectContent>{customerTypeChoices.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="Sales Channel" required>
                   <Select value={form.sales_channel} onValueChange={(v) => set("sales_channel", v)}>
                     <SelectTrigger aria-label="Sales Channel"><SelectValue /></SelectTrigger>
-                    <SelectContent>{SALES_CHANNELS.map((channel) => <SelectItem key={channel} value={channel}>{channel}</SelectItem>)}</SelectContent>
+                    <SelectContent>{salesChannelChoices.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="Contact Name" required error={submitted && errors.contact_name}>
