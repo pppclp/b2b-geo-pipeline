@@ -48,7 +48,7 @@ function handle_(req) {
     // restricted credential workbook. This is intentionally UAT-only.
     if (
       req.method === "POST" &&
-      String(req.path || "").replace(/^\\/+/, "") === "session/login"
+      String(req.path || "").replace(/^\/+/, "") === "session/login"
     ) {
       return uatLogin_(store, req.body || {});
     }
@@ -107,7 +107,7 @@ function uatLogin_(store, body) {
 function normalizeEmployeeId_(value) {
   if (value === null || value === undefined || value === "") return "";
   var s = String(value).trim();
-  if (/^[0-9]+\\.0+$/.test(s)) s = s.replace(/\\.0+$/, "");
+  if (/^[0-9]+\.0+$/.test(s)) s = s.replace(/\.0+$/, "");
   return s;
 }
 
