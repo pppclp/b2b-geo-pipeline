@@ -19,5 +19,5 @@ jobs:
       - run: npm ci
       - name: Build UI
         run: npm run build
-      - name: Net RC and Quick Action tests
+      - name: Runtime Config + Net RC and Quick Action tests
         run: node --test tests/*.test.mjs
