@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, agingDays, ROLE_LABELS } from "@/lib/pipeline";
+import { isStageOverdue } from "@/lib/slaConfig";
 import KpiCard from "@/components/dashboard/KpiCard";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import MonthPicker from "@/components/MonthPicker";
@@ -15,7 +16,7 @@ function monthOf(iso) {
 }
 
 export default function Dashboard() {
-  const { scopedOpportunities, maps, activeStages, config, profile } = useData();
+  const { scopedOpportunities, maps, activeStages, config, master, profile } = useData();
   const navigate = useNavigate();
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState("");
@@ -55,7 +56,7 @@ export default function Dashboard() {
     ? regionScoped.filter((o) => o.status === "lost" && monthOf(o.lost_at) === closeMonth)
     : regionScoped.filter((o) => o.status === "lost");
   const supportNeeded = open.filter((o) => o.support_needed);
-  const stuck = open.filter((o) => agingDays(o.stage_entered_at) > threshold);
+  const stuck = open.filter((o) => isStageOverdue(o, master?.StageSLA || [], threshold, agingDays));
 
   const sumVal = (arr) => arr.reduce((a, o) => a + (o.pipeline_value || 0), 0);
   const monthLabel = (m) => (m ? formatMonth(m) : "All Months");
@@ -219,7 +220,7 @@ export default function Dashboard() {
           label="Stuck Pipeline"
           count={stuck.length}
           value={formatTHB(sumVal(stuck))}
-          context={`> ${threshold} days in current stage`}
+          context="Beyond Stage SLA (or default threshold)"
           icon={Clock}
           accent="text-amber-600"
           onClick={() => go({ status: "open", stuck: "1", sort: "stage_aging_desc" })}
@@ -328,7 +329,7 @@ export default function Dashboard() {
         {/* Attention Needed — management */}
         {isManagementLike && (
           <Panel title="Attention Needed" empty={!attentionOps.length}>
-            <OpportunityMiniList ops={attentionOps} maps={maps} navigate={navigate} showReason />
+            <OpportunityMiniList ops={attentionOps} maps={maps} navigate={navigate} showReason stuckIds={new Set(stuck.map((o) => o.id))} />
           </Panel>
         )}
       </div>
@@ -367,7 +368,7 @@ function BreakdownList({ rows, onClick }) {
   );
 }
 
-function OpportunityMiniList({ ops, maps, navigate, showReason }) {
+function OpportunityMiniList({ ops, maps, navigate, showReason, stuckIds }) {
   return (
     <div className="space-y-1.5 max-h-64 overflow-y-auto">
       {ops.slice(0, 10).map((o) => (
@@ -382,7 +383,7 @@ function OpportunityMiniList({ ops, maps, navigate, showReason }) {
             <div className="text-[11px] text-muted-foreground truncate">
               {maps.stage[o.stage_id]?.name} · {maps.member[o.owner_id]?.name}
               {showReason && o.support_needed && " · Support"}
-              {showReason && agingDays(o.stage_entered_at) > 14 && " · Stuck"}
+              {showReason && stuckIds?.has(o.id) && " · Stuck"}
             </div>
           </div>
           <span className="text-muted-foreground tabular-nums ml-2 shrink-0">{formatTHB(o.pipeline_value)}</span>
