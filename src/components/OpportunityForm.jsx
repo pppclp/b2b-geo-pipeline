@@ -11,7 +11,6 @@ import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES } from "@/lib/pipeline";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
-import SearchableSelect from "@/components/SearchableSelect";
 
 const empty = {
   customer_name: "",
@@ -29,16 +28,13 @@ const empty = {
   owner_id: "",
   current_handler_id: "",
   product_category_id: "",
-  product_id: "",
   stage_id: "",
   expected_close_month: "",
   pipeline_value: "",
   price_per_sub: "",
   scenario_id: "",
   quantity: "",
-  rc: "",
   oc: "",
-  discount: "",
   contract_period: "",
   working_with: "",
   support_needed: false,
@@ -85,10 +81,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     () => (master?.ProductCategory || []).filter((c) => c.active).sort((a, b) => a.order - b.order).map((c) => ({ value: c.id, label: c.name })),
     [master]
   );
-  const productOptions = useMemo(
-    () => (master?.Product || []).filter((p) => p.active && p.category_id === form.product_category_id).map((p) => ({ value: p.id, label: p.name })),
-    [master, form.product_category_id]
-  );
   const scenarioOptions = useMemo(
     () => (master?.Scenario || []).filter((s) => s.active).sort((a, b) => a.order - b.order).map((s) => ({ value: s.id, label: s.name })),
     [master]
@@ -111,7 +103,18 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     } catch { /* Do not show a calculation until inputs are valid. */ }
   }
   const valid = Boolean(
-    form.customer_name && form.region_id && form.owner_id && form.product_category_id && form.stage_id &&
+    String(form.customer_name || "").trim() &&
+    /^\d+$/.test(String(form.business_id || "").trim()) &&
+    form.customer_type &&
+    form.sales_channel &&
+    String(form.contact_name || "").trim() &&
+    String(form.contact_phone || "").trim() &&
+    form.region_id &&
+    form.owner_id &&
+    form.product_category_id &&
+    form.stage_id &&
+    form.expected_close_month &&
+    String(form.remark || "").length <= 500 &&
     (legacyEdit && !hasUnitPrice ? true : calculatedNetRc !== null)
   );
 
@@ -119,17 +122,34 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     if (!valid) return;
     setSaving(true);
     try {
-      const { id, created_date, updated_date, created_by_id, ...rest } = form;
       const payload = {
-        ...rest,
-        pipeline_value: calculatedNetRc,
+        customer_name: form.customer_name.trim(),
+        business_id: String(form.business_id || "").trim(),
+        customer_type: form.customer_type,
+        sales_channel: form.sales_channel,
+        partner_name: form.sales_channel === "B2B Premium Partner" ? String(form.partner_name || "").trim() : "",
+        contact_name: String(form.contact_name || "").trim(),
+        contact_phone: String(form.contact_phone || "").trim(),
+        remark: String(form.remark || "").trim(),
+        region_id: form.region_id,
+        territory_id: form.territory_id || "",
+        owner_id: form.owner_id,
+        current_handler_id: form.current_handler_id || form.owner_id,
+        product_category_id: form.product_category_id,
+        product_details: String(form.product_details || "").trim(),
+        stage_id: form.stage_id,
+        expected_close_month: form.expected_close_month,
+        scenario_id: form.scenario_id || "",
+        ccp_check_result: form.ccp_check_result || "",
         quantity: form.quantity === "" || form.quantity == null ? null : Number(form.quantity),
         price_per_sub: hasUnitPrice ? Number(form.price_per_sub) : null,
-        rc: form.rc === "" || form.rc == null ? null : Number(form.rc),
         oc: form.oc === "" || form.oc == null ? null : Number(form.oc),
-        discount: form.discount ? Number(form.discount) : null,
         contract_period: form.contract_period ? Number(form.contract_period) : null,
-        current_handler_id: form.current_handler_id || form.owner_id,
+        working_with: form.working_with || "",
+        support_needed: !!form.support_needed,
+        support_type: form.support_needed ? (form.support_type || "") : "",
+        support_note: form.support_needed ? String(form.support_note || "").trim() : "",
+        pipeline_value: calculatedNetRc,
       };
       if (legacyEdit && !hasUnitPrice) {
         delete payload.pipeline_value;
@@ -163,11 +183,11 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
 
           <div>
-            <Label>Business ID</Label>
+            <Label>Business ID *</Label>
             <Input value={form.business_id} onChange={(e) => set("business_id", e.target.value)} placeholder="Tax ID / ref" />
           </div>
           <div>
-            <Label>Customer Type</Label>
+            <Label>Customer Type *</Label>
             <Select value={form.customer_type} onValueChange={(v) => set("customer_type", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
@@ -177,7 +197,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
 
           <div>
-            <Label>Sales Channel</Label>
+            <Label>Sales Channel *</Label>
             <Select value={form.sales_channel || ""} onValueChange={(v) => set("sales_channel", v)}>
               <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
               <SelectContent>{["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
@@ -189,8 +209,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
               <Input value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
             </div>
           )}
-          <div><Label>Contact Name</Label><Input value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
-          <div><Label>Contact Phone</Label><Input type="tel" value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
+          <div><Label>Contact Name *</Label><Input value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
+          <div><Label>Contact Phone *</Label><Input type="tel" value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
           <div className="sm:col-span-2">
             <Label>Remark</Label>
             <Textarea maxLength={500} rows={2} value={form.remark || ""} onChange={(e) => set("remark", e.target.value)} />
@@ -235,24 +255,13 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
           <div>
             <Label>Product Category *</Label>
-            <Select value={form.product_category_id} onValueChange={(v) => { set("product_category_id", v); set("product_id", ""); }}>
+            <Select value={form.product_category_id} onValueChange={(v) => set("product_category_id", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
                 {categoryOptions.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Product</Label>
-            <SearchableSelect
-              value={form.product_id}
-              onChange={(v) => set("product_id", v)}
-              options={productOptions}
-              placeholder="Select product"
-              disabled={!form.product_category_id}
-            />
-          </div>
-
           <div>
             <Label>Product Details</Label>
             <Input value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} />
@@ -267,7 +276,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             </Select>
           </div>
           <div>
-            <Label>Expected Close Month</Label>
+            <Label>Expected Close Month *</Label>
             <MonthPicker value={form.expected_close_month} onChange={(v) => set("expected_close_month", v)} />
           </div>
 
@@ -313,10 +322,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           <div>
             <Label>OC (THB)</Label>
             <Input type="number" min="0" step="0.01" value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
-          </div>
-          <div>
-            <Label>Discount (%)</Label>
-            <Input type="number" value={form.discount ?? ""} onChange={(e) => set("discount", e.target.value)} />
           </div>
           <div>
             <Label>Contract Period (months)</Label>

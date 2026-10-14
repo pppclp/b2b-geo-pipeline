@@ -431,6 +431,8 @@ source_02_product_master:
 
         referenced_by:
           - "products.category_id"
+          - "opportunities.product_category_id"
+          - "monthly_snapshots.product_category_id"
 
       category_name:
         source: "Product_Categories.category_name"
@@ -472,20 +474,13 @@ source_02_product_master:
         source: "Products.product_id"
         target: "products.product_id"
 
-        referenced_by:
-          - "opportunities.product_id"
-          - "monthly_snapshots.product_id"
-
       product_name:
         source: "Products.product_name"
         target: "products.product_name"
 
         ui_display:
-          - "Opportunity Product"
-          - "Pipeline Card"
-          - "Pipeline List"
-          - "Dashboard Product Detail"
-          - "Export"
+          - "Admin > Product Master"
+          - "Product reference / knowledge use"
 
       category_id:
         source: "Products.category_id"
@@ -499,18 +494,13 @@ source_02_product_master:
         target: "products.active"
 
     UI_behavior:
-
-      opportunity_form:
-        step_1:
-          field: "Product Category"
-
-        step_2:
-          field: "Product"
-          behavior: "Show only Products where products.category_id = selected category_id"
+      latest_pipeline_form:
+        field: "Product Category"
+        details_field: "Product Details"
+        note: "Latest Pipeline Create/Edit does not store product_id."
 
     dashboard_navigation:
       - "Product Category"
-      - "Product"
       - "Filtered Pipeline"
 
 
@@ -797,11 +787,6 @@ source_04_existing_pipeline_import:
         entity: "product_categories"
         key: "category_id"
 
-    product:
-      resolve_to:
-        entity: "products"
-        key: "product_id"
-
     stage:
       resolve_to:
         entity: "stages"
@@ -829,11 +814,11 @@ source_04_existing_pipeline_import:
 
   validation_rules:
     - "Do not silently create missing master records."
-    - "Unmatched Product / User / Stage / Region must show validation error."
+    - "Unmatched Product Category / User / Stage / Region must show validation error."
     - "Optional fields may be blank."
     - "Status = Lost requires Lost Reason."
     - "Territory must belong to Region."
-    - "Product must belong to selected Product Category."
+    - "Product Category must resolve to an active master record."
 
 
 # ============================================================
@@ -881,11 +866,59 @@ opportunity_entity:
         - "Opportunity Detail"
         - "Export"
 
+    sales_channel:
+      source: "AE / SM input"
+      required_on_new_record: true
+      allowed:
+        - "AE B2B GEO"
+        - "AE Self"
+        - "B2B Premium Partner"
+
+    partner_name:
+      source: "AE / SM input"
+      optional: true
+      visible_when:
+        "sales_channel = B2B Premium Partner"
+
+    contact_name:
+      source: "AE / SM input"
+      required_on_new_record: true
+
+    contact_phone:
+      source: "AE / SM input"
+      required_on_new_record: true
+
+    remark:
+      source: "AE / SM input"
+      optional: true
+      max_length: 500
+
+    product_category_id:
+      source: "product_categories.category_id"
+      required_on_new_record: true
+
+      displayed_value:
+        from: "product_categories.category_name"
+
+    product_details:
+      source: "AE / SM input"
+      optional: true
+      description: "Free-text package / solution / equipment details."
+
     scenario_id:
       source: "scenarios.scenario_id"
+      review_owner: "SM / Management"
 
       displayed_value:
         from: "scenarios.scenario_name"
+
+    ccp_check_result:
+      source: "SM / Management review"
+      allowed:
+        - "not_in_base"
+        - "enterprise_base"
+        - "pending"
+      default_on_ae_create: ""
 
     region_id:
       source: "regions.region_id"
@@ -927,15 +960,6 @@ opportunity_entity:
       business_rule:
         - "Changing Current Handler does NOT change Owner."
 
-    product_id:
-      source: "products.product_id"
-
-      displayed_value:
-        from: "products.product_name"
-
-      indirect_category:
-        relation: "products.category_id → product_categories.category_id"
-
     stage_id:
       source: "stages.stage_id"
 
@@ -972,17 +996,13 @@ opportunity_entity:
     price_per_sub:
       source: "AE / SM input (THB per Sub per month, required for new pipelines)"
 
-    rc:
-      source: "AE / SM input"
-
     oc:
       source: "AE / SM input"
-
-    discount_pct:
-      source: "AE / SM input"
+      optional: true
 
     contract_period_months:
       source: "AE / SM input"
+      optional: true
 
     pipeline_value:
       source: "CALCULATED Net RC = (quantity * price_per_sub) + (oc / 12)"
@@ -1012,6 +1032,11 @@ opportunity_entity:
     created_at:
       source: "SYSTEM"
       immutable: true
+
+    updated_at:
+      source: "SYSTEM"
+      update_when:
+        - "Any Opportunity field changes"
 
     created_month:
       source: "CALCULATED"
@@ -1114,6 +1139,17 @@ opportunity_entity:
       source: "AE / SM input"
       optional: true
 
+  # Historical columns retained only when an existing legacy row already has them.
+  # They are intentionally outside field_lineage so newly created Pipeline DB sheets
+  # and new UAT seed data do not include them.
+  legacy_compatibility_fields:
+    product_id:
+      reason: "Older Pipeline records selected a Product. Latest Create flow uses Product Category + Product Details."
+    rc:
+      reason: "Older records stored RC directly. Latest Net RC is calculated from quantity × price_per_sub + OC / 12."
+    discount_pct:
+      reason: "Older records stored Discount %. Latest Create/Edit flow does not collect this field."
+
 
 # ============================================================
 # 6. OPPORTUNITY EVENT / CHANGE LOG
@@ -1211,7 +1247,6 @@ web_app:
     data_source:
       - "opportunities"
       - "users"
-      - "products"
       - "product_categories"
       - "stages"
       - "working_with_options"
@@ -1220,8 +1255,14 @@ web_app:
       customer:
         from: "opportunities.customer_name"
 
-      product:
-        from: "products.product_name"
+      product_category:
+        join:
+          "opportunities.product_category_id → product_categories.category_id"
+        show:
+          "product_categories.category_name"
+
+      product_details:
+        from: "opportunities.product_details"
 
       pipeline_value:
         from: "opportunities.pipeline_value"
@@ -1299,13 +1340,14 @@ web_app:
       from: "opportunities.status"
 
     product_category:
-      relation:
-        - "opportunities.product_id → products.product_id"
-        - "products.category_id → product_categories.category_id"
-
-    product:
       join:
-        "opportunities.product_id → products.product_id"
+        "opportunities.product_category_id → product_categories.category_id"
+
+    sales_channel:
+      from: "opportunities.sales_channel"
+
+    ccp_check_result:
+      from: "opportunities.ccp_check_result"
 
     scenario:
       join:
@@ -1347,7 +1389,6 @@ dashboard:
       - "Region"
       - "AE / Owner"
       - "Product Category"
-      - "Product"
 
 
   expected_to_close:
@@ -1422,9 +1463,8 @@ dashboard:
 
   pipeline_by_product_category:
 
-    joins:
-      - "opportunities.product_id → products.product_id"
-      - "products.category_id → product_categories.category_id"
+    relation:
+      "opportunities.product_category_id → product_categories.category_id"
 
     metrics:
       - "Opportunity Count"
@@ -1487,11 +1527,8 @@ export_01_current_pipeline:
       territory:
         "opportunities.territory_id → territories.territory_id"
 
-      product:
-        "opportunities.product_id → products.product_id"
-
       product_category:
-        "products.category_id → product_categories.category_id"
+        "opportunities.product_category_id → product_categories.category_id"
 
       stage:
         "opportunities.stage_id → stages.stage_id"
@@ -1521,10 +1558,16 @@ export_01_current_pipeline:
       - "customer_name"
       - "business_id"
       - "customer_type"
+      - "sales_channel"
+      - "partner_name"
+      - "contact_name"
+      - "contact_phone"
+      - "remark"
 
     scenario:
       - "scenario_id"
       - "scenario_name"
+      - "ccp_check_result"
 
     organization:
       - "region_id"
@@ -1541,16 +1584,14 @@ export_01_current_pipeline:
       - "current_handler_name"
 
     product:
-      - "category_id"
+      - "product_category_id"
       - "category_name"
-      - "product_id"
-      - "product_name"
+      - "product_details"
 
     commercial:
       - "quantity"
-      - "rc"
+      - "price_per_sub"
       - "oc"
-      - "discount_pct"
       - "contract_period_months"
       - "pipeline_value"
 
@@ -1865,9 +1906,13 @@ monthly_snapshots:
       snapshot_of:
         "opportunities.region_id"
 
-    product_id:
+    product_category_id:
       snapshot_of:
-        "opportunities.product_id"
+        "opportunities.product_category_id"
+
+    product_details:
+      snapshot_of:
+        "opportunities.product_details"
 
     stage_id:
       snapshot_of:
@@ -1926,8 +1971,8 @@ relationships:
   opportunity_territory:
     "opportunities.territory_id → territories.territory_id"
 
-  opportunity_product:
-    "opportunities.product_id → products.product_id"
+  opportunity_product_category:
+    "opportunities.product_category_id → product_categories.category_id"
 
   opportunity_stage:
     "opportunities.stage_id → stages.stage_id"
@@ -2097,11 +2142,11 @@ business_decisions_pending:
       - "SM"
       - "Management"
 
-  product_multiplicity:
-    status: "TO CONFIRM"
+  product_capture:
+    status: "CURRENT UAT"
 
-    question:
-      "Can one Opportunity contain multiple Products, or should one Opportunity represent one Product in MVP?"
+    decision:
+      "Opportunity stores Product Category + free-text Product Details. product_id is legacy compatibility only."
 
 
 # ============================================================

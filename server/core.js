@@ -22,6 +22,27 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
+function validateLatestOpportunityFields(data, { requireRequired = false } = {}) {
+  const required = ["customer_name", "business_id", "customer_type", "sales_channel", "contact_name", "contact_phone", "product_category_id", "expected_close_month"];
+  for (const key of required) {
+    if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
+      throw new HttpError(400, key + " is required");
+    }
+  }
+  if ("business_id" in data && data.business_id && !/^[0-9]+$/.test(String(data.business_id))) {
+    throw new HttpError(400, "Business ID must contain digits only");
+  }
+  if ("sales_channel" in data && data.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
+    throw new HttpError(400, "Invalid Sales Channel");
+  }
+  if ("remark" in data && String(data.remark || "").length > 500) {
+    throw new HttpError(400, "Remark exceeds 500 characters");
+  }
+  if ("ccp_check_result" in data && data.ccp_check_result && !["not_in_base", "enterprise_base", "pending"].includes(String(data.ccp_check_result))) {
+    throw new HttpError(400, "Invalid CCP+ Check value");
+  }
+}
+
 function normalizeOpportunityPricing(data, existing = null) {
   const merged = { ...(existing || {}), ...data };
   const hasPrice = merged.price_per_sub !== "" && merged.price_per_sub != null;
@@ -289,13 +310,7 @@ export function createCore({ contract, store, now, uuid }) {
         if (actor.role === "ae" && (data.scenario_id || data.ccp_check_result)) {
           throw new HttpError(403, "Only SM or Management can set Scenario and CCP+ Check");
         }
-        if ("sales_channel" in data) {
-          for (const key of ["customer_name", "business_id", "customer_type", "sales_channel", "contact_name", "contact_phone", "product_category_id", "expected_close_month"]) {
-            if (!String(data[key] ?? "").trim()) throw new HttpError(400, key + " is required");
-          }
-          if (!/^[0-9]+$/.test(String(data.business_id))) throw new HttpError(400, "Business ID must contain digits only");
-          if (String(data.remark || "").length > 500) throw new HttpError(400, "Remark exceeds 500 characters");
-        }
+        validateLatestOpportunityFields(data, { requireRequired: "sales_channel" in data });
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
       const row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
@@ -334,6 +349,10 @@ export function createCore({ contract, store, now, uuid }) {
           }
         }
       }
+      // Validate latest editable fields on partial updates without breaking
+      // workflow-only updates such as Stage / Handler / Support.
+      if (uiEntity === "Opportunity") validateLatestOpportunityFields(data);
+
       // Validate loss reason and close only an Open Pipeline. The real actor
       // and timestamp are taken from the backend, never from the browser.
       let normalized = data;

@@ -11,7 +11,6 @@ export default function PipelineCard({ op, onOpen }) {
   const owner = maps.member[op.owner_id];
   const handler = maps.member[op.current_handler_id];
   const category = maps.category[op.product_category_id];
-  const product = maps.product[op.product_id];
   const stageAging = agingDays(op.stage_entered_at);
   const handlerAging = agingDays(op.handler_since);
   const wwAging = op.working_with ? agingDays(op.working_with_since) : 0;
@@ -41,7 +40,7 @@ export default function PipelineCard({ op, onOpen }) {
 
       <div className="mt-1 text-[11px] text-muted-foreground">
         {category?.name}
-        {product ? ` · ${product.name}` : ""}
+        {op.product_details ? ` · ${op.product_details}` : ""}
       </div>
 
       <div className="mt-2.5 flex items-baseline justify-between">

@@ -8,25 +8,29 @@ import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
 // Known importable fields and their target keys
 const FIELDS = [
   { key: "customer_name", label: "Customer Name", required: true },
-  { key: "business_id", label: "Business ID" },
-  { key: "customer_type", label: "Customer Type" },
+  { key: "business_id", label: "Business ID", required: true },
+  { key: "customer_type", label: "Customer Type", required: true },
+  { key: "sales_channel", label: "Sales Channel", required: true },
+  { key: "partner_name", label: "Partner Name" },
+  { key: "contact_name", label: "Contact Name", required: true },
+  { key: "contact_phone", label: "Contact Phone", required: true },
+  { key: "remark", label: "Remark" },
   { key: "region", label: "Region", required: true, resolve: "region" },
   { key: "territory", label: "Territory", resolve: "territory" },
   { key: "owner", label: "Opportunity Owner", required: true, resolve: "member" },
   { key: "handler", label: "Current Handler", resolve: "member" },
   { key: "product_category", label: "Product Category", required: true, resolve: "category" },
-  { key: "product", label: "Product", resolve: "product" },
-  { key: "stage", label: "Stage", required: true, resolve: "stage" },
-  { key: "status", label: "Status" },
-  { key: "expected_close_month", label: "Expected Close Month" },
-  { key: "pipeline_value", label: "Pipeline Value", required: true, type: "number" },
-  { key: "scenario", label: "Scenario", resolve: "scenario" },
-  { key: "working_with", label: "Working With" },
-  { key: "quantity", label: "Quantity", type: "number" },
-  { key: "rc", label: "RC", type: "number" },
+  { key: "product_details", label: "Product Details" },
+  { key: "quantity", label: "Number of Subs", required: true, type: "number" },
+  { key: "price_per_sub", label: "Price per Sub", required: true, type: "number" },
   { key: "oc", label: "OC", type: "number" },
-  { key: "discount", label: "Discount", type: "number" },
   { key: "contract_period", label: "Contract Period", type: "number" },
+  { key: "expected_close_month", label: "Expected Close Month", required: true },
+  { key: "scenario", label: "Scenario", resolve: "scenario" },
+  { key: "ccp_check_result", label: "CCP+ Check" },
+  { key: "stage", label: "Stage", resolve: "stage" },
+  { key: "status", label: "Status" },
+  { key: "working_with", label: "Working With" },
   { key: "support_needed", label: "Support Needed" },
   { key: "support_type", label: "Support Type" },
   { key: "support_note", label: "Support Note" },
@@ -93,7 +97,6 @@ export default function Import() {
     territory: byName("Territory"),
     member: byName("TeamMember"),
     category: byName("ProductCategory"),
-    product: byName("Product"),
     scenario: byName("Scenario"),
     stage: byName("Stage"),
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,11 +121,12 @@ export default function Import() {
           else if (f.resolve === "territory") rec.territory_id = ent.id;
           else if (f.resolve === "member") rec[f.key === "owner" ? "owner_id" : "current_handler_id"] = ent.id;
           else if (f.resolve === "category") rec.product_category_id = ent.id;
-          else if (f.resolve === "product") rec.product_id = ent.id;
           else if (f.resolve === "scenario") rec.scenario_id = ent.id;
           else if (f.resolve === "stage") rec.stage_id = ent.id;
         } else if (f.type === "number") {
-          rec[f.key] = Number(val) || 0;
+          const parsed = Number(val);
+          if (!Number.isFinite(parsed)) errors.push(`${f.label} must be a number`);
+          else rec[f.key] = parsed;
         } else {
           rec[f.key] = val;
         }
@@ -135,6 +139,12 @@ export default function Import() {
       if (!rec.current_handler_id && rec.owner_id) rec.current_handler_id = rec.owner_id;
       if (!rec.stage_id && activeStages[0]) rec.stage_id = activeStages[0].id;
       if (rec.support_needed) rec.support_needed = ["yes", "true", "1", "y"].includes(rec.support_needed.toLowerCase());
+      if (rec.business_id && !/^\d+$/.test(String(rec.business_id))) errors.push("Business ID must contain digits only");
+      if (rec.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(rec.sales_channel)) errors.push("Sales Channel is invalid");
+      if (rec.remark && rec.remark.length > 500) errors.push("Remark exceeds 500 characters");
+      if (rec.quantity != null && (!Number.isSafeInteger(Number(rec.quantity)) || Number(rec.quantity) <= 0)) errors.push("Number of Subs must be a positive whole number");
+      if (rec.price_per_sub != null && (!Number.isFinite(Number(rec.price_per_sub)) || Number(rec.price_per_sub) < 0)) errors.push("Price per Sub is invalid");
+      if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: i + 2, rec, errors };
     });
   }, [rows, mapping, resolve, step, activeStages]);
@@ -241,14 +251,14 @@ export default function Import() {
             <div className="rounded-2xl border border-border bg-card p-5 shadow-soft max-h-64 overflow-auto">
               <h3 className="font-semibold text-sm mb-3">Valid Rows Preview</h3>
               <table className="w-full text-xs">
-                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Region</th><th className="text-left">Stage</th><th className="text-right">Value</th></tr></thead>
+                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Region</th><th className="text-left">Stage</th><th className="text-right">Net RC</th></tr></thead>
                 <tbody>
                   {validRows.slice(0, 50).map((v) => (
                     <tr key={v.row} className="border-t border-border">
                       <td className="py-1">{v.rec.customer_name}</td>
                       <td>{master?.Region?.find((r) => r.id === v.rec.region_id)?.name}</td>
                       <td>{master?.Stage?.find((s) => s.id === v.rec.stage_id)?.name}</td>
-                      <td className="text-right tabular-nums">{v.rec.pipeline_value}</td>
+                      <td className="text-right tabular-nums">{Number(v.rec.quantity || 0) * Number(v.rec.price_per_sub || 0) + Number(v.rec.oc || 0) / 12}</td>
                     </tr>
                   ))}
                 </tbody>
