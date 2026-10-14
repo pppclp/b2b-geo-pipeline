@@ -142,20 +142,6 @@ export const ENTITIES = {
       notes: "notes",
     },
   },
-  ScenarioRule: {
-    entity: "scenario_rules", idPrefix: "SR",
-    fields: {
-      scenario_id: "scenario_id",
-      description: "description",
-      sales_execution: "sales_execution",
-      gateway_approval: "gateway_approval",
-      workflow: "workflow",
-      trigger_condition: "trigger_condition",
-      credit_treatment: "credit_treatment",
-      integration_status: "integration_status",
-      active: { col: "active", ...bool },
-    },
-  },
   AppConfig: {
     // Virtual key/value view over Aging_Settings (see appConfig in core.js).
     entity: "pipeline_settings",
