@@ -9,13 +9,13 @@ const contract = buildContract(yaml);
 const file = contract.access.files["B2B_GEO_Pipeline_Config.xlsx"];
 
 test("new SLA and dropdown masters are registered without renaming existing sheets", () => {
-  for (const sheet of ["Stages","Scenarios","Lost_Reasons","Working_With","Support_Types","Aging_Settings","Stage_SLA","Action_SLA","Field_Options","Scenario_Rules"]) {
+  for (const sheet of ["Stages","Scenarios","Lost_Reasons","Working_With","Support_Types","Aging_Settings","Stage_SLA","Action_SLA","Field_Options"]) {
     assert.ok(file.sheets[sheet],sheet);
   }
   assert.equal(file.sheets.Action_SLA.entity, ENTITIES.ActionSLA.entity);
   assert.equal(file.sheets.Stage_SLA.entity, ENTITIES.StageSLA.entity);
   assert.equal(file.sheets.Field_Options.entity, ENTITIES.FieldOption.entity);
-  assert.deepEqual(file.sheets.Scenario_Rules.permissions.update, []);
+  assert.equal(file.sheets.Scenario_Rules, undefined);
 });
 test("new source columns map both ways without losing optional teams", () => {
   const item = {action_sla_id:"ACT001", process_key:"P", action_name:"Price Review", step_order:1, working_with_id:"", sla_days:"", active:"Yes", day_type:"business"};
