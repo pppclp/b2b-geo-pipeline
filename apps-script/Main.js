@@ -220,6 +220,41 @@ function sheetIdFor_(file) {
   return runtimeId || (typeof GEO_SHEET_IDS !== "undefined" && GEO_SHEET_IDS[file]) || "";
 }
 
+// Read-only check after pushing an updated Apps Script build.
+// This highlights accidental binding to archived Config spreadsheets.
+// It does NOT change any Script Properties or create new workbooks.
+function debugB2bSheetBindings() {
+  var defs = [
+    ["B2B_GEO_Pipeline_DB.xlsx", "B2B_GEO_Pipeline_DB"],
+    ["B2B_GEO_Pipeline_Config.xlsx", "B2B_GEO_Pipeline_Config"],
+    ["B2B_GEO_User_Org_Master.xlsx", "B2B_GEO_User_Org_Master"],
+    ["B2B_Product_Master.xlsx", "B2B_Product_Master"],
+  ];
+  var props = PropertiesService.getScriptProperties();
+  var results = defs.map(function (item) {
+    var file = item[0], expectedTitle = item[1];
+    var propKey = "GEO_SHEET_ID_" + file.replace(/\\.xlsx$/, "");
+    var runtimeId = props.getProperty(propKey);
+    var sheetId = sheetIdFor_(file);
+    if (!sheetId) return { file: file, ok: false, problem: "Missing Spreadsheet ID" };
+    var book = SpreadsheetApp.openById(sheetId);
+    var title = book.getName();
+    return {
+      file: file,
+      sheetId: sheetId,
+      source: runtimeId ? "Script Properties" : "generated SheetIds.js",
+      actualTitle: title,
+      expectedTitle: expectedTitle,
+      ok: title === expectedTitle,
+    };
+  });
+  console.log(JSON.stringify(results, null, 2));
+  if (results.some(function (x) { return !x.ok; })) {
+    console.warn("Sheet bindings need review before deployment; do not run setup() to replace an existing DB.");
+  }
+  return results;
+}
+
 // Run manually in Apps Script when changing the runtime Pipeline DB.
 // It is read-only and helps confirm the deployed web app is bound to the intended sheet.
 function debugPipelineDbBinding() {
