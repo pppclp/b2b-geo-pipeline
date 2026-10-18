@@ -181,7 +181,8 @@ export function createCore({ contract, store, now, uuid }) {
     const scope = scopeForRole(actor.role);
     if (scope === "all") return () => true;
     if (scope === "region") {
-      if (actor.role === "management" && !actor.region_ids.length) return () => true;
+      // Never grant nationwide access from a missing/empty User_Region mapping.
+      // Management access to all Regions requires explicit active Region rows.
       return (r) => actor.region_ids.includes(r.region_id);
     }
     return (r) => r.owner_user_id === actor.id || r.current_handler_user_id === actor.id;
@@ -213,6 +214,18 @@ export function createCore({ contract, store, now, uuid }) {
     const out = { ...data };
     for (const f of Object.keys(NAME_REFS)) if (f in out) out[f] = refLookup(f, "name", "id", out[f]);
     return out;
+  }
+  // Identity used for sign-in must not leak via ordinary team directories.
+  // Admin retains access for account provisioning; UI hiding alone is not a guard.
+  function visibleMember(actor, uiEntity, record) {
+    if (uiEntity !== "TeamMember" || actor.role === "admin") return record;
+    const { employee_id: ignored, ...publicMember } = record;
+    return publicMember;
+  }
+  function visibleSheetRow(actor, b, record) {
+    if (b.entity !== "users" || actor.role === "admin") return record;
+    const { employee_id: ignored, ...publicMember } = record;
+    return publicMember;
   }
   function decorate(uiEntity, rec) {
     if (uiEntity === "TeamMember") rec.region_ids = regionIdsFor(rec.id);
@@ -430,7 +443,7 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "read");
       if (ENTITIES[uiEntity].virtual) return appConfigList();
       const inScope = scopedFilter(b, actor);
-      let out = tableOf(b).rows.filter(inScope).map((r) => decorate(uiEntity, toUi(uiEntity, b.primary_key, r)));
+      let out = tableOf(b).rows.filter(inScope).map((r) => visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, r))));
       out = sortRows(out.filter((r) => matches(r, query)), sort);
       return limit ? out.slice(0, Number(limit)) : out;
     },
@@ -438,7 +451,7 @@ export function createCore({ contract, store, now, uuid }) {
       const b = binding(uiEntity);
       need(actor, b, "read");
       if (ENTITIES[uiEntity].virtual) return appConfigList().find((c) => c.id === id);
-      return decorate(uiEntity, toUi(uiEntity, b.primary_key, findRow(b, actor, id)));
+      return visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, findRow(b, actor, id))));
     },
     create(uiEntity, actor, data) {
       const b = binding(uiEntity);
@@ -630,7 +643,12 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "read");
       const t = tableOf(b);
       const headers = t.headers.length ? t.headers : contract.columns?.[b.entity] || [b.primary_key];
-      return { file, sheet, primary_key: b.primary_key, headers, rows: t.rows.filter(scopedFilter(b, actor)), actions: actionsFor(actor, b) };
+      return {
+        file, sheet, primary_key: b.primary_key,
+        headers: b.entity === "users" && actor.role !== "admin" ? headers.filter((h) => h !== "employee_id") : headers,
+        rows: t.rows.filter(scopedFilter(b, actor)).map((r) => visibleSheetRow(actor, b, r)),
+        actions: actionsFor(actor, b),
+      };
     },
     create(actor, file, sheet, data) {
       const b = sheetRule(file, sheet);
@@ -691,8 +709,11 @@ export function createCore({ contract, store, now, uuid }) {
       return { user_id: user.id, id: user.id, full_name: user.name, role: user.role };
     }
 
-    // Dev sign-in list. Kept for local troubleshooting; the UAT UI no longer uses it.
+    // Legacy troubleshooting endpoint: only authenticated Admins may enumerate users.
     if (parts[0] === "session" && parts[1] === "users" && method === "GET") {
+      if (actorFrom(req.userId, req.demoAs).role !== "admin") {
+        throw new HttpError(403, "Admin access required");
+      }
       return rows("users")
         .filter((u) => String(u.status || "Active").toLowerCase() === "active")
         .map((u) => ({ id: u.user_id, name: u.display_name, email: u.email, role: u.role }));
