@@ -2445,11 +2445,11 @@ access_control:
           scoped: true
           permissions:
             read: ["AE", "SM", "Management", "Admin"]
-            create: ["AE", "SM", "Admin"]
-            update: ["AE", "SM", "Admin"]
+            create: ["AE", "SM", "Management", "Admin"]
+            update: ["AE", "SM", "Management", "Admin"]
             delete: []
             import: ["SM", "Admin"]
-            export: ["SM", "Management", "Admin"]
+            export: ["AE", "SM", "Management", "Admin"]
         Pipeline_Events:
           entity: "opportunity_events"
           primary_key: "event_id"
@@ -2457,19 +2457,22 @@ access_control:
           append_only: true
           permissions:
             read: ["AE", "SM", "Management", "Admin"]
-            create: ["AE", "SM", "Admin"]
+            # Backend-managed only. No browser may forge its own audit event.
+            create: []
             update: []
             delete: []
-            export: ["SM", "Management", "Admin"]
+            export: ["AE", "SM", "Management", "Admin"]
         Snapshots:
           entity: "monthly_snapshots"
           primary_key: "snapshot_id"
           scoped: true
           permissions:
             read: ["SM", "Management", "Admin"]
+            # Snapshot mutations use POST /snapshots/capture only; the backend
+            # authorizes Admin and validates/backs up the replacement.
             create: ["Admin"]
             update: []
-            delete: ["Admin"]
+            delete: []
             export: ["SM", "Management", "Admin"]
 
     "B2B_GEO_Pipeline_Import.xlsx":
