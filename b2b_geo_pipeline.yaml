@@ -517,6 +517,26 @@ source_03_pipeline_config:
     direction: "SOURCE_TO_APP"
 
   # ----------------------------------------------------------
+  # CONFIGURABLE DROPDOWN VALUES (EXISTING Field_Options TAB)
+  # ----------------------------------------------------------
+  sheet_field_options:
+    source_sheet: "Field_Options"
+    target_entity: "field_options"
+    primary_key: "option_id"
+    fields:
+      option_id: {}
+      field_key: {}
+      option_value: {}
+      option_label: {}
+      sort_order: {}
+      active: {}
+      notes: {}
+    business_rule:
+      - "Only active options appear in editable dropdowns."
+      - "Values and labels are read from Config, not duplicated as UI literals."
+      - "Historical retired option values remain readable on existing Pipelines."
+
+  # ----------------------------------------------------------
   # STAGES
   # ----------------------------------------------------------
 
@@ -2161,6 +2181,7 @@ initial_load_order:
       - "working_with_options"
       - "support_types"
       - "pipeline_settings"
+      - "field_options"
 
   step_4_optional:
     source:
@@ -2448,6 +2469,14 @@ access_control:
             create: ["Admin"]
             update: ["Admin"]
             delete: ["Admin"]
+        Field_Options:
+          entity: "field_options"
+          primary_key: "option_id"
+          permissions:
+            read: ["AE", "SM", "Management", "Admin"]
+            create: []
+            update: []
+            delete: []
 
     # Canonical application database; no mirrored runtime Export Template files.
     # Exactly four runtime tabs: Pipelines, Pipeline_Events, Snapshots, Admin_Audit.
