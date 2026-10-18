@@ -39,7 +39,7 @@ export function keepOpportunityColumns(row) {
 }
 
 export const isMonthKey = (value) =>
-  typeof value === "string" && /^\\d{4}-(0[1-9]|1[0-2])$/.test(value);
+  typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 
 export function bangkokMonth(isoTimestamp) {
   const ms = Date.parse(isoTimestamp);
