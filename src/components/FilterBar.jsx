@@ -23,12 +23,6 @@ const CCP_LABELS = {
   enterprise_base: "Enterprise Existing Base",
   pending: "Pending Review",
 };
-const OWNERSHIP_OPTIONS = [
-  { value: "all", label: "All assigned" },
-  { value: "mine", label: "My Pipelines" },
-  { value: "sent", label: "Handed off" },
-  { value: "received", label: "Assigned to me" },
-];
 
 // Must be outside FilterBar. A component defined inside its parent render
 // remounts each time a filter changes and interrupts Radix dropdowns.
@@ -59,32 +53,20 @@ function FilterDropdown({ fieldName, label, value, options, onChange }) {
   );
 }
 
-function SmallToggle({ active, children, onClick }) {
-  return (
-    <button type="button" aria-pressed={active} onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${active
-        ? "border-primary/40 bg-primary/10 text-foreground"
-        : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-secondary/70"}`}>
-      {children}
-    </button>
-  );
-}
-
 export default function FilterBar({ filters, onFilter, showCreatedMonth = true }) {
-  const { profile, scopedOpportunities, maps } = useData();
+  const { profile, scopedOpportunities, maps, master } = useData();
   const [moreOpen, setMoreOpen] = useState(false);
   const role = profile?.app_role || "ae";
   const layout = visibleFilterFields(role, profile?.region_ids || []);
   const selections = useMemo(() => Object.fromEntries(
     ["region", "owner", "handler", "stage", "product_category", "sales_channel",
       "scenario", "ccp_check_result", "working_with"].map((key) => [
-      key, optionsFromVisiblePipelines(key, scopedOpportunities, maps),
+      key, optionsFromVisiblePipelines(key, scopedOpportunities, maps, master),
     ])
-  ), [scopedOpportunities, maps]);
+  ), [scopedOpportunities, maps, master]);
 
   const visibleMore = layout.more.filter((key) =>
-    (showCreatedMonth || key !== "created_month") &&
-    !((role === "ae" || role === "sm") && ["support", "stuck"].includes(key))
+    showCreatedMonth || key !== "created_month"
   );
   const activeMore = visibleMore.filter((key) => isFilterActive(key, filters[key])).length;
   const hasFilters = Object.entries(filters).some(([key, value]) =>
@@ -110,8 +92,8 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
 
   return (
     <div className="space-y-3">
-      {/* All roles: search + the three essential Pipeline filters. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_repeat(3,minmax(145px,1fr))] items-end">
+      {/* Search + Status + both business months + Stage never disappear. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(230px,1.4fr)_repeat(4,minmax(140px,1fr))] items-end">
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-[11px] font-medium text-muted-foreground">Search Pipeline</span>
           <span className="relative">
@@ -121,47 +103,26 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
               value={filters.search || ""} onChange={(e) => onFilter("search", e.target.value)} />
           </span>
         </label>
-        {["status", "close_month", "stage"].map(renderField)}
+        {["status", "close_month", ...(showCreatedMonth ? ["created_month"] : []), "stage"].map(renderField)
       </div>
 
       {/* Only the fields this role can use; all of them stay visible even with one option. */}
-      {layout.primary.length > 3 && (
+      {layout.primary.length > (showCreatedMonth ? 4 : 3) && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
-          {layout.primary.filter((key) => !["status", "close_month", "stage"].includes(key)).map(renderField)}
+          {layout.primary.filter((key) =>
+            !["status", "close_month", "created_month", "stage"].includes(key)).map(renderField)}
         </div>
       )}
 
-      {role === "ae" && (
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="My Pipeline view">
-          <span className="text-[11px] text-muted-foreground mr-1">Show</span>
-          {OWNERSHIP_OPTIONS.map(({ value, label }) => (
-            <SmallToggle key={value} active={(filters.ownership_view || "all") === value}
-              onClick={() => onFilter("ownership_view", value === "all" ? "" : value)}>
-              {label}
-            </SmallToggle>
-          ))}
-        </div>
-      )}
-
-      {(role === "ae" || role === "sm") && (
-        <div className="flex flex-wrap gap-2 items-center">
-          {role === "ae" && filters.handler && (
-            <SmallToggle active onClick={() => onFilter("handler", "")}>
-              Handler filter: {filters.handler === profile?.id ? "with me" : (maps.member?.[filters.handler]?.name || filters.handler)} ×
-            </SmallToggle>
-          )}
-          {role === "sm" && <SmallToggle active={filters.with_me === "1"}
-            onClick={() => onFilter("with_me", filters.with_me === "1" ? "" : "1")}>
-            Currently with me
-          </SmallToggle>}
-          <SmallToggle active={filters.support === "1"}
-            onClick={() => onFilter("support", filters.support === "1" ? "" : "1")}>
-            Support needed
-          </SmallToggle>
-          <SmallToggle active={filters.stuck === "1"}
-            onClick={() => onFilter("stuck", filters.stuck === "1" ? "" : "1")}>
-            Stage SLA overdue
-          </SmallToggle>
+      {/* Dashboard/Sidebar already provide assigned-work views. Show only
+          active deep-link criteria so the Pipeline is never filtered silently. */}
+      {filters.handler && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>Assigned Handler: {maps.member?.[filters.handler]?.name || filters.handler}</span>
+          <Button type="button" variant="ghost" size="sm"
+            onClick={() => onFilter("handler", "")} className="h-7 px-2">
+            <X className="mr-1 h-3 w-3" /> Clear assigned filter
+          </Button>
         </div>
       )}
 
