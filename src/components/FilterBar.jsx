@@ -6,7 +6,7 @@ import MonthPicker from "@/components/MonthPicker";
 import { Button } from "@/components/ui/button";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import {
-  FILTER_LABELS, isFilterActive, optionsFromVisiblePipelines, visibleFilterFields,
+  FILTER_LABELS, isFilterActive, normalizeFilterSelection, optionsFromVisiblePipelines, visibleFilterFields,
 } from "@/lib/roleFilterModel";
 
 const STATUS_OPTIONS = [
@@ -32,7 +32,7 @@ const OWNERSHIP_OPTIONS = [
 
 // Must be outside FilterBar. A component defined inside its parent render
 // remounts each time a filter changes and interrupts Radix dropdowns.
-function FilterDropdown({ label, value, options, onChange }) {
+function FilterDropdown({ fieldName, label, value, options, onChange }) {
   const available = options || [];
   const activeValue = value || "all";
   const hasValue = activeValue !== "all";
@@ -40,7 +40,7 @@ function FilterDropdown({ label, value, options, onChange }) {
   return (
     <label className="flex flex-col gap-1 min-w-0">
       <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
-      <Select value={activeValue} onValueChange={(next) => onChange(next === "all" ? "" : next)}>
+      <Select value={activeValue} onValueChange={(next) => onChange(normalizeFilterSelection(fieldName, next))}>
         <SelectTrigger aria-label={label} className="h-9 w-full rounded-lg bg-background">
           <SelectValue placeholder="All" />
         </SelectTrigger>
@@ -104,7 +104,7 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
       : ["stuck", "internal_overdue"].includes(key) ? YES_OPTIONS
       : (selections[key] || []).map((option) => key === "ccp_check_result"
         ? { ...option, label: CCP_LABELS[option.value] || option.label } : option);
-    return <FilterDropdown key={key} label={FILTER_LABELS[key]} value={filters[key]}
+    return <FilterDropdown key={key} fieldName={key} label={FILTER_LABELS[key]} value={filters[key]}
       options={options} onChange={(value) => onFilter(key, value)} />;
   };
 
