@@ -732,7 +732,6 @@ export function createCore({ contract, store, now, uuid }) {
       if (b.append_only || b.scoped) throw new HttpError(400, `${sheet} is maintained by the app — edit it from the Pipeline screens`);
       const t = tableOf(b);
       const row = Object.fromEntries(Object.entries(fitColumns(b, data || {})).map(([k, v]) => [k, cellIn(v, k)]));
-      if (b.entity === "users") validateUserMasterChange(row);
       const id = String(row[b.primary_key] ?? "").trim() || nextId(b);
       if (t.rows.some((r) => String(r[b.primary_key]) === id)) throw new HttpError(409, `${b.primary_key} ${id} already exists`);
       row[b.primary_key] = id;
@@ -812,7 +811,7 @@ export function createCore({ contract, store, now, uuid }) {
       for (const sub of requests) {
         if (!sub || typeof sub.path !== "string" ||
             (sub.method && sub.method !== "GET") ||
-            String(sub.path).replace(/^\\/+/, "").split("/")[0] === "batch") {
+            String(sub.path).replace(/^\/+/, "").split("/")[0] === "batch") {
           throw new HttpError(400, "Batch only supports non-nested GET requests");
         }
       }
