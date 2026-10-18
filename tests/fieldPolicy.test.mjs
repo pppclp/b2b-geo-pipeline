@@ -108,9 +108,10 @@ test("Create uses real actor, original owner and Bangkok business month",()=>{
 
 test("Cannot route customers to nonexistent/out-of-region or privileged handlers",()=>{
  const x=fixture();
- for(const id of ["AE2","SM2","ADMIN","GHOST"]) {
+ for(const id of ["AE2","SM2","GHOST"]) {
    assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{current_handler_id:id}),rejected(400));
  }
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{current_handler_id:"ADMIN"}),rejected(403));
  assert.throws(()=>x.call("SM1","PUT","entities/Opportunity/OPP-1",{owner_id:"SM1"}),rejected(400));
  x.call("AE1","PUT","entities/Opportunity/OPP-1",{current_handler_id:"SM1"});
  assert.equal(x.row().current_handler_user_id,"SM1");
