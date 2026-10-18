@@ -35,7 +35,8 @@ test("Search matches customer, full text Business ID (leading zero) and contact"
 test("AE ownership switches divide authorized Pipelines into own, handed off and received",()=>{
   const profile={id:"AE1",app_role:"ae"};
   assert.deepEqual([ownershipGroup(ops[0],"AE1"),ownershipGroup(ops[1],"AE1"),ownershipGroup(ops[2],"AE1")],["mine","sent","received"]);
-  assert.deepEqual(ids(applyPipelineFilters(ops,{status:"all",ownership_view:"mine"},{profile})),["P1"]);
+  // My = commercial ownership, including deals already passed to SM.
+  assert.deepEqual(ids(applyPipelineFilters(ops,{status:"all",ownership_view:"mine"},{profile})),["P1","P2"]);
   assert.deepEqual(ids(applyPipelineFilters(ops,{status:"all",ownership_view:"sent"},{profile})),["P2"]);
   assert.deepEqual(ids(applyPipelineFilters(ops,{status:"all",ownership_view:"received"},{profile})),["P3"]);
   assert.deepEqual(ids(applyPipelineFilters(ops.slice(0,3),{status:"all",ownership_view:"all"},{profile})),["P1","P2","P3"]);
