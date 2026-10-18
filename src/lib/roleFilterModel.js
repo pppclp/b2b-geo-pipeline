@@ -3,23 +3,23 @@
 // User Master list; authorization remains entirely on the backend.
 export const ROLE_FILTERS = Object.freeze({
   ae: {
-    primary: ["status", "close_month", "stage"],
-    more: ["created_month", "product_category", "sales_channel", "support", "stuck", "internal_overdue"],
+    primary: ["status", "close_month", "created_month", "stage"],
+    more: ["product_category", "sales_channel", "support", "stuck", "internal_overdue"],
   },
   sm: {
-    primary: ["status", "close_month", "stage", "owner", "region"],
+    primary: ["status", "close_month", "created_month", "stage", "owner", "region"],
     more: ["handler", "product_category", "sales_channel", "working_with", "scenario",
-      "ccp_check_result", "needs_review", "created_month", "support", "stuck", "internal_overdue"],
+      "ccp_check_result", "needs_review", "support", "stuck", "internal_overdue"],
   },
   management: {
-    primary: ["status", "close_month", "stage", "region", "owner", "product_category", "sales_channel"],
+    primary: ["status", "close_month", "created_month", "stage", "region", "owner", "product_category", "sales_channel"],
     more: ["handler", "working_with", "scenario", "ccp_check_result",
-      "created_month", "support", "stuck", "internal_overdue"],
+      "support", "stuck", "internal_overdue"],
   },
   admin: {
-    primary: ["status", "close_month", "stage", "region", "owner", "product_category", "sales_channel"],
+    primary: ["status", "close_month", "created_month", "stage", "region", "owner", "product_category", "sales_channel"],
     more: ["handler", "working_with", "scenario", "ccp_check_result", "needs_review",
-      "created_month", "support", "stuck", "internal_overdue"],
+      "support", "stuck", "internal_overdue"],
   },
 });
 
@@ -55,16 +55,62 @@ export function visibleFilterFields(role, regionIds = []) {
   };
 }
 
-export function optionsFromVisiblePipelines(key, scopedOpportunities, maps = {}) {
+// Configuration-driven selection: labels/allowed values come from the existing
+// Pipeline Config and Product Master. Owner/Region/Handler are intersected with
+// IDs already present in the server-authorized Pipeline list.
+const CONFIG_MASTERS = {
+  stage: "Stage",
+  scenario: "Scenario",
+  working_with: "WorkingWithOption",
+  product_category: "ProductCategory",
+};
+const FIELD_OPTION_KEYS = {
+  sales_channel: "sales_channel",
+  ccp_check_result: "ccp_check_result",
+};
+export function optionsFromVisiblePipelines(key, scopedOpportunities, maps = {}, master = {}) {
   const spec = optionFields[key];
   if (!spec) return [];
   const [field, mapKey] = spec;
-  const values = [...new Set((scopedOpportunities || []).map((op) => op[field])
+  const rows = scopedOpportunities || [];
+  const existing = [...new Set(rows.map((op) => op[field])
     .filter((value) => value !== "" && value !== null && value !== undefined).map(String))];
-  return values.map((value) => ({
-    value,
-    label: String((mapKey && maps[mapKey]?.[value]?.name) || value),
-  })).sort((a, b) => a.label.localeCompare(b.label));
+  const idLabel = (value) => String((mapKey && maps[mapKey]?.[value]?.name) || value);
+  const masterKey = CONFIG_MASTERS[key];
+  if (masterKey) {
+    const list = (master?.[masterKey] || []).filter((item) => item.active);
+    if (list.length) {
+      const options = list.map((item) => ({
+        value: String(item.id), label: String(item.name || item.id), order: Number(item.order ?? 9999),
+      })).sort((a,b)=>a.order-b.order || a.label.localeCompare(b.label))
+        .map(({value,label})=>({value,label}));
+      // Preserve historical/retired references while avoiding meaningless master
+      // values from other users: append only values present in scoped records.
+      for (const value of existing) {
+        if (!options.some((item)=>item.value===value)) options.push({value,label:idLabel(value)});
+      }
+      return options;
+    }
+  }
+  const fieldKey = FIELD_OPTION_KEYS[key];
+  if (fieldKey) {
+    const list = (master?.FieldOption || []).filter((item) =>
+      item.active && item.field_key === fieldKey);
+    if (list.length) {
+      const options = list.map((item)=>({
+        value:String(item.value),label:String(item.label||item.value),order:Number(item.order??9999),
+      })).sort((a,b)=>a.order-b.order || a.label.localeCompare(b.label))
+        .map(({value,label})=>({value,label}));
+      for (const value of existing) {
+        if (!options.some((item)=>item.value===value)) options.push({value,label:value});
+      }
+      return options;
+    }
+  }
+  // Older backend deployment may not yet expose FieldOption. Fallback is
+  // read-only values already in authorized data, never a fabricated list.
+  return existing.map((value)=>({value,label:idLabel(value)}))
+    .sort((a,b)=>a.label.localeCompare(b.label));
 }
 
 export function roleOwnershipMatches(op, userId, view) {
