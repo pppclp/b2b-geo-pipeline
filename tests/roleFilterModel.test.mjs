@@ -16,8 +16,8 @@ const rows = [
 
 test("Primary Status, close-month and Stage remain present for every role regardless of data",()=>{
   for (const role of ["ae","sm","management","admin"]) {
-    assert.deepEqual(visibleFilterFields(role,[]).primary.slice(0,3),
-      ["status","close_month","stage"]);
+    assert.deepEqual(visibleFilterFields(role,[]).primary.slice(0,4),
+      ["status","close_month","created_month","stage"]);
   }
   assert.equal(FILTER_LABELS.stage,"Stage");
   assert.equal(ROLE_FILTERS.ae.primary.includes("region"),false);
@@ -27,7 +27,7 @@ test("Role layout: AE sees only own workflow; SM AE owners & conditional Region"
   const ae=visibleFilterFields("ae",["N"]);
   const singleSm=visibleFilterFields("sm",["N"]);
   const doubleSm=visibleFilterFields("sm",["N","NE1"]);
-  assert.deepEqual(ae.primary,["status","close_month","stage"]);
+  assert.deepEqual(ae.primary,["status","close_month","created_month","stage"]);
   assert.ok(!ae.more.includes("handler"));
   assert.ok(singleSm.primary.includes("owner"));
   assert.ok(!singleSm.primary.includes("region"));
@@ -91,4 +91,42 @@ test("All statuses remains a valid filter instead of reverting to default Open",
   assert.equal(normalizeFilterSelection("stage","all"),"");
   assert.equal(normalizeFilterSelection("region","all"),"");
   assert.equal(normalizeFilterSelection("status","won"),"won");
+});
+
+test("Created Month is always primary, never hidden under More filters",()=>{
+  for(const role of ["ae","sm","management","admin"]) {
+    const layout=visibleFilterFields(role,["N","E"]);
+    assert.ok(layout.primary.includes("created_month"));
+    assert.ok(!layout.more.includes("created_month"));
+  }
+});
+
+test("Config Stages and named teams are sourced from active Master IDs",()=>{
+  const source=[
+    {id:"STG001",name:"Stage 1",order:1,active:true},
+    {id:"STG002",name:"Stage 2",order:2,active:true},
+    {id:"STG003",name:"Inactive",order:3,active:false},
+  ];
+  const choice=optionsFromVisiblePipelines("stage",[],{}, {Stage:source});
+  assert.deepEqual(choice,[{value:"STG001",label:"Stage 1"},{value:"STG002",label:"Stage 2"}]);
+  const working=optionsFromVisiblePipelines("working_with",[],{},{
+    WorkingWithOption:[{id:"WW001",name:"Pre-sales",active:true},{id:"WW002",name:"Pricer",active:true}],
+  });
+  assert.deepEqual(working.map(x=>x.value),["WW002","WW001"]);
+});
+
+test("Config Field_Options overrides raw Pipeline values, but preserves historical references",()=>{
+  const source={FieldOption:[
+    {id:"OPT001",field_key:"sales_channel",value:"AE B2B GEO",label:"AE B2B GEO",order:1,active:true},
+    {id:"OPT002",field_key:"sales_channel",value:"AE Self",label:"AE Self",order:2,active:true},
+    {id:"OPT003",field_key:"sales_channel",value:"Deprecated",label:"Deprecated",order:3,active:false},
+    {id:"OPT004",field_key:"ccp_check_result",value:"not_in_base",label:"New Customer",order:1,active:true},
+  ]};
+  const rows=[{sales_channel:"AE Self",ccp_check_result:"not_in_base"}];
+  assert.deepEqual(optionsFromVisiblePipelines("sales_channel",rows,{},source),[
+    {value:"AE B2B GEO",label:"AE B2B GEO"},{value:"AE Self",label:"AE Self"},
+  ]);
+  assert.deepEqual(optionsFromVisiblePipelines("ccp_check_result",rows,{},source),[
+    {value:"not_in_base",label:"New Customer"},
+  ]);
 });
