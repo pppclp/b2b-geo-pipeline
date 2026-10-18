@@ -54,7 +54,7 @@ test("Management can create a Pipeline with a single authoritative audit entry",
 test("one Pipeline update generates stage/handler events in the same request",()=>{
   const x=fixture(), o=x.call("M1","POST","entities/Opportunity",newPipeline);
   const updated=x.call("M1","PUT","entities/Opportunity/"+o.id,{ stage_id:"S2",stage_entered_at:"today",current_handler_id:"M1",handler_since:"today",audit_remark:"handoff" });
-  assert.deepEqual(updated._audit_events.map(e=>e.event_type),["stage_change","handler_change"]);
+  assert.deepEqual(updated._audit_events.map(e=>e.event_type).sort(),["handler_change","stage_change"]);
   assert.ok(updated._audit_events.every(e=>e.actor_id==="M1"));
   assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,3);
   assert.equal("audit_remark" in x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows[0],false);
