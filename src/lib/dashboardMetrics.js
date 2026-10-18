@@ -1,6 +1,7 @@
 // Shared Dashboard and Pipeline SLA definitions.
 // Cohort filters apply to every KPI, chart and drill-down before status filtering.
-export const monthOf = (date) => date ? String(date).slice(0, 7) : "";
+import { monthOf } from "./pipeline.js";
+export { monthOf } from "./pipeline.js";
 
 export function dashboardCohort(opportunities, { createdMonth = "", closeMonth = "", region = "" } = {}) {
   return opportunities.filter((o) =>
