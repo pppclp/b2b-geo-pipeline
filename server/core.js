@@ -80,7 +80,14 @@ export function createCore({ contract, store, now, uuid }) {
   const rows = (entity) => (bindings[entity] ? tableOf(bindings[entity]).rows : []);
   const outputs = createOutputs({ contract, store, rows, now, uuid, log: (m) => console.warn(m) });
   const touch = (b) => store.touch(b.file, b.sheet);
-  const can = (role, rule, action) => (rule.permissions?.[action] || []).includes(role);
+  // YAML stores uppercase role labels; the UI and actor use lowercase labels.
+  const normalizeRole = (v) => String(v || "").trim().toLowerCase();
+  const can = (role, rule, action) =>
+    (rule.permissions?.[action] || []).some((allowed) => normalizeRole(allowed) === normalizeRole(role));
+  const scopeForRole = (role) => {
+    const key = Object.keys(ac.scope || {}).find((k) => normalizeRole(k) === normalizeRole(role));
+    return key ? ac.scope[key] : "own";
+  };
   const need = (actor, b, action) => {
     if (!can(actor.role, b, action)) throw new HttpError(403, `${actor.role} cannot ${action} ${b.sheet}`);
   };
@@ -121,7 +128,7 @@ export function createCore({ contract, store, now, uuid }) {
     if (!userId) return null;
     const u = rows("users").find((r) => r.user_id === userId);
     if (!u || String(u.status || "Active").toLowerCase() !== "active") return null;
-    return { id: u.user_id, name: u.display_name, email: u.email, role: u.role, region_ids: regionIdsFor(u.user_id) };
+    return { id: u.user_id, name: u.display_name, email: u.email, role: normalizeRole(u.role), region_ids: regionIdsFor(u.user_id) };
   }
 
   function findUserByEmployeeId(employeeId) {
@@ -146,7 +153,7 @@ export function createCore({ contract, store, now, uuid }) {
   function actorFrom(userId, demoAs) {
     const real = findUser(userId);
     if (!real) throw new HttpError(401, "Not signed in");
-    if (demoAs && demoAs !== real.id && (ac.demo_as_allowed_for || []).includes(real.role)) {
+    if (demoAs && demoAs !== real.id && (ac.demo_as_allowed_for || []).some((role) => normalizeRole(role) === real.role)) {
       const demo = findUser(demoAs);
       if (demo) return { ...demo, real };
     }
@@ -155,10 +162,10 @@ export function createCore({ contract, store, now, uuid }) {
 
   // ---- Row scope ----
   function scopeFn(actor) {
-    const scope = ac.scope?.[actor.role] || "own";
+    const scope = scopeForRole(actor.role);
     if (scope === "all") return () => true;
     if (scope === "region") {
-      if (actor.role === "Management" && !actor.region_ids.length) return () => true;
+      if (actor.role === "management" && !actor.region_ids.length) return () => true;
       return (r) => actor.region_ids.includes(r.region_id);
     }
     return (r) => r.owner_user_id === actor.id || r.current_handler_user_id === actor.id;
@@ -310,6 +317,9 @@ export function createCore({ contract, store, now, uuid }) {
         if (actor.role === "ae" && (data.scenario_id || data.ccp_check_result)) {
           throw new HttpError(403, "Only SM or Management can set Scenario and CCP+ Check");
         }
+        if (actor.role === "ae" && String(data.owner_id || "") !== String(actor.id)) {
+          throw new HttpError(403, "AE must create Pipelines owned by their own account");
+        }
         validateLatestOpportunityFields(data, { requireRequired: "sales_channel" in data });
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
@@ -343,6 +353,9 @@ export function createCore({ contract, store, now, uuid }) {
       const before = { ...row };
       if (uiEntity === "Opportunity" && actor.role === "ae") {
         const current = toUi(uiEntity, b.primary_key, row);
+        if ("owner_id" in data && String(data.owner_id) !== String(current.owner_id)) {
+          throw new HttpError(403, "Only SM or Admin may reassign commercial ownership");
+        }
         for (const field of ["scenario_id", "ccp_check_result"]) {
           if (field in data && String(data[field] || "") !== String(current[field] || "")) {
             throw new HttpError(403, "Only SM or Management can update " + field);
@@ -529,7 +542,7 @@ export function createCore({ contract, store, now, uuid }) {
         for (const sheet of Object.keys(f.sheets || {})) allowed[file][sheet] = actionsFor(actor, sheetRules[`${file}/${sheet}`]);
         if (f.permissions) allowed[file]._file = Object.keys(f.permissions).filter((a) => (f.permissions[a] || []).includes(actor.role));
       }
-      return { role: actor.role, scope: ac.scope?.[actor.role], allowed };
+      return { role: actor.role, scope: scopeForRole(actor.role), allowed };
     }
 
     if (parts[0] === "entities" && parts[1]) {
