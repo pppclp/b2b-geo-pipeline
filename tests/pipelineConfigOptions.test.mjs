@@ -86,7 +86,7 @@ test("Backend accepts active configurable Sales Channel / CCP+ but rejects retir
   const x=appFixture();
   x.call("AE1","PUT","entities/Opportunity/P1",{sales_channel:"Test New Channel"});
   assert.equal(x.row().sales_channel,"Test New Channel");
-  x.call("AE1","PUT","entities/Opportunity/P1",{ccp_check_result:"reviewed"});
+  x.call("SM1","PUT","entities/Opportunity/P1",{ccp_check_result:"reviewed"});
   assert.equal(x.row().ccp_check_result,"reviewed");
   assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/P1",{sales_channel:"Retired Channel"}),(e)=>e.status===400);
   assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/P1",{ccp_check_result:"bad_code"}),(e)=>e.status===400);
