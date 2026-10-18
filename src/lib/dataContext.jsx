@@ -24,6 +24,7 @@ const MASTER_ENTITIES = [
   "LostReason",
   "WorkingWithOption",
   "SupportType",
+  "FieldOption",
   "TeamMember",
   "AppConfig",
   "MonthlySnapshot",
