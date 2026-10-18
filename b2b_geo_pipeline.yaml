@@ -2291,7 +2291,8 @@ business_decisions_pending:
 # scope (opportunity-like sheets only):
 #   all     — every row
 #   region  — rows whose region_id is in the user's active User_Region rows
-#             (Management with no User_Region rows = all)
+#             (Management with no active User_Region rows = no access;
+#              nationwide view requires explicit assignments to all Region IDs)
 #   own     — rows where owner_user_id or current_handler_user_id = user
 # ============================================================
 
