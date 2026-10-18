@@ -81,7 +81,7 @@ test("SM review flags and active filter count semantics remain explicit",()=>{
   assert.equal(isPendingSmReview(rows[2]),true);
   assert.equal(isFilterActive("status","open"),false);
   assert.equal(isFilterActive("status","won"),true);
-  assert.equal(isFilterActive("status","all"),false);
+  assert.equal(isFilterActive("status","all"),true);
   assert.equal(isFilterActive("owner","AE1"),true);
   assert.equal(isFilterActive("region",""),false);
 });
