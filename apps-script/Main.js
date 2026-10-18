@@ -53,6 +53,11 @@ function handle_(req) {
       return uatLogin_(store, req.body || {});
     }
 
+    // All other requests must present a valid signed session.
+    // Never accept the userId claimed by the browser as proof of identity.
+    req.userId = verifyUatSession_(req.sessionToken);
+    delete req.sessionToken;
+
     var core = GeoCoreLib.createCore({
       contract: GEO_CONTRACT,
       store: store,
@@ -70,6 +75,11 @@ function handle_(req) {
 function uatLogin_(store, body) {
   var username = normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
+  var limiter = CacheService.getScriptCache();
+  var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
+  if (key && Number(limiter.get(key) || 0) >= 5) {
+    throwUatError_(429, "Too many login attempts. Try again in 10 minutes.");
+  }
 
   if (!username || !password) {
     throwUatError_(400, "Username and password are required");
@@ -81,7 +91,7 @@ function uatLogin_(store, body) {
   });
 
   if (!user || String(user.status || "Active").toLowerCase() !== "active") {
-    throwUatError_(401, "Invalid username or password");
+    denyUatLogin_(limiter, key);
   }
 
   var credentials = store
@@ -93,15 +103,96 @@ function uatLogin_(store, body) {
   });
 
   if (!credential || String(credential.temporary_password || "") !== password) {
-    throwUatError_(401, "Invalid username or password");
+    denyUatLogin_(limiter, key);
   }
+  if (key) limiter.remove(key);
 
   return {
     user_id: String(user.user_id || ""),
     id: String(user.user_id || ""),
     full_name: String(user.display_name || ""),
     role: String(user.role || "AE"),
+    session_token: issueUatSession_(String(user.user_id || "")),
   };
+}
+
+function denyUatLogin_(cache, key) {
+  if (key) cache.put(key, String(Number(cache.get(key) || 0) + 1), 600);
+  throwUatError_(401, "Invalid username or password");
+}
+
+// UAT signed sessions: self-contained and HMAC-protected, expiring after 4h.
+// A deploy may use its own persistent Script Property; no extra Sheet is needed.
+// Token signatures never appear in spreadsheet rows, log events, or query params.
+var GEO_UAT_SESSION_LIFETIME_SECONDS_ = 4 * 60 * 60;
+
+function uatSessionSecret_(create) {
+  var props = PropertiesService.getScriptProperties();
+  var key = "GEO_UAT_SESSION_SECRET";
+  var secret = props.getProperty(key);
+  if (!secret && create) {
+    // Login requests use the script lock, so initial key generation is serialized.
+    secret = [Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid()].join("-");
+    props.setProperty(key, secret);
+  }
+  return secret;
+}
+
+function sessionB64_(bytes) {
+  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, "");
+}
+
+function sessionMac_(body, secret) {
+  return Utilities.computeHmacSha256Signature(body, secret);
+}
+
+function issueUatSession_(userId) {
+  if (!userId) throwUatError_(401, "Invalid session user");
+  var now = Math.floor(Date.now() / 1000);
+  var data = {
+    v: 1,
+    sub: String(userId),
+    iat: now,
+    exp: now + GEO_UAT_SESSION_LIFETIME_SECONDS_,
+  };
+  var body = sessionB64_(Utilities.newBlob(JSON.stringify(data)).getBytes());
+  return body + "." + sessionB64_(sessionMac_(body, uatSessionSecret_(true)));
+}
+
+function verifyUatSession_(token) {
+  var reject = function () {
+    throwUatError_(401, "Session expired or invalid. Please sign in again.");
+  };
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) reject();
+  var parts = token.split(".");
+  var secret = uatSessionSecret_(false);
+  if (!secret) reject();
+  try {
+    var signature = Utilities.base64DecodeWebSafe(parts[1]);
+    var expected = sessionMac_(parts[0], secret);
+    var diff = expected.length ^ signature.length;
+    for (var i = 0; i < expected.length; i++) diff |= expected[i] ^ (signature[i] || 0);
+    if (diff !== 0) reject();
+    var data = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString("UTF-8"));
+    var now = Math.floor(Date.now() / 1000);
+    if (data.v !== 1 || typeof data.sub !== "string" || !data.sub ||
+        !Number.isInteger(data.iat) || !Number.isInteger(data.exp) ||
+        data.iat > now + 60 || data.exp <= now ||
+        data.exp - data.iat > GEO_UAT_SESSION_LIFETIME_SECONDS_) reject();
+    return data.sub;
+  } catch (err) {
+    if (err && err.status === 401) throw err;
+    reject();
+  }
+}
+
+// Run manually if UAT sessions must be invalidated immediately (e.g. suspected theft).
+function revokeAllUatSessions() {
+  PropertiesService.getScriptProperties().setProperty(
+    "GEO_UAT_SESSION_SECRET",
+    [Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid()].join("-")
+  );
+  console.log("All UAT sessions revoked. All users must sign in again.");
 }
 
 function normalizeEmployeeId_(value) {

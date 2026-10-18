@@ -1,8 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { db, session } from '@/api/client';
 
-// UAT password gate: validate Employee ID + temporary password once,
-// then keep the existing user-id based app session flow.
+// UAT password gate: validate credentials and store a signed short-lived session.
+// The backend derives identity from that session, not a browser-supplied user ID.
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
   const checkUserAuth = useCallback(async () => {
     setIsLoadingAuth(true);
     setAuthError(null);
-    if (!session.userId()) {
+    if (!session.token()) {
       setUser(null);
       setIsAuthenticated(false);
     } else {
@@ -39,7 +39,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(async (username, password) => {
     const result = await db.session.login(username, password);
-    session.setUserId(result.user_id);
+    if (!result?.session_token) throw new Error("Login did not return a valid session. Backend deployment may be outdated.");
+    session.setToken(result.session_token);
     await checkUserAuth();
   }, [checkUserAuth]);
 
