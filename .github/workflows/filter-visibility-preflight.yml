@@ -1,0 +1,24 @@
+name: Filter Visibility Pre-PR
+on:
+  push:
+    branches: [fix/pipeline-dropdown-visibility-load-errors]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests
+        run: node --test tests/*.test.mjs
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Apps Script build
+        run: npm run gas:build
