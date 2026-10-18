@@ -56,6 +56,19 @@ function normalizeOpportunityPricing(data, existing = null) {
     }
     return { ...data };
   }
+  // Editing a note or Stage must never silently reprice an existing deal.
+  // Recalculate Net RC only when one of its inputs has genuinely changed.
+  const repriced = !existing || ["quantity", "price_per_sub", "oc"].some(
+    (k) => k in data && String(data[k] ?? "") !== String(existing[k] ?? "")
+  );
+  if (!repriced) {
+    if ("pipeline_value" in data &&
+        String(data.pipeline_value ?? "") !== String(existing.pipeline_value ?? "")) {
+      throw new HttpError(400, "Pipeline Value is calculated from unit pricing");
+    }
+    const { pipeline_value: ignored, ...rest } = data;
+    return rest;
+  }
   try {
     return { ...data, pipeline_value: calculateNetRc({
       quantity: merged.quantity,
