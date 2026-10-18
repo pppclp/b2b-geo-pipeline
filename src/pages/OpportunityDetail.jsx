@@ -73,7 +73,7 @@ export default function OpportunityDetail() {
       else if (a.type === "reassign") await reassign(op.id, { owner_id: a.ownerId, current_handler_id: a.handlerId, remark });
       else if (a.type === "closemonth") await changeCloseMonth(op.id, a.month, remark);
       else if (a.type === "archive") await archiveOp(op.id);
-      else if (a.type === "reopen") await reopen(op.id);
+      else if (a.type === "reopen") await reopen(op.id, remark);
       else if (a.type === "workingwith") await setWorkingWith(op.id, a.value);
       else if (a.type === "support") await setSupport(op.id, { needed: a.needed, type: a.type_, note: a.note });
       else throw new Error("Unsupported action");
@@ -89,6 +89,7 @@ export default function OpportunityDetail() {
   const canEdit = ["admin", "sm", "management"].includes(profile?.app_role) ||
     op.owner_id === profile?.id || op.current_handler_id === profile?.id;
   const canReassignOwner = ["sm", "management", "admin"].includes(profile?.app_role);
+  const canChangeArchiveState = canReassignOwner;
 
   return (
     <div className="p-5 md:p-7 max-w-[1200px] mx-auto">
@@ -111,8 +112,8 @@ export default function OpportunityDetail() {
             <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
             {canReassignOwner && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>}
             <PipelineCloseActions op={op} compact/>
-            {op.status !== "archived" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1.5" /> Archive</Button>}
-            {op.status !== "open" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1.5" /> Reopen</Button>}
+            {canChangeArchiveState && op.status !== "archived" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1.5" /> Archive</Button>}
+            {canChangeArchiveState && op.status !== "open" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1.5" /> Reopen</Button>}
           </div>
         )}
       </div>
@@ -220,7 +221,7 @@ export default function OpportunityDetail() {
           {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={closeAction} disabled={saving}>Cancel</Button>
-            <Button onClick={runAction} disabled={saving || !actionValid(action)}>{saving ? "Saving…" : "Confirm"}</Button>
+            <Button onClick={runAction} disabled={saving || !actionValid(action, remark)}>{saving ? "Saving…" : "Confirm"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -236,8 +237,9 @@ function actionTitle(t) {
   })[t] || "Action";
 }
 
-function actionValid(a) {
+function actionValid(a, remark = "") {
   if (!a) return false;
+  if (a.type === "reopen") return !!remark.trim();
   if (a.type === "stage") return !!a.stageId;
   if (a.type === "handoff") return !!a.handlerId;
   if (a.type === "reassign") return !!a.ownerId || !!a.handlerId;
@@ -325,8 +327,15 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
       </div>
     );
   }
-  if (t === "archive" || t === "reopen")
-    return <DialogDescription>Confirm this action. A history entry will be recorded automatically.</DialogDescription>;
+  if (t === "reopen") return (
+    <div className="space-y-2">
+      <DialogDescription>Reopen this Pipeline. Your reason will be saved in Pipeline History.</DialogDescription>
+      <Label htmlFor="reopen-reason">Reason for Reopen <span className="text-red-600">*</span></Label>
+      <Textarea id="reopen-reason" required maxLength={500} value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} placeholder="Explain why this Pipeline needs to be reopened" />
+    </div>
+  );
+  if (t === "archive")
+    return <DialogDescription>Confirm Archive. A history entry will be recorded automatically.</DialogDescription>;
   return null;
 }
 
