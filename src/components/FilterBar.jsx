@@ -12,7 +12,6 @@ import {
 const STATUS_OPTIONS = [
   { value: "open", label: "Open" }, { value: "won", label: "Won" },
   { value: "lost", label: "Lost" }, { value: "archived", label: "Archived" },
-  { value: "all", label: "All statuses" },
 ];
 const SUPPORT_OPTIONS = [
   { value: "1", label: "Needed" }, { value: "0", label: "Not needed" },
@@ -76,15 +75,12 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
   const [moreOpen, setMoreOpen] = useState(false);
   const role = profile?.app_role || "ae";
   const layout = visibleFilterFields(role, profile?.region_ids || []);
-  const selectKeys = useMemo(
-    () => [...new Set([...layout.primary, ...layout.more])],
-    // primitive role and region changes reconfigure layout without touching data
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [role, (profile?.region_ids || []).join(",")]
-  );
-  const selections = useMemo(() => Object.fromEntries(selectKeys.map((key) => [
-    key, optionsFromVisiblePipelines(key, scopedOpportunities, maps),
-  ])), [selectKeys, scopedOpportunities, maps]);
+  const selections = useMemo(() => Object.fromEntries(
+    ["region", "owner", "handler", "stage", "product_category", "sales_channel",
+      "scenario", "ccp_check_result", "working_with"].map((key) => [
+      key, optionsFromVisiblePipelines(key, scopedOpportunities, maps),
+    ])
+  ), [scopedOpportunities, maps]);
 
   const visibleMore = layout.more.filter((key) => showCreatedMonth || key !== "created_month");
   const activeMore = visibleMore.filter((key) => isFilterActive(key, filters[key])).length;
