@@ -121,8 +121,8 @@ export default function Pipeline() {
       const next = new URLSearchParams(existing);
       if (value && !(key === "status" && value === "open")) next.set(key, value);
       else next.delete(key);
-      if (key === "ownership_view" || key === "with_me") {
-        if (fromAssigned) next.delete("handler");
+      if (key === "ownership_view" || key === "with_me" || key === "handler") {
+        if (fromAssigned && key !== "handler") next.delete("handler");
         next.delete("view");
         next.delete("assigned");
       }
