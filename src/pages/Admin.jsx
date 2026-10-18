@@ -331,7 +331,7 @@ function SnapshotManager() {
     setBusy(true); setMsg(null);
     try {
       const res = await captureSnapshot(month);
-      setMsg(`Captured ${res.captured} opportunity snapshots for ${formatMonth(month)}.`);
+      setMsg(`Captured ${res.captured} opportunity snapshots for ${formatMonth(month)}.${res.warning ? " " + res.warning : ""}`);
     } catch (e) { setMsg("Capture failed: " + (e.message || e)); }
     finally { setBusy(false); }
   };
