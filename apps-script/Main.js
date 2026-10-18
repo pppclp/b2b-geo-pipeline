@@ -38,9 +38,11 @@ function json_(payload) {
 }
 
 function handle_(req) {
-  var writes = req.method && req.method !== "GET";
+  // Serialize reads and writes while crash-recoverable database snapshots are
+  // prepared. Without this, a GET might mistake an in-progress backup for a
+  // crashed transaction and roll back another request.
   var lock = LockService.getScriptLock();
-  if (writes) lock.waitLock(30000);
+  lock.waitLock(30000);
   try {
     var store = new SheetStore_();
 
@@ -68,7 +70,7 @@ function handle_(req) {
     store.flush();
     return result;
   } finally {
-    if (writes) lock.releaseLock();
+    lock.releaseLock();
   }
 }
 
@@ -246,6 +248,7 @@ function SheetStore_() {
   this.tables = {};
   this.loaded = {}; // key -> rows as read, to write only what changed
   this.dirty = {};
+  this.pendingAppends = [];
 }
 
 SheetStore_.prototype.book_ = function (file) {
@@ -257,6 +260,7 @@ SheetStore_.prototype.book_ = function (file) {
       throw e;
     }
     this.books[file] = SpreadsheetApp.openById(id);
+    if (file === "B2B_GEO_Pipeline_DB.xlsx") recoverGeoDb_(this.books[file]);
   }
   return this.books[file];
 };
@@ -291,16 +295,21 @@ SheetStore_.prototype.table = function (file, sheet) {
   return this.tables[key];
 };
 
-// Adds rows after the last row without reading the sheet (audit logs).
-SheetStore_.prototype.append = function (file, sheet, rows) {
+// Queue optional export logs. Never append output logs before Pipeline + Event
+// tables commit; a failed core write must not leave a false external audit export.
+SheetStore_.prototype.append = function (file, sheet, records) {
+  if (records && records.length) this.pendingAppends.push({ file: file, sheet: sheet, rows: records });
+};
+
+SheetStore_.prototype.appendNow_ = function (file, sheet, records) {
   var ws = this.book_(file).getSheetByName(sheet) || this.book_(file).insertSheet(sheet);
   var headers = ws.getLastColumn() ? ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0].map(String) : [];
   if (!headers.filter(String).length) {
-    headers = Object.keys(rows[0]);
+    headers = Object.keys(records[0]);
     ws.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
-  ws.getRange(ws.getLastRow() + 1, 1, rows.length, headers.length).setValues(
-    rows.map(function (r) {
+  ws.getRange(ws.getLastRow() + 1, 1, records.length, headers.length).setValues(
+    records.map(function (r) {
       return headers.map(function (h) { return r[h] === undefined || r[h] === null ? "" : r[h]; });
     })
   );
@@ -316,41 +325,136 @@ SheetStore_.prototype.touch = function (file, sheet) {
   this.dirty[file + "|" + sheet] = { file: file, sheet: sheet };
 };
 
-// Writes only touched sheets (README / Data_Dictionary are never touched).
-// If rows were only edited or added, just those rows are written; otherwise
-// (deletes, reorders, new columns) the data area is rewritten.
-SheetStore_.prototype.flush = function () {
-  for (var key in this.dirty) {
-    var d = this.dirty[key];
-    var t = this.tables[key];
-    var before = this.loaded[key] || { headers: [], rows: [], json: [] };
-    t.rows.forEach(function (r) {
-      Object.keys(r).forEach(function (k) { if (t.headers.indexOf(k) < 0) t.headers.push(k); });
-    });
-    var book = this.book_(d.file);
-    var ws = book.getSheetByName(d.sheet) || book.insertSheet(d.sheet);
-    var toValues = function (r) {
-      return t.headers.map(function (h) { return r[h] === undefined || r[h] === null ? "" : r[h]; });
-    };
-    var sameShape =
-      before.rows.length > 0 &&
-      t.headers.join("\u0001") === before.headers.join("\u0001") &&
-      t.rows.length >= before.rows.length &&
-      before.rows.every(function (r, i) { return t.rows[i] === r; });
+// Crash-recoverable backups for runtime DB writes. Google Sheets does not
+// provide multi-sheet ACID transactions, so use a write-ahead backup and restore.
+// The script lock must be held for ALL data requests.
+var GEO_DB_TXN_PROPERTY_ = "GEO_RUNTIME_DB_TXN";
+var GEO_DB_BACKUP_PREFIX_ = "__GEO_BAK__";
 
-    if (sameShape) {
-      for (var i = 0; i < t.rows.length; i++) {
-        if (i < before.rows.length && JSON.stringify(t.rows[i]) === before.json[i]) continue;
-        ws.getRange(i + 2, 1, 1, t.headers.length).setValues([toValues(t.rows[i])]);
-      }
-    } else {
-      ws.getRange(1, 1, 1, t.headers.length).setValues([t.headers]);
-      var last = ws.getLastRow();
-      if (last > 1) ws.getRange(2, 1, last - 1, Math.max(ws.getLastColumn(), t.headers.length)).clearContent();
-      if (t.rows.length) ws.getRange(2, 1, t.rows.length, t.headers.length).setValues(t.rows.map(toValues));
-    }
+function geoBackups_(book, sheets) {
+  var backups = [];
+  try {
+    sheets.forEach(function (sheet) {
+      var live = book.getSheetByName(sheet);
+      if (!live) throw new Error("Missing live Pipeline DB sheet: " + sheet);
+      var name = GEO_DB_BACKUP_PREFIX_ + sheet;
+      if (book.getSheetByName(name)) throw new Error("Unresolved database backup: " + name);
+      var copy = live.copyTo(book);
+      copy.setName(name);
+      copy.hideSheet();
+      backups.push(name);
+    });
+    SpreadsheetApp.flush();
+    return backups;
+  } catch (error) {
+    backups.forEach(function (name) {
+      var backup = book.getSheetByName(name);
+      if (backup) book.deleteSheet(backup);
+    });
+    throw error;
   }
+}
+
+function restoreGeoSheet_(book, sheet) {
+  var backup = book.getSheetByName(GEO_DB_BACKUP_PREFIX_ + sheet);
+  if (!backup) throw new Error("Critical backup missing for " + sheet + "; manual recovery needed");
+  var live = book.getSheetByName(sheet);
+  if (!live) throw new Error("Live sheet missing for " + sheet + "; manual recovery needed");
+  var values = backup.getDataRange().getValues();
+  // Restore the entire used area, including headers and deleted rows.
+  var lastRows = Math.max(live.getLastRow(), values.length);
+  var lastCols = Math.max(live.getLastColumn(), values[0].length);
+  if (live.getMaxRows() < lastRows) live.insertRowsAfter(live.getMaxRows(), lastRows - live.getMaxRows());
+  if (live.getMaxColumns() < lastCols) live.insertColumnsAfter(live.getMaxColumns(), lastCols - live.getMaxColumns());
+  live.getRange(1, 1, lastRows, lastCols).clearContent();
+  live.getRange(1, 1, values.length, values[0].length).setValues(values);
+}
+
+function recoverGeoDb_(book) {
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(GEO_DB_TXN_PROPERTY_);
+  if (!raw) return;
+  var marker = JSON.parse(raw);
+  if (marker.spreadsheetId !== book.getId()) {
+    throw new Error("Pending transaction references a different Pipeline DB; manual review required");
+  }
+  if (marker.status !== "committed") {
+    marker.sheets.forEach(function (sheet) { restoreGeoSheet_(book, sheet); });
+    SpreadsheetApp.flush();
+  }
+  marker.sheets.forEach(function (sheet) {
+    var backup = book.getSheetByName(GEO_DB_BACKUP_PREFIX_ + sheet);
+    if (backup) book.deleteSheet(backup);
+  });
+  props.deleteProperty(GEO_DB_TXN_PROPERTY_);
+}
+
+SheetStore_.prototype.writeDirty_ = function (d) {
+  var key = d.file + "|" + d.sheet;
+  var t = this.tables[key];
+  var before = this.loaded[key] || { headers: [], rows: [], json: [] };
+  t.rows.forEach(function (r) {
+    Object.keys(r).forEach(function (k) { if (t.headers.indexOf(k) < 0) t.headers.push(k); });
+  });
+  var ws = this.book_(d.file).getSheetByName(d.sheet) || this.book_(d.file).insertSheet(d.sheet);
+  var toValues = function (r) {
+    return t.headers.map(function (h) { return r[h] === undefined || r[h] === null ? "" : r[h]; });
+  };
+  var sameShape =
+    before.rows.length > 0 &&
+    t.headers.join("\u0001") === before.headers.join("\u0001") &&
+    t.rows.length >= before.rows.length &&
+    before.rows.every(function (r, i) { return t.rows[i] === r; });
+
+  if (sameShape) {
+    for (var i = 0; i < t.rows.length; i++) {
+      if (i < before.rows.length && JSON.stringify(t.rows[i]) === before.json[i]) continue;
+      ws.getRange(i + 2, 1, 1, t.headers.length).setValues([toValues(t.rows[i])]);
+    }
+  } else {
+    // Pre-size before clearing. Failed resize must not destroy the old table.
+    if (ws.getMaxRows() < t.rows.length + 1) ws.insertRowsAfter(ws.getMaxRows(), t.rows.length + 1 - ws.getMaxRows());
+    if (ws.getMaxColumns() < t.headers.length) ws.insertColumnsAfter(ws.getMaxColumns(), t.headers.length - ws.getMaxColumns());
+    ws.getRange(1, 1, 1, t.headers.length).setValues([t.headers]);
+    var last = ws.getLastRow();
+    if (last > 1) ws.getRange(2, 1, last - 1, Math.max(ws.getLastColumn(), t.headers.length)).clearContent();
+    if (t.rows.length) ws.getRange(2, 1, t.rows.length, t.headers.length).setValues(t.rows.map(toValues));
+  }
+};
+
+// Commit live DB first, guarded by a backup; export templates are derived and
+// best-effort, so an export failure cannot report a committed Pipeline as failed.
+SheetStore_.prototype.flush = function () {
+  var self = this;
+  var dirty = Object.keys(this.dirty).map(function (key) { return self.dirty[key]; });
+  var critical = dirty.filter(function (d) { return d.file === "B2B_GEO_Pipeline_DB.xlsx"; });
+  var derived = dirty.filter(function (d) { return d.file !== "B2B_GEO_Pipeline_DB.xlsx"; });
+  if (critical.length) {
+    var book = this.book_("B2B_GEO_Pipeline_DB.xlsx");
+    var sheets = critical.map(function (d) { return d.sheet; });
+    var props = PropertiesService.getScriptProperties();
+    geoBackups_(book, sheets);
+    props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({ spreadsheetId: book.getId(), sheets: sheets, status: "prepared" }));
+    try {
+      critical.forEach(function (d) { self.writeDirty_(d); });
+      SpreadsheetApp.flush();
+      // Mark committed BEFORE cleanup: a crash during backup deletion must
+      // never roll back a fully committed operation.
+      props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({ spreadsheetId: book.getId(), sheets: sheets, status: "committed" }));
+    } catch (error) {
+      try { recoverGeoDb_(book); } catch (restoreError) { console.error("URGENT: DB restore required: " + restoreError.message); }
+      throw error;
+    }
+    try { recoverGeoDb_(book); } catch (cleanupError) { console.warn("DB backup cleanup deferred: " + cleanupError.message); }
+  }
+  derived.forEach(function (d) {
+    try { self.writeDirty_(d); } catch (error) { console.warn("Derived export write failed: " + error.message); }
+  });
+  this.pendingAppends.forEach(function (a) {
+    try { self.appendNow_(a.file, a.sheet, a.rows); } catch (error) { console.warn("Audit export append failed: " + error.message); }
+  });
   this.dirty = {};
+  this.pendingAppends = [];
   SpreadsheetApp.flush();
 };
 
