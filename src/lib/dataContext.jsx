@@ -174,8 +174,8 @@ export function DataProvider({ children }) {
       if (!profile) return false;
       if (profile.app_role === "admin") return true;
       if (profile.app_role === "management") {
-        if (!profile.region_ids?.length) return true;
-        return profile.region_ids.includes(op.region_id);
+        // Fail closed when User_Region assignments have not loaded or are empty.
+        return (profile.region_ids || []).includes(op.region_id);
       }
       if (profile.app_role === "sm") {
         return (profile.region_ids || []).includes(op.region_id);
