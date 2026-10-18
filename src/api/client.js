@@ -3,7 +3,8 @@
 // the same shape the pages used with the Base44 SDK.
 
 const API_BASE = import.meta.env.VITE_GEO_API_URL || "/api";
-const USER_KEY = "geo_user_id";
+const SESSION_KEY = "geo_session_token";
+const LEGACY_USER_KEY = "geo_user_id";
 const DEMO_KEY = "geo_demo_as";
 
 const storage = {
@@ -15,10 +16,20 @@ const storage = {
   },
 };
 
+// Prefer sessionStorage so a UAT login is not retained across browser sessions.
+// Do not use localStorage user IDs as authentication.
+const tokenStorage = {
+  get() {
+    try { return sessionStorage.getItem(SESSION_KEY) || ""; } catch { return ""; }
+  },
+  set(token) {
+    try { token ? sessionStorage.setItem(SESSION_KEY, token) : sessionStorage.removeItem(SESSION_KEY); } catch { /* unavailable */ }
+  },
+};
 export const session = {
-  userId: () => storage.get(USER_KEY),
-  setUserId: (id) => storage.set(USER_KEY, id),
-  clear: () => { storage.set(USER_KEY, ""); storage.set(DEMO_KEY, ""); },
+  token: () => tokenStorage.get(),
+  setToken: (token) => { tokenStorage.set(token); storage.set(LEGACY_USER_KEY, ""); },
+  clear: () => { tokenStorage.set(""); storage.set(LEGACY_USER_KEY, ""); storage.set(DEMO_KEY, ""); },
 };
 
 // VITE_GEO_API_URL ending in /exec = Apps Script web app; otherwise a REST base (default /api).
@@ -53,19 +64,21 @@ async function request(method, path, { query, body } = {}) {
   );
   let status, data;
   if (IS_APPS_SCRIPT) {
-    ({ status, body: data } = await appsScript(method, {
+    // Always POST to Apps Script, including reads: session tokens must not
+    // appear in GET query strings, proxy logs, or browser URL history.
+    ({ status, body: data } = await appsScript("POST", {
       method,
       path: path.replace(/^\//, ""),
       query: q,
       body,
-      userId: session.userId(),
+      sessionToken: session.token(),
       demoAs: storage.get(DEMO_KEY),
     }));
   } else {
     const url = new URL(`${API_BASE}${path}`, window.location.origin);
     Object.entries(q).forEach(([k, v]) => url.searchParams.set(k, v));
     const headers = { "Content-Type": "application/json" };
-    if (session.userId()) headers["X-User-Id"] = session.userId();
+    if (session.token()) headers.Authorization = `Bearer ${session.token()}`;
     if (storage.get(DEMO_KEY)) headers["X-Demo-As"] = storage.get(DEMO_KEY);
     const res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     status = res.status;
@@ -102,7 +115,7 @@ export const db = {
   },
   access: () => request("GET", "/access"),
   // Several reads in one round trip: [{ path, query }] -> [{ status, body }]
-  batch: (requests) => request(IS_APPS_SCRIPT ? "GET" : "POST", "/batch", { body: { requests } }),
+  batch: (requests) => request("POST", "/batch", { body: { requests } }),
   // Raw row editor over the source sheets bound in access_control.
   sheets: {
     list: () => request("GET", "/sheets"),
