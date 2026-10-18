@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS } from "@/lib/pipeline";
+import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import HistoryTimeline from "@/components/HistoryTimeline";
 import OpportunityForm from "@/components/OpportunityForm";
 import { PipelineQuickActions } from "@/components/PipelineQuickView";
