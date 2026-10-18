@@ -442,8 +442,15 @@ export function DataProvider({ children }) {
   const captureSnapshot = useCallback(
     async (snapshotPeriod) => {
       const result = await db.snapshots.capture(snapshotPeriod);
-      const snapshots = await db.entities.MonthlySnapshot.list();
-      setMaster((m) => ({ ...m, MonthlySnapshot: snapshots }));
+      try {
+        const snapshots = await db.entities.MonthlySnapshot.list();
+        setMaster((m) => ({ ...m, MonthlySnapshot: snapshots }));
+      } catch (error) {
+        // A post-commit display refresh failure must not misreport a
+        // successful snapshot as failed, inviting unnecessary recapture.
+        console.warn("Snapshot committed; list refresh failed", error);
+        return { ...result, warning: "Saved successfully, but refresh the page to see the updated list." };
+      }
       return result;
     },
     []
