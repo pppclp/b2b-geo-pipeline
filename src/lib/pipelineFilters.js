@@ -39,8 +39,12 @@ export function applyPipelineFilters(scopedOpportunities, filters, { profile, ma
   return (scopedOpportunities || []).filter((op) => {
     if (query && ![op.customer_name, op.business_id, op.contact_name]
       .some((text) => String(text || "").toLocaleLowerCase().includes(query))) return false;
-    if (profile?.app_role === "ae" && f.ownership_view && f.ownership_view !== "all" &&
-        ownershipGroup(op, profile.id) !== f.ownership_view) return false;
+    if (profile?.app_role === "ae" && f.ownership_view && f.ownership_view !== "all") {
+      // Commercial ownership persists when work is handed off to SM.
+      if (f.ownership_view === "mine") {
+        if (op.owner_id !== profile.id) return false;
+      } else if (ownershipGroup(op, profile.id) !== f.ownership_view) return false;
+    }
     if (profile?.app_role === "sm" && f.with_me === "1" && op.current_handler_id !== profile.id) return false;
     if (f.created_month && op.created_month !== f.created_month) return false;
     if (f.close_month && op.expected_close_month !== f.close_month) return false;
