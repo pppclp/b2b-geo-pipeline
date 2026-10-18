@@ -1147,6 +1147,12 @@ opportunity_entity:
       source: "AE / SM input"
       optional: true
 
+    archived_at:
+      source: "SYSTEM"
+      set_when: "status → Archived"
+      user_editable: false
+      description: "Server timestamp of the latest transition to Archived; the status history remains in Pipeline_Events."
+
   # Historical columns retained only when an existing legacy row already has them.
   # They are intentionally outside field_lineage so newly created Pipeline DB sheets
   # and new UAT seed data do not include them.
