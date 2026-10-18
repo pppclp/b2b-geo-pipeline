@@ -15,6 +15,8 @@ function makeBackend() {
     "B2B_GEO_Pipeline_DB.xlsx":{sheets:{
       Pipelines:{entity:"opportunities",primary_key:"opportunity_id",scoped:true,permissions:{
         read:["AE","Management","Admin"],export:["AE","Management","Admin"]}},
+      Admin_Audit:{entity:"admin_audit",primary_key:"audit_id",append_only:true,permissions:{
+        read:["Admin"],create:[],update:[],delete:[]}},
     }},
   }};
   const data={
@@ -30,6 +32,7 @@ function makeBackend() {
     ]},
     "Config.xlsx|Stages":{headers:["stage_id","stage_name"],rows:[{stage_id:"S1",stage_name:"Qualify",sort_order:1}]},
     "Config.xlsx|Aging_Settings":{headers:["setting_id","threshold_days"],rows:[{setting_id:"A1",threshold_days:14,active:"Yes"}]},
+    "B2B_GEO_Pipeline_DB.xlsx|Admin_Audit":{headers:[],rows:[]},
     "B2B_GEO_Pipeline_DB.xlsx|Pipelines":{headers:["opportunity_id","region_id","owner_user_id"],rows:[
       {opportunity_id:"O1",region_id:"R1",owner_user_id:"AE1",current_handler_user_id:"AE1",status:"Open"},
       {opportunity_id:"O2",region_id:"R2",owner_user_id:"AE2",current_handler_user_id:"AE2",status:"Open"},
@@ -54,6 +57,8 @@ test("Admin manages Stage SLA without a new sheet",()=>{
   const result=x.call("ADMIN","PUT","entities/Stage/S1",{sla_days:5});
   assert.equal(result.sla_days,5);
   assert.equal(x.data["Config.xlsx|Stages"].rows[0].sla_days,5);
+  assert.equal(x.data["B2B_GEO_Pipeline_DB.xlsx|Admin_Audit"].rows[0].event_type,"MASTER_UPDATED");
+  assert.ok(x.touched.includes("B2B_GEO_Pipeline_DB.xlsx|Admin_Audit"));
   assert.throws(()=>x.call("ADMIN","PUT","entities/Stage/S1",{sla_days:0}),e=>e.status===400);
   assert.throws(()=>x.call("AE1","PUT","entities/Stage/S1",{sla_days:2}),e=>e.status===403);
 });
@@ -62,6 +67,7 @@ test("Internal SLA is independent and stored in existing Aging_Settings",()=>{
   const result=x.call("ADMIN","PUT","entities/AppConfig/internal_task_sla_days",{value:"3"});
   assert.equal(result.value,"3");
   assert.equal(x.data["Config.xlsx|Aging_Settings"].rows[0].internal_task_sla_days,3);
+  assert.equal(x.data["B2B_GEO_Pipeline_DB.xlsx|Admin_Audit"].rows[0].field_name,"internal_task_sla_days");
   assert.throws(()=>x.call("ADMIN","PUT","entities/AppConfig/internal_task_sla_days",{value:0}),e=>e.status===400);
   assert.throws(()=>x.call("AE1","PUT","entities/AppConfig/internal_task_sla_days",{value:4}),e=>e.status===403);
 });
