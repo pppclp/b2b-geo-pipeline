@@ -165,7 +165,7 @@ test("A2: archiving stores server time, never a spoofed client archived_at", () 
   assert.ok(contract.columns.opportunities.includes("archived_at"));
   x.call("AE1","PUT","entities/Opportunity/OPP-1",{archived_at:"2099-01-01",remark:"Before archive"});
   assert.equal(x.row().archived_at,undefined);
-  x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"archived",archived_at:"2099-01-01"});
+  x.call("SM1","PUT","entities/Opportunity/OPP-1",{status:"archived",archived_at:"2099-01-01"});
   assert.equal(x.row().archived_at,stamp);
   assert.ok(x.events().some((e)=>e.event_type==="archived"));
   x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Archived note",archived_at:"1900-01-01"});
