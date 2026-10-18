@@ -13,6 +13,7 @@ export const OPPORTUNITY_COLUMNS = new Set([
   "working_with_id", "working_with_since", "support_needed",
   "support_type_id", "support_note", "won_at", "won_by_user_id",
   "lost_at", "lost_by_user_id", "lost_reason_id", "lost_note",
+  "archived_at",
 ]);
 
 // UI names AND sheet names of fields the browser must never control.
