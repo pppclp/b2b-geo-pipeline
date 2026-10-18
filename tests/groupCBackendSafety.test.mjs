@@ -49,7 +49,7 @@ test("C1: bulk DELETE is rejected, including unfiltered Admin requests, without 
  const row=x.call("ADMIN","POST","entities/Region",{name:"Unused",active:true});
  const removed=x.call("ADMIN","DELETE","entities/Region/"+encodeURIComponent(row.id));
  assert.deepEqual(removed,{ok:true});
- assert.ok(x.audit().some(e=>e.event_type==="DELETED"));
+ assert.ok(x.audit().some(e=>e.event_type==="MASTER_DELETED"));
 });
 
 test("C2: reject unbounded and nested batch requests but allow bounded reads",()=>{
