@@ -9,7 +9,7 @@ Resolve three problems before the next Apps Script rollout, without adding maste
 - Event author and timestamp always come from the verified backend session, never from the browser.
 - Quick Actions can produce multiple Audit Events (e.g., Stage + Handler + Working With) from the same saved record.
 - Direct POST to `OpportunityHistory` is forbidden, even for Admin. Existing audit records are read-only.
-- Audit export and Current Pipeline export are **derived** and written after the canonical runtime DB commit.
+- Legacy `*_Export_Template` workbooks are **not** written by the backend. Opportunity history stays in `Pipeline_Events`; Admin master changes stay in DB-backed `Admin_Audit`.
 
 ### 2. Permissions
 - Management: create and update Pipeline (with existing region scope).
@@ -28,7 +28,7 @@ Resolve three problems before the next Apps Script rollout, without adding maste
 
 ### Transaction and recovery behavior
 
-**Node / local Excel**: Pipeline, Events and Snapshots share a single runtime DB XLSX.
+**Node / local Excel**: Pipelines, Events, Snapshots and Admin_Audit share a single runtime DB XLSX.
 The adapter writes to a temporary file, then atomically renames it onto the live workbook.
 Source DB write failures do not partially overwrite an existing workbook.
 
@@ -38,8 +38,7 @@ the adapter creates hidden backups of each canonical DB sheet that will be modif
 writes a durable Script Properties transaction marker, then writes and flushes the DB.
 If an error occurs, it restores prior sheet values from those backups. A later request
 reconciles a crashed/interrupted transaction before reading live Pipeline data.
-After successful commit, derived export tables and external Change Log / Summary
-are attempted on a best-effort basis.
+The three standalone Current/Change Log/Month-End Export Template spreadsheets are not runtime outputs. Reports are generated from the canonical DB on demand.
 
 Google Sheets remains a UAT limitation: simultaneous/independent scripts or direct
 manual edits of live sheets can bypass the single script lock, and restoration itself
@@ -62,7 +61,8 @@ never delete them manually until a verified recovery is performed.
    - Admin recaptures an existing month without duplicates or deleting other months.
    - A forced snapshot error preserves the prior month in the canonical DB.
 6. Verify no leftover `__GEO_BAK__*` tabs and no `GEO_RUNTIME_DB_TXN` property after successful tests.
-7. Review the three export templates, especially Change Log export after a failed save.
+7. Before deploying, run `prepareAdminAuditSheet()` in the existing Apps Script project after pushing updated sources (do not deploy yet), and confirm the DB has four tabs.
+8. Check the Admin_Audit row created by a master edit and confirm the historical Export Template sheets are not written.
 
 No live Apps Script files, user master spreadsheets, customer records or deployment
 versions are changed by the GitHub PR.
@@ -72,3 +72,15 @@ For strict ACID transactional guarantees, migrate the canonical runtime
 Pipeline/Event/Snapshot data to a transactional database managed behind a
 verified identity layer. The Apps Script backup/restore plan mitigates UAT
 failures, not a substitute for database transactions, backup policies or SSO.
+
+## Cross-workbook limitation
+
+Admin_Audit is persisted in the canonical DB while the master records themselves
+still live in separate Google Sheets. The current UAT Apps Script adapter is **not
+ACID across spreadsheet files**; a service or quota failure can commit the audit
+before the master workbook finishes saving. Treat such failures as reconciliation
+items, and do not claim master updates are atomically committed across files.
+
+Do not archive the existing Change_Log_Export workbook until its historical
+`MASTER_*` events have been reconciled or intentionally retained as an
+immutable historical archive. The new Admin_Audit does not backfill them.

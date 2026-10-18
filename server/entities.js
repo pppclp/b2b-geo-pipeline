@@ -81,6 +81,7 @@ export const ENTITIES = {
       name: "stage_name",
       order: { col: "sort_order", ...number },
       weight: { col: "weight_pct", ...number },
+      sla_days: { col: "sla_days", ...number },
       active: { col: "active", ...bool },
     },
   },

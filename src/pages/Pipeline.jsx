@@ -3,7 +3,10 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { formatMonth, agingDays, formatDate, STATUS_LABELS } from "@/lib/pipeline";
+import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
+import { downloadPipelineExcel } from "@/lib/pipelineExport";
+import { db } from "@/api/client";
+import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import OpportunityForm from "@/components/OpportunityForm";
@@ -43,48 +46,6 @@ function applySort(ops, sort) {
   }
 }
 
-function exportCSV(ops, maps) {
-  const headers = [
-    "Opportunity ID", "Customer Name", "Business ID", "Customer Type",
-    "Sales Channel", "Partner Name", "Contact Name", "Contact Phone", "Remark",
-    "Product Category", "Product Details", "Number of Subs", "Price per Sub", "OC", "Contract Period",
-    "Net RC (THB/Month)", "Scenario", "CCP+ Check",
-    "Region", "Territory", "Opportunity Owner", "Current Handler",
-    "Stage", "Status", "Created At", "Created Month", "Expected Close Month",
-    "Stage Aging (days)", "Handler Aging (days)",
-    "Working With", "Working With Aging (days)",
-    "Support Needed", "Support Type", "Support Note",
-    "Won At", "Lost At", "Lost Reason", "Lost Note", "Created By", "Updated At",
-  ];
-  const rows = ops.map((o) => [
-    o.id, o.customer_name, o.business_id || "", o.customer_type || "",
-    o.sales_channel || "", o.partner_name || "", o.contact_name || "", o.contact_phone || "", o.remark || "",
-    maps.category[o.product_category_id]?.name || "", o.product_details || "",
-    o.quantity ?? "", o.price_per_sub ?? "", o.oc ?? "", o.contract_period ?? "",
-    Number(o.pipeline_value || 0).toFixed(2),
-    maps.scenario[o.scenario_id]?.name || "", o.ccp_check_result || "",
-    maps.region[o.region_id]?.name || "", maps.territory[o.territory_id]?.name || "",
-    maps.member[o.owner_id]?.name || "", maps.member[o.current_handler_id]?.name || "",
-    maps.stage[o.stage_id]?.name || "", STATUS_LABELS[o.status] || o.status,
-    formatDate(o.created_date), o.created_month || "", formatMonth(o.expected_close_month),
-    agingDays(o.stage_entered_at), agingDays(o.handler_since),
-    o.working_with || "", o.working_with ? agingDays(o.working_with_since) : "",
-    o.support_needed ? "Yes" : "No", o.support_type || "", o.support_note || "",
-    formatDate(o.won_at), formatDate(o.lost_at), maps.lostReason[o.lost_reason_id]?.name || "", o.lost_note || "",
-    maps.member[o.created_by_user_id]?.name || "", formatDate(o.updated_date),
-  ]);
-  const csv = [headers, ...rows]
-    .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `pipeline_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 export default function Pipeline() {
   const { scopedOpportunities, activeStages, maps, profile, config } = useData();
   const [params, setParams] = useSearchParams();
@@ -94,12 +55,16 @@ export default function Pipeline() {
   const [formOpen, setFormOpen] = useState(false);
   const [quickView, setQuickView] = useState(null); // { id, targetStageId? }
   const [filters, setFilters] = useState({ status: "open" });
+  const [canExport, setCanExport] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     const f = { status: "open" };
     if (params.get("view") === "assigned-to-me" || params.get("assigned") === "me") f.handler = profile?.id;
     if (params.get("view") === "support-needed" || params.get("support") === "1") f.support = "1";
     if (params.get("stuck") === "1") f.stuck = "1";
+    if (params.get("internal_overdue") === "1") f.internal_overdue = "1";
     if (params.get("region")) f.region = params.get("region");
     if (params.get("owner")) f.owner = params.get("owner");
     if (params.get("handler")) f.handler = params.get("handler");
@@ -117,6 +82,18 @@ export default function Pipeline() {
     setFilters(f);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, profile?.id]);
+
+  useEffect(() => {
+    let active = true;
+    setCanExport(false);
+    db.access()
+      .then((access) => {
+        const actions = access?.allowed?.["B2B_GEO_Pipeline_DB.xlsx"]?.Pipelines || [];
+        if (active) setCanExport(actions.includes("export"));
+      })
+      .catch((error) => { if (active) { setExportError("Export permission check failed: " + error.message); setCanExport(false); } });
+    return () => { active = false; };
+  }, [profile?.id, profile?.app_role, profile?.isDemo]);
 
   const onFilter = (key, value) => {
     if (key === "clear") {
@@ -136,7 +113,7 @@ export default function Pipeline() {
       if (filters.owner && o.owner_id !== filters.owner) return false;
       if (filters.handler && o.current_handler_id !== filters.handler) return false;
       if (filters.stage && o.stage_id !== filters.stage) return false;
-      if (filters.status && o.status !== filters.status) return false;
+      if (filters.status && filters.status !== "all" && o.status !== filters.status) return false;
       if (filters.product_category && o.product_category_id !== filters.product_category) return false;
       if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
       if (filters.ccp_check_result && o.ccp_check_result !== filters.ccp_check_result) return false;
@@ -144,15 +121,32 @@ export default function Pipeline() {
       if (filters.working_with && o.working_with !== filters.working_with) return false;
       if (filters.support === "1" && !o.support_needed) return false;
       if (filters.support === "0" && o.support_needed) return false;
-      if (filters.stuck === "1" && agingDays(o.stage_entered_at) <= (config?.aging_threshold_days || 14)) return false;
+      if (filters.stuck === "1" && !isStageSlaOverdue(o, maps.stage)) return false;
+      if (filters.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
       if (filters.won_month && monthOf(o.won_at) !== filters.won_month) return false;
       if (filters.lost_month && monthOf(o.lost_at) !== filters.lost_month) return false;
       if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
       return true;
     });
-  }, [scopedOpportunities, filters, config]);
+  }, [scopedOpportunities, filters, config, maps.stage]);
 
   const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
+  const exportExcel = async () => {
+    setExportError("");
+    setExporting(true);
+    try {
+      // Server re-verifies export permission and user/region scope. UI filters
+      // are then intersected with those freshly authorized records.
+      const authorized = await db.exports.pipelines();
+      const filteredIds = new Set(sorted.map((o) => String(o.id)));
+      const authorizedAndFiltered = authorized.filter((o) => filteredIds.has(String(o.id)));
+      await downloadPipelineExcel(authorizedAndFiltered, maps);
+    } catch (error) {
+      setExportError(error.message || "Excel Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const onDragEnd = (res) => {
     if (!res.destination || res.source.droppableId === res.destination.droppableId) return;
@@ -174,15 +168,18 @@ export default function Pipeline() {
           <p className="text-sm text-muted-foreground mt-0.5">{sorted.length} opportunities · {formatTHB(totalValue)}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="rounded-lg" onClick={() => exportCSV(sorted, maps)}>
-            <Download className="w-4 h-4 mr-1.5" /> Export CSV
-          </Button>
+          {canExport && (
+            <Button variant="outline" size="sm" className="rounded-lg" disabled={exporting} onClick={exportExcel}>
+              <Download className="w-4 h-4 mr-1.5" /> {exporting ? "Generating Excel…" : "Export Excel"}
+            </Button>
+          )}
           <Button size="sm" className="rounded-lg" onClick={() => setFormOpen(true)}>
             <Plus className="w-4 h-4 mr-1.5" /> New Pipeline
           </Button>
         </div>
       </div>
 
+      {exportError && <p role="alert" className="text-sm text-red-600 mb-3">{exportError}</p>}
       <div className="rounded-2xl border border-border bg-card shadow-soft p-4 mb-5">
         <FilterBar filters={filters} onFilter={onFilter} />
       </div>

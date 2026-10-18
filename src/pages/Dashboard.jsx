@@ -2,17 +2,13 @@ import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { formatMonth, agingDays, ROLE_LABELS } from "@/lib/pipeline";
+import { formatMonth, ROLE_LABELS } from "@/lib/pipeline";
+import { dashboardCohort, dashboardMetrics, isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
 import KpiCard from "@/components/dashboard/KpiCard";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import MonthPicker from "@/components/MonthPicker";
 import { Button } from "@/components/ui/button";
-import { Trophy, XCircle, AlertCircle, Clock, PlusCircle, CalendarClock, RotateCcw } from "lucide-react";
-
-function monthOf(iso) {
-  if (!iso) return "";
-  return iso.slice(0, 7);
-}
+import { Trophy, XCircle, AlertCircle, Clock, PlusCircle, CalendarClock, RotateCcw, Layers, Users } from "lucide-react";
 
 export default function Dashboard() {
   const { scopedOpportunities, maps, activeStages, config, profile } = useData();
@@ -23,7 +19,7 @@ export default function Dashboard() {
 
   const role = profile?.app_role || "ae";
   const isManagementLike = role === "management" || role === "admin";
-  const threshold = config?.aging_threshold_days || 14;
+  const internalTaskSlaDays = config?.internal_task_sla_days;
 
   // Available regions for quick filter
   const allRegions = useMemo(
@@ -40,30 +36,25 @@ export default function Dashboard() {
 
   // Validate region filter against available regions
   const effectiveRegion = availableRegions.find((r) => r.id === regionFilter) ? regionFilter : "";
-  const regionScoped = effectiveRegion
-    ? scopedOpportunities.filter((o) => o.region_id === effectiveRegion)
-    : scopedOpportunities;
-
-  // KPI data
-  const open = regionScoped.filter((o) => o.status === "open");
-  const created = createdMonth ? open.filter((o) => o.created_month === createdMonth) : open;
-  const expected = closeMonth ? open.filter((o) => o.expected_close_month === closeMonth) : open;
-  const won = closeMonth
-    ? regionScoped.filter((o) => o.status === "won" && monthOf(o.won_at) === closeMonth)
-    : regionScoped.filter((o) => o.status === "won");
-  const lost = closeMonth
-    ? regionScoped.filter((o) => o.status === "lost" && monthOf(o.lost_at) === closeMonth)
-    : regionScoped.filter((o) => o.status === "lost");
-  const supportNeeded = open.filter((o) => o.support_needed);
-  const stuck = open.filter((o) => agingDays(o.stage_entered_at) > threshold);
+  // One cohort for the ENTIRE dashboard. Created Month and Expected Close
+  // combine as an intersection across every KPI/chart/list.
+  const cohort = dashboardCohort(scopedOpportunities, {
+    createdMonth, closeMonth, region: effectiveRegion,
+  });
+  const { created, open, expected, won, lost, supportNeeded, stageOverdue, internalOverdue } =
+    dashboardMetrics(cohort, { stages: maps.stage, internalTaskSlaDays });
 
   const sumVal = (arr) => arr.reduce((a, o) => a + (o.pipeline_value || 0), 0);
   const monthLabel = (m) => (m ? formatMonth(m) : "All Months");
 
   // Navigation helper — preserves region context
   const go = (params) => {
-    const p = { ...params };
-    if (effectiveRegion) p.region = effectiveRegion;
+    const p = {
+      ...(createdMonth && { created_month: createdMonth }),
+      ...(closeMonth && { close_month: closeMonth }),
+      ...(effectiveRegion && { region: effectiveRegion }),
+      ...params,
+    };
     navigate(`/pipeline?${new URLSearchParams(p).toString()}`);
   };
 
@@ -130,7 +121,7 @@ export default function Dashboard() {
   const currentlyWithMe = open.filter((o) => o.current_handler_id === profile?.id);
   const workingWithTeams = open.filter((o) => o.working_with);
   const assignedToMe = open.filter((o) => o.current_handler_id === profile?.id);
-  const attentionOps = [...stuck, ...supportNeeded]
+  const attentionOps = [...stageOverdue, ...internalOverdue, ...supportNeeded]
     .filter((o, i, arr) => arr.findIndex((x) => x.id === o.id) === i)
     .slice(0, 10);
 
@@ -170,59 +161,76 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+      {/* KPIs — all eight use the same created/close/region cohort. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <KpiCard
-          label="Created"
+          label="Created Pipelines"
           count={created.length}
           value={formatTHB(sumVal(created))}
-          context={`Created in ${monthLabel(createdMonth)}`}
+          context={`Created · ${monthLabel(createdMonth)} · all statuses`}
           icon={PlusCircle}
-          onClick={() => go({ status: "open", ...(createdMonth && { created_month: createdMonth }) })}
+          onClick={() => go({ status: "all" })}
+        />
+        <KpiCard
+          label="Open Pipelines"
+          count={open.length}
+          value={formatTHB(sumVal(open))}
+          context="Currently open · selected cohort"
+          icon={Layers}
+          onClick={() => go({ status: "open" })}
         />
         <KpiCard
           label="Expected to Close"
           count={expected.length}
           value={formatTHB(sumVal(expected))}
-          context={`Expected in ${monthLabel(closeMonth)}`}
+          context={`Open with expected close · ${monthLabel(closeMonth)}`}
           icon={CalendarClock}
-          onClick={() => go({ status: "open", ...(closeMonth && { close_month: closeMonth }) })}
+          onClick={() => go({ status: "open" })}
         />
         <KpiCard
           label="Won"
           count={won.length}
           value={formatTHB(sumVal(won))}
-          context={`Won in ${monthLabel(closeMonth)}`}
+          context="Won · selected cohort"
           icon={Trophy}
           accent="text-emerald-600"
-          onClick={() => go({ status: "won", ...(closeMonth && { won_month: closeMonth }) })}
+          onClick={() => go({ status: "won" })}
         />
         <KpiCard
           label="Lost"
           count={lost.length}
           value={formatTHB(sumVal(lost))}
-          context={`Lost in ${monthLabel(closeMonth)}`}
+          context="Lost · selected cohort"
           icon={XCircle}
           accent="text-rose-600"
-          onClick={() => go({ status: "lost", ...(closeMonth && { lost_month: closeMonth }) })}
+          onClick={() => go({ status: "lost" })}
         />
         <KpiCard
           label="Support Needed"
           count={supportNeeded.length}
           value={formatTHB(sumVal(supportNeeded))}
-          context="Open pipeline needing support"
+          context="Open · selected cohort"
           icon={AlertCircle}
           accent="text-amber-600"
           onClick={() => go({ status: "open", support: "1" })}
         />
         <KpiCard
-          label="Stuck Pipeline"
-          count={stuck.length}
-          value={formatTHB(sumVal(stuck))}
-          context={`> ${threshold} days in current stage`}
+          label="Stage SLA Overdue"
+          count={stageOverdue.length}
+          value={formatTHB(sumVal(stageOverdue))}
+          context="Over configured Stage SLA"
           icon={Clock}
           accent="text-amber-600"
           onClick={() => go({ status: "open", stuck: "1", sort: "stage_aging_desc" })}
+        />
+        <KpiCard
+          label="Internal SLA Overdue"
+          count={internalOverdue.length}
+          value={formatTHB(sumVal(internalOverdue))}
+          context="Working With handoff exceeds SLA"
+          icon={Users}
+          accent="text-amber-600"
+          onClick={() => go({ status: "open", internal_overdue: "1" })}
         />
       </div>
 
@@ -289,7 +297,7 @@ export default function Dashboard() {
           <Panel title="Lost Reasons" empty={!lostByReason.length}>
             <BreakdownList
               rows={lostByReason.map((r) => ({ id: r.reason.id, name: r.reason.name, count: r.count, value: r.value }))}
-              onClick={(id) => go({ status: "lost", ...(closeMonth && { lost_month: closeMonth }), lost_reason: id })}
+              onClick={(id) => go({ status: "lost", lost_reason: id })}
             />
           </Panel>
         )}
@@ -328,7 +336,7 @@ export default function Dashboard() {
         {/* Attention Needed — management */}
         {isManagementLike && (
           <Panel title="Attention Needed" empty={!attentionOps.length}>
-            <OpportunityMiniList ops={attentionOps} maps={maps} navigate={navigate} showReason />
+            <OpportunityMiniList ops={attentionOps} maps={maps} navigate={navigate} showReason internalTaskSlaDays={internalTaskSlaDays} />
           </Panel>
         )}
       </div>
@@ -367,7 +375,7 @@ function BreakdownList({ rows, onClick }) {
   );
 }
 
-function OpportunityMiniList({ ops, maps, navigate, showReason }) {
+function OpportunityMiniList({ ops, maps, navigate, showReason, internalTaskSlaDays }) {
   return (
     <div className="space-y-1.5 max-h-64 overflow-y-auto">
       {ops.slice(0, 10).map((o) => (
@@ -382,7 +390,8 @@ function OpportunityMiniList({ ops, maps, navigate, showReason }) {
             <div className="text-[11px] text-muted-foreground truncate">
               {maps.stage[o.stage_id]?.name} · {maps.member[o.owner_id]?.name}
               {showReason && o.support_needed && " · Support"}
-              {showReason && agingDays(o.stage_entered_at) > 14 && " · Stuck"}
+              {showReason && isStageSlaOverdue(o, maps.stage) && " · Stage SLA"}
+              {showReason && isInternalSlaOverdue(o, internalTaskSlaDays) && " · Internal SLA"}
             </div>
           </div>
           <span className="text-muted-foreground tabular-nums ml-2 shrink-0">{formatTHB(o.pipeline_value)}</span>
