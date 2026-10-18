@@ -439,7 +439,7 @@ export function DataProvider({ children }) {
         remark: reason.trim(),
       });
     },
-    [opportunities, updateWithHistory]
+    [opportunities, updateWithHistory, profile?.app_role]
   );
 
   const historyFor = useCallback((opId) => history.filter((h) => h.opportunity_id === opId), [history]);
