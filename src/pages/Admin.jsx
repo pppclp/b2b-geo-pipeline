@@ -324,7 +324,7 @@ function SnapshotManager() {
   const [msg, setMsg] = useState(null);
   const snapshots = (master?.MonthlySnapshot || []).slice();
   const byMonth = {};
-  snapshots.forEach((s) => { (byMonth[s.snapshot_month] = byMonth[s.snapshot_month] || []).push(s); });
+  snapshots.forEach((s) => { (byMonth[s.snapshot_period] = byMonth[s.snapshot_period] || []).push(s); });
   const months = Object.keys(byMonth).sort().reverse();
 
   const capture = async () => {
