@@ -233,7 +233,7 @@ function debugB2bSheetBindings() {
   var props = PropertiesService.getScriptProperties();
   var results = defs.map(function (item) {
     var file = item[0], expectedTitle = item[1];
-    var propKey = "GEO_SHEET_ID_" + file.replace(/\\.xlsx$/, "");
+    var propKey = "GEO_SHEET_ID_" + file.replace(/\.xlsx$/, "");
     var runtimeId = props.getProperty(propKey);
     var sheetId = sheetIdFor_(file);
     if (!sheetId) return { file: file, ok: false, problem: "Missing Spreadsheet ID" };
