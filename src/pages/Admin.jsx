@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import MonthPicker from "@/components/MonthPicker";
-import { Pencil, Trash2, Plus, Check, X, Download, Camera } from "lucide-react";
+import { Trash2, Plus, Check, X, Download, Camera } from "lucide-react";
 import SheetEditor from "@/components/SheetEditor";
 import { db } from "@/api/client";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
