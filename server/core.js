@@ -677,7 +677,10 @@ export function createCore({ contract, store, now, uuid }) {
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("DELETED", b, id, row, null, actor);
       return { ok: true };
     },
-    removeMany() {
+    removeMany(uiEntity) {
+      if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
+        throw new HttpError(403, "System-controlled entity");
+      }
       // No UI needs bulk deletes. Never allow bypassing foreign-key checks,
       // Admin_Audit or app-owned data ownership rules via an empty filter.
       throw new HttpError(405, "Bulk deletion is disabled. Delete individual records with audit checks.");
