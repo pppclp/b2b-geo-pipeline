@@ -1,3 +1,5 @@
+import { bangkokMonth } from "../../server/opportunityPolicy.js";
+
 // Formatting and calculation helpers for B2B GEO Pipeline
 
 export const SUPPORT_TYPES = [
@@ -45,10 +47,18 @@ export function formatMonth(ym) {
   return `${MONTH_NAMES[m - 1]} ${y}`;
 }
 
+// Date-only / YYYY-MM business fields already use local calendar dates.
+// Instant timestamps (Z or explicit offsets) must use Asia/Bangkok (+07:00).
+export function monthOf(value) {
+  if (value == null || value === "") return "";
+  const raw = value instanceof Date ? value.toISOString() : String(value);
+  if (/^\\d{4}-(0[1-9]|1[0-2])(?:-\\d{2})?$/.test(raw)) return raw.slice(0, 7);
+  if (!/(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(raw)) return "";
+  try { return bangkokMonth(raw); } catch { return ""; }
+}
+
 export function currentMonthKey(date = new Date()) {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+  return monthOf(date);
 }
 
 export function monthKeyFromDate(date = new Date()) {
