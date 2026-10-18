@@ -1,0 +1,24 @@
+name: Pipeline Filter Pre-PR Validation
+on:
+  push:
+    branches: [feat/pipeline-role-aware-filters]
+permissions:
+  contents: read
+jobs:
+  verify-all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Backend and filter tests
+        run: node --test tests/*.test.mjs
+      - name: Lint
+        run: npm run lint
+      - name: Frontend build
+        run: npm run build
+      - name: Apps Script build
+        run: npm run gas:build
