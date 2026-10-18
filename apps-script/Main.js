@@ -249,6 +249,7 @@ function SheetStore_() {
   this.loaded = {}; // key -> rows as read, to write only what changed
   this.dirty = {};
   this.pendingAppends = [];
+  this.pendingCells = [];
 }
 
 SheetStore_.prototype.book_ = function (file) {
@@ -317,8 +318,8 @@ SheetStore_.prototype.appendNow_ = function (file, sheet, records) {
 
 // Single cell write for formula-layout sheets (Month-End Summary).
 SheetStore_.prototype.setCell = function (file, sheet, a1, value) {
-  var ws = this.book_(file).getSheetByName(sheet);
-  if (ws) ws.getRange(a1).setValue(value);
+  // Derived summary cells must not change before canonical DB commits.
+  this.pendingCells.push({ file: file, sheet: sheet, a1: a1, value: value });
 };
 
 SheetStore_.prototype.touch = function (file, sheet) {
@@ -373,7 +374,13 @@ function restoreGeoSheet_(book, sheet) {
 function recoverGeoDb_(book) {
   var props = PropertiesService.getScriptProperties();
   var raw = props.getProperty(GEO_DB_TXN_PROPERTY_);
-  if (!raw) return;
+  if (!raw) {
+    // Interrupted backup preparation cannot have changed live records yet.
+    book.getSheets().forEach(function (ws) {
+      if (ws.getName().indexOf(GEO_DB_BACKUP_PREFIX_) === 0) book.deleteSheet(ws);
+    });
+    return;
+  }
   var marker = JSON.parse(raw);
   if (marker.spreadsheetId !== book.getId()) {
     throw new Error("Pending transaction references a different Pipeline DB; manual review required");
@@ -434,7 +441,15 @@ SheetStore_.prototype.flush = function () {
     var sheets = critical.map(function (d) { return d.sheet; });
     var props = PropertiesService.getScriptProperties();
     geoBackups_(book, sheets);
-    props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({ spreadsheetId: book.getId(), sheets: sheets, status: "prepared" }));
+    try {
+      props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({ spreadsheetId: book.getId(), sheets: sheets, status: "prepared" }));
+    } catch (markerError) {
+      sheets.forEach(function (sheet) {
+        var orphan = book.getSheetByName(GEO_DB_BACKUP_PREFIX_ + sheet);
+        if (orphan) book.deleteSheet(orphan);
+      });
+      throw markerError;
+    }
     try {
       critical.forEach(function (d) { self.writeDirty_(d); });
       SpreadsheetApp.flush();
@@ -453,9 +468,16 @@ SheetStore_.prototype.flush = function () {
   this.pendingAppends.forEach(function (a) {
     try { self.appendNow_(a.file, a.sheet, a.rows); } catch (error) { console.warn("Audit export append failed: " + error.message); }
   });
+  this.pendingCells.forEach(function (a) {
+    try {
+      var sheet = self.book_(a.file).getSheetByName(a.sheet);
+      if (sheet) sheet.getRange(a.a1).setValue(a.value);
+    } catch (error) { console.warn("Derived summary cell failed: " + error.message); }
+  });
   this.dirty = {};
   this.pendingAppends = [];
-  SpreadsheetApp.flush();
+  this.pendingCells = [];
+  try { SpreadsheetApp.flush(); } catch (error) { console.warn("Derived export flush failed: " + error.message); }
 };
 
 function cell_(v) {
