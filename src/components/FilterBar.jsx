@@ -1,112 +1,189 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useData } from "@/lib/dataContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import MonthPicker from "@/components/MonthPicker";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
+import {
+  FILTER_LABELS, isFilterActive, optionsFromVisiblePipelines, visibleFilterFields,
+} from "@/lib/roleFilterModel";
 
-// filters: object of key->value. onFilter(key, value)
-export default function FilterBar({ filters, onFilter, showCreatedMonth = true }) {
-  const { master, profile, scopedOpportunities } = useData();
+const STATUS_OPTIONS = [
+  { value: "open", label: "Open" }, { value: "won", label: "Won" },
+  { value: "lost", label: "Lost" }, { value: "archived", label: "Archived" },
+  { value: "all", label: "All statuses" },
+];
+const SUPPORT_OPTIONS = [
+  { value: "1", label: "Needed" }, { value: "0", label: "Not needed" },
+];
+const YES_OPTIONS = [{ value: "1", label: "Yes" }];
+const REVIEW_OPTIONS = [{ value: "1", label: "Pending review" }];
+const CCP_LABELS = {
+  not_in_base: "Not in Base (New Customer)",
+  enterprise_base: "Enterprise Existing Base",
+  pending: "Pending Review",
+};
+const OWNERSHIP_OPTIONS = [
+  { value: "all", label: "All assigned" },
+  { value: "mine", label: "My Pipelines" },
+  { value: "sent", label: "Handed off" },
+  { value: "received", label: "Assigned to me" },
+];
 
-  const regionOptions = useMemo(
-    () => (master?.Region || []).filter((r) => r.active).sort((a, b) => a.order - b.order),
-    [master]
-  );
-  const memberOptions = useMemo(() => (master?.TeamMember || []).filter((m) => m.active), [master]);
-  const categoryOptions = useMemo(() => (master?.ProductCategory || []).filter((c) => c.active), [master]);
-  const stageOptions = useMemo(() => (master?.Stage || []).filter((s) => s.active).sort((a, b) => a.order - b.order), [master]);
-  const scenarioOptions = useMemo(() => (master?.Scenario || []).filter((s) => s.active), [master]);
-  const workingWithOptions = useMemo(() => (master?.WorkingWithOption || []).filter((w) => w.active), [master]);
-
-  const closeMonths = useMemo(() => {
-    const set = new Set();
-    scopedOpportunities.forEach((o) => o.expected_close_month && set.add(o.expected_close_month));
-    return [...set].sort();
-  }, [scopedOpportunities]);
-
-  const hasFilters = Object.values(filters).some((v) => v !== "" && v != null);
-
-  const SelectWrap = ({ label, value, onChange, children, options, placeholder }) => (
-    <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
-      <Select value={value || ""} onValueChange={onChange}>
-        <SelectTrigger className="w-full min-w-[140px] h-9"><SelectValue placeholder={placeholder || "All"} /></SelectTrigger>
+// Must be outside FilterBar. A component defined inside its parent render
+// remounts each time a filter changes and interrupts Radix dropdowns.
+function FilterDropdown({ label, value, options, onChange }) {
+  const available = options || [];
+  const activeValue = value || "all";
+  const hasValue = activeValue !== "all";
+  const stale = hasValue && !available.some((item) => item.value === activeValue);
+  return (
+    <label className="flex flex-col gap-1 min-w-0">
+      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      <Select value={activeValue} onValueChange={(next) => onChange(next === "all" ? "" : next)}>
+        <SelectTrigger aria-label={label} className="h-9 w-full rounded-lg bg-background">
+          <SelectValue placeholder="All" />
+        </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All</SelectItem>
-          {options}
+          {available.map((item) => (
+            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+          ))}
+          {stale && <SelectItem value={activeValue}>{activeValue} (not in current data)</SelectItem>}
         </SelectContent>
       </Select>
-    </div>
+      {!available.length && label !== "Status" && (
+        <span className="text-[10px] text-muted-foreground">No matching options yet</span>
+      )}
+    </label>
   );
+}
+
+function SmallToggle({ active, children, onClick }) {
+  return (
+    <button type="button" aria-pressed={active} onClick={onClick}
+      className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${active
+        ? "border-primary/40 bg-primary/10 text-foreground"
+        : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-secondary/70"}`}>
+      {children}
+    </button>
+  );
+}
+
+export default function FilterBar({ filters, onFilter, showCreatedMonth = true }) {
+  const { profile, scopedOpportunities, maps } = useData();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const role = profile?.app_role || "ae";
+  const layout = visibleFilterFields(role, profile?.region_ids || []);
+  const selectKeys = useMemo(
+    () => [...new Set([...layout.primary, ...layout.more])],
+    // primitive role and region changes reconfigure layout without touching data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role, (profile?.region_ids || []).join(",")]
+  );
+  const selections = useMemo(() => Object.fromEntries(selectKeys.map((key) => [
+    key, optionsFromVisiblePipelines(key, scopedOpportunities, maps),
+  ])), [selectKeys, scopedOpportunities, maps]);
+
+  const visibleMore = layout.more.filter((key) => showCreatedMonth || key !== "created_month");
+  const activeMore = visibleMore.filter((key) => isFilterActive(key, filters[key])).length;
+  const hasFilters = Object.entries(filters).some(([key, value]) =>
+    key !== "view" && isFilterActive(key, value)
+  );
+  const renderField = (key) => {
+    if (key === "close_month" || key === "created_month") return (
+      <label key={key} className="flex min-w-0 flex-col gap-1">
+        <span className="text-[11px] font-medium text-muted-foreground">{FILTER_LABELS[key]}</span>
+        <MonthPicker value={filters[key] || ""} onChange={(next) => onFilter(key, next)}
+          placeholder="All months" allowAll className="w-full" />
+      </label>
+    );
+    const options = key === "status" ? STATUS_OPTIONS
+      : key === "support" ? SUPPORT_OPTIONS
+      : key === "needs_review" ? REVIEW_OPTIONS
+      : ["stuck", "internal_overdue"].includes(key) ? YES_OPTIONS
+      : (selections[key] || []).map((option) => key === "ccp_check_result"
+        ? { ...option, label: CCP_LABELS[option.value] || option.label } : option);
+    return <FilterDropdown key={key} label={FILTER_LABELS[key]} value={filters[key]}
+      options={options} onChange={(value) => onFilter(key, value)} />;
+  };
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      {showCreatedMonth && (
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Created Month</span>
-          <MonthPicker value={filters.created_month || ""} onChange={(v) => onFilter("created_month", v)} placeholder="All Months" allowAll className="w-[140px]" />
-        </div>
-      )}
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close</span>
-        <MonthPicker value={filters.close_month || ""} onChange={(v) => onFilter("close_month", v)} placeholder="All Months" allowAll className="w-[140px]" />
+    <div className="space-y-3">
+      {/* All roles: search + the three essential Pipeline filters. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_repeat(3,minmax(145px,1fr))] items-end">
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-[11px] font-medium text-muted-foreground">Search Pipeline</span>
+          <span className="relative">
+            <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input aria-label="Search customer, Business ID or contact" type="search"
+              placeholder="Customer / Business ID / Contact" className="h-9 pl-9"
+              value={filters.search || ""} onChange={(e) => onFilter("search", e.target.value)} />
+          </span>
+        </label>
+        {["status", "close_month", "stage"].map(renderField)}
       </div>
 
-      <SelectWrap label="Region" value={filters.region} onChange={(v) => onFilter("region", v === "all" ? "" : v)}>
-        {regionOptions.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-      </SelectWrap>
+      {/* Only the fields this role can use; all of them stay visible even with one option. */}
+      {layout.primary.length > 3 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+          {layout.primary.filter((key) => !["status", "close_month", "stage"].includes(key)).map(renderField)}
+        </div>
+      )}
 
-      <SelectWrap label="Owner (AE)" value={filters.owner} onChange={(v) => onFilter("owner", v === "all" ? "" : v)}>
-        {memberOptions.filter((m) => m.app_role === "ae").map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-      </SelectWrap>
+      {role === "ae" && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="My Pipeline view">
+          <span className="text-[11px] text-muted-foreground mr-1">Show</span>
+          {OWNERSHIP_OPTIONS.map(({ value, label }) => (
+            <SmallToggle key={value} active={(filters.ownership_view || "all") === value}
+              onClick={() => onFilter("ownership_view", value === "all" ? "" : value)}>
+              {label}
+            </SmallToggle>
+          ))}
+        </div>
+      )}
 
-      <SelectWrap label="Handler" value={filters.handler} onChange={(v) => onFilter("handler", v === "all" ? "" : v)}>
-        {memberOptions.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-      </SelectWrap>
+      {(role === "ae" || role === "sm") && (
+        <div className="flex flex-wrap gap-2 items-center">
+          {role === "sm" && <SmallToggle active={filters.with_me === "1"}
+            onClick={() => onFilter("with_me", filters.with_me === "1" ? "" : "1")}>
+            Currently with me
+          </SmallToggle>}
+          <SmallToggle active={filters.support === "1"}
+            onClick={() => onFilter("support", filters.support === "1" ? "" : "1")}>
+            Support needed
+          </SmallToggle>
+          <SmallToggle active={filters.stuck === "1"}
+            onClick={() => onFilter("stuck", filters.stuck === "1" ? "" : "1")}>
+            Stage SLA overdue
+          </SmallToggle>
+        </div>
+      )}
 
-      <SelectWrap label="Stage" value={filters.stage} onChange={(v) => onFilter("stage", v === "all" ? "" : v)}>
-        {stageOptions.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-      </SelectWrap>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+        {visibleMore.length > 0 && (
+          <Button type="button" variant="outline" size="sm" className="rounded-lg"
+            aria-expanded={moreOpen} aria-controls="more-pipeline-filters"
+            onClick={() => setMoreOpen((current) => !current)}>
+            <SlidersHorizontal className="h-4 w-4 mr-1.5" />
+            More filters{activeMore ? ` (${activeMore})` : ""}
+          </Button>
+        )}
+        {hasFilters && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => onFilter("clear", "")}>
+            <X className="h-4 w-4 mr-1" /> Clear filters
+          </Button>
+        )}
+        <span className="text-[11px] text-muted-foreground ml-auto">
+          Filters only narrow Pipelines you have access to
+        </span>
+      </div>
 
-      <SelectWrap label="Status" value={filters.status} onChange={(v) => onFilter("status", v === "all" ? "" : v)}>
-        <SelectItem value="open">Open</SelectItem>
-        <SelectItem value="won">Won</SelectItem>
-        <SelectItem value="lost">Lost</SelectItem>
-        <SelectItem value="archived">Archived</SelectItem>
-      </SelectWrap>
-
-      <SelectWrap label="Category" value={filters.product_category} onChange={(v) => onFilter("product_category", v === "all" ? "" : v)}>
-        {categoryOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="Sales Channel" value={filters.sales_channel} onChange={(v) => onFilter("sales_channel", v === "all" ? "" : v)}>
-        {["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="CCP+ Check" value={filters.ccp_check_result} onChange={(v) => onFilter("ccp_check_result", v === "all" ? "" : v)}>
-        <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
-        <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
-        <SelectItem value="pending">Pending Review</SelectItem>
-      </SelectWrap>
-
-      <SelectWrap label="Scenario" value={filters.scenario} onChange={(v) => onFilter("scenario", v === "all" ? "" : v)}>
-        {scenarioOptions.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="Working With" value={filters.working_with} onChange={(v) => onFilter("working_with", v === "all" ? "" : v)}>
-        {workingWithOptions.map((w) => <SelectItem key={w.id} value={w.name}>{w.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="Support" value={filters.support} onChange={(v) => onFilter("support", v === "all" ? "" : v)}>
-        <SelectItem value="1">Needed</SelectItem>
-        <SelectItem value="0">Not needed</SelectItem>
-      </SelectWrap>
-
-      {hasFilters && (
-        <Button variant="ghost" size="sm" className="mb-0.5" onClick={() => onFilter("clear", "")}>
-          <X className="w-4 h-4 mr-1" /> Clear
-        </Button>
+      {(moreOpen || activeMore > 0) && visibleMore.length > 0 && (
+        <div id="more-pipeline-filters" className="grid grid-cols-1 gap-3 rounded-xl bg-secondary/25 border border-border/60 p-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+          {visibleMore.map(renderField)}
+        </div>
       )}
     </div>
   );
