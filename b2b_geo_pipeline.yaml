@@ -557,11 +557,16 @@ source_03_pipeline_config:
         used_to_calculate:
           formula: "weighted_pipeline_value = pipeline_value * weight_pct / 100"
 
+      sla_days:
+        target: "stages.sla_days"
+        description: "Optional per-Stage SLA in calendar days; blank disables overdue flag for that Stage."
+
       active:
         target: "stages.active"
 
     business_rules:
       - "Stage name is configurable."
+      - "Stage SLA is Admin configured; do not use a global aging threshold for Stage overdue."
       - "Stage weight is Admin controlled."
       - "AE / SM must not enter Probability manually."
       - "Historical Stage must not be hard deleted."
