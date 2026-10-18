@@ -114,6 +114,9 @@ export const db = {
     me: () => request("GET", "/session/me"),
   },
   access: () => request("GET", "/access"),
+  exports: {
+    pipelines: () => request("GET", "/exports/pipelines"),
+  },
   snapshots: {
     capture: (snapshot_period) => request("POST", "/snapshots/capture", { body: { snapshot_period } }),
   },
