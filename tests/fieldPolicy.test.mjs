@@ -193,6 +193,8 @@ test("A2: archiving stores server time, never a spoofed client archived_at", () 
   const stamp="2026-10-18T10:00:00.000Z";
   const x=fixture(stamp);
   assert.equal(OPPORTUNITY_COLUMNS.has("archived_at"),true);
+  // A new DB must declare this server field in its canonical YAML contract.
+  assert.ok(contract.columns.opportunities.includes("archived_at"));
   x.call("AE1","PUT","entities/Opportunity/OPP-1",{archived_at:"2099-01-01",remark:"Before archive"});
   assert.equal(x.row().archived_at,undefined);
   x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"archived",archived_at:"2099-01-01"});
