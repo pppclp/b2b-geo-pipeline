@@ -26,12 +26,12 @@ export const ROLE_FILTERS = Object.freeze({
 });
 
 export const FILTER_LABELS = Object.freeze({
-  status: "Status", close_month: "Expected Close", created_month: "Created Month",
-  stage: "Stage", owner: "Owner (AE)", handler: "Handler", region: "Region",
-  product_category: "Category", sales_channel: "Sales Channel",
-  working_with: "Working With", scenario: "Scenario", ccp_check_result: "CCP+ Check",
-  support: "Support", stuck: "Stage SLA Overdue", internal_overdue: "Internal SLA Overdue",
-  needs_review: "Pending SM Review",
+  status: "Status", close_month: "เดือนปิดคาดการณ์", created_month: "เดือนที่สร้าง",
+  stage: "Stage", owner: "AE เจ้าของ Pipeline", handler: "ผู้รับผิดชอบปัจจุบัน", region: "Region",
+  product_category: "Product Category", sales_channel: "ช่องทางขาย",
+  working_with: "ทำงานร่วมกับ", scenario: "Scenario", ccp_check_result: "CCP+ Check",
+  support: "ต้องการ Support", stuck: "เกิน Stage SLA", internal_overdue: "เกิน Internal SLA",
+  needs_review: "รอ SM Review",
 });
 
 const optionFields = Object.freeze({
