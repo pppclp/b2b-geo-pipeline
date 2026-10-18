@@ -2442,9 +2442,9 @@ access_control:
             update: ["Admin"]
             delete: ["Admin"]
 
-    # Application database for live data (not a source file).
-    # Runtime workbook must contain exactly: Pipelines, Pipeline_Events, Snapshots.
-    # Locally: data/B2B_GEO_Pipeline_DB.xlsx. Later: a Google Sheet.
+    # Canonical application database; no mirrored runtime Export Template files.
+    # Exactly four runtime tabs: Pipelines, Pipeline_Events, Snapshots, Admin_Audit.
+    # Locally: data/B2B_GEO_Pipeline_DB.xlsx; UAT: the existing Google Sheet.
     "B2B_GEO_Pipeline_DB.xlsx":
       sheets:
         Pipelines:
@@ -2482,54 +2482,27 @@ access_control:
             update: []
             delete: []
             export: ["SM", "Management", "Admin"]
+        Admin_Audit:
+          entity: "admin_audit"
+          primary_key: "audit_id"
+          append_only: true
+          permissions:
+            read: ["Admin"]
+            # Written internally by the backend on Master create/update/delete.
+            create: []
+            update: []
+            delete: []
+            export: ["Admin"]
 
     "B2B_GEO_Pipeline_Import.xlsx":
       upload_only: true
       permissions:
         import: ["SM", "Admin"]
 
-    # Output files: written by the backend after each action, never read back
-    # as data. Sheets not listed under `output` (README, Data_Dictionary,
-    # Event_Type_Reference …) are never touched.
-    #   mode replace — sheet rewritten from the Application Database
-    #   mode append  — one row added per event (audit trail)
-    #   mode cells   — only fixed cells are set (formula layout)
-
-    "B2B_GEO_Current_Pipeline_Export_Template.xlsx":
-      output_only: true
-      permissions:
-        export: ["SM", "Management", "Admin"]
-      output:
-        Current_Pipeline_Export:
-          mode: "replace"
-          when: "Any Opportunity create / update / delete"
-
-    "B2B_GEO_Change_Log_Export_Template.xlsx":
-      output_only: true
-      permissions:
-        export: ["SM", "Management", "Admin"]
-      output:
-        Change_Log_Export:
-          mode: "append"
-          when: "Every Opportunity event (by AE / SM / Admin) and every master-data change (MASTER_CREATED / MASTER_UPDATED / MASTER_DELETED)"
-
-    "B2B_GEO_Month_End_Export_Template.xlsx":
-      output_only: true
-      permissions:
-        export: ["SM", "Management", "Admin"]
-      output:
-        Open_Pipeline_Snapshot:
-          mode: "replace"
-          when: "Admin captures a month-end snapshot (latest captured month)"
-        Closed_Won:
-          mode: "replace"
-          when: "Admin captures a month-end snapshot — Won in that month"
-        Closed_Lost:
-          mode: "replace"
-          when: "Admin captures a month-end snapshot — Lost in that month"
-        Summary:
-          mode: "cells"
-          cells: ["B3 = Reporting Month", "B5 = Generated At"]
+    # Legacy standalone Current/Change_Log/Month_End Export spreadsheets
+    # are intentionally NOT runtime dependencies. Data exports must be built
+    # on demand from Pipelines, Pipeline_Events, Snapshots and Admin_Audit.
+    # Keep historical templates archived until the migration is verified.
 
 # ============================================================
 # END OF ACCESS CONTROL
