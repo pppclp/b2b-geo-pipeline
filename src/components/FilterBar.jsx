@@ -7,7 +7,7 @@ import { X } from "lucide-react";
 
 // Stable component identity: declaring SelectWrap inside FilterBar caused
 // the dropdown to remount on every filter state change.
-function SelectWrap = ({ label, value, onChange, children, options, placeholder }) => (
+const SelectWrap = ({ label, value, onChange, children, placeholder }) => (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
       <Select value={value || "all"} onValueChange={onChange}>
