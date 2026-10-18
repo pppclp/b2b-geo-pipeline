@@ -174,8 +174,8 @@ export function DataProvider({ children }) {
       if (!profile) return false;
       if (profile.app_role === "admin") return true;
       if (profile.app_role === "management") {
-        if (!profile.region_ids?.length) return true;
-        return profile.region_ids.includes(op.region_id);
+        // Fail closed when User_Region assignments have not loaded or are empty.
+        return (profile.region_ids || []).includes(op.region_id);
       }
       if (profile.app_role === "sm") {
         return (profile.region_ids || []).includes(op.region_id);
@@ -424,17 +424,22 @@ export function DataProvider({ children }) {
   );
 
   const reopen = useCallback(
-    async (id) => {
+    async (id, reason) => {
       const op = opportunities.find((o) => o.id === id);
-      if (!op) return;
-      await updateWithHistory(id, { status: "open" }, {
+      if (!op || op.status === "open") return;
+      if (!["sm", "management", "admin"].includes(profile?.app_role)) {
+        throw new Error("Only SM, Management or Admin can Reopen a Pipeline");
+      }
+      if (!String(reason || "").trim()) throw new Error("Reopen reason is required");
+      await updateWithHistory(id, { status: "open", audit_remark: reason.trim() }, {
         event_type: "status_change",
         field: "status",
         previous_value: op.status,
         new_value: "open",
+        remark: reason.trim(),
       });
     },
-    [opportunities, updateWithHistory]
+    [opportunities, updateWithHistory, profile?.app_role]
   );
 
   const historyFor = useCallback((opId) => history.filter((h) => h.opportunity_id === opId), [history]);

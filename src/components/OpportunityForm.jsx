@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useData } from "@/lib/dataContext";
-import { CUSTOMER_TYPES } from "@/lib/pipeline";
+import { CUSTOMER_TYPES, formatMonth } from "@/lib/pipeline";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 
@@ -48,6 +48,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const canReview = ["sm", "management", "admin"].includes(profile?.app_role);
+  const closedAe = !!opportunity && opportunity.status !== "open" && profile?.app_role === "ae";
 
   useEffect(() => {
     if (opportunity) {
@@ -303,7 +304,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
           <div>
             <Label>Expected Close Month *</Label>
-            <MonthPicker value={form.expected_close_month} onChange={(v) => set("expected_close_month", v)} />
+            {closedAe ? <Input readOnly aria-label="Expected Close Month locked for closed Pipeline" value={formatMonth(form.expected_close_month)} className="bg-muted/40" /> : <MonthPicker value={form.expected_close_month} onChange={(v) => set("expected_close_month", v)} />}
           </div>
 
           <div>
@@ -339,19 +340,19 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
           <div>
             <Label>Number of Subs *</Label>
-            <Input type="number" min="1" step="1" value={form.quantity ?? ""} onChange={(e) => set("quantity", e.target.value)} />
+            <Input type="number" min="1" step="1" disabled={closedAe} value={form.quantity ?? ""} onChange={(e) => set("quantity", e.target.value)} />
           </div>
           <div>
             <Label>Price per Sub (THB/Month) *</Label>
-            <Input type="number" min="0" step="0.01" value={form.price_per_sub ?? ""} onChange={(e) => set("price_per_sub", e.target.value)} />
+            <Input type="number" min="0" step="0.01" disabled={closedAe} value={form.price_per_sub ?? ""} onChange={(e) => set("price_per_sub", e.target.value)} />
           </div>
           <div>
             <Label>OC (THB)</Label>
-            <Input type="number" min="0" step="0.01" value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
+            <Input type="number" min="0" step="0.01" disabled={closedAe} value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
           </div>
           <div>
             <Label>Contract Period (months)</Label>
-            <Input type="number" value={form.contract_period ?? ""} onChange={(e) => set("contract_period", e.target.value)} />
+            <Input type="number" disabled={closedAe} value={form.contract_period ?? ""} onChange={(e) => set("contract_period", e.target.value)} />
           </div>
 
           <div>

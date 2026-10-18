@@ -29,6 +29,8 @@ function makeBackend() {
     "Users.xlsx|User_Region":{headers:["user_region_id","user_id","region_id"],rows:[
       {user_region_id:"UR1",user_id:"AE1",region_id:"R1",active:"Yes"},
       {user_region_id:"UR2",user_id:"AE2",region_id:"R2",active:"Yes"},
+      {user_region_id:"UR3",user_id:"M1",region_id:"R1",active:"Yes"},
+      {user_region_id:"UR4",user_id:"M1",region_id:"R2",active:"Yes"},
     ]},
     "Config.xlsx|Stages":{headers:["stage_id","stage_name"],rows:[{stage_id:"S1",stage_name:"Qualify",sort_order:1}]},
     "Config.xlsx|Aging_Settings":{headers:["setting_id","threshold_days"],rows:[{setting_id:"A1",threshold_days:14,active:"Yes"}]},
