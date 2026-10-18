@@ -11,6 +11,7 @@ import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES, formatMonth } from "@/lib/pipeline";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
+import { fieldChoices } from "@/lib/configChoices";
 
 const empty = {
   customer_name: "",
@@ -98,11 +99,26 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     [master]
   );
   const workingWithOptions = useMemo(
-    () => (master?.WorkingWithOption || []).filter((w) => w.active).map((w) => ({ value: w.name, label: w.name })),
+    () => (master?.WorkingWithOption || []).filter((w) => w.active)
+      .map((w) => ({ value: w.id, label: w.name })),
     [master]
   );
   const supportTypeOptions = useMemo(
-    () => (master?.SupportType || []).filter((s) => s.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((s) => ({ value: s.name, label: s.name })),
+    () => (master?.SupportType || []).filter((s) => s.active)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((s) => ({ value: s.id, label: s.name })),
+    [master]
+  );
+  const channelOptions = useMemo(
+    () => fieldChoices(master, "sales_channel", ["AE B2B GEO", "AE Self", "B2B Premium Partner"]),
+    [master]
+  );
+  const ccpOptions = useMemo(
+    () => fieldChoices(master, "ccp_check_result", [
+      {value:"not_in_base",label:"Not in Base (New Customer)"},
+      {value:"enterprise_base",label:"Enterprise Existing Base"},
+      {value:"pending",label:"Pending Review"},
+    ]),
     [master]
   );
 
@@ -227,7 +243,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Label>Sales Channel *</Label>
             <Select value={form.sales_channel || ""} onValueChange={(v) => set("sales_channel", v)}>
               <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
-              <SelectContent>{["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+              <SelectContent>{channelOptions.map((item) =>
+                <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {form.sales_channel === "B2B Premium Partner" && (
@@ -328,13 +345,12 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
               <Select value={form.ccp_check_result || ""} onValueChange={(v) => set("ccp_check_result", v)}>
                 <SelectTrigger><SelectValue placeholder="Pending SM Review" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
-                  <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
-                  <SelectItem value="pending">Pending Review</SelectItem>
+                  {ccpOptions.map((item) =>
+                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             ) : (
-              <Input readOnly value={{ not_in_base: "Not in Base (New Customer)", enterprise_base: "Enterprise Existing Base", pending: "Pending Review" }[form.ccp_check_result] || "Pending SM Review"} className="bg-slate-50 text-slate-500" />
+              <Input readOnly value={ccpOptions.find((item) => item.value === form.ccp_check_result)?.label || "Pending SM Review"} className="bg-slate-50 text-slate-500" />
             )}
           </div>
 
@@ -357,10 +373,10 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
           <div>
             <Label>Working With</Label>
-            <Select value={form.working_with} onValueChange={(v) => set("working_with", v)}>
+            <Select value={form.working_with || "none"} onValueChange={(v) => set("working_with", v === "none" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={null}>—</SelectItem>
+                <SelectItem value="none">—</SelectItem>
                 {workingWithOptions.map((w) => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
               </SelectContent>
             </Select>
