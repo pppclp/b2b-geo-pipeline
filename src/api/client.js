@@ -114,6 +114,9 @@ export const db = {
     me: () => request("GET", "/session/me"),
   },
   access: () => request("GET", "/access"),
+  snapshots: {
+    capture: (snapshot_period) => request("POST", "/snapshots/capture", { body: { snapshot_period } }),
+  },
   // Several reads in one round trip: [{ path, query }] -> [{ status, body }]
   batch: (requests) => request("POST", "/batch", { body: { requests } }),
   // Raw row editor over the source sheets bound in access_control.
