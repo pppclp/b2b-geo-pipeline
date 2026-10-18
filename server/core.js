@@ -282,7 +282,6 @@ export function createCore({ contract, store, now, uuid }) {
       };
       table.rows.push(row);
       touch(b);
-      outputs.logEvent(row, actor);
       return toUi("OpportunityHistory", b.primary_key, row);
     });
   }
@@ -301,7 +300,6 @@ export function createCore({ contract, store, now, uuid }) {
     // Validate and build the entire new state before touching the underlying sheet.
     table.rows = replacement;
     touch(b);
-    outputs.monthEnd(snapshotPeriod);
     return { captured: snapshots.length, snapshot_period: snapshotPeriod };
   }
 
@@ -403,7 +401,6 @@ export function createCore({ contract, store, now, uuid }) {
       const auditEvents = b.entity === "opportunities"
         ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
         : [];
-      if (b.entity === "opportunities") outputs.refreshCurrent();
       else if (!b.scoped) outputs.logMaster("CREATED", b, saved[b.primary_key], null, saved, actor);
       const created = decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
       return b.entity === "opportunities" ? { ...created, _audit_events: auditEvents } : created;
@@ -463,7 +460,6 @@ export function createCore({ contract, store, now, uuid }) {
         ? appendAudit(id, opportunityAuditEvents(before, row, { remark: data.audit_remark || data.last_remark || "" }), actor, stamp)
         : [];
       if (uiEntity === "TeamMember") syncUserRegions(id, data.region_ids);
-      if (b.entity === "opportunities") outputs.refreshCurrent();
       else if (!b.scoped) outputs.logMaster("UPDATED", b, id, before, row, actor);
       const updated = decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
       return b.entity === "opportunities" ? { ...updated, _audit_events: auditEvents } : updated;
@@ -479,7 +475,6 @@ export function createCore({ contract, store, now, uuid }) {
       const t = tableOf(b);
       t.rows = t.rows.filter((r) => r !== row);
       touch(b);
-      if (b.entity === "opportunities") outputs.refreshCurrent();
       else if (!b.scoped) outputs.logMaster("DELETED", b, id, row, null, actor);
       return { ok: true };
     },
