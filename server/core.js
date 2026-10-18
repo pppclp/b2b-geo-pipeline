@@ -358,7 +358,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Validate changed references only, allowing historical rows with retired
   // codes to receive unrelated updates. New values must be real and active.
-  function validateOpportunityRefs(next, prev = null) {
+  function validateOpportunityRefs(next, prev = null, actor = null) {
     const changed = (col) => !prev || String(prev[col] ?? "") !== String(next[col] ?? "");
     const filled = (col) => String(next[col] ?? "").trim() !== "";
     const refs = [
@@ -402,11 +402,13 @@ export function createCore({ contract, store, now, uuid }) {
     }
     if (changed("current_handler_user_id") || regionChanged) {
       const handler = findUser(next.current_handler_user_id || next.owner_user_id);
-      if (!handler || !["ae", "sm"].includes(handler.role)) {
-        throw new HttpError(400, "Current Handler must be an active AE or SM");
-      }
-      if (!handler.region_ids.includes(String(next.region_id))) {
-        throw new HttpError(400, "Current Handler is not assigned to this Pipeline's Region");
+      if (!handler) throw new HttpError(400, "Current Handler must be an active user");
+      // Existing escalation workflows may assign Management. AE cannot grant a
+      // Management/Admin user customer-row access via an arbitrary handoff.
+      if (["management", "admin"].includes(handler.role)) {
+        if (actor?.role === "ae") throw new HttpError(403, "AE cannot hand off directly to Management or Admin");
+      } else if (!["ae", "sm"].includes(handler.role) || !handler.region_ids.includes(String(next.region_id))) {
+        throw new HttpError(400, "Current Handler AE/SM must be assigned to this Pipeline's Region");
       }
     }
   }
@@ -475,7 +477,7 @@ export function createCore({ contract, store, now, uuid }) {
         row.stage_entered_at = stamp;
         row.handler_since = stamp;
         row.working_with_since = row.working_with_id ? stamp : "";
-        validateOpportunityRefs(row);
+        validateOpportunityRefs(row, null, actor);
       }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
       if (b.append_only) {
@@ -553,7 +555,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (b.entity === "opportunities") {
         changes = applyOpportunityTimers(keepOpportunityColumns(changes), row, stamp);
         const next = { ...row, ...changes };
-        validateOpportunityRefs(next, row);
+        validateOpportunityRefs(next, row, actor);
         // Do not let Region changes move the row out of the editor's scope.
         if (String(next.region_id ?? "") !== String(row.region_id ?? "") &&
             !scopedFilter(b, actor)(next)) {
