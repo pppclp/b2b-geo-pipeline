@@ -52,8 +52,8 @@ export function formatMonth(ym) {
 export function monthOf(value) {
   if (value == null || value === "") return "";
   const raw = value instanceof Date ? value.toISOString() : String(value);
-  if (/^\\d{4}-(0[1-9]|1[0-2])(?:-\\d{2})?$/.test(raw)) return raw.slice(0, 7);
-  if (!/(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(raw)) return "";
+  if (/^\d{4}-(0[1-9]|1[0-2])(?:-\d{2})?$/.test(raw)) return raw.slice(0, 7);
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)) return "";
   try { return bangkokMonth(raw); } catch { return ""; }
 }
 
