@@ -123,8 +123,9 @@ test("Create requires assigned Region and valid active references",()=>{
    {region_id:"R2"},{region_id:"UNKNOWN"},{stage_id:"UNKNOWN"},
    {stage_id:"OFF"},{product_category_id:"OFF"},
    {expected_close_month:"2026-13"},{territory_id:"UNKNOWN"},
-   {territory_id:"T1",region_id:"R2"},{owner_id:"SM1"},
+   {territory_id:"T1",region_id:"R2"},
  ]) assert.throws(()=>x.call("AE1","POST","entities/Opportunity",input(changed)),rejected(400));
+ assert.throws(()=>x.call("AE1","POST","entities/Opportunity",input({owner_id:"SM1"})),rejected(403));
  const added=x.call("AE1","POST","entities/Opportunity",input({territory_id:"T1"}));
  assert.ok(added.id);
 });
