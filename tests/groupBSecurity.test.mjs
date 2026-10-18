@@ -27,6 +27,7 @@ function fixture() {
     ],
     [ORG+"/Regions"]:[{region_id:"R1",active:"Yes"},{region_id:"R2",active:"Yes"}],
     [CONFIG+"/Stages"]:[{stage_id:"S1",active:"Yes"}],
+    [CONFIG+"/Lost_Reasons"]:[{reason_id:"LR1",active:"Yes",reason_name:"Price"}],
     [PRODUCT+"/Product_Categories"]:[{category_id:"CAT",active:"Yes"}],
     [DB+"/Pipelines"]:[
       {opportunity_id:"P1",customer_name:"Acme",owner_user_id:"AE1",current_handler_user_id:"AE1",original_owner_user_id:"AE1",region_id:"R1",status:"Open",stage_id:"S1",product_category_id:"CAT",quantity:1,price_per_sub:100,pipeline_value:100,expected_close_month:"2026-11"},
@@ -63,6 +64,22 @@ test("B1: AE cannot Reopen/Archive; SM needs a nonblank Reopen reason",()=>{
   assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/P1",{status:"archived"}),denied(403));
   x.call("SM1","PUT","entities/Opportunity/P1",{status:"archived"});
   assert.equal(String(x.row().status).toLowerCase(),"archived");
+});
+
+test("B1: Reopening a Lost Pipeline clears stale loss fields but keeps audit history",()=>{
+  const x=fixture();
+  x.call("AE1","PUT","entities/Opportunity/P1",{status:"lost",lost_reason_id:"LR1",lost_note:"Budget issue"});
+  assert.ok(x.row().lost_at);
+  assert.equal(x.row().lost_reason_id,"LR1");
+  assert.ok(x.events().some(event=>event.event_type==="lost"));
+  x.call("SM1","PUT","entities/Opportunity/P1",{status:"open",audit_remark:"Budget approved"});
+  assert.equal(String(x.row().status).toLowerCase(),"open");
+  assert.equal(x.row().lost_at,"");
+  assert.equal(x.row().lost_by_user_id,"");
+  assert.equal(x.row().lost_reason_id,"");
+  assert.equal(x.row().lost_note,"");
+  assert.ok(x.events().some(event=>event.event_type==="lost"));
+  assert.ok(x.events().some(event=>event.event_type==="status_change"&&event.remark==="Budget approved"));
 });
 
 test("B1: AE cannot reprice or change expected close month on a closed Pipeline",()=>{
