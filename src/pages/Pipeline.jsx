@@ -138,7 +138,7 @@ export default function Pipeline() {
       if (filters.owner && o.owner_id !== filters.owner) return false;
       if (filters.handler && o.current_handler_id !== filters.handler) return false;
       if (filters.stage && o.stage_id !== filters.stage) return false;
-      if (filters.status && o.status !== filters.status) return false;
+      if (filters.status && filters.status !== "all" && o.status !== filters.status) return false;
       if (filters.product_category && o.product_category_id !== filters.product_category) return false;
       if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
       if (filters.ccp_check_result && o.ccp_check_result !== filters.ccp_check_result) return false;
@@ -146,13 +146,14 @@ export default function Pipeline() {
       if (filters.working_with && o.working_with !== filters.working_with) return false;
       if (filters.support === "1" && !o.support_needed) return false;
       if (filters.support === "0" && o.support_needed) return false;
-      if (filters.stuck === "1" && agingDays(o.stage_entered_at) <= (config?.aging_threshold_days || 14)) return false;
+      if (filters.stuck === "1" && !isStageSlaOverdue(o, maps.stage)) return false;
+      if (filters.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
       if (filters.won_month && monthOf(o.won_at) !== filters.won_month) return false;
       if (filters.lost_month && monthOf(o.lost_at) !== filters.lost_month) return false;
       if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
       return true;
     });
-  }, [scopedOpportunities, filters, config]);
+  }, [scopedOpportunities, filters, config, maps.stage]);
 
   const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
 
