@@ -13,8 +13,10 @@ npm run sheets:pull   # optional: copy the real Google Sheets into data/
 npm run dev           # http://localhost:5173 — frontend + local API together
 ```
 
-- **Sign in:** pick a user from the `Users` sheet on the login page. This is dev-only and is
-  not real authentication.
+- **Sign in (UAT only):** Employee ID + temporary password from the restricted
+  UAT credential workbook. Login issues a short-lived (4-hour) signed session;
+  the backend validates it on every request rather than accepting browser user IDs.
+  See [UAT security review](docs/UAT_SECURITY_REVIEW.md). **Not production SSO.**
 - **Data:** stored as `.xlsx` in `data/` (gitignored). `sheets:pull` downloads every sheet that
   has a `GEO_SHEET_ID_*` in `.env.local` and overwrites the local copies. If the master files
   are missing, sample data is created instead. Local edits stay in `data/`; they are not sent
