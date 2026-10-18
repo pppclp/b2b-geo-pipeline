@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Trophy, XCircle, AlertCircle, Clock, PlusCircle, CalendarClock, RotateCcw, Layers, Users } from "lucide-react";
 
 export default function Dashboard() {
-  const { scopedOpportunities, maps, activeStages, config, profile } = useData();
+  const { scopedOpportunities, maps, activeStages, config, profile, loading, error, refresh } = useData();
   const navigate = useNavigate();
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState("");
@@ -124,6 +124,33 @@ export default function Dashboard() {
   const attentionOps = [...stageOverdue, ...internalOverdue, ...supportNeeded]
     .filter((o, i, arr) => arr.findIndex((x) => x.id === o.id) === i)
     .slice(0, 10);
+
+  // A failed required API batch must never look like a legitimate zero-pipeline dashboard.
+  // Keep all hooks above this guard so retrying does not change hook ordering.
+  if (loading || error) {
+    return (
+      <div className="p-5 md:p-7 max-w-[1400px] mx-auto">
+        <h1 className="text-[22px] font-semibold tracking-tight mb-5">Dashboard</h1>
+        <div
+          role={error ? "alert" : "status"}
+          className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${error ? "border-destructive/40 bg-destructive/5" : "bg-muted/30"}`}
+        >
+          <AlertCircle className={`w-5 h-5 shrink-0 ${error ? "text-destructive" : "text-muted-foreground"}`} aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">{error ? "โหลดข้อมูล Pipeline ไม่สำเร็จ" : "กำลังโหลดข้อมูล Pipeline…"}</p>
+            {error && (
+              <p className="text-sm text-muted-foreground break-words mt-1">
+                {error.message}. ตรวจสอบ Apps Script Deployment และการเชื่อมต่อ Pipeline DB
+              </p>
+            )}
+          </div>
+          {error && (
+            <Button type="button" variant="outline" onClick={refresh}>ลองโหลดอีกครั้ง</Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-5 md:p-7 max-w-[1400px] mx-auto">
