@@ -10,6 +10,8 @@ import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
 import { normalizeClosureUpdate } from "./closure.js";
+import { opportunityAuditEvents } from "./opportunityAudit.js";
+import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -249,6 +251,46 @@ export function createCore({ contract, store, now, uuid }) {
     return appConfigList()[0];
   }
 
+  // Write authoritative audit records in the *same backend request* as the Pipeline.
+  // Clients cannot author / modify / delete these events directly.
+  function appendAudit(opportunityId, events, actor, stamp) {
+    const b = bindings.opportunity_events;
+    if (!b) throw new HttpError(500, "Pipeline_Events is not configured");
+    const table = tableOf(b);
+    return events.map((event) => {
+      const row = {
+        ...toSheet("OpportunityHistory", b.primary_key, event),
+        [b.primary_key]: nextId(b, "EVT"),
+        opportunity_id: opportunityId,
+        actor_user_id: actor.real.id,
+        actor_name: actor.real.name,
+        event_at: stamp,
+      };
+      table.rows.push(row);
+      touch(b);
+      outputs.logEvent(row, actor);
+      return toUi("OpportunityHistory", b.primary_key, row);
+    });
+  }
+
+  function captureSnapshot(actor, snapshotPeriod) {
+    const b = binding("MonthlySnapshot");
+    need(actor, b, "create");
+    if (!snapshotPeriodValid(snapshotPeriod)) throw new HttpError(400, "Snapshot period must be YYYY-MM");
+    // Capture source from backend; NEVER trust a browser-supplied Pipeline list.
+    const source = rows("opportunities");
+    const stamp = now();
+    const snapshots = buildSnapshotRows(source, snapshotPeriod, stamp, () => "SNP-" + uuid());
+    if (!snapshots.length) throw new HttpError(409, "No eligible Pipelines; existing snapshot period was preserved");
+    const table = tableOf(b);
+    const replacement = replaceSnapshotPeriod(table.rows, snapshotPeriod, snapshots);
+    // Validate and build the entire new state before touching the underlying sheet.
+    table.rows = replacement;
+    touch(b);
+    outputs.monthEnd(snapshotPeriod);
+    return { captured: snapshots.length, snapshot_period: snapshotPeriod };
+  }
+
   // ---- Entity API (used by the app screens) ----
   function matches(rec, query) {
     return Object.entries(query || {}).every(([k, v]) => String(rec[k] ?? "") === String(v));
@@ -305,6 +347,9 @@ export function createCore({ contract, store, now, uuid }) {
       const b = binding(uiEntity);
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, data.key, data.value);
       need(actor, b, "create");
+      if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
+        throw new HttpError(403, "System-controlled entity; use the Pipeline or snapshot API");
+      }
       const stamp = now();
       if (uiEntity === "Opportunity") {
         // New Pipelines always start Open. Close them via the audited
@@ -334,21 +379,27 @@ export function createCore({ contract, store, now, uuid }) {
         row.created_at = stamp;
         row.updated_at = stamp;
       }
-      if (b.entity === "opportunities") row.created_by_user_id ||= actor.id;
+      if (b.entity === "opportunities") row.created_by_user_id = actor.real.id;
       if (b.scoped && !scopedFilter(b, actor)(row)) throw new HttpError(403, `New ${b.sheet} row would be outside your scope`);
       const saved = fitColumns(b, row);
       tableOf(b).rows.push(saved);
       touch(b);
       if (uiEntity === "TeamMember") syncUserRegions(row[b.primary_key], data.region_ids);
+      const auditEvents = b.entity === "opportunities"
+        ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
+        : [];
       if (b.entity === "opportunities") outputs.refreshCurrent();
-      else if (b.entity === "opportunity_events") outputs.logEvent(saved, actor);
       else if (!b.scoped) outputs.logMaster("CREATED", b, saved[b.primary_key], null, saved, actor);
-      return decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
+      const created = decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
+      return b.entity === "opportunities" ? { ...created, _audit_events: auditEvents } : created;
     },
     update(uiEntity, actor, id, data) {
       const b = binding(uiEntity);
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, id, data.value);
       need(actor, b, "update");
+      if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
+        throw new HttpError(403, "System-controlled entity");
+      }
       const row = findRow(b, actor, id);
       const before = { ...row };
       if (uiEntity === "Opportunity" && actor.role === "ae") {
@@ -387,16 +438,26 @@ export function createCore({ contract, store, now, uuid }) {
         : data;
       const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       delete changes[b.primary_key];
-      Object.assign(row, fitColumns(b, { ...changes, updated_at: now() }));
+      // Free-text audit remark is metadata, never a Pipeline column.
+      delete changes.audit_remark;
+      const stamp = now();
+      Object.assign(row, fitColumns(b, { ...changes, updated_at: stamp }));
       touch(b);
+      const auditEvents = b.entity === "opportunities"
+        ? appendAudit(id, opportunityAuditEvents(before, row, { remark: data.audit_remark || data.last_remark || "" }), actor, stamp)
+        : [];
       if (uiEntity === "TeamMember") syncUserRegions(id, data.region_ids);
       if (b.entity === "opportunities") outputs.refreshCurrent();
       else if (!b.scoped) outputs.logMaster("UPDATED", b, id, before, row, actor);
-      return decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
+      const updated = decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
+      return b.entity === "opportunities" ? { ...updated, _audit_events: auditEvents } : updated;
     },
     remove(uiEntity, actor, id) {
       const b = binding(uiEntity);
       need(actor, b, "delete");
+      if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
+        throw new HttpError(403, "System-controlled entity");
+      }
       const row = findRow(b, actor, id);
       assertNotReferenced(b, id);
       const t = tableOf(b);
@@ -409,6 +470,9 @@ export function createCore({ contract, store, now, uuid }) {
     removeMany(uiEntity, actor, query) {
       const b = binding(uiEntity);
       need(actor, b, "delete");
+      if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
+        throw new HttpError(403, "System-controlled entity");
+      }
       const inScope = scopedFilter(b, actor);
       const sheetQuery = Object.fromEntries(Object.entries(query || {}).map(([k, v]) => [sheetCol(uiEntity, k), v]));
       const t = tableOf(b);
@@ -545,14 +609,22 @@ export function createCore({ contract, store, now, uuid }) {
       return { role: actor.role, scope: scopeForRole(actor.role), allowed };
     }
 
+    if (parts[0] === "snapshots") {
+      if (parts[1] === "capture" && method === "POST") {
+        return captureSnapshot(actor, req.body?.snapshot_period);
+      }
+      throw new HttpError(404, "Unknown snapshot command");
+    }
+
     if (parts[0] === "entities" && parts[1]) {
       const [, entity, id] = parts;
       if (method === "GET" && !id) return entityApi.list(entity, actor, { sort: query.sort, limit: query.limit, query: q });
       if (method === "GET") return entityApi.get(entity, actor, id);
       if (method === "POST" && id === "bulk") {
-        const created = (req.body || []).map((item) => entityApi.create(entity, actor, item));
-        if (entity === "MonthlySnapshot" && created[0]) outputs.monthEnd(created[0].snapshot_period);
-        return created;
+        if (entity === "Opportunity" || entity === "OpportunityHistory" || entity === "MonthlySnapshot") {
+          throw new HttpError(403, "Bulk mutation is disabled for transactional entities");
+        }
+        return (req.body || []).map((item) => entityApi.create(entity, actor, item));
       }
       if (method === "POST") return entityApi.create(entity, actor, req.body || {});
       if (method === "PUT" && id) return entityApi.update(entity, actor, id, req.body || {});

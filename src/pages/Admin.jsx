@@ -324,14 +324,14 @@ function SnapshotManager() {
   const [msg, setMsg] = useState(null);
   const snapshots = (master?.MonthlySnapshot || []).slice();
   const byMonth = {};
-  snapshots.forEach((s) => { (byMonth[s.snapshot_month] = byMonth[s.snapshot_month] || []).push(s); });
+  snapshots.forEach((s) => { (byMonth[s.snapshot_period] = byMonth[s.snapshot_period] || []).push(s); });
   const months = Object.keys(byMonth).sort().reverse();
 
   const capture = async () => {
     setBusy(true); setMsg(null);
     try {
       const res = await captureSnapshot(month);
-      setMsg(`Captured ${res.captured} opportunity snapshots for ${formatMonth(month)}.`);
+      setMsg(`Captured ${res.captured} opportunity snapshots for ${formatMonth(month)}.${res.warning ? " " + res.warning : ""}`);
     } catch (e) { setMsg("Capture failed: " + (e.message || e)); }
     finally { setBusy(false); }
   };
