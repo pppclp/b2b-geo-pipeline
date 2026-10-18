@@ -1,0 +1,24 @@
+name: Config Role Filters Main-Based Preflight
+on:
+  push:
+    branches: [fix/role-filters-config-main-clean]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests
+        run: node --test tests/*.test.mjs
+      - name: Lint
+        run: npm run lint
+      - name: Frontend build
+        run: npm run build
+      - name: Apps Script build
+        run: npm run gas:build
