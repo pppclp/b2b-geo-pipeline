@@ -156,3 +156,49 @@ test("Changing only a note does not rewrite an already stored Net RC",()=>{
  x.call("AE1","PUT","entities/Opportunity/OPP-1",{quantity:2});
  assert.equal(x.row().pipeline_value,200);
 });
+
+test("A1: legacy Pipeline with blank Region can edit Remark, Stage and close Won", () => {
+  const x=fixture();
+  x.row().region_id=""; // Historical record missing the required modern Region
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Existing customer update"});
+  assert.equal(x.row().remark,"Existing customer update");
+  assert.equal(x.row().region_id,"");
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{stage_id:"S2"});
+  assert.equal(x.row().stage_id,"S2");
+  assert.equal(x.row().stage_entered_at,"2026-10-18T10:00:00.000Z");
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"won"});
+  assert.equal(String(x.row().status).toLowerCase(),"won");
+  assert.equal(x.row().won_at,"2026-10-18T10:00:00.000Z");
+  assert.ok(x.events().some((e)=>e.event_type==="won"));
+});
+
+test("A1: new Pipeline must have Region; clearing an assigned Region is invalid", () => {
+  const x=fixture();
+  assert.throws(
+    ()=>x.call("AE1","POST","entities/Opportunity",input({region_id:""})),
+    rejected(400)
+  );
+  assert.throws(
+    ()=>x.call("AE1","POST","entities/Opportunity",input({region_id:undefined})),
+    rejected(400)
+  );
+  assert.throws(
+    ()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{region_id:""}),
+    rejected(400)
+  );
+  assert.equal(x.row().region_id,"R1");
+});
+
+test("A2: archiving stores server time, never a spoofed client archived_at", () => {
+  const stamp="2026-10-18T10:00:00.000Z";
+  const x=fixture(stamp);
+  assert.equal(OPPORTUNITY_COLUMNS.has("archived_at"),true);
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{archived_at:"2099-01-01",remark:"Before archive"});
+  assert.equal(x.row().archived_at,undefined);
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"archived",archived_at:"2099-01-01"});
+  assert.equal(x.row().archived_at,stamp);
+  assert.ok(x.events().some((e)=>e.event_type==="archived"));
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Archived note",archived_at:"1900-01-01"});
+  assert.equal(x.row().archived_at,stamp);
+  assert.equal(x.row().remark,"Archived note");
+});
