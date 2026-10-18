@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   availableFilterOptions, applyPipelineFilters, filterLayout,
-  isPendingSmReview, ownershipGroup, shouldShowDropdown, statusCounts,
+  isPendingSmReview, ownershipGroup, shouldShowDropdown, statusCounts, visiblePrimaryFilters,
 } from "../src/lib/pipelineFilters.js";
 
 const ops=[
@@ -92,4 +92,16 @@ test("Status tabs retain stable counts and All includes Archived",()=>{
 test("Multiple filters intersect without widening Region/Owner scope",()=>{
   const r=applyPipelineFilters(ops,{status:"all",region:"N",owner:"AE1",product_category:"CAT",sales_channel:"AE Self"});
   assert.deepEqual(ids(r),["P1"]);
+});
+
+test("Core Stage and owner controls remain visible for one or no Pipeline",()=>{
+ const empty=availableFilterOptions([]);
+ const one=availableFilterOptions([ops[0]]);
+ assert.deepEqual(visiblePrimaryFilters("ae",empty,{}),["stage"]);
+ assert.deepEqual(visiblePrimaryFilters("ae",one,{}),["stage"]);
+ assert.deepEqual(visiblePrimaryFilters("sm",one,{}),["stage","owner"]);
+ assert.deepEqual(visiblePrimaryFilters("management",empty,{}),["stage","region","owner","product_category","sales_channel"]);
+ assert.deepEqual(visiblePrimaryFilters("admin",one,{}),["stage","region","owner","product_category","sales_channel"]);
+ const multiple=availableFilterOptions(ops);
+ assert.deepEqual(visiblePrimaryFilters("sm",multiple,{}),["stage","owner","region"]);
 });
