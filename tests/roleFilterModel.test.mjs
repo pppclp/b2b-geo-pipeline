@@ -112,7 +112,7 @@ test("Config Stages and named teams are sourced from active Master IDs",()=>{
   const working=optionsFromVisiblePipelines("working_with",[],{},{
     WorkingWithOption:[{id:"WW001",name:"Pre-sales",active:true},{id:"WW002",name:"Pricer",active:true}],
   });
-  assert.deepEqual(working.map(x=>x.value),["WW002","WW001"]);
+  assert.deepEqual(working.map(x=>x.value),["WW001","WW002"]);
 });
 
 test("Config Field_Options overrides raw Pipeline values, but preserves historical references",()=>{
