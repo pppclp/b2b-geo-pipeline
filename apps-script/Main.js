@@ -456,7 +456,7 @@ function geoSafeSheetValue_(value) {
   if (value === undefined || value === null) return "";
   // SpreadsheetApp.setValues interprets strings beginning with '=' as formulas.
   // Escape Excel-style formula prefixes as well, including after whitespace.
-  if (typeof value === "string" && /^[\\s\\uFEFF]*[=+@-]/.test(value)) return "'" + value;
+  if (typeof value === "string" && /^[\s\uFEFF]*[=+@-]/.test(value)) return "'" + value;
   return value;
 }
 
