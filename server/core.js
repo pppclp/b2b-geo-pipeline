@@ -25,7 +25,11 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
-function validateLatestOpportunityFields(data, { requireRequired = false } = {}) {
+function validateLatestOpportunityFields(data, { requireRequired = false, fieldOptions = [] } = {}) {
+  const configuredValues = (fieldKey, fallback) => {
+    const entries = fieldOptions.filter((row) => row.field_key === fieldKey && isActive(row.active));
+    return entries.length ? entries.map((row) => String(row.option_value)) : fallback;
+  };
   const required = ["customer_name", "business_id", "customer_type", "sales_channel", "contact_name", "contact_phone", "product_category_id", "expected_close_month"];
   for (const key of required) {
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
@@ -35,13 +39,15 @@ function validateLatestOpportunityFields(data, { requireRequired = false } = {})
   if ("business_id" in data && data.business_id && !/^[0-9]+$/.test(String(data.business_id))) {
     throw new HttpError(400, "Business ID must contain digits only");
   }
-  if ("sales_channel" in data && data.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
+  if ("sales_channel" in data && data.sales_channel &&
+      !configuredValues("sales_channel", ["AE B2B GEO", "AE Self", "B2B Premium Partner"]).includes(String(data.sales_channel))) {
     throw new HttpError(400, "Invalid Sales Channel");
   }
   if ("remark" in data && String(data.remark || "").length > 500) {
     throw new HttpError(400, "Remark exceeds 500 characters");
   }
-  if ("ccp_check_result" in data && data.ccp_check_result && !["not_in_base", "enterprise_base", "pending"].includes(String(data.ccp_check_result))) {
+  if ("ccp_check_result" in data && data.ccp_check_result &&
+      !configuredValues("ccp_check_result", ["not_in_base", "enterprise_base", "pending"]).includes(String(data.ccp_check_result))) {
     throw new HttpError(400, "Invalid CCP+ Check value");
   }
 }
@@ -518,7 +524,7 @@ export function createCore({ contract, store, now, uuid }) {
         if (actor.role === "ae" && String(data.owner_id || "") !== String(actor.id)) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
         }
-        validateLatestOpportunityFields(data, { requireRequired: "sales_channel" in data });
+        validateLatestOpportunityFields(data, { requireRequired: "sales_channel" in data, fieldOptions: rows("field_options") });
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
@@ -608,7 +614,7 @@ export function createCore({ contract, store, now, uuid }) {
       }
       // Validate latest editable fields on partial updates without breaking
       // workflow-only updates such as Stage / Handler / Support.
-      if (uiEntity === "Opportunity") validateLatestOpportunityFields(data);
+      if (uiEntity === "Opportunity") validateLatestOpportunityFields(data, { fieldOptions: rows("field_options") });
 
       // Validate loss reason and close only an Open Pipeline. The real actor
       // and timestamp are taken from the backend, never from the browser.

@@ -105,6 +105,18 @@ export const ENTITIES = {
     idPrefix: "SUP",
     fields: { name: "support_type_name", order: { col: "sort_order", ...number }, active: { col: "active", ...bool } },
   },
+  FieldOption: {
+    // Existing Config > Field_Options; read-only list for dropdown values/labels.
+    entity: "field_options",
+    idPrefix: "OPT",
+    fields: {
+      value: "option_value",
+      label: "option_label",
+      field_key: "field_key",
+      order: { col: "sort_order", ...number },
+      active: { col: "active", ...bool },
+    },
+  },
   AppConfig: {
     // Virtual key/value view over Aging_Settings (see appConfig in core.js).
     entity: "pipeline_settings",
