@@ -392,7 +392,11 @@ export function createCore({ contract, store, now, uuid }) {
       if (t && t.region_id !== next.region_id) throw new HttpError(400, "Territory does not belong to the selected Region");
     }
     const regionChanged = changed("region_id");
-    if (!filled("region_id")) throw new HttpError(400, "Region is required");
+    // Historic Pipelines may have no Region. Allow unrelated edits, but new
+    // Pipelines and explicit changes/clears must have a valid Region.
+    if ((!prev || regionChanged) && !filled("region_id")) {
+      throw new HttpError(400, "Region is required");
+    }
     if (changed("owner_user_id") || regionChanged) {
       const owner = findUser(next.owner_user_id);
       if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
@@ -421,6 +425,10 @@ export function createCore({ contract, store, now, uuid }) {
     if (differs("stage_id")) changes.stage_entered_at = stamp;
     if (differs("current_handler_user_id")) changes.handler_since = stamp;
     if (differs("working_with_id")) changes.working_with_since = changes.working_with_id ? stamp : "";
+    // Audit attribution must come from the server, never from a client value.
+    if (differs("status") && String(changes.status).toLowerCase() === "archived") {
+      changes.archived_at = stamp;
+    }
     return changes;
   }
 
