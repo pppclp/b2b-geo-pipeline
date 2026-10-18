@@ -1,3 +1,5 @@
+import { fieldChoices } from "./configChoices.js";
+
 // Read-only presentation metadata for the Pipeline page.
 // Filter values are derived from *server-scoped* opportunities, never a global
 // User Master list; authorization remains entirely on the backend.
@@ -94,13 +96,8 @@ export function optionsFromVisiblePipelines(key, scopedOpportunities, maps = {},
   }
   const fieldKey = FIELD_OPTION_KEYS[key];
   if (fieldKey) {
-    const list = (master?.FieldOption || []).filter((item) =>
-      item.active && item.field_key === fieldKey);
-    if (list.length) {
-      const options = list.map((item)=>({
-        value:String(item.value),label:String(item.label||item.value),order:Number(item.order??9999),
-      })).sort((a,b)=>a.order-b.order || a.label.localeCompare(b.label))
-        .map(({value,label})=>({value,label}));
+    const options = fieldChoices(master, fieldKey);
+    if (options.length) {
       for (const value of existing) {
         if (!options.some((item)=>item.value===value)) options.push({value,label:value});
       }
