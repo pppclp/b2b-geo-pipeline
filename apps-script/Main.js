@@ -152,7 +152,7 @@ function verifyUatSession_(token) {
   var reject = function () {
     throwUatError_(401, "Session expired or invalid. Please sign in again.");
   };
-  if (typeof token !== "string" || !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(token)) reject();
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) reject();
   var parts = token.split(".");
   var secret = uatSessionSecret_(false);
   if (!secret) reject();
