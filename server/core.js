@@ -281,6 +281,7 @@ export function createCore({ contract, store, now, uuid }) {
     const source = rows("opportunities");
     const stamp = now();
     const snapshots = buildSnapshotRows(source, snapshotPeriod, stamp, () => "SNP-" + uuid());
+    if (!snapshots.length) throw new HttpError(409, "No eligible Pipelines; existing snapshot period was preserved");
     const table = tableOf(b);
     const replacement = replaceSnapshotPeriod(table.rows, snapshotPeriod, snapshots);
     // Validate and build the entire new state before touching the underlying sheet.
