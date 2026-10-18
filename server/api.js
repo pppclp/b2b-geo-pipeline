@@ -4,13 +4,16 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { ExcelStore } from "./store.js";
 import { loadContract } from "./contract.js";
-import { createCore } from "./core.js";
+import { createCore, HttpError } from "./core.js";
+import { createSessionManager } from "./authSession.js";
 import { seedData } from "./seed.js";
 
 const MASTER_FILES = ["B2B_GEO_User_Org_Master.xlsx", "B2B_Product_Master.xlsx", "B2B_GEO_Pipeline_Config.xlsx"];
 
 export function createApi({ yamlPath, dataDir }) {
   const store = new ExcelStore(dataDir);
+  // Ephemeral key by default for local UAT; use GEO_SESSION_SECRET for stable sessions.
+  const sessions = createSessionManager(process.env.GEO_SESSION_SECRET || crypto.randomBytes(32).toString("hex"));
   let cached = { mtime: 0, contract: null };
 
   function contract() {
@@ -69,16 +72,23 @@ export function createApi({ yamlPath, dataDir }) {
           uuid: () => crypto.randomUUID(),
         });
         try {
+          const path = url.pathname.replace(/^\/api\/?/, "");
+          const loggingIn = req.method === "POST" && path === "session/login";
+          const token = /^Bearer (.+)$/i.exec(String(req.headers.authorization || ""))?.[1];
+          const authenticatedUser = loggingIn ? null : sessions.verify(token);
+          if (!loggingIn && !authenticatedUser) throw new HttpError(401, "Your session is invalid or has expired. Please sign in again.");
           const out = core.handle({
             method: req.method,
-            path: url.pathname.replace(/^\/api\/?/, ""),
+            path,
             query: Object.fromEntries(url.searchParams),
             body: payload,
-            userId: req.headers["x-user-id"],
+            // Never trust X-User-Id. Identity comes only from the signed bearer token.
+            userId: authenticatedUser,
             demoAs: req.headers["x-demo-as"],
           });
+          const result = loggingIn ? { ...out, session_token: sessions.issue(out.user_id) } : out;
           await store.flush();
-          return out;
+          return result;
         } catch (e) {
           store.reset(); // drop half-applied in-memory changes; reload from disk next time
           throw e;
