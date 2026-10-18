@@ -39,7 +39,7 @@ function FilterDropdown({ fieldName, label, value, options, onChange }) {
           <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All</SelectItem>
+          <SelectItem value="all">ทั้งหมด</SelectItem>
           {available.map((item) => (
             <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
           ))}
@@ -47,7 +47,7 @@ function FilterDropdown({ fieldName, label, value, options, onChange }) {
         </SelectContent>
       </Select>
       {!available.length && label !== "Status" && (
-        <span className="text-[10px] text-muted-foreground">No matching options yet</span>
+        <span className="text-[10px] text-muted-foreground">ยังไม่มีตัวเลือก</span>
       )}
     </label>
   );
@@ -77,7 +77,7 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
       <label key={key} className="flex min-w-0 flex-col gap-1">
         <span className="text-[11px] font-medium text-muted-foreground">{FILTER_LABELS[key]}</span>
         <MonthPicker value={filters[key] || ""} onChange={(next) => onFilter(key, next)}
-          placeholder="All months" allowAll className="w-full" />
+          placeholder="ทุกเดือน" allowAll className="w-full" />
       </label>
     );
     const options = key === "status" ? STATUS_OPTIONS
@@ -95,11 +95,11 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
       {/* Search + Status + both business months + Stage never disappear. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(230px,1.4fr)_repeat(4,minmax(140px,1fr))] items-end">
         <label className="flex min-w-0 flex-col gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground">Search Pipeline</span>
+          <span className="text-[11px] font-medium text-muted-foreground">ค้นหา Pipeline</span>
           <span className="relative">
             <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input aria-label="Search customer, Business ID or contact" type="search"
-              placeholder="Customer / Business ID / Contact" className="h-9 pl-9"
+              placeholder="ชื่อลูกค้า / Business ID / ผู้ติดต่อ" className="h-9 pl-9"
               value={filters.search || ""} onChange={(e) => onFilter("search", e.target.value)} />
           </span>
         </label>
@@ -118,10 +118,10 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
           active deep-link criteria so the Pipeline is never filtered silently. */}
       {filters.handler && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>Assigned Handler: {maps.member?.[filters.handler]?.name || filters.handler}</span>
+          <span>กรองผู้รับผิดชอบ: {maps.member?.[filters.handler]?.name || filters.handler}</span>
           <Button type="button" variant="ghost" size="sm"
             onClick={() => onFilter("handler", "")} className="h-7 px-2">
-            <X className="mr-1 h-3 w-3" /> Clear assigned filter
+            <X className="mr-1 h-3 w-3" /> ล้างตัวกรองผู้รับผิดชอบ
           </Button>
         </div>
       )}
@@ -132,16 +132,16 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
             aria-expanded={moreOpen} aria-controls="more-pipeline-filters"
             onClick={() => setMoreOpen((current) => !current)}>
             <SlidersHorizontal className="h-4 w-4 mr-1.5" />
-            More filters{activeMore ? ` (${activeMore})` : ""}
+            ตัวกรองเพิ่มเติม{activeMore ? ` (${activeMore})` : ""}
           </Button>
         )}
         {hasFilters && (
           <Button type="button" variant="ghost" size="sm" onClick={() => onFilter("clear", "")}>
-            <X className="h-4 w-4 mr-1" /> Clear filters
+            <X className="h-4 w-4 mr-1" /> ล้างตัวกรอง
           </Button>
         )}
         <span className="text-[11px] text-muted-foreground ml-auto">
-          Filters only narrow Pipelines you have access to
+          แสดงเฉพาะ Pipeline ที่คุณมีสิทธิ์เข้าถึง
         </span>
       </div>
 
