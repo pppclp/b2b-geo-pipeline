@@ -228,7 +228,17 @@ export function createCore({ contract, store, now, uuid }) {
     touch(b);
   }
 
-  // ---- AppConfig: key/value view over Aging_Settings ----
+  function validateStageSla(data) {
+    if (!("sla_days" in data)) return;
+    const v = data.sla_days;
+    if (v === "" || v == null) return;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 365) {
+      throw new HttpError(400, "Stage SLA must be 1-365 days or blank");
+    }
+  }
+
+  // ---- AppConfig: key/value view over existing Aging_Settings (no new tab). ----
   const CONFIG_DEFAULTS = { pipeline_value_metric: "pipeline_value", weighted_enabled: "true" };
   function agingRow() {
     return rows("pipeline_settings").find((r) => isActive(r.active) && r.threshold_days !== "") || rows("pipeline_settings")[0];
@@ -236,19 +246,23 @@ export function createCore({ contract, store, now, uuid }) {
   function appConfigList() {
     const aging = agingRow();
     return [
-      { id: "aging_threshold_days", key: "aging_threshold_days", value: String(aging?.threshold_days ?? 14) },
+      { id: "aging_threshold_days", key: "aging_threshold_days", value: String(aging?.threshold_days ?? 14), read_only: true },
+      { id: "internal_task_sla_days", key: "internal_task_sla_days", value: String(aging?.internal_task_sla_days ?? "") },
       ...Object.entries(CONFIG_DEFAULTS).map(([key, value]) => ({ id: key, key, value, read_only: true })),
     ];
   }
   function appConfigSet(actor, key, value) {
     const b = bindings.pipeline_settings;
     need(actor, b, "update");
-    if (key !== "aging_threshold_days") throw new HttpError(400, `${key} is not stored in the YAML contract (see business_decisions_pending)`);
+    if (key !== "internal_task_sla_days") throw new HttpError(400, `${key} is not editable (legacy threshold is read-only)`);
     const row = agingRow();
     if (!row) throw new HttpError(404, "Aging_Settings has no rows");
-    row.threshold_days = Number(value);
+    if (value !== "" && value != null && (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 365)) {
+      throw new HttpError(400, "Internal SLA must be 1-365 days or blank");
+    }
+    row.internal_task_sla_days = value === "" || value == null ? "" : Number(value);
     touch(b);
-    return appConfigList()[0];
+    return appConfigList().find((v) => v.key === key);
   }
 
   // Write authoritative audit records in the *same backend request* as the Pipeline.
@@ -350,6 +364,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
         throw new HttpError(403, "System-controlled entity; use the Pipeline or snapshot API");
       }
+      if (uiEntity === "Stage") validateStageSla(data);
       const stamp = now();
       if (uiEntity === "Opportunity") {
         // New Pipelines always start Open. Close them via the audited
@@ -400,6 +415,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
         throw new HttpError(403, "System-controlled entity");
       }
+      if (uiEntity === "Stage") validateStageSla(data);
       const row = findRow(b, actor, id);
       const before = { ...row };
       if (uiEntity === "Opportunity" && actor.role === "ae") {
@@ -607,6 +623,17 @@ export function createCore({ contract, store, now, uuid }) {
         if (f.permissions) allowed[file]._file = Object.keys(f.permissions).filter((a) => (f.permissions[a] || []).includes(actor.role));
       }
       return { role: actor.role, scope: scopeForRole(actor.role), allowed };
+    }
+
+    if (parts[0] === "exports") {
+      if (parts[1] === "pipelines" && method === "GET") {
+        const b = binding("Opportunity");
+        need(actor, b, "read");
+        need(actor, b, "export");
+        // The backend enforces own/region/all scopes independently of the UI.
+        return entityApi.list("Opportunity", actor);
+      }
+      throw new HttpError(404, "Unknown export command");
     }
 
     if (parts[0] === "snapshots") {
