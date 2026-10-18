@@ -437,6 +437,8 @@ export function createCore({ contract, store, now, uuid }) {
         : data;
       const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       delete changes[b.primary_key];
+      // Free-text audit remark is metadata, never a Pipeline column.
+      delete changes.audit_remark;
       const stamp = now();
       Object.assign(row, fitColumns(b, { ...changes, updated_at: stamp }));
       touch(b);
