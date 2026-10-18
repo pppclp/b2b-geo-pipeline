@@ -81,6 +81,7 @@ export function isPendingSmReview(op) {
 }
 
 export function isFilterActive(key, value) {
-  return value !== "" && value != null && value !== "all" &&
-    !(key === "status" && value === "open");
+  // "All statuses" differs from the default Open view and is resettable.
+  if (key === "status") return value !== "" && value != null && value !== "open";
+  return value !== "" && value != null && value !== "all";
 }
