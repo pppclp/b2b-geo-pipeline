@@ -114,7 +114,16 @@ export class ExcelStore {
   }
 
   async flush() {
-    for (const [fileName, sheets] of this.dirty) await this.save(fileName, sheets);
+    // The runtime DB contains Pipeline, Event and Snapshot tables in one XLSX.
+    // Write it as a single atomic file replacement. Derived exports are
+    // optional and never allowed to turn a successful DB commit into a failure.
+    const critical = "B2B_GEO_Pipeline_DB.xlsx";
+    if (this.dirty.has(critical)) await this.save(critical, this.dirty.get(critical));
+    for (const [fileName, sheets] of this.dirty) {
+      if (fileName === critical) continue;
+      try { await this.save(fileName, sheets); }
+      catch (error) { console.warn("[exports] write failed:", fileName, error.message); }
+    }
     this.dirty.clear();
   }
 
@@ -137,7 +146,14 @@ export class ExcelStore {
       }
     }
     fs.mkdirSync(this.dataDir, { recursive: true });
-    await book.wb.xlsx.writeFile(this.filePath(fileName));
+    const destination = this.filePath(fileName);
+    const temporary = destination + ".txn-" + process.pid + "-" + Date.now();
+    try {
+      await book.wb.xlsx.writeFile(temporary);
+      fs.renameSync(temporary, destination); // atomic when source/dest share a filesystem
+    } finally {
+      if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+    }
     book.mtime = this.mtime(fileName);
   }
 }
