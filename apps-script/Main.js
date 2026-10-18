@@ -227,7 +227,7 @@ function debugPipelineDbBinding() {
   var id = sheetIdFor_(file);
   if (!id) throw new Error("Missing GEO_SHEET_ID_B2B_GEO_Pipeline_DB");
   var book = SpreadsheetApp.openById(id);
-  var expected = ["Pipelines", "Pipeline_Events", "Snapshots"];
+  var expected = ["Pipelines", "Pipeline_Events", "Snapshots", "Admin_Audit"];
   var details = expected.map(function (name) {
     var ws = book.getSheetByName(name);
     return {
@@ -240,6 +240,49 @@ function debugPipelineDbBinding() {
   var out = { id: id, title: book.getName(), sheets: details };
   console.log(JSON.stringify(out, null, 2));
   return out;
+}
+
+// Safe, one-time schema preparation before deploying the new Admin audit writer.
+// Run this MANUALLY against the existing DB. It never changes Pipelines, Events
+// or Snapshots and refuses to overwrite an incompatible Admin_Audit header row.
+function prepareAdminAuditSheet() {
+  var file = "B2B_GEO_Pipeline_DB.xlsx";
+  var id = sheetIdFor_(file);
+  if (!id) throw new Error("Missing GEO_SHEET_ID_B2B_GEO_Pipeline_DB");
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var book = SpreadsheetApp.openById(id);
+    recoverGeoDb_(book);
+    var name = "Admin_Audit";
+    var columns = [
+      "audit_id", "event_type", "source_file", "source_sheet",
+      "source_record_id", "field_name", "previous_value", "new_value",
+      "actor_user_id", "actor_name", "actor_role", "event_at",
+    ];
+    var ws = book.getSheetByName(name);
+    if (!ws) {
+      ws = book.insertSheet(name);
+      ws.getRange(1, 1, 1, columns.length).setValues([columns]).setFontWeight("bold");
+      ws.setFrozenRows(1);
+      SpreadsheetApp.flush();
+      console.log("Created Admin_Audit in existing Pipeline DB: " + book.getName());
+    } else {
+      var existing = ws.getLastColumn()
+        ? ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0].map(String)
+        : [];
+      if (ws.getLastRow() === 0) {
+        ws.getRange(1, 1, 1, columns.length).setValues([columns]).setFontWeight("bold");
+        ws.setFrozenRows(1);
+      } else if (existing.join("|") !== columns.join("|")) {
+        throw new Error("Existing Admin_Audit schema does not match; review manually. No cells changed.");
+      }
+      console.log("Admin_Audit schema verified: " + Math.max(0, ws.getLastRow() - 1) + " existing rows");
+    }
+    return { spreadsheetId: id, sheet: name, columns: columns.length };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---- Table store over Google Sheets (same interface as server/store.js) ----
@@ -502,8 +545,6 @@ function setup() {
     console.log("ok  " + file + " → " + book.getName() + (missing.length ? " (missing sheets: " + missing.join(", ") + ")" : ""));
   });
 
-  clearOutputSamples_();
-
   var dbFile = "B2B_GEO_Pipeline_DB.xlsx";
   if (sheetIdFor_(dbFile)) return console.log("Pipeline DB already configured: " + sheetIdFor_(dbFile));
   var db = SpreadsheetApp.create("B2B_GEO_Pipeline_DB");
@@ -519,27 +560,6 @@ function setup() {
   console.log("Add to .env.local:  GEO_SHEET_ID_B2B_GEO_Pipeline_DB=" + db.getId());
 }
 
-// Output templates ship with sample rows and pre-filled formulas. Clear their
-// data rows once (tracked in Script Properties) so real logs start clean.
-// Later runs of setup() never clear them again.
-function clearOutputSamples_() {
-  var props = PropertiesService.getScriptProperties();
-  var files = GEO_CONTRACT.access.files;
-  Object.keys(files).forEach(function (file) {
-    var output = files[file].output;
-    if (!output) return;
-    var flag = "OUTPUT_CLEARED_" + file.replace(/\.xlsx$/, "");
-    var id = sheetIdFor_(file);
-    if (!id) return console.log("skip " + file + " — no sheet ID");
-    if (props.getProperty(flag)) return console.log("ok  " + file + " (output sheets already initialised)");
-    var book = SpreadsheetApp.openById(id);
-    Object.keys(output).forEach(function (sheet) {
-      var ws = book.getSheetByName(sheet);
-      if (!ws || output[sheet].mode === "cells") return;
-      var last = ws.getLastRow();
-      if (last > 1) ws.getRange(2, 1, last - 1, ws.getLastColumn()).clearContent();
-    });
-    props.setProperty(flag, new Date().toISOString());
-    console.log("ok  " + file + " → sample rows cleared, ready for app output");
-  });
-}
+// Legacy output-template initialization was retired: exports are created
+// on demand and the three standalone template spreadsheets are not writable
+// runtime dependencies.
