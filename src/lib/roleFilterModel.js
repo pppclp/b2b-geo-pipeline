@@ -80,6 +80,11 @@ export function isPendingSmReview(op) {
   return !op.scenario_id || !op.ccp_check_result || op.ccp_check_result === "pending";
 }
 
+export function normalizeFilterSelection(key, selected) {
+  // Status 'all' is the all-statuses view; for other dropdowns it means clear.
+  return selected === "all" && key !== "status" ? "" : selected;
+}
+
 export function isFilterActive(key, value) {
   // "All statuses" differs from the default Open view and is resettable.
   if (key === "status") return value !== "" && value != null && value !== "open";
