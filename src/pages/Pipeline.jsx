@@ -7,6 +7,7 @@ import { agingDays, formatMonth, STATUS_LABELS , monthOf } from "@/lib/pipeline"
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
 import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
+import { isPendingSmReview } from "@/lib/roleFilterModel";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import OpportunityForm from "@/components/OpportunityForm";
@@ -70,6 +71,10 @@ export default function Pipeline() {
     if (params.get("handler")) f.handler = params.get("handler");
     if (params.get("category") || params.get("product_category")) f.product_category = params.get("category") || params.get("product_category");
     if (params.get("sales_channel")) f.sales_channel = params.get("sales_channel");
+    if (params.get("search")) f.search = params.get("search");
+    if (params.get("needs_review")) f.needs_review = params.get("needs_review");
+    if (params.get("scenario")) f.scenario = params.get("scenario");
+    if (params.get("working_with")) f.working_with = params.get("working_with");
     if (params.get("ccp_check_result")) f.ccp_check_result = params.get("ccp_check_result");
     if (params.get("close_month")) f.close_month = params.get("close_month");
     if (params.get("created_month")) f.created_month = params.get("created_month");
@@ -103,10 +108,27 @@ export default function Pipeline() {
       return;
     }
     setFilters((f) => ({ ...f, [key]: value || "" }));
+    setParams((existing) => {
+      const next = new URLSearchParams(existing);
+      if (value && !(key === "status" && value === "open")) next.set(key, value);
+      else next.delete(key);
+      if (key === "handler") {
+        next.delete("view");
+        next.delete("assigned");
+      }
+      return next;
+    }, { replace: true });
   };
 
   const filtered = useMemo(() => {
     return scopedOpportunities.filter((o) => {
+      if (filters.search) {
+        const needle = filters.search.trim().toLocaleLowerCase();
+        if (needle && ![o.customer_name, o.business_id, o.contact_name]
+          .some((term) => String(term || "").toLocaleLowerCase().includes(needle))) return false;
+      }
+      if (["sm", "admin"].includes(profile?.app_role) && filters.needs_review === "1" &&
+          !isPendingSmReview(o)) return false;
       if (filters.created_month && o.created_month !== filters.created_month) return false;
       if (filters.close_month && o.expected_close_month !== filters.close_month) return false;
       if (filters.region && o.region_id !== filters.region) return false;
@@ -128,7 +150,7 @@ export default function Pipeline() {
       if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
       return true;
     });
-  }, [scopedOpportunities, filters, config, maps.stage]);
+  }, [scopedOpportunities, filters, config, maps.stage, profile]);
 
   const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
   const exportExcel = async () => {
