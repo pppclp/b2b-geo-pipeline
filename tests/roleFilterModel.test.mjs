@@ -57,8 +57,9 @@ test("Option lists use only IDs from already-scoped Pipeline rows",()=>{
     [{value:"AE1",label:"AE One"}]);
   assert.deepEqual(optionsFromVisiblePipelines("region",subset,maps),
     [{value:"N",label:"North"}]);
+  // Presentation options sort by visible label, not by database ID.
   assert.deepEqual(optionsFromVisiblePipelines("stage",subset,maps).map(x=>x.value),
-    ["STG01","STG02"]);
+    ["STG02","STG01"]);
   assert.deepEqual(optionsFromVisiblePipelines("stage",[],maps),[]);
   assert.deepEqual(optionsFromVisiblePipelines("owner",[rows[2]],maps),
     [{value:"AE2",label:"AE Two"}]);
