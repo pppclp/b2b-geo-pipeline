@@ -103,7 +103,7 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
               value={filters.search || ""} onChange={(e) => onFilter("search", e.target.value)} />
           </span>
         </label>
-        {["status", "close_month", ...(showCreatedMonth ? ["created_month"] : []), "stage"].map(renderField)
+        {["status", "close_month", ...(showCreatedMonth ? ["created_month"] : []), "stage"].map(renderField)}
       </div>
 
       {/* Only the fields this role can use; all of them stay visible even with one option. */}
