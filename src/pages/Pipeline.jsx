@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
+import { agingDays, formatMonth, STATUS_LABELS , monthOf } from "@/lib/pipeline";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
 import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
@@ -28,7 +28,7 @@ const SORTS = [
   { value: "support_first", label: "Support Needed First" },
 ];
 
-function monthOf(iso) { if (!iso) return ""; return iso.slice(0, 7); }
+
 
 function applySort(ops, sort) {
   const arr = [...ops];
