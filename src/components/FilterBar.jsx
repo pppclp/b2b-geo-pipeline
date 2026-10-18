@@ -82,7 +82,10 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
     ])
   ), [scopedOpportunities, maps]);
 
-  const visibleMore = layout.more.filter((key) => showCreatedMonth || key !== "created_month");
+  const visibleMore = layout.more.filter((key) =>
+    (showCreatedMonth || key !== "created_month") &&
+    !((role === "ae" || role === "sm") && ["support", "stuck"].includes(key))
+  );
   const activeMore = visibleMore.filter((key) => isFilterActive(key, filters[key])).length;
   const hasFilters = Object.entries(filters).some(([key, value]) =>
     key !== "view" && isFilterActive(key, value)
@@ -142,6 +145,11 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
 
       {(role === "ae" || role === "sm") && (
         <div className="flex flex-wrap gap-2 items-center">
+          {role === "ae" && filters.handler && (
+            <SmallToggle active onClick={() => onFilter("handler", "")}>
+              Handler filter: {filters.handler === profile?.id ? "with me" : (maps.member?.[filters.handler]?.name || filters.handler)} ×
+            </SmallToggle>
+          )}
           {role === "sm" && <SmallToggle active={filters.with_me === "1"}
             onClick={() => onFilter("with_me", filters.with_me === "1" ? "" : "1")}>
             Currently with me
@@ -176,7 +184,7 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
         </span>
       </div>
 
-      {(moreOpen || activeMore > 0) && visibleMore.length > 0 && (
+      {moreOpen && visibleMore.length > 0 && (
         <div id="more-pipeline-filters" className="grid grid-cols-1 gap-3 rounded-xl bg-secondary/25 border border-border/60 p-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
           {visibleMore.map(renderField)}
         </div>
