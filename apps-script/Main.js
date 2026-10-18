@@ -439,6 +439,36 @@ function recoverGeoDb_(book) {
   props.deleteProperty(GEO_DB_TXN_PROPERTY_);
 }
 
+// Spreadsheet writes must preserve identifier/month strings and must never
+// interpret user-provided text as a formula. Format columns BEFORE setValues.
+// Only explicitly textual fields receive TEXT format; amounts remain numeric.
+var GEO_PLAIN_TEXT_HEADERS_ = {
+  audit_id: true, actor_user_id: true, business_id: true, contact_phone: true,
+  created_month: true, employee_id: true, "employee_id / username": true,
+  expected_close_month: true, snapshot_period: true, source_record_id: true,
+  opportunity_id: true, event_id: true, snapshot_id: true,
+  previous_value: true, new_value: true, lost_note: true, support_note: true,
+  remark: true, notes: true, customer_name: true, contact_name: true,
+  partner_name: true, product_details: true,
+};
+
+function geoSafeSheetValue_(value) {
+  if (value === undefined || value === null) return "";
+  // SpreadsheetApp.setValues interprets strings beginning with '=' as formulas.
+  // Escape Excel-style formula prefixes as well, including after whitespace.
+  if (typeof value === "string" && /^[\\s\\uFEFF]*[=+@-]/.test(value)) return "'" + value;
+  return value;
+}
+
+function geoTextColumns_(ws, headers, firstRow, rowCount) {
+  if (rowCount < 1) return;
+  headers.forEach(function (header, index) {
+    if (GEO_PLAIN_TEXT_HEADERS_[header] || /_id$/.test(header)) {
+      ws.getRange(firstRow, index + 1, rowCount, 1).setNumberFormat("@");
+    }
+  });
+}
+
 SheetStore_.prototype.writeDirty_ = function (d) {
   var key = d.file + "|" + d.sheet;
   var t = this.tables[key];
@@ -448,7 +478,7 @@ SheetStore_.prototype.writeDirty_ = function (d) {
   });
   var ws = this.book_(d.file).getSheetByName(d.sheet) || this.book_(d.file).insertSheet(d.sheet);
   var toValues = function (r) {
-    return t.headers.map(function (h) { return r[h] === undefined || r[h] === null ? "" : r[h]; });
+    return t.headers.map(function (h) { return geoSafeSheetValue_(r[h]); });
   };
   var sameShape =
     before.rows.length > 0 &&
@@ -459,6 +489,7 @@ SheetStore_.prototype.writeDirty_ = function (d) {
   if (sameShape) {
     for (var i = 0; i < t.rows.length; i++) {
       if (i < before.rows.length && JSON.stringify(t.rows[i]) === before.json[i]) continue;
+      geoTextColumns_(ws, t.headers, i + 2, 1);
       ws.getRange(i + 2, 1, 1, t.headers.length).setValues([toValues(t.rows[i])]);
     }
   } else {
@@ -468,7 +499,10 @@ SheetStore_.prototype.writeDirty_ = function (d) {
     ws.getRange(1, 1, 1, t.headers.length).setValues([t.headers]);
     var last = ws.getLastRow();
     if (last > 1) ws.getRange(2, 1, last - 1, Math.max(ws.getLastColumn(), t.headers.length)).clearContent();
-    if (t.rows.length) ws.getRange(2, 1, t.rows.length, t.headers.length).setValues(t.rows.map(toValues));
+    if (t.rows.length) {
+      geoTextColumns_(ws, t.headers, 2, t.rows.length);
+      ws.getRange(2, 1, t.rows.length, t.headers.length).setValues(t.rows.map(toValues));
+    }
   }
 };
 
@@ -505,8 +539,17 @@ SheetStore_.prototype.flush = function () {
     }
     try { recoverGeoDb_(book); } catch (cleanupError) { console.warn("DB backup cleanup deferred: " + cleanupError.message); }
   }
+  // These are source Master workbooks, not optional export mirrors.
+  // Never tell the UI that a Master edit succeeded when its Sheet write failed.
+  // Cross-workbook operations are not ACID: if this throws after Admin_Audit
+  // committed, reconcile the audit and master data before retrying.
   derived.forEach(function (d) {
-    try { self.writeDirty_(d); } catch (error) { console.warn("Derived export write failed: " + error.message); }
+    try {
+      self.writeDirty_(d);
+    } catch (error) {
+      console.error("Master workbook write failed: " + d.file + " / " + d.sheet + ": " + error.message);
+      throw new Error("Master data save failed for " + d.sheet + ". Check the master Sheet and Admin_Audit before retrying.");
+    }
   });
   this.pendingAppends.forEach(function (a) {
     try { self.appendNow_(a.file, a.sheet, a.rows); } catch (error) { console.warn("Audit export append failed: " + error.message); }
