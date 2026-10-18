@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   FILTER_LABELS, ROLE_FILTERS, visibleFilterFields, optionsFromVisiblePipelines,
-  roleOwnershipMatches, isPendingSmReview, isFilterActive,
+  roleOwnershipMatches, isPendingSmReview, isFilterActive, normalizeFilterSelection,
 } from "../src/lib/roleFilterModel.js";
 
 const rows = [
@@ -84,4 +84,11 @@ test("SM review flags and active filter count semantics remain explicit",()=>{
   assert.equal(isFilterActive("status","all"),true);
   assert.equal(isFilterActive("owner","AE1"),true);
   assert.equal(isFilterActive("region",""),false);
+});
+
+test("All statuses remains a valid filter instead of reverting to default Open",()=>{
+  assert.equal(normalizeFilterSelection("status","all"),"all");
+  assert.equal(normalizeFilterSelection("stage","all"),"");
+  assert.equal(normalizeFilterSelection("region","all"),"");
+  assert.equal(normalizeFilterSelection("status","won"),"won");
 });
