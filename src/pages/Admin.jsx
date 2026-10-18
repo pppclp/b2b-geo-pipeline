@@ -128,21 +128,40 @@ function TerritoryManager() {
 function StageManager() {
   const { items, createMaster, updateMaster } = useMaster("Stage");
   const [name, setName] = useState("");
+  const [newSla, setNewSla] = useState("");
+  const validDays = (v) => v === "" || (Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 365);
+  const saveSla = (stage, input) => {
+    const value = input.value.trim();
+    if (!validDays(value)) {
+      input.value = stage.sla_days ?? "";
+      return;
+    }
+    updateMaster("Stage", stage.id, { sla_days: value === "" ? null : Number(value) });
+  };
   return (
     <Card>
-      <Header><span className="col-span-4">Name</span><span className="col-span-2">Order</span><span className="col-span-2">Weight %</span><span className="col-span-2">Active</span><span className="col-span-2"></span></Header>
+      <p className="text-xs text-muted-foreground mb-3">
+        Set a Stage SLA in calendar days (1–365). Blank means not configured and will not be flagged overdue.
+        Internal Working With SLA is configured separately under Config.
+      </p>
+      <Header><span className="col-span-3">Stage</span><span className="col-span-2">Order</span><span className="col-span-2">Weight %</span><span className="col-span-2">SLA (days)</span><span className="col-span-1">Active</span><span className="col-span-2"></span></Header>
       {items.map((s) => (
         <Row key={s.id}>
-          <Input className="col-span-4 h-8" defaultValue={s.name} onBlur={(e) => updateMaster("Stage", s.id, { name: e.target.value })} />
+          <Input className="col-span-3 h-8" defaultValue={s.name} onBlur={(e) => updateMaster("Stage", s.id, { name: e.target.value })} />
           <Input type="number" className="col-span-2 h-8" defaultValue={s.order} onBlur={(e) => updateMaster("Stage", s.id, { order: Number(e.target.value) })} />
           <Input type="number" className="col-span-2 h-8" defaultValue={s.weight} onBlur={(e) => updateMaster("Stage", s.id, { weight: Number(e.target.value) })} />
-          <Toggle active={s.active} onToggle={(v) => updateMaster("Stage", s.id, { active: v })} />
-          <span className="col-span-2 text-xs text-muted-foreground">Stages are deactivated, not deleted.</span>
+          <Input type="number" min="1" max="365" step="1" className="col-span-2 h-8" defaultValue={s.sla_days ?? ""} onBlur={(e) => saveSla(s, e.target)} placeholder="Not set" />
+          <div className="col-span-1"><Toggle active={s.active} onToggle={(v) => updateMaster("Stage", s.id, { active: v })} /></div>
+          <span className="col-span-2 text-xs text-muted-foreground">Deactivate; do not delete</span>
         </Row>
       ))}
       <AddBar>
-        <Input className="col-span-4 h-8" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Button size="sm" onClick={() => { if (name) { createMaster("Stage", { name, order: items.length, active: true, weight: 0 }); setName(""); } }}><Plus className="w-4 h-4" /> Add Stage</Button>
+        <Input className="col-span-3 h-8" placeholder="New Stage" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input type="number" min="1" max="365" step="1" className="col-span-2 h-8" value={newSla} onChange={(e) => setNewSla(e.target.value)} placeholder="SLA days" />
+        <Button size="sm" disabled={!name.trim() || !validDays(newSla)} onClick={() => {
+          createMaster("Stage", { name: name.trim(), order: items.length, active: true, weight: 0, sla_days: newSla === "" ? null : Number(newSla) });
+          setName(""); setNewSla("");
+        }}><Plus className="w-4 h-4" /> Add Stage</Button>
       </AddBar>
     </Card>
   );
@@ -279,7 +298,7 @@ function TeamMemberManager() {
 function ConfigManager() {
   const { master, createMaster, updateMaster } = useData();
   const cfg = Object.fromEntries((master?.AppConfig || []).map((c) => [c.key, c]));
-  const [aging, setAging] = useState(cfg.aging_threshold_days?.value || "14");
+  const [internalSla, setInternalSla] = useState(cfg.internal_task_sla_days?.value ?? "");
   const [metric, setMetric] = useState(cfg.pipeline_value_metric?.value || "pipeline_value");
   const [weighted, setWeighted] = useState(cfg.weighted_enabled?.value === "true");
 
@@ -292,9 +311,16 @@ function ConfigManager() {
     <Card>
       <div className="space-y-4 max-w-md">
         <div>
-          <Label>Stuck Threshold (days in stage)</Label>
-          <Input type="number" value={aging} onChange={(e) => setAging(e.target.value)} onBlur={() => save("aging_threshold_days", aging)} />
-          <p className="text-xs text-muted-foreground mt-1">Opportunities exceeding this stage aging are flagged as stuck.</p>
+          <Label>Internal Working With SLA (calendar days)</Label>
+          <Input type="number" min="1" max="365" step="1" value={internalSla} onChange={(e) => setInternalSla(e.target.value)} onBlur={() => {
+            const v = internalSla.trim();
+            if (v !== "" && (!Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 365)) {
+              setInternalSla(cfg.internal_task_sla_days?.value ?? "");
+              return;
+            }
+            if (v !== String(cfg.internal_task_sla_days?.value ?? "")) save("internal_task_sla_days", v);
+          }} placeholder="Not configured" />
+          <p className="text-xs text-muted-foreground mt-1">Starts when Working With is selected. Independent of Stage and Handler aging; blank disables this alert.</p>
         </div>
         <div>
           <Label>Pipeline Value Metric</Label>
