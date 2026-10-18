@@ -10,6 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import MonthPicker from "@/components/MonthPicker";
 import { Pencil, Trash2, Plus, Check, X, Download, Camera } from "lucide-react";
 import SheetEditor from "@/components/SheetEditor";
+import { db } from "@/api/client";
+import { downloadPipelineExcel } from "@/lib/pipelineExport";
 
 export default function Admin() {
   const { profile } = useData();
@@ -400,6 +402,8 @@ function SnapshotManager() {
 
 function ExportsManager() {
   const { history, scopedOpportunities, maps, master } = useData();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const download = (name, headers, rows) => {
     const csv = [headers, ...rows]
@@ -430,16 +434,18 @@ function ExportsManager() {
     download("change_log", headers, rows);
   };
 
-  const exportMonthEnd = () => {
-    const headers = ["Opportunity ID", "Customer", "Region", "Owner", "Current Handler", "Product", "Stage", "Status", "Expected Close", "Pipeline Value", "Support Needed"];
-    const rows = scopedOpportunities.map((o) => [
-      o.id, o.customer_name, maps.region[o.region_id]?.name || "",
-      maps.member[o.owner_id]?.name || "", maps.member[o.current_handler_id]?.name || "",
-      maps.product[o.product_id]?.name || "", maps.stage[o.stage_id]?.name || "",
-      o.status, formatMonth(o.expected_close_month), o.pipeline_value || 0,
-      o.support_needed ? "Yes" : "No",
-    ]);
-    download("month_end_pipeline", headers, rows);
+  const exportCurrentExcel = async () => {
+    setExportError("");
+    setExporting(true);
+    try {
+      // The Admin UI uses the exact same server-authorized exporter as Pipeline.
+      const authorized = await db.exports.pipelines();
+      await downloadPipelineExcel(authorized, maps);
+    } catch (error) {
+      setExportError(error.message || "Excel export failed");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const snapshotCount = (master?.MonthlySnapshot || []).length;
@@ -456,14 +462,15 @@ function ExportsManager() {
         </div>
         <div className="border-t pt-3 flex items-center justify-between gap-3">
           <div>
-            <div className="font-medium text-sm">Month-End Pipeline Export</div>
-            <p className="text-xs text-muted-foreground">Current pipeline ({scopedOpportunities.length} opportunities) as a flat, pivot-friendly table. CSV.</p>
+            <div className="font-medium text-sm">Current Pipeline Export</div>
+            <p className="text-xs text-muted-foreground">Current pipeline ({scopedOpportunities.length} visible opportunities) as an Excel workbook. Month-end captures remain in the Snapshots tab.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportMonthEnd}><Download className="w-4 h-4 mr-1" /> Export Pipeline</Button>
+          <Button variant="outline" size="sm" onClick={exportCurrentExcel} disabled={exporting}><Download className="w-4 h-4 mr-1" /> {exporting ? "Generating…" : "Export Excel"}</Button>
         </div>
+        {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
         <div className="border-t pt-3 text-xs text-muted-foreground">
           {snapshotCount > 0 ? `${snapshotCount} snapshot rows stored (see Snapshots tab).` : "No snapshots stored yet."}
-          <span className="block mt-1">Note: exports are CSV (Excel opens them directly). A multi-sheet .xlsx workbook is on the roadmap.</span>
+          <span className="block mt-1">Change Log remains CSV; Pipeline export is .xlsx.</span>
         </div>
       </div>
     </Card>
