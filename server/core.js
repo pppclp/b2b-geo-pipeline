@@ -392,11 +392,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (t && t.region_id !== next.region_id) throw new HttpError(400, "Territory does not belong to the selected Region");
     }
     const regionChanged = changed("region_id");
-    // Historic Pipelines may have no Region. Allow unrelated edits, but new
-    // Pipelines and explicit changes/clears must have a valid Region.
-    if ((!prev || regionChanged) && !filled("region_id")) {
-      throw new HttpError(400, "Region is required");
-    }
+    if (!filled("region_id")) throw new HttpError(400, "Region is required");
     if (changed("owner_user_id") || regionChanged) {
       const owner = findUser(next.owner_user_id);
       if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
