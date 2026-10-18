@@ -3,6 +3,7 @@ import { db } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { currentMonthKey } from "@/lib/pipeline";
 import { buildQuickActionChanges } from "@/lib/quickActionChanges";
+import { unpackEntityBatch } from "@/lib/entityBatch";
 
 const DataContext = createContext(null);
 
@@ -31,10 +32,7 @@ const MASTER_ENTITIES = [
 // One round trip for everything the app needs; an entity the user may not read comes back empty.
 async function fetchAllEntities(entities) {
   const results = await db.batch(entities.map((e) => ({ path: `entities/${e}`, query: { sort: "-created_date" } })));
-  return results.map((r, i) => {
-    if (r.status !== 200) console.warn(`Failed to load ${entities[i]}: ${r.body?.message}`);
-    return r.status === 200 && Array.isArray(r.body) ? r.body : [];
-  });
+  return unpackEntityBatch(entities, results);
 }
 
 export function DataProvider({ children }) {

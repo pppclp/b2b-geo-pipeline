@@ -114,3 +114,12 @@ export function statusCounts(scopedOpportunities) {
   }
   return counts;
 }
+
+// Primary business navigation should never disappear while data is loading,
+// when a role owns one Stage, or when a backend error returns no rows.
+// Region is the only primary dropdown that SMs do not need for one Region.
+export function visiblePrimaryFilters(role, options, filters = {}) {
+  return filterLayout(role).primary.filter((key) =>
+    !(key === "region" && role === "sm" && !shouldShowDropdown(options?.region, filters.region))
+  );
+}

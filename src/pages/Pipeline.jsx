@@ -14,7 +14,7 @@ import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KanbanSquare, List, Plus, Download } from "lucide-react";
+import { KanbanSquare, List, Plus, Download, AlertTriangle, RefreshCw } from "lucide-react";
 
 const SORTS = [
   { value: "close_month", label: "Expected Close Month" },
@@ -47,7 +47,7 @@ function applySort(ops, sort) {
 }
 
 export default function Pipeline() {
-  const { scopedOpportunities, activeStages, maps, profile, config } = useData();
+  const { scopedOpportunities, opportunities, activeStages, maps, profile, config, loading, error, refresh } = useData();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState("board");
@@ -187,6 +187,22 @@ export default function Pipeline() {
       </div>
 
       {exportError && <p role="alert" className="text-sm text-red-600 mb-3">{exportError}</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground mb-3">กำลังโหลด Pipeline และสิทธิ์ผู้ใช้…</p>}
+      {error && (
+        <div role="alert" className="flex flex-wrap gap-3 items-center justify-between rounded-xl border border-red-200 bg-red-50/70 p-3 mb-4 text-sm text-red-800">
+          <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> โหลดข้อมูลไม่สำเร็จ: {error.message}</span>
+          <Button type="button" size="sm" variant="outline" onClick={refresh} disabled={loading}>
+            <RefreshCw className="w-4 h-4 mr-1.5" /> ลองโหลดใหม่
+          </Button>
+        </div>
+      )}
+      {!loading && !error && scopedOpportunities.length === 0 && (
+        <p role="status" className="text-sm text-muted-foreground mb-3">
+          {opportunities.length > 0
+            ? "Backend ส่ง Pipeline กลับมาแล้ว แต่ไม่ตรงกับ Role / Region Access ที่โหลดในหน้านี้ กรุณาตรวจ User_Region และการตั้งค่า Deployment"
+            : "ยังไม่มี Pipeline ที่บัญชีนี้มีสิทธิ์เห็น ถ้าควรมีข้อมูล กรุณาตรวจ Apps Script Deployment, Users และ User_Region"}
+        </p>
+      )}
       <div className="rounded-2xl border border-border bg-card shadow-soft p-4 mb-5">
         <FilterBar filters={filters} onFilter={onFilter} />
       </div>
