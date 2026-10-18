@@ -7,7 +7,6 @@ import { bangkokMonth, OPPORTUNITY_COLUMNS } from "../server/opportunityPolicy.j
 const contract = loadContract(new URL("../b2b_geo_pipeline.yaml", import.meta.url));
 const ORG = "B2B_GEO_User_Org_Master.xlsx";
 const CONFIG = "B2B_GEO_Pipeline_Config.xlsx";
-const PRODUCT = "B2B_Product_Master.xlsx";
 const DB = "B2B_GEO_Pipeline_DB.xlsx";
 
 function fixture(now = "2026-10-18T10:00:00.000Z") {
@@ -28,7 +27,7 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
     [ORG + "/Regions"]: [{region_id:"R1",active:"Yes"},{region_id:"R2",active:"Yes"}],
     [ORG + "/Territories"]: [{territory_id:"T1",region_id:"R1",active:"Yes"}],
     [CONFIG + "/Stages"]: [{stage_id:"S1",active:"Yes"},{stage_id:"S2",active:"Yes"},{stage_id:"OFF",active:"No"}],
-    [PRODUCT + "/Product_Categories"]: [{category_id:"CAT1",active:"Yes"},{category_id:"OFF",active:"No"}],
+    [CONFIG + "/Product_Categories"]: [{category_id:"CAT1",active:"Yes"},{category_id:"OFF",active:"No"}],
     [DB + "/Pipelines"]: [{
       opportunity_id:"OPP-1",owner_user_id:"AE1",current_handler_user_id:"AE1",
       original_owner_user_id:"AE1",region_id:"R1",status:"Open",stage_id:"S1",

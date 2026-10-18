@@ -9,7 +9,6 @@ const contract = loadContract(new URL("../b2b_geo_pipeline.yaml", import.meta.ur
 const ORG="B2B_GEO_User_Org_Master.xlsx";
 const DB="B2B_GEO_Pipeline_DB.xlsx";
 const CONFIG="B2B_GEO_Pipeline_Config.xlsx";
-const PRODUCT="B2B_Product_Master.xlsx";
 
 function fixture() {
   const seed={
@@ -28,7 +27,7 @@ function fixture() {
     [ORG+"/Regions"]:[{region_id:"R1",active:"Yes"},{region_id:"R2",active:"Yes"}],
     [CONFIG+"/Stages"]:[{stage_id:"S1",active:"Yes"}],
     [CONFIG+"/Lost_Reasons"]:[{reason_id:"LR1",active:"Yes",reason_name:"Price"}],
-    [PRODUCT+"/Product_Categories"]:[{category_id:"CAT",active:"Yes"}],
+    [CONFIG + "/Product_Categories"]:[{category_id:"CAT",active:"Yes"}],
     [DB+"/Pipelines"]:[
       {opportunity_id:"P1",customer_name:"Acme",owner_user_id:"AE1",current_handler_user_id:"AE1",original_owner_user_id:"AE1",region_id:"R1",status:"Open",stage_id:"S1",product_category_id:"CAT",quantity:1,price_per_sub:100,pipeline_value:100,expected_close_month:"2026-11"},
       {opportunity_id:"P2",customer_name:"Beta",owner_user_id:"AE2",current_handler_user_id:"AE2",original_owner_user_id:"AE2",region_id:"R2",status:"Open",stage_id:"S1",product_category_id:"CAT",quantity:1,price_per_sub:200,pipeline_value:200,expected_close_month:"2026-11"},

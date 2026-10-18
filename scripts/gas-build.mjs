@@ -31,7 +31,13 @@ fs.writeFileSync(core, header + fs.readFileSync(core, "utf8"));
 const contract = loadContract(path.join(root, "b2b_geo_pipeline.yaml"));
 fs.writeFileSync(path.join(outDir, "Contract.js"), `${header}var GEO_CONTRACT = ${JSON.stringify(contract, null, 1)};\n`);
 
-const ids = sheetIds(readEnv(root));
+// Only bundle IDs referenced by the current runtime contract. Retired product
+// and historical export workbooks must not remain a GAS runtime dependency.
+const runtimeFiles = new Set(Object.entries(contract.access.files)
+  .filter(([, rule]) => rule.sheets && Object.keys(rule.sheets).length)
+  .map(([file]) => file));
+const ids = Object.fromEntries(Object.entries(sheetIds(readEnv(root)))
+  .filter(([file]) => runtimeFiles.has(file)));
 fs.writeFileSync(path.join(outDir, "SheetIds.js"), `${header}var GEO_SHEET_IDS = ${JSON.stringify(ids, null, 1)};\n`);
 
 const manifest = {

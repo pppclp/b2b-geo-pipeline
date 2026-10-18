@@ -235,8 +235,8 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                     <SelectContent>{categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
-                <Field label="Product Details">
-                  <Input value={form.product_details} onChange={(e) => set("product_details", e.target.value)} placeholder="Package / solution / equipment" />
+                <Field label="Product Description (Free Text)">
+                  <Input value={form.product_details} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter package / solution / equipment description" />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

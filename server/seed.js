@@ -121,7 +121,7 @@ function opportunities() {
       owner_user_id: owner,
       current_handler_user_id: handler,
       product_category_id: product[2],
-      product_id: product[0],
+      product_details: product[1],
       stage_id: stage[0],
       status,
       expected_close_month: month(i % 4),
@@ -221,11 +221,8 @@ export function seedData() {
         active: "Yes",
       })),
     },
-    "B2B_Product_Master.xlsx": {
-      Product_Categories: active(categories, ["category_id", "category_name"]),
-      Products: active(products, ["product_id", "product_name", "category_id"]),
-    },
     "B2B_GEO_Pipeline_Config.xlsx": {
+      Product_Categories: active(categories, ["category_id", "category_name"]),
       Stages: active(stages, ["stage_id", "stage_name", "weight_pct"]),
       Scenarios: active(scenarios, ["scenario_id", "scenario_name"]),
       Lost_Reasons: active(lostReasons, ["reason_id", "reason_name"]),

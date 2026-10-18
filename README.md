@@ -28,8 +28,8 @@ npm run dev           # http://localhost:5173 — frontend + local API together
   - `excluded_sheets`: README and Data_Dictionary are never read or written
 
   Edits to the YAML take effect without a restart.
-- **Admin → Source Sheets:** add, edit and delete rows in every sheet of the three master
-  files. A delete is refused while other rows still reference the ID (from `referenced_by` /
+- **Admin → Source Sheets:** maintain User/Organization and Pipeline Config master
+  tabs (including Product_Categories). Products are entered as free text. A delete is refused while other rows still reference the ID (from `referenced_by` /
   `used_by` in the YAML).
 
 ## Reports and audit (one canonical Pipeline DB)
@@ -64,8 +64,10 @@ four runtime sheets:
 duplicated in `Snapshots`. Re-capturing the same `snapshot_period` replaces that
 period so it does not create duplicate commission rows.
 
-The runtime DB does **not** duplicate User, Region, Product or Pipeline Config masters;
-those remain in their dedicated master workbooks.
+The runtime DB does **not** duplicate User, Region or Pipeline Config masters.
+Product_Categories is a tab in Pipeline Config; product_details is free text in
+each Pipeline. The old B2B_Product_Master spreadsheet is archived/read-only,
+not referenced by the runtime API or generated Apps Script SheetIds.js.
 
 ## Use Google Sheets (Apps Script backend)
 
@@ -77,7 +79,9 @@ writes the Google Sheets directly.
 3. `npx clasp create-script --type standalone --title "B2B GEO Pipeline API" --rootDir apps-script`
 4. `npm run gas:push` builds `apps-script/` from the YAML and `.env.local`, then pushes it.
 5. For the **existing** Apps Script project, preserve the deployed `/exec` URL.
-   Ensure its `GEO_SHEET_ID_B2B_GEO_Pipeline_DB` property points to the intended DB.
+   Ensure its `GEO_SHEET_ID_B2B_GEO_Pipeline_DB` and
+   `GEO_SHEET_ID_B2B_GEO_Pipeline_Config` properties point to the intended
+   workbooks; the Config workbook must contain `Product_Categories`.
    Before releasing this branch, run **`prepareAdminAuditSheet()`** once in the
    Apps Script editor to create/verify `Admin_Audit` without modifying existing
    Pipelines, Events or Snapshots. This preparation helper must be pushed to the
