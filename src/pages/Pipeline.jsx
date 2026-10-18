@@ -3,10 +3,10 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { agingDays, formatMonth, STATUS_LABELS , monthOf } from "@/lib/pipeline";
+import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
+import { applyPipelineFilters } from "@/lib/pipelineFilters";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
-import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import OpportunityForm from "@/components/OpportunityForm";
@@ -78,6 +78,10 @@ export default function Pipeline() {
     if (params.get("lost_reason")) f.lost_reason = params.get("lost_reason");
     if (params.get("stage")) f.stage = params.get("stage");
     if (params.get("status")) f.status = params.get("status");
+    if (params.get("search")) f.search = params.get("search");
+    if (params.get("ownership_view")) f.ownership_view = params.get("ownership_view");
+    if (params.get("with_me")) f.with_me = params.get("with_me");
+    if (params.get("needs_review")) f.needs_review = params.get("needs_review");
     if (params.get("sort")) setSort(params.get("sort"));
     setFilters(f);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,33 +106,36 @@ export default function Pipeline() {
       setSort("close_month");
       return;
     }
-    setFilters((f) => ({ ...f, [key]: value || "" }));
+    setFilters((current) => {
+      const updated = { ...current, [key]: value || "" };
+      // A Dashboard "assigned-to-me" link should not keep a hidden Handler
+      // restriction after the AE explicitly chooses a different ownership view.
+      if ((key === "ownership_view" || key === "with_me") &&
+          (params.get("view") === "assigned-to-me" || params.get("assigned") === "me")) {
+        delete updated.handler;
+      }
+      return updated;
+    });
+    setParams((previous) => {
+      const nextParams = new URLSearchParams(previous);
+      if (value) nextParams.set(key, value);
+      else nextParams.delete(key);
+      if (key === "ownership_view") {
+        nextParams.delete("view");
+        nextParams.delete("assigned");
+        if (previous.get("view") === "assigned-to-me" || previous.get("assigned") === "me") nextParams.delete("handler");
+      }
+      if (key === "with_me") {
+        if (previous.get("view") === "assigned-to-me" || previous.get("assigned") === "me") nextParams.delete("handler");
+        nextParams.delete("view");
+        nextParams.delete("assigned");
+      }
+      return nextParams;
+    }, { replace: true });
   };
 
-  const filtered = useMemo(() => {
-    return scopedOpportunities.filter((o) => {
-      if (filters.created_month && o.created_month !== filters.created_month) return false;
-      if (filters.close_month && o.expected_close_month !== filters.close_month) return false;
-      if (filters.region && o.region_id !== filters.region) return false;
-      if (filters.owner && o.owner_id !== filters.owner) return false;
-      if (filters.handler && o.current_handler_id !== filters.handler) return false;
-      if (filters.stage && o.stage_id !== filters.stage) return false;
-      if (filters.status && filters.status !== "all" && o.status !== filters.status) return false;
-      if (filters.product_category && o.product_category_id !== filters.product_category) return false;
-      if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
-      if (filters.ccp_check_result && o.ccp_check_result !== filters.ccp_check_result) return false;
-      if (filters.scenario && o.scenario_id !== filters.scenario) return false;
-      if (filters.working_with && o.working_with !== filters.working_with) return false;
-      if (filters.support === "1" && !o.support_needed) return false;
-      if (filters.support === "0" && o.support_needed) return false;
-      if (filters.stuck === "1" && !isStageSlaOverdue(o, maps.stage)) return false;
-      if (filters.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
-      if (filters.won_month && monthOf(o.won_at) !== filters.won_month) return false;
-      if (filters.lost_month && monthOf(o.lost_at) !== filters.lost_month) return false;
-      if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
-      return true;
-    });
-  }, [scopedOpportunities, filters, config, maps.stage]);
+  const filtered = useMemo(() => applyPipelineFilters(scopedOpportunities, filters,
+    { profile, maps, config }), [scopedOpportunities, filters, profile, maps, config]);
 
   const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
   const exportExcel = async () => {
