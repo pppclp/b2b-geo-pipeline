@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useData } from "@/lib/dataContext";
-import { currentMonthKey, STATUS_LABELS } from "@/lib/pipeline";
+import { currentMonthKey } from "@/lib/pipeline";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";

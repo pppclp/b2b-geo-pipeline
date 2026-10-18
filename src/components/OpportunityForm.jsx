@@ -46,6 +46,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const { maps, master, activeStages, profile, createOpportunity, updateWithHistory } = useData();
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const canReview = ["sm", "management", "admin"].includes(profile?.app_role);
 
   useEffect(() => {
@@ -63,7 +64,9 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     }
   }, [opportunity, open, activeStages, profile]);
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k, v) => { setForm((f) => ({ ...f, [k]: v, ...(k === "region_id" ? { territory_id: "" } : {}) })); setSaveError(""); };
+  const canChangeOwner = ["sm", "management", "admin"].includes(profile?.app_role);
+  useEffect(() => { if (open) setSaveError(""); }, [open]);
 
   const regionOptions = useMemo(
     () => (master?.Region || []).filter((r) => r.active).sort((a, b) => a.order - b.order).map((r) => ({ value: r.id, label: r.name })),
@@ -73,9 +76,17 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     () => (master?.Territory || []).filter((t) => t.active && t.region_id === form.region_id).map((t) => ({ value: t.id, label: t.name })),
     [master, form.region_id]
   );
-  const memberOptions = useMemo(
-    () => (master?.TeamMember || []).filter((m) => m.active).map((m) => ({ value: m.id, label: `${m.name} (${m.app_role.toUpperCase()})` })),
-    [master]
+  const ownerOptions = useMemo(
+    () => (master?.TeamMember || [])
+      .filter((m) => m.active && m.app_role === "ae" && (m.region_ids || []).includes(form.region_id))
+      .map((m) => ({ value: m.id, label: m.name })),
+    [master, form.region_id]
+  );
+  const handlerOptions = useMemo(
+    () => (master?.TeamMember || [])
+      .filter((m) => m.active && ["ae", "sm"].includes(m.app_role) && (m.region_ids || []).includes(form.region_id))
+      .map((m) => ({ value: m.id, label: `${m.name} (${m.app_role.toUpperCase()})` })),
+    [master, form.region_id]
   );
   const categoryOptions = useMemo(
     () => (master?.ProductCategory || []).filter((c) => c.active).sort((a, b) => a.order - b.order).map((c) => ({ value: c.id, label: c.name })),
@@ -102,25 +113,32 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
       calculatedNetRc = calculateNetRc({ quantity: form.quantity, pricePerSub: form.price_per_sub, oc: form.oc });
     } catch { /* Do not show a calculation until inputs are valid. */ }
   }
-  const valid = Boolean(
-    String(form.customer_name || "").trim() &&
-    /^\d+$/.test(String(form.business_id || "").trim()) &&
-    form.customer_type &&
-    form.sales_channel &&
-    String(form.contact_name || "").trim() &&
-    String(form.contact_phone || "").trim() &&
-    form.region_id &&
-    form.owner_id &&
-    form.product_category_id &&
-    form.stage_id &&
-    form.expected_close_month &&
-    String(form.remark || "").length <= 500 &&
-    (legacyEdit && !hasUnitPrice ? true : calculatedNetRc !== null)
-  );
+  const changed = (field) => String(form[field] ?? "") !== String(opportunity?.[field] ?? "");
+  const requiredProblem = (field, good, label) =>
+    !good && (!opportunity || changed(field)) ? label : "";
+  const pricingChanged = ["quantity", "price_per_sub", "oc"].some(changed);
+  const problems = [
+    requiredProblem("customer_name", !!String(form.customer_name || "").trim(), "Customer Name"),
+    requiredProblem("business_id", /^\d+$/.test(String(form.business_id || "").trim()), "Business ID"),
+    requiredProblem("customer_type", !!form.customer_type, "Customer Type"),
+    requiredProblem("sales_channel", !!form.sales_channel, "Sales Channel"),
+    requiredProblem("contact_name", !!String(form.contact_name || "").trim(), "Contact Name"),
+    requiredProblem("contact_phone", !!String(form.contact_phone || "").trim(), "Contact Phone"),
+    requiredProblem("region_id", !!form.region_id, "Region"),
+    requiredProblem("owner_id", !!form.owner_id, "Opportunity Owner"),
+    requiredProblem("product_category_id", !!form.product_category_id, "Product Category"),
+    requiredProblem("stage_id", !!form.stage_id, "Stage"),
+    requiredProblem("expected_close_month", !!form.expected_close_month, "Expected Close Month"),
+    String(form.remark || "").length > 500 && "Remark (max 500 characters)",
+    (pricingChanged || !opportunity) && !(legacyEdit && !hasUnitPrice) && calculatedNetRc === null &&
+      "Number of Subs / Price per Sub",
+  ].filter(Boolean);
+  const valid = problems.length === 0;
 
   const submit = async () => {
-    if (!valid) return;
+    if (!valid || saving) return;
     setSaving(true);
+    setSaveError("");
     try {
       const payload = {
         customer_name: form.customer_name.trim(),
@@ -158,19 +176,27 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         delete payload.oc;
       }
       if (opportunity) {
-        await updateWithHistory(opportunity.id, payload, null);
+        const changedPayload = Object.fromEntries(
+          Object.entries(payload).filter(([key, value]) =>
+            key !== "pipeline_value" && String(value ?? "") !== String(opportunity[key] ?? "")
+          )
+        );
+        if (pricingChanged && calculatedNetRc !== null) changedPayload.pipeline_value = calculatedNetRc;
+        if (Object.keys(changedPayload).length) await updateWithHistory(opportunity.id, changedPayload, null);
       } else {
         await createOpportunity(payload);
       }
       onSaved?.();
       onClose();
+    } catch (error) {
+      setSaveError(error?.message || "Unable to save. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && !saving && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Pipeline</DialogTitle>
@@ -236,10 +262,10 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
           <div>
             <Label>Opportunity Owner *</Label>
-            <Select value={form.owner_id} onValueChange={(v) => set("owner_id", v)}>
+            <Select value={form.owner_id} onValueChange={(v) => set("owner_id", v)} disabled={!canChangeOwner}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
-                {memberOptions.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                {ownerOptions.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -248,7 +274,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Select value={form.current_handler_id} onValueChange={(v) => set("current_handler_id", v)}>
               <SelectTrigger><SelectValue placeholder="Defaults to owner" /></SelectTrigger>
               <SelectContent>
-                {memberOptions.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                {handlerOptions.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -362,8 +388,10 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
         )}
 
+        {!valid && <p role="alert" className="text-xs text-amber-700">Check: {problems.join(", ")}</p>}
+        {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={submit} disabled={!valid || saving}>
             {saving ? "Saving…" : opportunity ? "Save Changes" : "Create Opportunity"}
           </Button>

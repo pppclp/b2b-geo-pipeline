@@ -12,6 +12,7 @@ import { calculateNetRc } from "../src/lib/netRc.js";
 import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
+import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } from "./opportunityPolicy.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -54,6 +55,19 @@ function normalizeOpportunityPricing(data, existing = null) {
       throw new HttpError(400, "Enter Price per Sub before changing legacy financial values");
     }
     return { ...data };
+  }
+  // Editing a note or Stage must never silently reprice an existing deal.
+  // Recalculate Net RC only when one of its inputs has genuinely changed.
+  const repriced = !existing || ["quantity", "price_per_sub", "oc"].some(
+    (k) => k in data && String(data[k] ?? "") !== String(existing[k] ?? "")
+  );
+  if (!repriced) {
+    if ("pipeline_value" in data &&
+        String(data.pipeline_value ?? "") !== String(existing.pipeline_value ?? "")) {
+      throw new HttpError(400, "Pipeline Value is calculated from unit pricing");
+    }
+    const { pipeline_value: ignored, ...rest } = data;
+    return rest;
   }
   try {
     return { ...data, pipeline_value: calculateNetRc({
@@ -342,6 +356,74 @@ export function createCore({ contract, store, now, uuid }) {
     }
   }
 
+  // Validate changed references only, allowing historical rows with retired
+  // codes to receive unrelated updates. New values must be real and active.
+  function validateOpportunityRefs(next, prev = null, actor = null) {
+    const changed = (col) => !prev || String(prev[col] ?? "") !== String(next[col] ?? "");
+    const filled = (col) => String(next[col] ?? "").trim() !== "";
+    const refs = [
+      ["region_id", "regions", "Region"],
+      ["territory_id", "territories", "Territory"],
+      ["stage_id", "stages", "Stage"],
+      ["product_category_id", "product_categories", "Product Category"],
+      ["scenario_id", "scenarios", "Scenario"],
+      ["working_with_id", "working_with_options", "Working With"],
+      ["support_type_id", "support_types", "Support Type"],
+    ];
+    for (const [col, entity, label] of refs) {
+      if (!changed(col)) continue;
+      // A user must not remove a required reference from an existing record.
+      if (["region_id", "stage_id", "product_category_id"].includes(col) && prev && filled(col) === false && filledPrev(prev, col)) {
+        throw new HttpError(400, label + " is required");
+      }
+      if (!filled(col) || !bindings[entity]) continue;
+      const b = bindings[entity];
+      const master = rows(entity).find((r) => String(r[b.primary_key]) === String(next[col]));
+      if (!master || !isActive(master.active)) {
+        throw new HttpError(400, "Unknown or inactive " + label + ": " + next[col]);
+      }
+    }
+    if (changed("expected_close_month") &&
+        (!filled("expected_close_month") || !isMonthKey(String(next.expected_close_month)))) {
+      throw new HttpError(400, "Expected Close Month must be YYYY-MM");
+    }
+    if ((changed("territory_id") || changed("region_id")) && filled("territory_id") && bindings.territories) {
+      const t = rows("territories").find((r) => String(r.territory_id) === String(next.territory_id));
+      if (t && t.region_id !== next.region_id) throw new HttpError(400, "Territory does not belong to the selected Region");
+    }
+    const regionChanged = changed("region_id");
+    if (!filled("region_id")) throw new HttpError(400, "Region is required");
+    if (changed("owner_user_id") || regionChanged) {
+      const owner = findUser(next.owner_user_id);
+      if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
+      if (!owner.region_ids.includes(String(next.region_id))) {
+        throw new HttpError(400, "Owner AE is not assigned to this Pipeline's Region");
+      }
+    }
+    if (changed("current_handler_user_id") || regionChanged) {
+      const handler = findUser(next.current_handler_user_id || next.owner_user_id);
+      if (!handler) throw new HttpError(400, "Current Handler must be an active user");
+      // Existing escalation workflows may assign Management. AE cannot grant a
+      // Management/Admin user customer-row access via an arbitrary handoff.
+      if (["management", "admin"].includes(handler.role)) {
+        if (actor?.role === "ae") throw new HttpError(403, "AE cannot hand off directly to Management or Admin");
+      } else if (!["ae", "sm"].includes(handler.role) || !handler.region_ids.includes(String(next.region_id))) {
+        throw new HttpError(400, "Current Handler AE/SM must be assigned to this Pipeline's Region");
+      }
+    }
+  }
+  const filledPrev = (rec, col) => String(rec?.[col] ?? "").trim() !== "";
+
+  // Derived timestamps can never be sent by the browser. Each SLA clock
+  // changes only with its associated business field.
+  function applyOpportunityTimers(changes, before, stamp) {
+    const differs = (field) => field in changes && String(changes[field] ?? "") !== String(before[field] ?? "");
+    if (differs("stage_id")) changes.stage_entered_at = stamp;
+    if (differs("current_handler_user_id")) changes.handler_since = stamp;
+    if (differs("working_with_id")) changes.working_with_since = changes.working_with_id ? stamp : "";
+    return changes;
+  }
+
   const entityApi = {
     list(uiEntity, actor, { sort, limit, query } = {}) {
       const b = binding(uiEntity);
@@ -368,6 +450,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "Stage") validateStageSla(data);
       const stamp = now();
       if (uiEntity === "Opportunity") {
+        data = stripSystemFields(data);
         // New Pipelines always start Open. Close them via the audited
         // Won/Lost update flow, which requires a Lost Reason when applicable.
         if (String(data.status || "open").toLowerCase() !== "open") {
@@ -384,7 +467,18 @@ export function createCore({ contract, store, now, uuid }) {
         validateLatestOpportunityFields(data, { requireRequired: "sales_channel" in data });
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
-      const row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
+      let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
+      if (b.entity === "opportunities") {
+        row = keepOpportunityColumns(row);
+        row.status = "Open";
+        row.current_handler_user_id = row.current_handler_user_id || row.owner_user_id;
+        row.original_owner_user_id = row.owner_user_id;
+        row.created_month = bangkokMonth(stamp);
+        row.stage_entered_at = stamp;
+        row.handler_since = stamp;
+        row.working_with_since = row.working_with_id ? stamp : "";
+        validateOpportunityRefs(row, null, actor);
+      }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
       if (b.append_only) {
         // Events are system records: actor and time are set by the backend.
@@ -416,6 +510,7 @@ export function createCore({ contract, store, now, uuid }) {
         throw new HttpError(403, "System-controlled entity");
       }
       if (uiEntity === "Stage") validateStageSla(data);
+      if (uiEntity === "Opportunity") data = stripSystemFields(data);
       const row = findRow(b, actor, id);
       const before = { ...row };
       if (uiEntity === "Opportunity" && actor.role === "ae") {
@@ -452,11 +547,21 @@ export function createCore({ contract, store, now, uuid }) {
       const checked = uiEntity === "Opportunity"
         ? normalizeOpportunityPricing(normalized, toUi(uiEntity, b.primary_key, row))
         : data;
-      const changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
+      let changes = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       delete changes[b.primary_key];
       // Free-text audit remark is metadata, never a Pipeline column.
       delete changes.audit_remark;
       const stamp = now();
+      if (b.entity === "opportunities") {
+        changes = applyOpportunityTimers(keepOpportunityColumns(changes), row, stamp);
+        const next = { ...row, ...changes };
+        validateOpportunityRefs(next, row, actor);
+        // Do not let Region changes move the row out of the editor's scope.
+        if (String(next.region_id ?? "") !== String(row.region_id ?? "") &&
+            !scopedFilter(b, actor)(next)) {
+          throw new HttpError(403, "Region change would move Pipeline outside your scope");
+        }
+      }
       Object.assign(row, fitColumns(b, { ...changes, updated_at: stamp }));
       touch(b);
       const auditEvents = b.entity === "opportunities"

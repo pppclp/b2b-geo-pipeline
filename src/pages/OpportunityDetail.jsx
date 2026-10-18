@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { formatMonth, formatDate, formatDateTime, agingDays, STATUS_LABELS } from "@/lib/pipeline";
+import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import HistoryTimeline from "@/components/HistoryTimeline";
 import OpportunityForm from "@/components/OpportunityForm";
 import { PipelineQuickActions } from "@/components/PipelineQuickView";
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Pencil, ArrowRightLeft, Users, GitBranch, Archive, RefreshCw, CalendarClock, Wrench } from "lucide-react";
+import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, Wrench } from "lucide-react";
 
 const statusColor = {
   open: "bg-blue-100 text-blue-700 border border-blue-200",
@@ -33,6 +33,8 @@ export default function OpportunityDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [action, setAction] = useState(null); // {type, ...}
   const [remark, setRemark] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   if (!op) {
     return <EmptyState title="Opportunity not found" description="It may be outside your permission scope or has been removed." icon={ArrowLeft} action={<Button onClick={() => navigate("/pipeline")}>Back to Pipeline</Button>} />;
@@ -53,22 +55,40 @@ export default function OpportunityDetail() {
   const handlerAging = agingDays(op.handler_since);
   const wwAging = op.working_with ? agingDays(op.working_with_since) : 0;
 
-  const closeAction = () => { setAction(null); setRemark(""); };
+  const closeAction = () => {
+    if (saving) return;
+    setAction(null);
+    setRemark("");
+    setActionError("");
+  };
 
   const runAction = async () => {
     const a = action;
-    if (a.type === "stage") await moveStage(op.id, a.stageId, remark);
-    else if (a.type === "handoff") await handoff(op.id, a.handlerId, remark);
-    else if (a.type === "reassign") await reassign(op.id, { owner_id: a.ownerId, current_handler_id: a.handlerId, remark });
-    else if (a.type === "closemonth") await changeCloseMonth(op.id, a.month, remark);
-    else if (a.type === "archive") await archiveOp(op.id);
-    else if (a.type === "reopen") await reopen(op.id);
-    else if (a.type === "workingwith") await setWorkingWith(op.id, a.value);
-    else if (a.type === "support") await setSupport(op.id, { needed: a.needed, type: a.type_, note: a.note });
-    closeAction();
+    if (!a || saving) return;
+    setSaving(true);
+    setActionError("");
+    try {
+      if (a.type === "stage") await moveStage(op.id, a.stageId, remark);
+      else if (a.type === "handoff") await handoff(op.id, a.handlerId, remark);
+      else if (a.type === "reassign") await reassign(op.id, { owner_id: a.ownerId, current_handler_id: a.handlerId, remark });
+      else if (a.type === "closemonth") await changeCloseMonth(op.id, a.month, remark);
+      else if (a.type === "archive") await archiveOp(op.id);
+      else if (a.type === "reopen") await reopen(op.id);
+      else if (a.type === "workingwith") await setWorkingWith(op.id, a.value);
+      else if (a.type === "support") await setSupport(op.id, { needed: a.needed, type: a.type_, note: a.note });
+      else throw new Error("Unsupported action");
+      setAction(null);
+      setRemark("");
+    } catch (error) {
+      setActionError(error?.message || "Unable to save this change. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const canEdit = profile?.app_role === "admin" || profile?.app_role === "sm" || op.owner_id === profile?.id || op.current_handler_id === profile?.id;
+  const canEdit = ["admin", "sm", "management"].includes(profile?.app_role) ||
+    op.owner_id === profile?.id || op.current_handler_id === profile?.id;
+  const canReassignOwner = ["sm", "management", "admin"].includes(profile?.app_role);
 
   return (
     <div className="p-5 md:p-7 max-w-[1200px] mx-auto">
@@ -89,7 +109,7 @@ export default function OpportunityDetail() {
         {canEdit && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
-            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>
+            {canReassignOwner && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>}
             <PipelineCloseActions op={op} compact/>
             {op.status !== "archived" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1.5" /> Archive</Button>}
             {op.status !== "open" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1.5" /> Reopen</Button>}
@@ -196,10 +216,11 @@ export default function OpportunityDetail() {
             <DialogTitle>{actionTitle(action?.type)}</DialogTitle>
           </DialogHeader>
           <ActionBody action={action} setAction={setAction} remark={remark} setRemark={setRemark}
-            members={members} stages={activeStages} lostReasons={(master?.LostReason || []).filter((r) => r.active)} supportTypes={(master?.SupportType || []).filter((s) => s.active)} op={op} />
+            members={members} stages={activeStages} supportTypes={(master?.SupportType || []).filter((s) => s.active)} op={op} />
+          {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
           <DialogFooter>
-            <Button variant="outline" onClick={closeAction}>Cancel</Button>
-            <Button onClick={runAction} disabled={!actionValid(action)}>Confirm</Button>
+            <Button variant="outline" onClick={closeAction} disabled={saving}>Cancel</Button>
+            <Button onClick={runAction} disabled={saving || !actionValid(action)}>{saving ? "Saving…" : "Confirm"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -224,10 +245,14 @@ function actionValid(a) {
   return true;
 }
 
-function ActionBody({ action, setAction, remark, setRemark, members, stages, lostReasons, supportTypes, op }) {
+function ActionBody({ action, setAction, remark, setRemark, members, stages, supportTypes, op }) {
   if (!action) return null;
   const t = action.type;
-  const memberOpts = members.map((m) => ({ id: m.id, label: `${m.name} (${m.app_role.toUpperCase()})` }));
+  const allowed = members.filter((m) => (m.region_ids || []).includes(op.region_id));
+  const memberOpts = allowed.filter((m) => ["ae", "sm"].includes(m.app_role))
+    .map((m) => ({ id: m.id, label: `${m.name} (${m.app_role.toUpperCase()})` }));
+  const ownerOpts = allowed.filter((m) => m.app_role === "ae")
+    .map((m) => ({ id: m.id, label: m.name }));
   if (t === "stage")
     return (
       <div className="space-y-2">
@@ -256,7 +281,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, los
         <Label>Opportunity Owner</Label>
         <Select value={action.ownerId || ""} onValueChange={(v) => setAction({ ...action, ownerId: v })}>
           <SelectTrigger><SelectValue placeholder="Keep current" /></SelectTrigger>
-          <SelectContent>{memberOpts.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
+          <SelectContent>{ownerOpts.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
         </Select>
         <Label>Current Handler</Label>
         <Select value={action.handlerId || ""} onValueChange={(v) => setAction({ ...action, handlerId: v })}>
