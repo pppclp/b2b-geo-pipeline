@@ -260,7 +260,10 @@ export function createCore({ contract, store, now, uuid }) {
     if (value !== "" && value != null && (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 365)) {
       throw new HttpError(400, "Internal SLA must be 1-365 days or blank");
     }
+    const before = { ...row };
     row.internal_task_sla_days = value === "" || value == null ? "" : Number(value);
+    // Existing Aging_Settings is a master workbook; Audit stays in Admin_Audit.
+    outputs.logMaster("UPDATED", b, row[b.primary_key], before, row, actor);
     touch(b);
     return appConfigList().find((v) => v.key === key);
   }
