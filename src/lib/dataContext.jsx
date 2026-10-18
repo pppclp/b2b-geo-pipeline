@@ -424,14 +424,19 @@ export function DataProvider({ children }) {
   );
 
   const reopen = useCallback(
-    async (id) => {
+    async (id, reason) => {
       const op = opportunities.find((o) => o.id === id);
-      if (!op) return;
-      await updateWithHistory(id, { status: "open" }, {
+      if (!op || op.status === "open") return;
+      if (!["sm", "management", "admin"].includes(profile?.app_role)) {
+        throw new Error("Only SM, Management or Admin can Reopen a Pipeline");
+      }
+      if (!String(reason || "").trim()) throw new Error("Reopen reason is required");
+      await updateWithHistory(id, { status: "open", audit_remark: reason.trim() }, {
         event_type: "status_change",
         field: "status",
         previous_value: op.status,
         new_value: "open",
+        remark: reason.trim(),
       });
     },
     [opportunities, updateWithHistory]
