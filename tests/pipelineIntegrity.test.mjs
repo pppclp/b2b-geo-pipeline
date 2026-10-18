@@ -28,7 +28,10 @@ function fixture() {
     {user_id:"M1",employee_id:"22",display_name:"Manager",role:"Management",status:"Active"},
     {user_id:"ADMIN",employee_id:"33",display_name:"Admin",role:"Admin",status:"Active"},
   ];
-  all["Org.xlsx|User_Region"].rows=[{user_region_id:"UR1",user_id:"AE1",region_id:"R1",active:"Yes"}];
+  all["Org.xlsx|User_Region"].rows=[
+    {user_region_id:"UR1",user_id:"AE1",region_id:"R1",active:"Yes"},
+    {user_region_id:"UR2",user_id:"M1",region_id:"R1",active:"Yes"},
+  ];
   all["Org.xlsx|Lost_Reasons"].rows=[{reason_id:"R1",active:"Yes",reason_name:"Price"}];
   const touched=[];
   const store={table(file,sheet){return all[file+"|"+sheet];},touch(file,sheet){touched.push(file+"|"+sheet);}};
