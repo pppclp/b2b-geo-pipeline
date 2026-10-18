@@ -110,7 +110,8 @@ export default function Pipeline() {
       const updated = { ...current, [key]: value || "" };
       // A Dashboard "assigned-to-me" link should not keep a hidden Handler
       // restriction after the AE explicitly chooses a different ownership view.
-      if (key === "ownership_view" && params.get("view") === "assigned-to-me") {
+      if ((key === "ownership_view" || key === "with_me") &&
+          (params.get("view") === "assigned-to-me" || params.get("assigned") === "me")) {
         delete updated.handler;
       }
       return updated;
@@ -122,9 +123,10 @@ export default function Pipeline() {
       if (key === "ownership_view") {
         nextParams.delete("view");
         nextParams.delete("assigned");
-        if (previous.get("view") === "assigned-to-me") nextParams.delete("handler");
+        if (previous.get("view") === "assigned-to-me" || previous.get("assigned") === "me") nextParams.delete("handler");
       }
       if (key === "with_me") {
+        if (previous.get("view") === "assigned-to-me" || previous.get("assigned") === "me") nextParams.delete("handler");
         nextParams.delete("view");
         nextParams.delete("assigned");
       }
