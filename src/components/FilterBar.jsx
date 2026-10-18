@@ -5,7 +5,7 @@ import MonthPicker from "@/components/MonthPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { availableFilterOptions, filterLayout, shouldShowDropdown, statusCounts } from "@/lib/pipelineFilters";
+import { availableFilterOptions, filterLayout, shouldShowDropdown, statusCounts, visiblePrimaryFilters } from "@/lib/pipelineFilters";
 
 const LABELS = {
   region: "Region", owner: "AE", handler: "Handler", stage: "Stage",
@@ -27,11 +27,11 @@ const STATUS_VIEWS = [
   { value: "all", label: "All" },
 ];
 
-function FilterSelect({ label, options, value, onChange }) {
+function FilterSelect({ label, options, value, onChange, loading = false }) {
   return (
     <label className="flex flex-col gap-1 min-w-[135px]">
       <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
-      <Select value={value || "all"} onValueChange={(v) => onChange(v === "all" ? "" : v)}>
+      <Select value={value || "all"} disabled={loading || (options.length === 0 && !value)} onValueChange={(v) => onChange(v === "all" ? "" : v)}>
         <SelectTrigger aria-label={label} className="w-full h-9 rounded-lg">
           <SelectValue placeholder="All" />
         </SelectTrigger>
@@ -40,6 +40,7 @@ function FilterSelect({ label, options, value, onChange }) {
           {options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
         </SelectContent>
       </Select>
+      {!loading && !options.length && <span className="text-[10px] text-muted-foreground">ไม่มีตัวเลือกจาก Pipeline ที่เข้าถึงได้</span>}
     </label>
   );
 }
@@ -69,13 +70,13 @@ function ScopeTabs({ options, value, onChange, ariaLabel }) {
 
 // All options originate from server-authorized scopedOpportunities, not the User Master.
 export default function FilterBar({ filters, onFilter, showCreatedMonth = true }) {
-  const { scopedOpportunities, profile, maps } = useData();
+  const { scopedOpportunities, profile, maps, loading } = useData();
   const [moreOpen, setMoreOpen] = useState(false);
   const role = profile?.app_role || "ae";
   const layout = filterLayout(role);
   const options = useMemo(() => availableFilterOptions(scopedOpportunities, maps), [scopedOpportunities, maps]);
   const counts = useMemo(() => statusCounts(scopedOpportunities), [scopedOpportunities]);
-  const primary = layout.primary.filter((key) => shouldShowDropdown(options[key], filters[key]));
+  const primary = visiblePrimaryFilters(role, options, filters);
   const more = layout.more.filter((key) => (showCreatedMonth || key !== "created_month") &&
     (!options[key] || shouldShowDropdown(options[key], filters[key])));
   const activeMoreCount = more.filter((key) => filters[key] && filters[key] !== "all").length;
@@ -90,7 +91,7 @@ export default function FilterBar({ filters, onFilter, showCreatedMonth = true }
       return <ToggleFilter key={key} label="รอ SM Review" active={filters.needs_review === "1"} onChange={(v) => onFilter("needs_review", v)} />;
     }
     return <FilterSelect key={key} label={LABELS[key]} options={options[key] || []}
-      value={filters[key]} onChange={(v) => onFilter(key, v)} />;
+      loading={loading} value={filters[key]} onChange={(v) => onFilter(key, v)} />;
   };
   const statusOptions = STATUS_VIEWS.map((entry) => ({
     ...entry, label: `${entry.label} (${counts[entry.value]})`,
