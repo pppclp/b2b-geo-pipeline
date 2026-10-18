@@ -119,7 +119,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const pricingChanged = ["quantity", "price_per_sub", "oc"].some(changed);
   const problems = [
     requiredProblem("customer_name", !!String(form.customer_name || "").trim(), "Customer Name"),
-    requiredProblem("business_id", /^\\d+$/.test(String(form.business_id || "").trim()), "Business ID"),
+    requiredProblem("business_id", /^\d+$/.test(String(form.business_id || "").trim()), "Business ID"),
     requiredProblem("customer_type", !!form.customer_type, "Customer Type"),
     requiredProblem("sales_channel", !!form.sales_channel, "Sales Channel"),
     requiredProblem("contact_name", !!String(form.contact_name || "").trim(), "Contact Name"),
