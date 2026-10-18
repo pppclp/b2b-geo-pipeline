@@ -36,10 +36,6 @@ export default function Dashboard() {
 
   // Validate region filter against available regions
   const effectiveRegion = availableRegions.find((r) => r.id === regionFilter) ? regionFilter : "";
-  const regionScoped = effectiveRegion
-    ? scopedOpportunities.filter((o) => o.region_id === effectiveRegion)
-    : scopedOpportunities;
-
   // One cohort for the ENTIRE dashboard. Created Month and Expected Close
   // combine as an intersection across every KPI/chart/list.
   const cohort = dashboardCohort(scopedOpportunities, {
