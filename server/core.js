@@ -526,6 +526,28 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "Opportunity") data = stripSystemFields(data);
       const row = findRow(b, actor, id);
       const before = { ...row };
+      if (uiEntity === "Opportunity") {
+        const prior = String(row.status || "Open").toLowerCase();
+        const desired = "status" in data ? String(data.status || "").toLowerCase() : prior;
+        const roleCanReopen = ["sm", "management", "admin"].includes(actor.role);
+        const transition = desired !== prior;
+        if (transition && desired === "archived" && !roleCanReopen) {
+          throw new HttpError(403, "Only SM, Management or Admin can Archive a Pipeline");
+        }
+        if (transition && desired === "open" && prior !== "open") {
+          if (!roleCanReopen) throw new HttpError(403, "Only SM, Management or Admin can Reopen a Pipeline");
+          if (!String(data.audit_remark || "").trim()) throw new HttpError(400, "Reopen reason is required");
+        }
+        if (actor.role === "ae" && prior !== "open") {
+          const previousView = toUi(uiEntity, b.primary_key, row);
+          for (const field of ["quantity", "price_per_sub", "oc", "contract_period", "contract_period_months", "expected_close_month"]) {
+            const oldValue = field === "contract_period_months" ? row.contract_period_months : previousView[field];
+            if (field in data && String(data[field] ?? "") !== String(oldValue ?? "")) {
+              throw new HttpError(403, "AE cannot change financial or close-month fields of a closed Pipeline");
+            }
+          }
+        }
+      }
       if (uiEntity === "Opportunity" && actor.role === "ae") {
         const current = toUi(uiEntity, b.primary_key, row);
         if ("owner_id" in data && String(data.owner_id) !== String(current.owner_id)) {
@@ -555,6 +577,15 @@ export function createCore({ contract, store, now, uuid }) {
           );
         } catch (error) {
           throw new HttpError(400, error.message);
+        }
+        // The prior close-out is preserved in Pipeline_Events. On Reopen,
+        // clear current-state close-out fields so future Won/Lost is unambiguous.
+        if (String(normalized.status || "").toLowerCase() === "open" &&
+            String(row.status || "open").toLowerCase() !== "open") {
+          Object.assign(normalized, {
+            won_at: "", won_by_user_id: "", lost_at: "", lost_by_user_id: "",
+            lost_reason_id: "", lost_note: "", archived_at: "",
+          });
         }
       }
       const checked = uiEntity === "Opportunity"
