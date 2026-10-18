@@ -150,7 +150,9 @@ export function DataProvider({ children }) {
     const cfg = {};
     (master?.AppConfig || []).forEach((c) => (cfg[c.key] = c.value));
     return {
-      aging_threshold_days: Number(cfg.aging_threshold_days || 14),
+      aging_threshold_days: Number(cfg.aging_threshold_days || 14), // legacy only
+      internal_task_sla_days: cfg.internal_task_sla_days === "" || cfg.internal_task_sla_days == null
+        ? null : Number(cfg.internal_task_sla_days),
       pipeline_value_metric: cfg.pipeline_value_metric || "pipeline_value",
       weighted_enabled: cfg.weighted_enabled === "true",
     };
