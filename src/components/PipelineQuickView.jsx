@@ -54,10 +54,14 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
   }, [master, maps.member, op.owner_id, op.current_handler_id, op.region_id]);
 
   const workingOptions = useMemo(() => {
-    const items = (master?.WorkingWithOption || []).filter((item) => item.active).map((item) => item.name);
-    if (op.working_with && !items.includes(op.working_with)) items.push(op.working_with);
-    return Array.from(new Set(items)).sort();
-  }, [master, op.working_with]);
+    const entries = (master?.WorkingWithOption || []).filter((item) => item.active)
+      .map((item) => ({ value: item.id, label: item.name }));
+    if (op.working_with && !entries.some((item) => item.value === op.working_with)) {
+      // Existing retired/legacy selection stays readable without forging a new ID.
+      entries.push({ value: op.working_with, label: maps.workingWith?.[op.working_with]?.name || op.working_with });
+    }
+    return entries.sort((a, b) => a.label.localeCompare(b.label));
+  }, [master, maps.workingWith, op.working_with]);
 
   const changed = stageId !== op.stage_id ||
     handlerId !== (op.current_handler_id || "") ||
@@ -132,7 +136,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
               <SelectTrigger id={`working-${op.id}`} className="w-full"><SelectValue placeholder="None" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>None</SelectItem>
-                {workingOptions.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+                {workingOptions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
