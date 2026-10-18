@@ -33,8 +33,7 @@ export default function Admin() {
           <TabsTrigger value="regions">Regions</TabsTrigger>
           <TabsTrigger value="territories">Territories</TabsTrigger>
           <TabsTrigger value="stages">Stages</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="categories">Product Categories</TabsTrigger>
           <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
           <TabsTrigger value="lostreasons">Lost Reasons</TabsTrigger>
           <TabsTrigger value="workingwith">Working With</TabsTrigger>
@@ -50,7 +49,6 @@ export default function Admin() {
         <TabsContent value="territories"><TerritoryManager /></TabsContent>
         <TabsContent value="stages"><StageManager /></TabsContent>
         <TabsContent value="categories"><CategoryManager /></TabsContent>
-        <TabsContent value="products"><ProductManager /></TabsContent>
         <TabsContent value="scenarios"><SimpleManager entity="Scenario" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="lostreasons"><SimpleManager entity="LostReason" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="workingwith"><SimpleManager entity="WorkingWithOption" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
@@ -170,6 +168,7 @@ function StageManager() {
 }
 
 function CategoryManager() {
+  // Product categories live in Pipeline Config; free-text Product Details do not need a master.
   const { items, createMaster, updateMaster } = useMaster("ProductCategory");
   const [name, setName] = useState("");
   return (
@@ -186,34 +185,6 @@ function CategoryManager() {
       <AddBar>
         <Input className="col-span-6 h-8" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <Button size="sm" onClick={() => { if (name) { createMaster("ProductCategory", { name, order: items.length, active: true }); setName(""); } }}><Plus className="w-4 h-4" /> Add</Button>
-      </AddBar>
-    </Card>
-  );
-}
-
-function ProductManager() {
-  const { master, createMaster, updateMaster, deleteMaster } = useData();
-  const items = (master?.Product || []).slice();
-  const categories = (master?.ProductCategory || []).filter((c) => c.active);
-  const [name, setName] = useState(""); const [catId, setCatId] = useState("");
-  return (
-    <Card>
-      <Header><span className="col-span-6">Name</span><span className="col-span-4">Category</span><span className="col-span-1">Active</span><span className="col-span-1"></span></Header>
-      {items.map((p) => (
-        <Row key={p.id}>
-          <Input className="col-span-6 h-8" defaultValue={p.name} onBlur={(e) => updateMaster("Product", p.id, { name: e.target.value })} />
-          <Select value={p.category_id} onValueChange={(v) => updateMaster("Product", p.id, { category_id: v })}>
-            <SelectTrigger className="col-span-4 h-8"><SelectValue /></SelectTrigger>
-            <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Toggle active={p.active} onToggle={(v) => updateMaster("Product", p.id, { active: v })} />
-          <Button variant="ghost" size="sm" className="col-span-1" onClick={() => deleteMaster("Product", p.id)}><Trash2 className="w-4 h-4 text-rose-500" /></Button>
-        </Row>
-      ))}
-      <AddBar>
-        <Input className="col-span-6 h-8" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Select value={catId} onValueChange={setCatId}><SelectTrigger className="col-span-4 h-8"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>
-        <Button size="sm" onClick={() => { if (name && catId) { createMaster("Product", { name, category_id: catId, active: true }); setName(""); setCatId(""); } }}><Plus className="w-4 h-4" /></Button>
       </AddBar>
     </Card>
   );

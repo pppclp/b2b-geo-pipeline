@@ -395,118 +395,7 @@ source_01_user_org_master:
 
 
 # ============================================================
-# 2. SOURCE FILE 02
-# PRODUCT MASTER
-# ============================================================
-
-source_02_product_master:
-
-  file:
-    name: "B2B_Product_Master.xlsx"
-    source_id: "PRODUCT_MASTER"
-    direction: "SOURCE_TO_APP"
-
-  hierarchy:
-    - "Product Category"
-    - "Product"
-
-  prohibited_structure:
-    - "Product Subcategory"
-
-  # ----------------------------------------------------------
-  # PRODUCT CATEGORY
-  # ----------------------------------------------------------
-
-  sheet_product_categories:
-
-    source_sheet: "Product_Categories"
-    target_entity: "product_categories"
-    primary_key: "category_id"
-
-    fields:
-
-      category_id:
-        source: "Product_Categories.category_id"
-        target: "product_categories.category_id"
-
-        referenced_by:
-          - "products.category_id"
-          - "opportunities.product_category_id"
-          - "monthly_snapshots.product_category_id"
-
-      category_name:
-        source: "Product_Categories.category_name"
-        target: "product_categories.category_name"
-
-        initial_values:
-          - "TOL"
-          - "TMH"
-          - "TVS"
-          - "Solution"
-
-        ui_display:
-          - "Create / Edit Opportunity"
-          - "Pipeline Filter"
-          - "Dashboard Product Category"
-          - "Product Analysis"
-          - "Export"
-
-      sort_order:
-        target: "product_categories.sort_order"
-
-      active:
-        target: "product_categories.active"
-
-
-  # ----------------------------------------------------------
-  # PRODUCTS
-  # ----------------------------------------------------------
-
-  sheet_products:
-
-    source_sheet: "Products"
-    target_entity: "products"
-    primary_key: "product_id"
-
-    fields:
-
-      product_id:
-        source: "Products.product_id"
-        target: "products.product_id"
-
-      product_name:
-        source: "Products.product_name"
-        target: "products.product_name"
-
-        ui_display:
-          - "Admin > Product Master"
-          - "Product reference / knowledge use"
-
-      category_id:
-        source: "Products.category_id"
-        target: "products.category_id"
-        foreign_key: "product_categories.category_id"
-
-      sort_order:
-        target: "products.sort_order"
-
-      active:
-        target: "products.active"
-
-    UI_behavior:
-      latest_pipeline_form:
-        field: "Product Category"
-        details_field: "Product Details"
-        note: "Latest Pipeline Create/Edit does not store product_id."
-
-    dashboard_navigation:
-      - "Product Category"
-      - "Filtered Pipeline"
-
-
-# ============================================================
-# 3. SOURCE FILE 03
-# PIPELINE CONFIGURATION MASTER
+# 2. PIPELINE CONFIGURATION MASTER (INCLUDES PRODUCT CATEGORIES)
 # ============================================================
 
 source_03_pipeline_config:
@@ -515,6 +404,36 @@ source_03_pipeline_config:
     name: "B2B_GEO_Pipeline_Config.xlsx"
     source_id: "PIPELINE_CONFIG_MASTER"
     direction: "SOURCE_TO_APP"
+
+  # ----------------------------------------------------------
+  # PRODUCT CATEGORIES — SINGLE RUNTIME SOURCE (MIGRATED)
+  # ----------------------------------------------------------
+  # Stable category_id values preserve existing Pipelines and Snapshots.
+  # Product Description is free text in opportunities.product_details.
+  # No Products dropdown/table is needed at runtime.
+  sheet_product_categories:
+    source_sheet: "Product_Categories"
+    target_entity: "product_categories"
+    primary_key: "category_id"
+    fields:
+      category_id:
+        source: "Product_Categories.category_id"
+        target: "product_categories.category_id"
+        referenced_by:
+          - "opportunities.product_category_id"
+          - "monthly_snapshots.product_category_id"
+      category_name:
+        source: "Product_Categories.category_name"
+        target: "product_categories.category_name"
+      sort_order:
+        target: "product_categories.sort_order"
+      active:
+        target: "product_categories.active"
+      notes:
+        target: "product_categories.notes"
+    ui_behavior:
+      category: "Dropdown from active Product_Categories"
+      product_description: "Free text — opportunities.product_details; no product_id lookup"
 
   # ----------------------------------------------------------
   # STAGES
@@ -1784,7 +1703,6 @@ export_03_month_end:
       source:
         - "opportunities"
         - "monthly_snapshots"
-        - "products"
         - "product_categories"
         - "lost_reasons"
 
@@ -2080,9 +1998,6 @@ relationships:
   territory_region:
     "territories.region_id → regions.region_id"
 
-  product_category:
-    "products.category_id → product_categories.category_id"
-
   opportunity_owner:
     "opportunities.owner_user_id → users.user_id"
 
@@ -2144,17 +2059,10 @@ initial_load_order:
 
   step_2:
     source:
-      "B2B_Product_Master.xlsx"
-
-    load:
-      - "product_categories"
-      - "products"
-
-  step_3:
-    source:
       "B2B_GEO_Pipeline_Config.xlsx"
 
     load:
+      - "product_categories"
       - "stages"
       - "scenarios"
       - "lost_reasons"
@@ -2273,7 +2181,7 @@ business_decisions_pending:
     status: "CURRENT UAT"
 
     decision:
-      "Opportunity stores Product Category + free-text Product Details. product_id is legacy compatibility only."
+      "Opportunity stores Product Category from Pipeline Config + free-text Product Details; no Product dropdown or Product Master runtime dependency."
 
 
 # ============================================================
@@ -2379,7 +2287,7 @@ access_control:
             update: ["Admin"]
             delete: ["Admin"]
 
-    "B2B_Product_Master.xlsx":
+    "B2B_GEO_Pipeline_Config.xlsx":
       sheets:
         Product_Categories:
           entity: "product_categories"
@@ -2389,17 +2297,6 @@ access_control:
             create: ["Admin"]
             update: ["Admin"]
             delete: ["Admin"]
-        Products:
-          entity: "products"
-          primary_key: "product_id"
-          permissions:
-            read: ["AE", "SM", "Management", "Admin"]
-            create: ["Admin"]
-            update: ["Admin"]
-            delete: ["Admin"]
-
-    "B2B_GEO_Pipeline_Config.xlsx":
-      sheets:
         Stages:
           entity: "stages"
           primary_key: "stage_id"

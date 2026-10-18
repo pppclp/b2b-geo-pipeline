@@ -290,8 +290,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             </Select>
           </div>
           <div>
-            <Label>Product Details</Label>
-            <Input value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} />
+            <Label>Product Description (Free Text)</Label>
+            <Input value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter product / package description" />
           </div>
           <div>
             <Label>Stage *</Label>

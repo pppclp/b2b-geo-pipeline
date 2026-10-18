@@ -228,7 +228,6 @@ function debugB2bSheetBindings() {
     ["B2B_GEO_Pipeline_DB.xlsx", "B2B_GEO_Pipeline_DB"],
     ["B2B_GEO_Pipeline_Config.xlsx", "B2B_GEO_Pipeline_Config"],
     ["B2B_GEO_User_Org_Master.xlsx", "B2B_GEO_User_Org_Master"],
-    ["B2B_Product_Master.xlsx", "B2B_Product_Master"],
   ];
   var props = PropertiesService.getScriptProperties();
   var results = defs.map(function (item) {

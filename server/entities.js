@@ -64,16 +64,6 @@ export const ENTITIES = {
     idPrefix: "CAT",
     fields: { name: "category_name", order: { col: "sort_order", ...number }, active: { col: "active", ...bool } },
   },
-  Product: {
-    entity: "products",
-    idPrefix: "PRD",
-    fields: {
-      name: "product_name",
-      category_id: "category_id",
-      order: { col: "sort_order", ...number },
-      active: { col: "active", ...bool },
-    },
-  },
   Stage: {
     entity: "stages",
     idPrefix: "STG",
