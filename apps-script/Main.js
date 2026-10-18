@@ -75,6 +75,11 @@ function handle_(req) {
 function uatLogin_(store, body) {
   var username = normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
+  var limiter = CacheService.getScriptCache();
+  var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
+  if (key && Number(limiter.get(key) || 0) >= 5) {
+    throwUatError_(429, "Too many login attempts. Try again in 10 minutes.");
+  }
 
   if (!username || !password) {
     throwUatError_(400, "Username and password are required");
@@ -86,7 +91,7 @@ function uatLogin_(store, body) {
   });
 
   if (!user || String(user.status || "Active").toLowerCase() !== "active") {
-    throwUatError_(401, "Invalid username or password");
+    denyUatLogin_(limiter, key);
   }
 
   var credentials = store
@@ -98,8 +103,9 @@ function uatLogin_(store, body) {
   });
 
   if (!credential || String(credential.temporary_password || "") !== password) {
-    throwUatError_(401, "Invalid username or password");
+    denyUatLogin_(limiter, key);
   }
+  if (key) limiter.remove(key);
 
   return {
     user_id: String(user.user_id || ""),
@@ -108,6 +114,11 @@ function uatLogin_(store, body) {
     role: String(user.role || "AE"),
     session_token: issueUatSession_(String(user.user_id || "")),
   };
+}
+
+function denyUatLogin_(cache, key) {
+  if (key) cache.put(key, String(Number(cache.get(key) || 0) + 1), 600);
+  throwUatError_(401, "Invalid username or password");
 }
 
 // UAT signed sessions: self-contained and HMAC-protected, expiring after 4h.
