@@ -32,29 +32,32 @@ npm run dev           # http://localhost:5173 — frontend + local API together
   files. A delete is refused while other rows still reference the ID (from `referenced_by` /
   `used_by` in the YAML).
 
-## Output Sheets (logs and exports)
+## Reports and audit (one canonical Pipeline DB)
 
-The three `*_Export_Template` files are **output only**. The backend writes them after each
-action and never reads them back. `output:` in `access_control` lists which sheets are written:
+The three historical `*_Export_Template` Google Sheets are **not writable runtime
+dependencies**. No background mirroring is performed on Pipeline changes.
 
-| File / sheet | Written when |
-|---|---|
-| Change_Log → `Change_Log_Export` | One row appended per Opportunity event by AE / SM / Admin (types follow `Event_Type_Reference`), plus `MASTER_CREATED/UPDATED/DELETED` for master-data edits |
-| Current_Pipeline → `Current_Pipeline_Export` | Regenerated after any Opportunity change (one row per Opportunity) |
-| Month_End → `Open_Pipeline_Snapshot`, `Closed_Won`, `Closed_Lost`, `Summary` B3/B5 | When Admin captures a month-end snapshot |
+- **Current Pipeline Excel (.xlsx):** generated from the authenticated,
+  role-scoped `Pipelines` API when users click Export Excel.
+- **Opportunity History:** canonical `Pipeline_Events`; the Admin Change Log CSV
+  is generated from the records the logged-in user can read.
+- **Month-end:** canonical `Snapshots`; historical reports can be generated
+  from a chosen month without maintaining a duplicate spreadsheet.
+  A dedicated downloadable month-end workbook still needs UI implementation.
+- **Master changes:** stored in `Admin_Audit`, readable by Admin only.
 
-Columns the templates computed with formulas (event_month, aging days, weighted value) are
-written as values. `setup()` in Apps Script and `npm run sheets:pull` clear the template sample
-rows once.
+Keep old templates archived until historical output records have been reviewed.
+Do not delete or treat them as a source of truth.
 
 ## Pipeline DB runtime workbook
 
 `B2B_GEO_Pipeline_DB` is now the live transaction database and must contain only these
-three runtime sheets:
+four runtime sheets:
 
 - `Pipelines` — current state, one row per Pipeline.
-- `Pipeline_Events` — append-only audit trail of changes.
+- `Pipeline_Events` — server-generated audit events of Opportunity changes.
 - `Snapshots` — one row per Pipeline × snapshot period for analysis / commission.
+- `Admin_Audit` — append-only audit events of master-data edits (Admin-only).
 
 `Snapshots` stores only the latest `stage_id` at capture time plus
 `stage_last_updated_at`. Historical Stage changes belong in `Pipeline_Events`, not
@@ -73,15 +76,15 @@ writes the Google Sheets directly.
 2. `npx clasp login`, using the Google account that owns or can edit the sheets.
 3. `npx clasp create-script --type standalone --title "B2B GEO Pipeline API" --rootDir apps-script`
 4. `npm run gas:push` builds `apps-script/` from the YAML and `.env.local`, then pushes it.
-5. `npx clasp open-script`, then run **`setup`** and allow access. It checks every sheet and
-   creates `B2B_GEO_Pipeline_DB` only when no DB is configured. The configured DB must contain
-   `Pipelines`, `Pipeline_Events`, and `Snapshots`. Copy the Sheet ID into `.env.local` as
-   `GEO_SHEET_ID_B2B_GEO_Pipeline_DB`, then run `npm run gas:push` again.
-6. In the editor, choose Deploy → New deployment → Web app.
-   - Execute as: Me
-   - Who has access: Anyone
-
-   Copy the `/exec` URL into `.env.local` as `VITE_GEO_API_URL`, then restart `npm run dev`.
+5. For the **existing** Apps Script project, preserve the deployed `/exec` URL.
+   Ensure its `GEO_SHEET_ID_B2B_GEO_Pipeline_DB` property points to the intended DB.
+   Before releasing this branch, run **`prepareAdminAuditSheet()`** once in the
+   Apps Script editor to create/verify `Admin_Audit` without modifying existing
+   Pipelines, Events or Snapshots. This preparation helper must be pushed to the
+   project before running it; do not update the public web app deployment yet.
+6. After verifying DB schema and Sheet IDs, choose **Deploy → Manage deployments →
+   Edit existing deployment → New version**. Do not create a new web app deployment.
+   The existing `/exec` URL remains unchanged.
 
 After any backend or YAML change, run `npm run gas:push` and update the deployment (Deploy →
 Manage deployments → Edit → New version) so the `/exec` URL serves the new code. Renaming or
@@ -92,15 +95,14 @@ Apps Script resolves Sheet IDs from **Script Properties first** and only falls b
 generated `SheetIds.js`. This prevents an older bundled Sheet ID from overriding a newly
 configured runtime DB. After changing the property, run `debugPipelineDbBinding()` in the
 Apps Script editor and confirm the output shows `Pipelines`, `Pipeline_Events`, and
-`Snapshots` with the expected row counts.
+`Snapshots` and `Admin_Audit` with the expected row counts.
 
 ## Net RC calculation (new and repriced Pipelines)
 
 Net RC (THB/month) = (Number of Subs × Price per Sub/month) + (OC ÷ 12).
 OC is optional (blank = 0); divisor is always 12, not Contract Period.
 The backend is authoritative and the frontend displays a read-only preview.
-The existing `pipeline_value` column supplies Cards, Dashboard, CSV and
-output sheets and represents Net RC for newly created or repriced records.
+The existing `pipeline_value` column supplies Cards, Dashboard and Excel exports and represents Net RC for newly created or repriced records.
 
 **Legacy values:** Existing records without `price_per_sub` are not silently
 recalculated. They retain the older manually entered amount until the unit
