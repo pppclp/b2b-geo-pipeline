@@ -255,6 +255,42 @@ export function createCore({ contract, store, now, uuid }) {
     touch(b);
   }
 
+  // User Master is an authorization source, not just a free-form Sheet.
+  // Both the entity API and generic Source Sheets editor must obey these rules.
+  const ALLOWED_USER_ROLES = new Set(["AE", "SM", "Management", "Admin"]);
+  const ALLOWED_USER_STATUSES = new Set(["Active", "Inactive"]);
+  const AUTH_USER_FIELDS = new Set(["user_id", "employee_id", "role", "status"]);
+  function validateUserMasterChange(data, previous = null) {
+    const next = { ...(previous || {}), ...(data || {}) };
+    // Keep existing account fields stable on unrelated edits, but validate all
+    // explicit privilege changes and new account roles/statuses.
+    if ((!previous || "role" in data) && !ALLOWED_USER_ROLES.has(String(next.role || ""))) {
+      throw new HttpError(400, "Users.role must be AE, SM, Management or Admin");
+    }
+    if ((!previous || "status" in data) && !ALLOWED_USER_STATUSES.has(String(next.status || ""))) {
+      throw new HttpError(400, "Users.status must be Active or Inactive");
+    }
+    if ((!previous || "employee_id" in data) && next.employee_id) {
+      const employeeId = String(next.employee_id).trim();
+      if (!employeeId) throw new HttpError(400, "Employee ID cannot be blank");
+      if (rows("users").some((u) => u.user_id !== next.user_id && String(u.employee_id || "").trim() === employeeId)) {
+        throw new HttpError(409, "Employee ID is already assigned to another user");
+      }
+    }
+    return next;
+  }
+
+  // The TeamMember UI uses lowercase roles and boolean 'active'; validate
+  // before adapters coerce unknown values into a legitimate role/status.
+  function validateTeamMemberInput(input) {
+    if ("app_role" in input && !["ae", "sm", "management", "admin"].includes(String(input.app_role))) {
+      throw new HttpError(400, "Invalid Team Member role");
+    }
+    if ("active" in input && typeof input.active !== "boolean") {
+      throw new HttpError(400, "Team Member active must be true or false");
+    }
+  }
+
   function validateStageSla(data) {
     if (!("sla_days" in data)) return;
     const v = data.sla_days;
@@ -465,6 +501,7 @@ export function createCore({ contract, store, now, uuid }) {
         throw new HttpError(403, "System-controlled entity; use the Pipeline or snapshot API");
       }
       if (uiEntity === "Stage") validateStageSla(data);
+      if (uiEntity === "TeamMember") validateTeamMemberInput(data);
       const stamp = now();
       if (uiEntity === "Opportunity") {
         data = stripSystemFields(data);
@@ -497,6 +534,7 @@ export function createCore({ contract, store, now, uuid }) {
         validateOpportunityRefs(row, null, actor);
       }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
+      if (b.entity === "users") validateUserMasterChange(row);
       if (b.append_only) {
         // Events are system records: actor and time are set by the backend.
         row.actor_user_id = actor.real.id;
@@ -527,9 +565,14 @@ export function createCore({ contract, store, now, uuid }) {
         throw new HttpError(403, "System-controlled entity");
       }
       if (uiEntity === "Stage") validateStageSla(data);
+      if (uiEntity === "TeamMember") validateTeamMemberInput(data);
       if (uiEntity === "Opportunity") data = stripSystemFields(data);
       const row = findRow(b, actor, id);
       const before = { ...row };
+      if (uiEntity === "TeamMember") {
+        const proposed = toSheet(uiEntity, b.primary_key, data);
+        validateUserMasterChange({ ...proposed, user_id: row.user_id }, row);
+      }
       if (uiEntity === "Opportunity") {
         const prior = String(row.status || "Open").toLowerCase();
         const desired = "status" in data ? String(data.status || "").toLowerCase() : prior;
@@ -634,19 +677,10 @@ export function createCore({ contract, store, now, uuid }) {
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("DELETED", b, id, row, null, actor);
       return { ok: true };
     },
-    removeMany(uiEntity, actor, query) {
-      const b = binding(uiEntity);
-      need(actor, b, "delete");
-      if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
-        throw new HttpError(403, "System-controlled entity");
-      }
-      const inScope = scopedFilter(b, actor);
-      const sheetQuery = Object.fromEntries(Object.entries(query || {}).map(([k, v]) => [sheetCol(uiEntity, k), v]));
-      const t = tableOf(b);
-      const before = t.rows.length;
-      t.rows = t.rows.filter((r) => !(inScope(r) && matches(r, sheetQuery)));
-      touch(b);
-      return { deleted: before - t.rows.length };
+    removeMany() {
+      // No UI needs bulk deletes. Never allow bypassing foreign-key checks,
+      // Admin_Audit or app-owned data ownership rules via an empty filter.
+      throw new HttpError(405, "Bulk deletion is disabled. Delete individual records with audit checks.");
     },
   };
 
@@ -658,7 +692,14 @@ export function createCore({ contract, store, now, uuid }) {
     return rule;
   }
   // Keep IDs and codes as text; convert plain numbers typed into the editor.
-  const cellIn = (v) => (typeof v === "string" && /^-?(0|[1-9]\d*)(\.\d+)?$/.test(v.trim()) ? Number(v) : v ?? "");
+  const cellIn = (v, col) => {
+    // Identity, codes, IDs and month keys must retain text semantics.
+    // Never convert "90005595", "0812345678" or a code to a Number.
+    if (AUTH_USER_FIELDS.has(col) || col === "contact_phone" || col === "business_id" ||
+        col.endsWith("_id") || col.endsWith("_month") || col.endsWith("_period") ||
+        col === "phone" || col === "username") return v ?? "";
+    return typeof v === "string" && /^-?(0|[1-9]\d*)(\.\d+)?$/.test(v.trim()) ? Number(v) : v ?? "";
+  };
 
   const sheetApi = {
     list(actor) {
@@ -690,10 +731,12 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "create");
       if (b.append_only || b.scoped) throw new HttpError(400, `${sheet} is maintained by the app — edit it from the Pipeline screens`);
       const t = tableOf(b);
-      const row = Object.fromEntries(Object.entries(fitColumns(b, data || {})).map(([k, v]) => [k, cellIn(v)]));
+      const row = Object.fromEntries(Object.entries(fitColumns(b, data || {})).map(([k, v]) => [k, cellIn(v, k)]));
+      if (b.entity === "users") validateUserMasterChange(row);
       const id = String(row[b.primary_key] ?? "").trim() || nextId(b);
       if (t.rows.some((r) => String(r[b.primary_key]) === id)) throw new HttpError(409, `${b.primary_key} ${id} already exists`);
       row[b.primary_key] = id;
+      if (b.entity === "users") validateUserMasterChange(row);
       t.rows.push(row);
       touch(b);
       outputs.logMaster("CREATED", b, id, null, row, actor);
@@ -705,7 +748,12 @@ export function createCore({ contract, store, now, uuid }) {
       if (b.append_only || b.scoped) throw new HttpError(400, `${sheet} is maintained by the app — edit it from the Pipeline screens`);
       const row = findRow(b, actor, id);
       const before = { ...row };
-      for (const [k, v] of Object.entries(fitColumns(b, data || {}))) if (k !== b.primary_key) row[k] = cellIn(v);
+      const checked = fitColumns(b, data || {});
+      const changes = Object.fromEntries(Object.entries(checked)
+        .filter(([k]) => k !== b.primary_key)
+        .map(([k, v]) => [k, cellIn(v, k)]));
+      if (b.entity === "users") validateUserMasterChange(changes, row);
+      Object.assign(row, changes);
       touch(b);
       outputs.logMaster("UPDATED", b, id, before, row, actor);
       return row;
@@ -756,7 +804,18 @@ export function createCore({ contract, store, now, uuid }) {
 
     // Several read requests in one round trip (Apps Script calls are slow): { requests: [{ path, query }] }
     if (parts[0] === "batch") {
-      const requests = (req.body && req.body.requests) || [];
+      if (method !== "POST") throw new HttpError(405, "Batch requires POST");
+      const requests = req.body?.requests;
+      if (!Array.isArray(requests) || requests.length > 30) {
+        throw new HttpError(400, "Batch requires an array of at most 30 read requests");
+      }
+      for (const sub of requests) {
+        if (!sub || typeof sub.path !== "string" ||
+            (sub.method && sub.method !== "GET") ||
+            String(sub.path).replace(/^\\/+/, "").split("/")[0] === "batch") {
+          throw new HttpError(400, "Batch only supports non-nested GET requests");
+        }
+      }
       return requests.map((sub) => {
         try {
           return { status: 200, body: handle({ ...sub, method: "GET", userId: req.userId, demoAs: req.demoAs }) };
