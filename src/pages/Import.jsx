@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useData } from "@/lib/dataContext";
 import { currentMonthKey } from "@/lib/pipeline";
+import { mapImportHeaders } from "@/lib/importHeaderMapping";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -56,12 +57,6 @@ function parseCSV(text) {
   return rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
 
-function fuzzyMatch(header, key, label) {
-  const h = header.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const candidates = [key, label].map((s) => s.toLowerCase().replace(/[^a-z0-9]/g, ""));
-  return candidates.includes(h) || candidates.some((c) => h.includes(c) || c.includes(h));
-}
-
 export default function Import() {
   const { master, activeStages, createOpportunity, profile } = useData();
   const [step, setStep] = useState("upload"); // upload | map | preview | done
@@ -83,11 +78,7 @@ export default function Import() {
     setHeaders(hdrs);
     setRows(parsed.slice(1));
     // auto-map
-    const auto = {};
-    FIELDS.forEach((f) => {
-      const idx = hdrs.findIndex((h) => fuzzyMatch(h, f.key, f.label));
-      if (idx >= 0) auto[f.key] = idx;
-    });
+    const auto = mapImportHeaders(hdrs, FIELDS);
     setMapping(auto);
     setStep("map");
   };
