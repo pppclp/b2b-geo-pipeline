@@ -9,6 +9,7 @@ import { db } from "@/api/client";
 import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
+import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
@@ -47,7 +48,7 @@ function applySort(ops, sort) {
 }
 
 export default function Pipeline() {
-  const { scopedOpportunities, opportunities, activeStages, maps, profile, config, loading, error, refresh } = useData();
+  const { scopedOpportunities, opportunities, activeStages, maps, master, profile, config, loading, error, refresh } = useData();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState("board");
@@ -102,7 +103,13 @@ export default function Pipeline() {
       setSort("close_month");
       return;
     }
-    setFilters((f) => ({ ...f, [key]: value || "" }));
+    setFilters((f) => {
+      const next = {...f, [key]: value || ""};
+      if (key === "region" && shouldClearOwnerOnRegionChange(
+        f.owner, value, master?.TeamMember || [], scopedOpportunities
+      )) next.owner = "";
+      return next;
+    });
   };
 
   const filtered = useMemo(() => {
@@ -118,7 +125,14 @@ export default function Pipeline() {
       if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
       if (filters.ccp_check_result && o.ccp_check_result !== filters.ccp_check_result) return false;
       if (filters.scenario && o.scenario_id !== filters.scenario) return false;
-      if (filters.working_with && o.working_with !== filters.working_with) return false;
+      if (filters.working_with) {
+        const teamId = (master?.WorkingWithOption || [])
+          .find(t => t.name === filters.working_with)?.id;
+        const teamIds = String(o.working_with_team_ids || "")
+          .split(",").map(id => id.trim()).filter(Boolean);
+        if (o.working_with !== filters.working_with &&
+            (!teamId || !teamIds.includes(teamId))) return false;
+      }
       if (filters.support === "1" && !o.support_needed) return false;
       if (filters.support === "0" && o.support_needed) return false;
       if (filters.stuck === "1" && !isStageSlaOverdue(o, maps.stage)) return false;
@@ -128,7 +142,7 @@ export default function Pipeline() {
       if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
       return true;
     });
-  }, [scopedOpportunities, filters, config, maps.stage]);
+  }, [scopedOpportunities, filters, config, maps.stage, master?.WorkingWithOption]);
 
   const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
   const exportExcel = async () => {
@@ -196,7 +210,7 @@ export default function Pipeline() {
             : "ยังไม่มี Pipeline ที่บัญชีนี้มีสิทธิ์เห็น ถ้าควรมีข้อมูล กรุณาตรวจ Apps Script Deployment, Users และ User_Region"}
         </p>
       )}
-      <div className="rounded-2xl border border-border bg-card shadow-soft p-4 mb-5">
+      <div className="rounded-xl border border-border bg-card p-3 mb-4">
         <FilterBar filters={filters} onFilter={onFilter} />
       </div>
 
