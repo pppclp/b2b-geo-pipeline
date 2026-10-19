@@ -672,8 +672,13 @@ SheetStore_.prototype.writeDirty_ = function (d) {
     if (ws.getLastRow() !== before.rows.length + 1) {
       throw Error("Append-only audit sheet has unexpected blank or extra rows");
     }
-    geoTextColumns_(ws, t.headers, ws.getLastRow() + 1, appended.length);
-    ws.getRange(ws.getLastRow() + 1, 1, appended.length, t.headers.length)
+    var firstRow = ws.getLastRow() + 1;
+    var finalRow = firstRow + appended.length - 1;
+    if (ws.getMaxRows() < finalRow) {
+      ws.insertRowsAfter(ws.getMaxRows(), finalRow - ws.getMaxRows());
+    }
+    geoTextColumns_(ws, t.headers, firstRow, appended.length);
+    ws.getRange(firstRow, 1, appended.length, t.headers.length)
       .setValues(appended.map(toValues));
     return;
   }
@@ -684,10 +689,23 @@ SheetStore_.prototype.writeDirty_ = function (d) {
     before.rows.every(function (r, i) { return t.rows[i] === r; });
 
   if (sameShape) {
-    for (var i = 0; i < t.rows.length; i++) {
-      if (i < before.rows.length && JSON.stringify(t.rows[i]) === before.json[i]) continue;
+    // Existing-row changes remain surgical. New rows are written in one
+    // contiguous block (critical for 100-200 row imports).
+    for (var i = 0; i < before.rows.length; i++) {
+      if (JSON.stringify(t.rows[i]) === before.json[i]) continue;
       geoTextColumns_(ws, t.headers, i + 2, 1);
       ws.getRange(i + 2, 1, 1, t.headers.length).setValues([toValues(t.rows[i])]);
+    }
+    var newRows = t.rows.slice(before.rows.length);
+    if (newRows.length) {
+      var startRow = before.rows.length + 2;
+      var lastRowNeeded = startRow + newRows.length - 1;
+      if (ws.getMaxRows() < lastRowNeeded) {
+        ws.insertRowsAfter(ws.getMaxRows(), lastRowNeeded - ws.getMaxRows());
+      }
+      geoTextColumns_(ws, t.headers, startRow, newRows.length);
+      ws.getRange(startRow, 1, newRows.length, t.headers.length)
+        .setValues(newRows.map(toValues));
     }
   } else {
     // Pre-size before clearing. Failed resize must not destroy the old table.
