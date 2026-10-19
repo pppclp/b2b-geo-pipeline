@@ -6,13 +6,13 @@ import { ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // options: [{ value, label }]
-export default function SearchableSelect({ value, onChange, options, placeholder = "Select…", className, disabled }) {
+export default function SearchableSelect({ value, onChange, options, placeholder = "Select…", className, disabled, searchPlaceholder = "Search…", ariaLabel }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
-    if (!q) return options;
-    const ql = q.toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(ql));
+    const ql = q.trim().toLocaleLowerCase();
+    if (!ql) return options;
+    return options.filter((o) => `${o.label} ${o.keywords || ""}`.toLocaleLowerCase().includes(ql));
   }, [q, options]);
   const selected = options.find((o) => o.value === value);
 
@@ -21,6 +21,7 @@ export default function SearchableSelect({ value, onChange, options, placeholder
       <PopoverTrigger asChild>
         <Button
           type="button"
+          aria-label={ariaLabel || placeholder}
           variant="outline"
           disabled={disabled}
           className={cn("w-full justify-between font-normal", className)}
@@ -35,16 +36,18 @@ export default function SearchableSelect({ value, onChange, options, placeholder
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search…"
+            placeholder={searchPlaceholder}
             className="border-0 focus-visible:ring-0 h-9"
           />
         </div>
-        <div className="max-h-56 overflow-auto py-1">
+        <div className="max-h-[300px] overflow-auto py-1" role="listbox" aria-label={ariaLabel || "Searchable options"}>
           {filtered.length === 0 && <div className="px-3 py-2 text-sm text-muted-foreground">No results</div>}
           {filtered.map((o) => (
             <button
               key={o.value}
               type="button"
+              role="option"
+              aria-selected={o.value === value}
               onClick={() => {
                 onChange(o.value);
                 setOpen(false);
