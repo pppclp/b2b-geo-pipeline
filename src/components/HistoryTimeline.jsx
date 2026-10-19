@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { db } from "@/api/client";
 import { useData } from "@/lib/dataContext";
 import { formatDateTime } from "@/lib/pipeline";
 import {
@@ -30,9 +31,45 @@ const EVENT_META = {
 };
 
 export default function HistoryTimeline({ opportunityId }) {
-  const { historyFor } = useData();
-  const items = historyFor(opportunityId).sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+  const { profile } = useData();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  // Fetch only this deal's history when its detail view opens.
+  const loadHistory = useCallback(async () => {
+    if (!opportunityId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const rows = await db.entities.OpportunityHistory.filter({ opportunity_id: opportunityId }, "-created_date");
+      setItems(rows.slice().sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+    } catch (e) {
+      setError(e.message || "Unable to load history");
+    } finally {
+      setLoading(false);
+    }
+  }, [opportunityId, profile?.id]);
+  useEffect(() => {
+    let active = true;
+    setItems([]);
+    setLoading(true);
+    setError("");
+    db.entities.OpportunityHistory.filter({ opportunity_id: opportunityId }, "-created_date")
+      .then((rows) => {
+        if (active) setItems(rows.slice().sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+      })
+      .catch((e) => { if (active) setError(e.message || "Unable to load history"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [opportunityId, profile?.id]);
 
+  if (loading) return <p role="status" className="text-sm text-muted-foreground">Loading this Pipeline's history…</p>;
+  if (error) return (
+    <div role="alert" className="flex items-center gap-3 text-sm text-destructive">
+      <span>{error}</span>
+      <button type="button" className="underline" onClick={loadHistory}>Retry</button>
+    </div>
+  );
   if (!items.length) {
     return <p className="text-sm text-muted-foreground">No history yet.</p>;
   }
