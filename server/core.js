@@ -712,14 +712,14 @@ export function createCore({ contract, store, now, uuid }) {
       delete changes[b.primary_key];
       // Free-text audit remark is metadata, never a Pipeline column.
       delete changes.audit_remark;
-      // Monotonic revision: even two saves within the same millisecond must
-      // produce distinct updated_at values for optimistic conflict detection.
-      const currentStamp = now();
+      // Keep business timers on actual server time. Revision alone is
+      // monotonic, so two saves during the same millisecond cannot reuse a tag.
+      const stamp = now();
       const priorMs = Date.parse(row.updated_at || "");
-      const currentMs = Date.parse(currentStamp);
-      const stamp = b.entity === "opportunities" &&
+      const currentMs = Date.parse(stamp);
+      const revisionStamp = b.entity === "opportunities" &&
         Number.isFinite(priorMs) && Number.isFinite(currentMs) && currentMs <= priorMs
-        ? new Date(priorMs + 1).toISOString() : currentStamp;
+        ? new Date(priorMs + 1).toISOString() : stamp;
       if (b.entity === "opportunities") {
         changes = applyOpportunityTimers(keepOpportunityColumns(changes), row, stamp);
         const next = { ...row, ...changes };
@@ -730,7 +730,7 @@ export function createCore({ contract, store, now, uuid }) {
           throw new HttpError(403, "Region change would move Pipeline outside your scope");
         }
       }
-      Object.assign(row, fitColumns(b, { ...changes, updated_at: stamp }));
+      Object.assign(row, fitColumns(b, { ...changes, updated_at: revisionStamp }));
       touch(b);
       const auditEvents = b.entity === "opportunities"
         ? appendAudit(id, opportunityAuditEvents(before, row, { remark: data.audit_remark || data.last_remark || "" }), actor, stamp)
