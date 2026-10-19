@@ -79,3 +79,23 @@ test("Admin snapshot recapture replaces a month without touching other months",(
   assert.throws(()=>x.call("ADMIN","POST","entities/MonthlySnapshot/bulk",[]),e=>e.status===403);
   assert.throws(()=>x.call("ADMIN","DELETE","entities/MonthlySnapshot",null),e=>e.status===403);
 });
+
+test("stale Pipeline revisions return 409 without mutation or audit",()=>{
+  const x=fixture(), created=x.call("M1","POST","entities/Opportunity",newPipeline);
+  const firstRevision=created.updated_date;
+  const first=x.call("M1","PUT","entities/Opportunity/"+created.id,{
+    expected_updated_at:firstRevision,stage_id:"S2",
+  });
+  assert.equal(first.stage_id,"S2");
+  // Simulate a second user's committed edit since the original form was opened.
+  const row=x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows[0];
+  row.updated_at="2026-10-19T12:00:00.000Z";
+  const audits=x.all["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length;
+  const touches=x.touched.length;
+  assert.throws(()=>x.call("M1","PUT","entities/Opportunity/"+created.id,{
+    expected_updated_at:firstRevision,stage_id:"S3",
+  }),e=>e.status===409);
+  assert.equal(row.stage_id,"S2");
+  assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,audits);
+  assert.equal(x.touched.length,touches);
+});
