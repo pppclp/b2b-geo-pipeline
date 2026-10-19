@@ -1072,6 +1072,24 @@ opportunity_entity:
       user_editable: false
       description: "Server timestamp of the latest transition to Archived; the status history remains in Pipeline_Events."
 
+    # App-owned Phase 2/4 extension fields. Existing UAT Pipeline workbook
+    # receives these headers through prepareGeoPhase4Sheets() BEFORE deployment.
+    import_batch_id:
+      source: "SYSTEM"
+      user_editable: false
+    import_row_number:
+      source: "SYSTEM"
+      user_editable: false
+    import_row_signature:
+      source: "SYSTEM"
+      user_editable: false
+    working_with_team_ids:
+      source: "AE / SM input"
+      description: "Comma-separated active Working_With team_id values"
+    working_with_user_ids:
+      source: "AE / SM input"
+      description: "Comma-separated region-authorized user_id values"
+
   # Historical columns retained only when an existing legacy row already has them.
   # They are intentionally outside field_lineage so newly created Pipeline DB sheets
   # and new UAT seed data do not include them.

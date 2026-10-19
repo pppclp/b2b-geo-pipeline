@@ -853,6 +853,31 @@ function prepareGeoPhase4Sheets() {
     if(actualId !== expectedId)throw Error("Pipeline DB binding differs from verified UAT workbook");
     var book=SpreadsheetApp.openById(actualId);
     if(book.getName()!=="B2B_GEO_Pipeline_DB")throw Error("Unexpected DB workbook name");
+    // Existing 112 Pipelines require five NEW column headers for idempotent
+    // imports and multiple collaborators. Append headers only; never rewrite
+    // or reorder a customer row. An interrupted migration is resumable.
+    var pipeline=book.getSheetByName("Pipelines");
+    if(!pipeline || pipeline.getLastRow()<2)throw Error("Pipeline DB missing populated Pipelines sheet");
+    var existing=pipeline.getRange(1,1,1,pipeline.getLastColumn()).getDisplayValues()[0].map(String);
+    var required=["opportunity_id","business_id","region_id","owner_user_id","current_handler_user_id"];
+    if(required.some(function(v){return existing.indexOf(v)<0}))
+      throw Error("Canonical Pipelines headers are invalid; no extensions added");
+    var trimmed=existing.map(function(v){return String(v).trim();});
+    if(trimmed.some(function(v){return !v}) || (new Set(trimmed)).size!==trimmed.length)
+      throw Error("Pipeline headers have blanks/duplicates; manual review required");
+    var extensions=[
+      "import_batch_id","import_row_number","import_row_signature",
+      "working_with_team_ids","working_with_user_ids"
+    ];
+    var appended=[];
+    extensions.forEach(function(name){
+      if(existing.indexOf(name)>=0)return;
+      var col=pipeline.getLastColumn()+1;
+      if(col>pipeline.getMaxColumns())pipeline.insertColumnAfter(pipeline.getMaxColumns());
+      pipeline.getRange(1,col).setNumberFormat("@").setValue(name);
+      existing.push(name);
+      appended.push(name);
+    });
     var tables=[
       ["Handoff_Notifications",GEO_CONTRACT.columns.handoff_notifications],
       ["Support_Requests",GEO_CONTRACT.columns.support_requests]
@@ -872,8 +897,9 @@ function prepareGeoPhase4Sheets() {
       result.push({tab:item[0],created:false});
     });
     SpreadsheetApp.flush();
-    console.log(JSON.stringify({ok:true,verifiedPipelineRows:book.getSheetByName("Pipelines").getLastRow()-1,tables:result}));
-    return {ok:true,tables:result};
+    console.log(JSON.stringify({ok:true,verifiedPipelineRows:book.getSheetByName("Pipelines").getLastRow()-1,
+      appendedPipelineHeaders:appended,tables:result}));
+    return {ok:true,appendedPipelineHeaders:appended,tables:result};
   } finally {lock.releaseLock();}
 }
 
