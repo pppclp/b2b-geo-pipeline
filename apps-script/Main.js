@@ -556,6 +556,22 @@ function geoBackups_(book, sheets) {
   }
 }
 
+// Audit/event sheets are immutable append logs. Copying their entire history
+// before every Pipeline write is unnecessary. Persist their previous lastRow in
+// the transaction marker, and trim appended rows during rollback instead.
+function geoRollbackAppend_(book, name, originalLastRow) {
+  var ws = book.getSheetByName(name);
+  if (!ws) throw new Error("Missing append-only sheet " + name + " during rollback");
+  if (!Number.isInteger(originalLastRow) || originalLastRow < 1 ||
+      ws.getLastRow() < originalLastRow) {
+    throw new Error("Append-only recovery checkpoint is invalid for " + name);
+  }
+  var excess = ws.getLastRow() - originalLastRow;
+  if (excess > 0) {
+    ws.deleteRows(originalLastRow + 1, excess);
+  }
+}
+
 function restoreGeoSheet_(book, sheet) {
   var backup = book.getSheetByName(GEO_DB_BACKUP_PREFIX_ + sheet);
   if (!backup) throw new Error("Critical backup missing for " + sheet + "; manual recovery needed");
@@ -585,11 +601,16 @@ function recoverGeoDb_(book) {
   if (marker.spreadsheetId !== book.getId()) {
     throw new Error("Pending transaction references a different Pipeline DB; manual review required");
   }
+  var backups = Array.isArray(marker.backupSheets) ? marker.backupSheets : marker.sheets;
   if (marker.status !== "committed") {
-    marker.sheets.forEach(function (sheet) { restoreGeoSheet_(book, sheet); });
+    // Backward compatible with older V4/V5 markers that backed up all sheets.
+    backups.forEach(function (sheet) { restoreGeoSheet_(book, sheet); });
+    Object.keys(marker.appendCheckpoints || {}).forEach(function (sheet) {
+      geoRollbackAppend_(book, sheet, marker.appendCheckpoints[sheet]);
+    });
     SpreadsheetApp.flush();
   }
-  marker.sheets.forEach(function (sheet) {
+  backups.forEach(function (sheet) {
     var backup = book.getSheetByName(GEO_DB_BACKUP_PREFIX_ + sheet);
     if (backup) book.deleteSheet(backup);
   });
@@ -637,6 +658,25 @@ SheetStore_.prototype.writeDirty_ = function (d) {
   var toValues = function (r) {
     return t.headers.map(function (h) { return geoSafeSheetValue_(r[h]); });
   };
+  if (d.file === "B2B_GEO_Pipeline_DB.xlsx" &&
+      (d.sheet === "Pipeline_Events" || d.sheet === "Admin_Audit")) {
+    // Refuse any mutation to committed audit rows or sheet headers. This
+    // guarantee makes lastRow rollback equivalent to an append-only undo.
+    if (t.headers.join("\u0001") !== before.headers.join("\u0001") ||
+        t.rows.length < before.rows.length ||
+        before.json.some(function (json, i) { return JSON.stringify(t.rows[i]) !== json; })) {
+      throw Error("Append-only audit sheet may not rewrite existing records");
+    }
+    var appended = t.rows.slice(before.rows.length);
+    if (!appended.length) return;
+    if (ws.getLastRow() !== before.rows.length + 1) {
+      throw Error("Append-only audit sheet has unexpected blank or extra rows");
+    }
+    geoTextColumns_(ws, t.headers, ws.getLastRow() + 1, appended.length);
+    ws.getRange(ws.getLastRow() + 1, 1, appended.length, t.headers.length)
+      .setValues(appended.map(toValues));
+    return;
+  }
   var sameShape =
     before.rows.length > 0 &&
     t.headers.join("\u0001") === before.headers.join("\u0001") &&
@@ -674,9 +714,22 @@ SheetStore_.prototype.flush = function () {
     var book = this.book_("B2B_GEO_Pipeline_DB.xlsx");
     var sheets = critical.map(function (d) { return d.sheet; });
     var props = PropertiesService.getScriptProperties();
-    geoBackups_(book, sheets);
+    var appendSheets = sheets.filter(function (name) { return name === "Pipeline_Events" || name === "Admin_Audit"; });
+    var backupSheets = sheets.filter(function (name) { return appendSheets.indexOf(name) < 0; });
+    var appendCheckpoints = {};
+    appendSheets.forEach(function (name) {
+      var ws = book.getSheetByName(name);
+      if (!ws || ws.getLastRow() < 1) throw Error("Missing append-only sheet or header: " + name);
+      appendCheckpoints[name] = ws.getLastRow();
+    });
+    // Keep full sheet backups only for mutable tables. Audit tables cannot be
+    // changed in place and are restored by removing appended rows.
+    geoBackups_(book, backupSheets);
     try {
-      props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({ spreadsheetId: book.getId(), sheets: sheets, status: "prepared" }));
+      props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({
+        spreadsheetId: book.getId(), sheets: sheets, backupSheets: backupSheets,
+        appendCheckpoints: appendCheckpoints, status: "prepared"
+      }));
     } catch (markerError) {
       sheets.forEach(function (sheet) {
         var orphan = book.getSheetByName(GEO_DB_BACKUP_PREFIX_ + sheet);
@@ -689,7 +742,10 @@ SheetStore_.prototype.flush = function () {
       SpreadsheetApp.flush();
       // Mark committed BEFORE cleanup: a crash during backup deletion must
       // never roll back a fully committed operation.
-      props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({ spreadsheetId: book.getId(), sheets: sheets, status: "committed" }));
+      props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({
+        spreadsheetId: book.getId(), sheets: sheets, backupSheets: backupSheets,
+        appendCheckpoints: appendCheckpoints, status: "committed"
+      }));
     } catch (error) {
       try { recoverGeoDb_(book); } catch (restoreError) { console.error("URGENT: DB restore required: " + restoreError.message); }
       throw error;
