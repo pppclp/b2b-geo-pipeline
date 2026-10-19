@@ -34,3 +34,12 @@ test("safe input handling rejects unknown and oversized files",async()=>{
  await assert.rejects(()=>readImportFile({name:"file.xls",size:22}),/Choose a/);
  await assert.rejects(()=>readImportFile({name:"file.xlsx",size:10*1024*1024}),/5 MB/);
 });
+
+test("CSV import continues to work while XLSX is supported",async()=>{
+  const sample="Customer Name,Business ID\\nAlpha,0012345";
+  const csvFile={name:"leads.csv",size:sample.length,text:async()=>sample};
+  const parser=(text)=>text.split("\\n").map((row)=>row.split(","));
+  const result=await readImportFile(csvFile,parser);
+  assert.deepEqual(result.headers,["Customer Name","Business ID"]);
+  assert.deepEqual(result.rows,[["Alpha","0012345"]]);
+});
