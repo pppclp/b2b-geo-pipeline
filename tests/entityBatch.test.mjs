@@ -7,8 +7,8 @@ test("Critical Opportunity failure is not silently treated as zero Pipelines",()
  const results=names.map(()=>({status:200,body:[]}));
  results[3]={status:403,body:{message:"No data access"}};
  assert.throws(()=>unpackEntityBatch(names,results),/Cannot load Opportunity \(403\)/);
- results[3]={status:503,body:{message:"Backend unavailable"}};
- assert.throws(()=>unpackEntityBatch(names,results),/Cannot load Opportunity \(503\)/);
+ results[3]={status:503,body:{message:"Pipeline DB property points to a different workbook"}};
+ assert.throws(()=>unpackEntityBatch(names,results),/Cannot load Opportunity \(503\).*Pipeline DB property points to a different workbook/);
 });
 
 test("Missing TeamMember or Stage signals broken role/filter setup",()=>{
