@@ -258,7 +258,7 @@ export function DataProvider({ children }) {
         setOpportunities((ops) => ops.map((o) => (o.id === id ? rec : o)));
         return rec;
       } catch (error) {
-        if (error.status === 409 || /\\b409\\b/.test(String(error.message || ""))) {
+        if (error.status === 409) {
           // Preserve the user's form so they can copy edits before reloading.
           throw new Error("This Pipeline has changed since it was opened. Close this form, refresh, and review the latest values before saving again.");
         }
