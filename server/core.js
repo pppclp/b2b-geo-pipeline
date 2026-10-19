@@ -895,6 +895,10 @@ export function createCore({ contract, store, now, uuid }) {
           // The request will be committed in the same database transaction.
           openSupportRequest(actor,id,next.support_type_id,next.support_note,stamp);
         }
+        if (!bool.toUi(next.support_needed) && bool.toUi(row.support_needed) &&
+            supportBinding && supportRows().some((req) =>
+              req.opportunity_id===id && req.status!=="Resolved"))
+          throw new HttpError(409,"Resolve the active Support Request before disabling Support Needed");
         // Do not let Region changes move the row out of the editor's scope.
         if (String(next.region_id ?? "") !== String(row.region_id ?? "") &&
             !scopedFilter(b, actor)(next)) {
