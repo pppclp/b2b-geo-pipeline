@@ -920,3 +920,44 @@ function runGeoMonthEndSnapshot() {
     return {ok:true,period:period,captured:result.captured};
   } finally {lock.releaseLock();}
 }
+
+
+// Run ONCE after prepareGeoPhase4Sheets. Migrates historical support_needed
+// flags into the new workflow without changing any existing Pipeline rows.
+// The source column marks them as migrated, not freshly requested by an AE.
+function backfillGeoPhase4SupportFlags() {
+  if(PropertiesService.getScriptProperties().getProperty("GEO_PHASE4_SCHEMA_APPROVED")!=="YES")
+    throw Error("Approve Phase 4 schema migration and keep a restricted DB backup first");
+  var lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    var store=new SheetStore_();
+    var pipelines=store.table("B2B_GEO_Pipeline_DB.xlsx","Pipelines").rows;
+    var requests=store.table("B2B_GEO_Pipeline_DB.xlsx","Support_Requests");
+    var headers=GEO_CONTRACT.columns.support_requests || [];
+    if(!headers.length)throw Error("Missing Support Request schema");
+    if(requests.headers.join("|") !== headers.join("|"))
+      throw Error("Unexpected Support_Requests headers; no records changed");
+    var seen={};
+    requests.rows.forEach(function(r){if(r.opportunity_id && r.status!=="Resolved")seen[r.opportunity_id]=true;});
+    var stamp=new Date().toISOString(),created=0;
+    pipelines.forEach(function(op){
+      if(!["yes","true","1"].includes(String(op.support_needed||"").toLowerCase().trim()) ||
+         !op.opportunity_id || seen[op.opportunity_id]) return;
+      if(!op.support_type_id || !String(op.support_note||"").trim())return;
+      requests.rows.push({
+        request_id:"SRQ-"+Utilities.getUuid(),
+        opportunity_id:op.opportunity_id,region_id:op.region_id,
+        request_type_id:op.support_type_id,note:op.support_note,
+        status:"Open",requested_by_user_id:"",assigned_to_user_id:"",
+        response_note:"",created_at:stamp,updated_at:stamp,resolved_at:"",
+        source:"migration"
+      });
+      seen[op.opportunity_id]=true;created++;
+    });
+    if(created)store.touch("B2B_GEO_Pipeline_DB.xlsx","Support_Requests");
+    store.flush();
+    var result={ok:true,created:created,totalSupportRequests:requests.rows.length,
+      pipelineRows:pipelines.length};
+    console.log(JSON.stringify(result));return result;
+  }finally{lock.releaseLock();}
+}
