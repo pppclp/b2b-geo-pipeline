@@ -273,12 +273,16 @@ export function DataProvider({ children }) {
 
   // One persisted update for the three frequent Pipeline actions, with
   // independent timestamps and audit events for each changed field.
-  const updateQuickActions = useCallback(async (id, { stageId, handlerId, workingWith }) => {
+  const updateQuickActions = useCallback(async (id, { stageId, handlerId, workingWith, workingTeamIds, workingUserIds }) => {
     const op = opportunities.find((item) => item.id === id);
     const { changes } = buildQuickActionChanges(
       op, { stageId, handlerId, workingWith },
       { stages: activeStages, maps, now: new Date().toISOString() }
     );
+    if (workingTeamIds !== undefined && String(op.working_with_team_ids||"") !== workingTeamIds)
+      changes.working_with_team_ids = workingTeamIds;
+    if (workingUserIds !== undefined && String(op.working_with_user_ids||"") !== workingUserIds)
+      changes.working_with_user_ids = workingUserIds;
     if (!Object.keys(changes).length) return op;
     // One record update; Stage and Handler aging remain independent.
     return updateWithHistory(id, changes, null);
