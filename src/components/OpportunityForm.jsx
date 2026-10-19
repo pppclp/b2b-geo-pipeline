@@ -11,6 +11,7 @@ import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES, formatMonth } from "@/lib/pipeline";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
+import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 
 const empty = {
   customer_name: "",
@@ -37,6 +38,8 @@ const empty = {
   oc: "",
   contract_period: "",
   working_with: "",
+  working_with_team_ids: "",
+  working_with_user_ids: "",
   support_needed: false,
   support_type: "",
   support_note: "",
@@ -52,7 +55,11 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
   useEffect(() => {
     if (opportunity) {
-      setForm({ ...empty, ...opportunity });
+      setForm({ ...empty, ...opportunity,
+        working_with_team_ids: opportunity.working_with_team_ids ||
+          (master?.WorkingWithOption || []).find(t=>t.name===opportunity.working_with)?.id || "",
+        working_with_user_ids: opportunity.working_with_user_ids || "",
+      });
     } else {
       const first = activeStages[0];
       setForm({
@@ -165,6 +172,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         oc: form.oc === "" || form.oc == null ? null : Number(form.oc),
         contract_period: form.contract_period ? Number(form.contract_period) : null,
         working_with: form.working_with || "",
+        working_with_team_ids: form.working_with_team_ids || "",
+        working_with_user_ids: form.working_with_user_ids || "",
         support_needed: !!form.support_needed,
         support_type: form.support_needed ? (form.support_type || "") : "",
         support_note: form.support_needed ? String(form.support_note || "").trim() : "",
@@ -359,13 +368,16 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
           <div>
             <Label>Working With</Label>
-            <Select value={form.working_with} onValueChange={(v) => set("working_with", v)}>
-              <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={null}>—</SelectItem>
-                {workingWithOptions.map((w) => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <WorkingWithMultiSelect
+              teams={master?.WorkingWithOption || []}
+              people={master?.TeamMember || []}
+              regionId={form.region_id}
+              disabled={closedAe}
+              teamIds={form.working_with_team_ids}
+              userIds={form.working_with_user_ids}
+              onTeams={v=>set("working_with_team_ids",v)}
+              onUsers={v=>set("working_with_user_ids",v)}
+            />
           </div>
         </div>
 
