@@ -243,13 +243,29 @@ export function DataProvider({ children }) {
 
   // One write request updates Pipeline and appends authoritative server-side audit.
   const updateWithHistory = useCallback(
-    async (id, changes, histEntry) => {
-      const payload = histEntry?.remark ? { ...changes, audit_remark: histEntry.remark } : changes;
-      const rec = acceptPipelineResult(await db.entities.Opportunity.update(id, payload));
-      setOpportunities((ops) => ops.map((o) => (o.id === id ? rec : o)));
-      return rec;
+    async (id, changes, histEntry, { expectedUpdatedAt } = {}) => {
+      const current = opportunities.find((o) => o.id === id);
+      const revision = expectedUpdatedAt ?? current?.updated_date;
+      // Missing revisions are not silently written: request a reload first.
+      if (!revision) throw new Error("Pipeline revision is missing. Refresh the page before saving.");
+      const payload = {
+        ...changes,
+        ...(histEntry?.remark ? { audit_remark: histEntry.remark } : {}),
+        expected_updated_at: revision,
+      };
+      try {
+        const rec = acceptPipelineResult(await db.entities.Opportunity.update(id, payload));
+        setOpportunities((ops) => ops.map((o) => (o.id === id ? rec : o)));
+        return rec;
+      } catch (error) {
+        if (error.status === 409 || /\\b409\\b/.test(String(error.message || ""))) {
+          // Preserve the user's form so they can copy edits before reloading.
+          throw new Error("This Pipeline has changed since it was opened. Close this form, refresh, and review the latest values before saving again.");
+        }
+        throw error;
+      }
     },
-    [acceptPipelineResult]
+    [opportunities, acceptPipelineResult]
   );
 
   // One persisted update for the three frequent Pipeline actions, with
