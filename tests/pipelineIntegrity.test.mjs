@@ -87,6 +87,10 @@ test("stale Pipeline revisions return 409 without mutation or audit",()=>{
     expected_updated_at:firstRevision,stage_id:"S2",
   });
   assert.equal(first.stage_id,"S2");
+  assert.notEqual(first.updated_date,firstRevision,"revision must advance even when clock is frozen");
+  assert.throws(()=>x.call("M1","PUT","entities/Opportunity/"+created.id,{
+    expected_updated_at:firstRevision,stage_id:"S3",
+  }),e=>e.status===409);
   // Simulate a second user's committed edit since the original form was opened.
   const row=x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows[0];
   row.updated_at="2026-10-19T12:00:00.000Z";
