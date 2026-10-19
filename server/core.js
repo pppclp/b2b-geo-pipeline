@@ -566,8 +566,18 @@ export function createCore({ contract, store, now, uuid }) {
       }
       if (uiEntity === "Stage") validateStageSla(data);
       if (uiEntity === "TeamMember") validateTeamMemberInput(data);
-      if (uiEntity === "Opportunity") data = stripSystemFields(data);
+      // A precondition refers to the authoritative row revision, not a field
+      // supplied for persistence. Compare before any mutation, including audit.
+      const expectedUpdatedAt = uiEntity === "Opportunity" ? data.expected_updated_at : undefined;
+      if (uiEntity === "Opportunity") {
+        data = stripSystemFields(data);
+        delete data.expected_updated_at;
+      }
       const row = findRow(b, actor, id);
+      if (uiEntity === "Opportunity" && expectedUpdatedAt !== undefined &&
+          String(expectedUpdatedAt) !== String(row.updated_at || "")) {
+        throw new HttpError(409, "This Pipeline was updated by someone else. Refresh it before saving.");
+      }
       const before = { ...row };
       if (uiEntity === "TeamMember") {
         const proposed = toSheet(uiEntity, b.primary_key, data);
