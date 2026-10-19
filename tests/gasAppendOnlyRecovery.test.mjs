@@ -55,11 +55,12 @@ test("a crash rolls back only appended rows and preserves original audit history
   assert.throws(()=>h.ctx.SheetStore_.prototype.flush.call(h.state),/simulated mid-append/);
   assert.equal(h.ws.lastRow,4);
   assert.equal(h.props.has("GEO_RUNTIME_DB_TXN"),false);
-  assert.deepEqual(h.log.filter(x=>x[0]==="rollback"),[["rollback",5,2]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.log.filter(x=>x[0]==="rollback"))),[["rollback",5,2]]);
 });
 
 test("reject audit mutations and header changes (append-only invariant)",()=>{
-  const c=runInNewContext(source,{console:{log(){},warn(){},error(){}}});
+  const c={console:{log(){},warn(){},error(){}}};
+  runInNewContext(source,c);
   const previous={event_id:"EV1",value:"before"};
   const current={...previous,value:"after"};
   const store={
