@@ -45,7 +45,8 @@ function gasMock({date="2026-11-01",approved=true,existingSnapshot=false}={}){
  };
  runInNewContext(source,context);
  context.SheetStore_=function(){
-   this.table=(file,sheet)=>sheet==="Pipelines"?{rows:pipelines}:sheet==="Support_Requests"?support:snaps;
+   this.table=(file,sheet)=>sheet==="Users"?{rows:[{user_id:"ADMIN",role:"Admin",status:"Active"}]}:
+     sheet==="Pipelines"?{rows:pipelines}:sheet==="Support_Requests"?support:snaps;
    this.touch=(file,sheet)=>events.push(["touch",sheet]);
    this.flush=()=>events.push(["flush"]);
  };
