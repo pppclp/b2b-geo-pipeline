@@ -183,7 +183,9 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           )
         );
         if (pricingChanged && calculatedNetRc !== null) changedPayload.pipeline_value = calculatedNetRc;
-        if (Object.keys(changedPayload).length) await updateWithHistory(opportunity.id, changedPayload, null);
+        if (Object.keys(changedPayload).length) await updateWithHistory(opportunity.id, changedPayload, null, {
+          expectedUpdatedAt: opportunity.updated_date,
+        });
       } else {
         await createOpportunity(payload);
       }
