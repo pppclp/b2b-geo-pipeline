@@ -62,10 +62,7 @@ export function pipelineExportRows(ops, maps) {
   ]);
 }
 
-export async function downloadPipelineExcel(ops, maps) {
-  // Lazy-load the installed ExcelJS dependency only when Export is requested.
-  const imported = await import("exceljs");
-  const ExcelJS = imported.default || imported;
+export function buildPipelineWorkbook(ops, maps, ExcelJS) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "B2B GEO Pipeline";
   workbook.created = new Date();
@@ -89,6 +86,14 @@ export async function downloadPipelineExcel(ops, maps) {
   [25, 36, 37, 41].forEach((column) => { sheet.getColumn(column).numFmt = "dd mmm yyyy"; });
   sheet.getColumn(27).numFmt = "mmm yyyy"; // Expected Close Month as a real Date
   sheet.getColumn(26).numFmt = "@"; // Created Month is a YYYY-MM identifier
+  return workbook;
+}
+
+export async function downloadPipelineExcel(ops, maps) {
+  // Lazy-load ExcelJS only when an export is requested.
+  const imported = await import("exceljs");
+  const ExcelJS = imported.default || imported;
+  const workbook = buildPipelineWorkbook(ops, maps, ExcelJS);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
