@@ -40,6 +40,16 @@ export function buildContract(yamlText) {
     columns.opportunities = Object.keys(doc.opportunity_entity.field_lineage).filter((c) => !COMPUTED.has(c));
   if (doc.opportunity_events?.fields) columns.opportunity_events = Object.keys(doc.opportunity_events.fields);
   if (doc.monthly_snapshots?.fields) columns.monthly_snapshots = Object.keys(doc.monthly_snapshots.fields);
+  // App-managed Phase 4 sheets: explicit stable column order for migrations.
+  columns.handoff_notifications = [
+    "notification_id","recipient_user_id","opportunity_id","actor_user_id",
+    "type","created_at","read_at"
+  ];
+  columns.support_requests = [
+    "request_id","opportunity_id","region_id","request_type_id","note",
+    "status","requested_by_user_id","assigned_to_user_id","response_note",
+    "created_at","updated_at","resolved_at","source"
+  ];
 
   return { access: doc.access_control, references, columns, uatAuth: doc.uat_auth || {} };
 }

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Maximize2 } from "lucide-react";
+import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
 
 const NONE = "__none__";
@@ -22,6 +23,8 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
   const [stageId, setStageId] = useState(initialStageId || op.stage_id);
   const [handlerId, setHandlerId] = useState(op.current_handler_id || "");
   const [workingWith, setWorkingWith] = useState(op.working_with || "");
+  const [workingTeamIds, setWorkingTeamIds] = useState(op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
+  const [workingUserIds, setWorkingUserIds] = useState(op.working_with_user_ids || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,6 +32,8 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
     setStageId(initialStageId || op.stage_id);
     setHandlerId(op.current_handler_id || "");
     setWorkingWith(op.working_with || "");
+    setWorkingTeamIds(op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
+    setWorkingUserIds(op.working_with_user_ids || "");
     setError("");
   }, [op.id, initialStageId, op.stage_id, op.current_handler_id, op.working_with]);
 
@@ -61,7 +66,9 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
 
   const changed = stageId !== op.stage_id ||
     handlerId !== (op.current_handler_id || "") ||
-    workingWith !== (op.working_with || "");
+    workingWith !== (op.working_with || "") ||
+    workingTeamIds !== (op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "") ||
+    workingUserIds !== (op.working_with_user_ids || "");
   const hasPending = Boolean(initialStageId && initialStageId !== op.stage_id);
   useEffect(() => { onDirtyChange?.(changed); }, [changed, onDirtyChange]);
 
@@ -71,7 +78,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
     setSaving(true);
     setError("");
     try {
-      await updateQuickActions(op.id, { stageId, handlerId, workingWith });
+      await updateQuickActions(op.id, { stageId, handlerId, workingWith, workingTeamIds, workingUserIds });
       onSaved?.();
     } catch (err) {
       setError(err?.message || "Unable to save Pipeline changes");
@@ -128,13 +135,16 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
             <p className="text-xs text-muted-foreground mt-1">Optional</p>
           </div>
           <div className="w-[48%] shrink-0">
-            <Select disabled={!canEdit || saving} value={workingWith || NONE} onValueChange={(value) => setWorkingWith(value === NONE ? "" : value)}>
-              <SelectTrigger id={`working-${op.id}`} className="w-full"><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {workingOptions.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <WorkingWithMultiSelect
+              teams={master?.WorkingWithOption || []}
+              people={master?.TeamMember || []}
+              regionId={op.region_id}
+              disabled={!canEdit || saving}
+              teamIds={workingTeamIds}
+              userIds={workingUserIds}
+              onTeams={setWorkingTeamIds}
+              onUsers={setWorkingUserIds}
+            />
           </div>
         </div>
       </div>

@@ -11,7 +11,7 @@ function fixture() {
     }},
     "B2B_GEO_Pipeline_DB.xlsx": { sheets: {
       Pipelines: { entity:"opportunities",primary_key:"opportunity_id",scoped:true,permissions:{
-        read:["AE","Management","Admin"],create:["AE","Management","Admin"],update:["AE","Management","Admin"],delete:[],export:["AE","Management","Admin"]
+        read:["AE","Management","Admin"],create:["AE","Management","Admin"],update:["AE","Management","Admin"],delete:[],export:["AE","Management","Admin"],import:["Admin"]
       }},
       Pipeline_Events: { entity:"opportunity_events",primary_key:"event_id",scoped:true,append_only:true,permissions:{
         read:["AE","Management","Admin"],create:[],update:[],delete:[]
@@ -87,6 +87,10 @@ test("stale Pipeline revisions return 409 without mutation or audit",()=>{
     expected_updated_at:firstRevision,stage_id:"S2",
   });
   assert.equal(first.stage_id,"S2");
+  assert.notEqual(first.updated_date,firstRevision,"revision must advance even when clock is frozen");
+  assert.throws(()=>x.call("M1","PUT","entities/Opportunity/"+created.id,{
+    expected_updated_at:firstRevision,stage_id:"S3",
+  }),e=>e.status===409);
   // Simulate a second user's committed edit since the original form was opened.
   const row=x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows[0];
   row.updated_at="2026-10-19T12:00:00.000Z";
@@ -98,4 +102,39 @@ test("stale Pipeline revisions return 409 without mutation or audit",()=>{
   assert.equal(row.stage_id,"S2");
   assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,audits);
   assert.equal(x.touched.length,touches);
+});
+
+test("server-side import writes once and a retry is idempotent",()=>{
+  const x=fixture();
+  const payload={batch_id:"uat-import-batch-00000001",items:[
+    {...newPipeline,business_id:"100001"},
+    {...newPipeline,business_id:"100002"}
+  ]};
+  const first=x.call("ADMIN","POST","imports/opportunities",payload);
+  assert.equal(first.imported,2);
+  assert.equal(first.already_imported,false);
+  assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.length,2);
+  assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,2);
+  const second=x.call("ADMIN","POST","imports/opportunities",payload);
+  assert.equal(second.imported,0);
+  assert.equal(second.already_imported,true);
+  assert.deepEqual(second.opportunity_ids,first.opportunity_ids);
+  assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.length,2);
+  assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
+    ...payload,items:[{...newPipeline,business_id:"100003"},payload.items[1]]
+  }),e=>e.status===409);
+  assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
+    batch_id:"uat-import-batch-00000002",items:payload.items
+  }),e=>e.status===409);
+});
+test("batch import rejects unauthorized roles and duplicates before writing",()=>{
+  const x=fixture();
+  const input={batch_id:"uat-import-batch-00000003",items:[
+    {...newPipeline,business_id:"100004"},
+    {...newPipeline,business_id:"100004"}
+  ]};
+  assert.throws(()=>x.call("AE1","POST","imports/opportunities",input),e=>e.status===403);
+  assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",input),e=>e.status===409);
+  assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.length,0);
+  assert.throws(()=>x.call("ADMIN","POST","entities/Opportunity/bulk",input.items),e=>e.status===403);
 });

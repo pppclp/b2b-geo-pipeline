@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { useData } from "@/lib/dataContext";
 import { ROLE_LABELS } from "@/lib/pipeline";
-import { LayoutDashboard, KanbanSquare, AlertCircle, Settings, Upload, LogOut, Menu, X, HandHelping } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, AlertCircle, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
+import HandoffBell from "@/components/HandoffBell";
 
 const LOGO_URL = "https://media.base44.com/images/public/6ac51b65ecc4f77b629b8848/b36c70394_image.png";
 
@@ -15,6 +16,7 @@ const navFor = (role) => {
     { to: "/pipeline", label: "Pipeline", icon: KanbanSquare, view: "all" },
     { to: "/pipeline?view=assigned-to-me", label: "Assigned to Me", icon: HandHelping, view: "assigned-to-me" },
     { to: "/pipeline?view=support-needed", label: "Support Needed", icon: AlertCircle, view: "support-needed" },
+    { to: "/support-requests", label: "Support Requests", icon: HandHelping },
   ];
   if (role === "admin") {
     base.push({ to: "/admin", label: "Admin", icon: Settings });
@@ -30,6 +32,7 @@ const sectionTitle = (pathname) => {
   if (pathname === "/") return "Dashboard";
   if (pathname.startsWith("/pipeline")) return "Pipeline";
   if (pathname.startsWith("/opportunity")) return "Opportunity";
+  if (pathname.startsWith("/support-requests")) return "Support Requests";
   if (pathname.startsWith("/admin")) return "Admin";
   if (pathname.startsWith("/import")) return "Import";
   return "";
@@ -40,11 +43,18 @@ function initials(name = "") {
 }
 
 export default function AppLayout() {
-  const { profile, realProfile, isDemoing, master, error } = useData();
+  const { profile, realProfile, isDemoing, master, error, refresh, loading, lastLoadedAt } = useData();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const minutesSinceLoad = lastLoadedAt ? Math.max(0, Math.floor((clock - Date.parse(lastLoadedAt)) / 60000)) : null;
+  const freshnessText = error ? "โหลดล่าสุดไม่สำเร็จ" : !lastLoadedAt ? "ยังไม่โหลดข้อมูล" : minutesSinceLoad === 0 ? "อัปเดตล่าสุดเมื่อสักครู่" : `อัปเดตล่าสุด ${minutesSinceLoad} นาทีที่แล้ว`;
 
   const items = navFor(profile?.app_role || "ae");
   const displayName = profile?.name || user?.full_name || "User";
@@ -174,6 +184,13 @@ export default function AppLayout() {
             </h2>
           </div>
           <div className="flex items-center gap-2.5">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground" role="status" aria-live="polite">
+              <span title={lastLoadedAt ? new Date(lastLoadedAt).toLocaleString("th-TH") : ""}>{freshnessText}</span>
+              <Button variant="ghost" size="sm" disabled={loading} onClick={refresh} aria-label="Refresh Pipeline data" title="Refresh Pipeline data">
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+            <HandoffBell userId={realProfile?.id} />
             <DemoAsBar variant="trigger" />
             <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
               {initials(displayName)}

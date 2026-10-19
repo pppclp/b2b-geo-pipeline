@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useData } from "@/lib/dataContext";
 import { currentMonthKey } from "@/lib/pipeline";
+import { db } from "@/api/client";
 import { mapImportHeaders } from "@/lib/importHeaderMapping";
+import { readImportFile } from "@/lib/importWorkbook";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -58,12 +60,15 @@ function parseCSV(text) {
 }
 
 export default function Import() {
-  const { master, activeStages, createOpportunity, profile } = useData();
+  const { master, activeStages, refresh, profile } = useData();
   const [step, setStep] = useState("upload"); // upload | map | preview | done
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
   const [mapping, setMapping] = useState({}); // fieldKey -> headerIndex
   const [result, setResult] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importBatchId, setImportBatchId] = useState("");
   const fileRef = useRef();
 
   const byName = (entity) => Object.fromEntries((master?.[entity] || []).map((x) => [x.name.toLowerCase(), x]));
@@ -71,12 +76,18 @@ export default function Import() {
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const parsed = parseCSV(text);
-    if (!parsed.length) return;
-    const hdrs = parsed[0].map((h) => h.trim());
+    setImportError("");
+    setImportBatchId(crypto.randomUUID().replace(/-/g, ""));
+    let parsed;
+    try {
+      parsed = await readImportFile(file, parseCSV);
+    } catch (error) {
+      setImportError(error.message || "Unable to read file");
+      return;
+    }
+    const hdrs = parsed.headers;
     setHeaders(hdrs);
-    setRows(parsed.slice(1));
+    setRows(parsed.rows);
     // auto-map
     const auto = mapImportHeaders(hdrs, FIELDS);
     setMapping(auto);
@@ -153,20 +164,28 @@ export default function Import() {
   const invalidRows = validated.filter((v) => v.errors.length > 0);
 
   const doImport = async () => {
-    let ok = 0, fail = 0;
-    for (const v of validRows) {
-      try { await createOpportunity(v.rec); ok++; } catch (e) { fail++; console.error(e); }
+    if (importing || !validRows.length || !importBatchId) return;
+    setImporting(true);
+    setImportError("");
+    try {
+      const response = await db.imports.opportunities(importBatchId, validRows.map((v) => v.rec));
+      setResult({ ok: response.total, fail: 0, total: response.total,
+        alreadyImported: response.already_imported });
+      await refresh().catch(() => {}); // committed even when list refresh fails
+      setStep("done");
+    } catch (error) {
+      setImportError(error.message || "Import failed. No new data should be saved.");
+    } finally {
+      setImporting(false);
     }
-    setResult({ ok, fail, total: validRows.length });
-    setStep("done");
   };
 
-  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setMapping({}); setResult(null); if (fileRef.current) fileRef.current.value = ""; };
+  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setMapping({}); setResult(null); setImportBatchId(""); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
 
   return (
     <div className="p-5 md:p-7 max-w-[1000px] mx-auto">
       <h1 className="text-2xl font-semibold tracking-tight mb-1">Import Opportunities</h1>
-      <p className="text-sm text-muted-foreground mb-6">Upload a CSV, map columns, validate, then confirm. (Excel: save as CSV first.)</p>
+      <p className="text-sm text-muted-foreground mb-6">Upload .xlsx or .csv, map columns, validate, then confirm. Maximum 200 rows.</p>
 
       <div className="flex items-center gap-2 mb-6 text-sm">
         <Step n={1} active={step === "upload"} done={["map", "preview", "done"].includes(step)} label="Upload" />
@@ -183,9 +202,10 @@ export default function Import() {
           <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
             <FileUp className="w-7 h-7 text-muted-foreground" />
           </div>
-          <p className="text-sm text-muted-foreground mb-4">Select a CSV file with your opportunity data</p>
-          <input ref={fileRef} type="file" accept=".csv" onChange={onFile} className="hidden" id="csv-upload" />
+          <p className="text-sm text-muted-foreground mb-4">Select an Excel (.xlsx) or CSV file with your opportunity data</p>
+          <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={onFile} className="hidden" id="csv-upload" />
           <Button className="rounded-lg" onClick={() => document.getElementById("csv-upload").click()}><Upload className="w-4 h-4 mr-1.5" /> Choose File</Button>
+          {importError && <p role="alert" className="mt-3 text-sm text-red-600">{importError}</p>}
         </div>
       )}
 
@@ -257,9 +277,10 @@ export default function Import() {
             </div>
           )}
 
+          {importError && <p role="alert" className="text-sm text-red-600">{importError}</p>}
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setStep("map")}>Back</Button>
-            <Button onClick={doImport} disabled={validRows.length === 0}>Confirm Import ({validRows.length})</Button>
+            <Button variant="outline" disabled={importing} onClick={() => setStep("map")}>Back</Button>
+            <Button onClick={doImport} disabled={validRows.length === 0 || importing}>{importing ? "Importing…" : "Confirm Import (" + validRows.length + ")"}</Button>
           </div>
         </div>
       )}
@@ -270,7 +291,7 @@ export default function Import() {
             <CheckCircle2 className="w-9 h-9 text-emerald-600" />
           </div>
           <h2 className="text-lg font-semibold">Import Complete</h2>
-          <p className="text-sm text-muted-foreground mt-1">{result?.ok} imported successfully · {result?.fail} failed</p>
+          <p className="text-sm text-muted-foreground mt-1">{result?.alreadyImported ? "This batch was already imported (" + result.ok + " records). No duplicates created." : result?.ok + " imported successfully · " + result?.fail + " failed"}</p>
           <Button className="mt-5 rounded-lg" onClick={reset}>Import Another File</Button>
         </div>
       )}

@@ -369,6 +369,218 @@ export function createCore({ contract, store, now, uuid }) {
     return { captured: snapshots.length, snapshot_period: snapshotPeriod };
   }
 
+  // Stable import identity: indexed batch IDs prevent retry duplicates;
+  // a second batch containing the same commercial signature is rejected.
+  const importFingerprint = (item) => JSON.stringify([
+    "business_id","product_category_id","expected_close_month","owner_id",
+    "product_details","contact_phone","quantity","price_per_sub","oc"
+  ].map((key) => String(item[key] ?? "").trim().toLowerCase()));
+
+  function importOpportunities(actor, input) {
+    const b = binding("Opportunity");
+    need(actor, b, "import");
+    need(actor, b, "create");
+    if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Only SM or Admin may import Pipelines");
+    const batchId = String(input?.batch_id || "");
+    const items = input?.items;
+    if (!/^[A-Za-z0-9_-]{16,80}$/.test(batchId)) throw new HttpError(400, "Invalid import_batch_id");
+    if (!Array.isArray(items) || items.length < 1 || items.length > 200 ||
+      items.some((i) => !i || typeof i !== "object" || Array.isArray(i))) {
+      throw new HttpError(400, "Import must contain 1-200 Pipeline rows");
+    }
+    const sheet = tableOf(b).rows;
+    const previous = sheet.filter((r) => String(r.import_batch_id || "") === batchId);
+    if (previous.length) {
+      if (previous.length !== items.length ||
+          previous.some((r) => {
+            const n = Number(r.import_row_number);
+            return !Number.isInteger(n) || n < 1 || n > items.length ||
+              String(r.import_row_signature || "") !== importFingerprint(items[n - 1]);
+          })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
+      return { imported: 0, already_imported: true, total: previous.length,
+        opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
+          .map((r) => r.opportunity_id) };
+    }
+    const known = new Set(sheet.map((r) => r.import_row_signature || importFingerprint({
+      business_id:r.business_id, product_category_id:r.product_category_id,
+      expected_close_month:r.expected_close_month, owner_id:r.owner_user_id,
+      product_details:r.product_details, contact_phone:r.contact_phone,
+      quantity:r.quantity, price_per_sub:r.price_per_sub, oc:r.oc,
+    })));
+    const currentBatch = new Set();
+    const signatures = items.map((item) => {
+      const sign = importFingerprint(item);
+      if (currentBatch.has(sign)) throw new HttpError(409, "Duplicate Pipeline rows in import file");
+      if (known.has(sign)) throw new HttpError(409, "This Pipeline already exists. Review your import before retrying");
+      currentBatch.add(sign);
+      return sign;
+    });
+    // One core request: adapters commit Pipelines + Pipeline_Events together.
+    // If any validation or sheet write fails, neither workbook change commits.
+    const results = items.map((item, index) => entityApi.create("Opportunity", actor, item, {
+      batchId, rowNumber:index + 1, signature:signatures[index]
+    }));
+    return { imported: results.length, already_imported: false, total: results.length,
+      opportunity_ids: results.map((r) => r.id) };
+  }
+
+  // All notification/support APIs use the signed actor from the server.
+  // Never expose these app-owned tables via generic entity or raw Sheet APIs.
+  const notificationBinding = bindings.handoff_notifications;
+  const supportBinding = bindings.support_requests;
+  const notificationRows = () => notificationBinding ? tableOf(notificationBinding).rows : [];
+  const supportRows = () => supportBinding ? tableOf(supportBinding).rows : [];
+  const parseIds = (value) => String(value || "").split(",").map((id) => id.trim()).filter(Boolean);
+  function validateCollaborators(changes, currentRegion) {
+    if ("working_with_team_ids" in changes) {
+      const teamIds = parseIds(changes.working_with_team_ids);
+      if (teamIds.length > 8 || new Set(teamIds).size !== teamIds.length)
+        throw new HttpError(400, "Select up to 8 distinct Working With teams");
+      for (const id of teamIds) {
+        const team = rows("working_with_options").find((t) => t.team_id === id && isActive(t.active));
+        if (!team) throw new HttpError(400, "Unknown or inactive Working With team");
+      }
+      changes.working_with_team_ids = teamIds.join(",");
+      // Keep the legacy single-team field for existing dashboard indicators.
+      changes.working_with_id = teamIds[0] || "";
+    }
+    if ("working_with_user_ids" in changes) {
+      const userIds = parseIds(changes.working_with_user_ids);
+      if (userIds.length > 12 || new Set(userIds).size !== userIds.length)
+        throw new HttpError(400, "Select up to 12 distinct Working With people");
+      for (const id of userIds) {
+        const user = findUser(id);
+        if (!user || (!["admin","management"].includes(user.role) &&
+            !user.region_ids.includes(String(currentRegion))))
+          throw new HttpError(400, "Working With person must be active and assigned to the selected Region");
+      }
+      changes.working_with_user_ids = userIds.join(",");
+    }
+  }
+  function addHandoffNotification(opportunityId, oldHandler, newHandler, actor, stamp) {
+    if (!notificationBinding || !newHandler || oldHandler === newHandler || newHandler === actor.real.id) return;
+    const recipient = findUser(newHandler);
+    if (!recipient) return;
+    const t = tableOf(notificationBinding);
+    t.rows.push({
+      notification_id: "NTF-" + uuid(),
+      recipient_user_id: newHandler,
+      opportunity_id: opportunityId,
+      actor_user_id: actor.real.id,
+      type: "handoff",
+      created_at: stamp,
+      read_at: "",
+    });
+    touch(notificationBinding);
+  }
+  function listNotifications(actor) {
+    if (!notificationBinding) throw new HttpError(503, "Handoff Notifications need database setup");
+    const mine = notificationRows().filter((n) => n.recipient_user_id === actor.real.id);
+    const visible = mine.filter((n) => {
+      const b = binding("Opportunity");
+      const op = tableOf(b).rows.find((o) => o.opportunity_id === n.opportunity_id);
+      return !!op && scopedFilter(b, actor)(op);
+    });
+    return {
+      unread_count: visible.filter((n) => !n.read_at).length,
+      items: visible.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 30)
+        .map((n) => ({ id:n.notification_id, opportunity_id:n.opportunity_id,
+          actor_name:findUser(n.actor_user_id)?.name || "Colleague",
+          created_at:n.created_at, read_at:n.read_at || "" }))
+    };
+  }
+  function readNotification(actor, id) {
+    if (!notificationBinding) throw new HttpError(503, "Handoff Notifications need database setup");
+    const item=notificationRows().find((n) => n.notification_id === id &&
+      n.recipient_user_id === actor.real.id);
+    if (!item) throw new HttpError(404, "Notification not found");
+    // Only the recipient, not Admin or the sender, may mark it read.
+    if (!item.read_at) { item.read_at = now(); touch(notificationBinding); }
+    return { ok:true };
+  }
+  function supportVisible(actor, request) {
+    const b=binding("Opportunity");
+    const op=tableOf(b).rows.find((r) => r.opportunity_id === request.opportunity_id);
+    return !!op && scopedFilter(b,actor)(op);
+  }
+  function listSupport(actor) {
+    if (!supportBinding) throw new HttpError(503, "Support Requests need database setup");
+    return supportRows().filter((r) => supportVisible(actor,r))
+      .sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .map((r) => ({ ...r }));
+  }
+  function openSupportRequest(actor, opportunityId, categoryId, note, stamp) {
+    if (!supportBinding) throw new HttpError(503, "Support Requests need database setup");
+    const b=binding("Opportunity"),op=findRow(b,actor,opportunityId);
+    if (!["open","won","lost"].includes(String(op.status).toLowerCase()))
+      throw new HttpError(400, "Archived Pipeline cannot request support");
+    if (!String(categoryId || "").trim() || !rows("support_types").some(
+      (t) => t.support_type_id === categoryId && isActive(t.active)))
+      throw new HttpError(400, "Select a valid Support Type");
+    if (!String(note || "").trim()) throw new HttpError(400, "Support Note is required");
+    const existing=supportRows().find((r) => r.opportunity_id===opportunityId &&
+      r.status !== "Resolved");
+    if (existing) return existing;
+    const request={
+      request_id:"SRQ-"+uuid(), opportunity_id:opportunityId, region_id:op.region_id,
+      request_type_id:categoryId, note:String(note).slice(0,1000),
+      status:"Open", requested_by_user_id:actor.real.id, assigned_to_user_id:"",
+      response_note:"", created_at:stamp,updated_at:stamp,resolved_at:"",source:"user"
+    };
+    tableOf(supportBinding).rows.push(request);touch(supportBinding);
+    return request;
+  }
+  function createSupport(actor,data) {
+    const b=binding("Opportunity");need(actor,b,"update");
+    const op=findRow(b,actor,String(data?.opportunity_id||""));
+    const result=openSupportRequest(actor,op.opportunity_id,
+      String(data?.request_type_id||""),data?.note,now());
+    // Reflect the request in existing Pipeline and dashboard widgets.
+    if(!bool.toUi(op.support_needed)){
+      const before={...op};
+      op.support_needed="Yes";op.support_type_id=result.request_type_id;
+      op.support_note=result.note;op.updated_at=now();touch(b);
+      appendAudit(op.opportunity_id,opportunityAuditEvents(before,op),actor,now());
+    }
+    return {...result};
+  }
+  function updateSupport(actor,id,data) {
+    if (!supportBinding) throw new HttpError(503,"Support Requests need database setup");
+    if (!["management","admin"].includes(actor.role))
+      throw new HttpError(403,"Only Management or Admin can process support requests");
+    const req=supportRows().find((r)=>r.request_id===id && supportVisible(actor,r));
+    if (!req) throw new HttpError(404,"Support request not found");
+    const desired=String(data?.status||req.status);
+    if (!["Open","In Progress","Resolved"].includes(desired))
+      throw new HttpError(400,"Invalid support status");
+    if (req.status === "Resolved" && desired !== "Resolved")
+      throw new HttpError(409,"Resolved request cannot be reopened; create a new request");
+    if (desired === "Resolved" && !String(data?.response_note||req.response_note||"").trim())
+      throw new HttpError(400,"Resolution note is required");
+    const assignee=String(data?.assigned_to_user_id ?? req.assigned_to_user_id ?? "");
+    if (assignee) {
+      const user=findUser(assignee);
+      if (!user || !["management","admin"].includes(user.role) ||
+          (user.role==="management" && !user.region_ids.includes(req.region_id)))
+        throw new HttpError(400,"Select an active Management assignee for the Region");
+    }
+    req.status=desired;req.assigned_to_user_id=assignee;
+    req.response_note=String(data?.response_note ?? req.response_note ?? "").slice(0,1000);
+    req.updated_at=now();
+    if (desired==="Resolved" && !req.resolved_at) {
+      req.resolved_at=now();
+      const b=binding("Opportunity"),op=tableOf(b).rows.find((o)=>o.opportunity_id===req.opportunity_id);
+      if (op && !supportRows().some((x)=>x!==req && x.opportunity_id===req.opportunity_id && x.status!=="Resolved")) {
+        const before={...op};
+        op.support_needed="No";op.support_type_id="";op.support_note="";
+        op.updated_at=now();touch(b);
+        appendAudit(op.opportunity_id,opportunityAuditEvents(before,op),actor,now());
+      }
+    }
+    touch(supportBinding);
+    return {...req};
+  }
+
   // ---- Entity API (used by the app screens) ----
   function matches(rec, query) {
     return Object.entries(query || {}).every(([k, v]) => String(rec[k] ?? "") === String(v));
@@ -493,7 +705,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (ENTITIES[uiEntity].virtual) return appConfigList().find((c) => c.id === id);
       return visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, findRow(b, actor, id))));
     },
-    create(uiEntity, actor, data) {
+    create(uiEntity, actor, data, importMeta = null) {
       const b = binding(uiEntity);
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, data.key, data.value);
       need(actor, b, "create");
@@ -505,6 +717,11 @@ export function createCore({ contract, store, now, uuid }) {
       const stamp = now();
       if (uiEntity === "Opportunity") {
         data = stripSystemFields(data);
+        if (importMeta) data = {
+          ...data, import_batch_id:importMeta.batchId,
+          import_row_number:importMeta.rowNumber,
+          import_row_signature:importMeta.signature,
+        };
         // New Pipelines always start Open. Close them via the audited
         // Won/Lost update flow, which requires a Lost Reason when applicable.
         if (String(data.status || "open").toLowerCase() !== "open") {
@@ -544,7 +761,10 @@ export function createCore({ contract, store, now, uuid }) {
         row.created_at = stamp;
         row.updated_at = stamp;
       }
-      if (b.entity === "opportunities") row.created_by_user_id = actor.real.id;
+      if (b.entity === "opportunities") {
+        row.created_by_user_id = actor.real.id;
+        validateCollaborators(row, row.region_id);
+      }
       if (b.scoped && !scopedFilter(b, actor)(row)) throw new HttpError(403, `New ${b.sheet} row would be outside your scope`);
       const saved = fitColumns(b, row);
       tableOf(b).rows.push(saved);
@@ -553,6 +773,8 @@ export function createCore({ contract, store, now, uuid }) {
       const auditEvents = b.entity === "opportunities"
         ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
         : [];
+      if (b.entity === "opportunities" && bool.toUi(saved.support_needed))
+        openSupportRequest(actor,saved[b.primary_key],saved.support_type_id,saved.support_note,stamp);
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("CREATED", b, saved[b.primary_key], null, saved, actor);
       const created = decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
       return b.entity === "opportunities" ? { ...created, _audit_events: auditEvents } : created;
@@ -652,19 +874,42 @@ export function createCore({ contract, store, now, uuid }) {
       delete changes[b.primary_key];
       // Free-text audit remark is metadata, never a Pipeline column.
       delete changes.audit_remark;
+      // Keep business timers on actual server time. Revision alone is
+      // monotonic, so two saves during the same millisecond cannot reuse a tag.
       const stamp = now();
+      const priorMs = Date.parse(row.updated_at || "");
+      const currentMs = Date.parse(stamp);
+      const revisionStamp = b.entity === "opportunities" &&
+        Number.isFinite(priorMs) && Number.isFinite(currentMs) && currentMs <= priorMs
+        ? new Date(priorMs + 1).toISOString() : stamp;
       if (b.entity === "opportunities") {
         changes = applyOpportunityTimers(keepOpportunityColumns(changes), row, stamp);
         const next = { ...row, ...changes };
+        validateCollaborators(changes,next.region_id);
+        if ("working_with_team_ids" in changes &&
+            String(changes.working_with_id || "") !== String(row.working_with_id || ""))
+          changes.working_with_since = changes.working_with_id ? stamp : "";
+        Object.assign(next, changes);
         validateOpportunityRefs(next, row, actor);
+        if (bool.toUi(next.support_needed) && !bool.toUi(row.support_needed)) {
+          // The request will be committed in the same database transaction.
+          openSupportRequest(actor,id,next.support_type_id,next.support_note,stamp);
+        }
+        if (!bool.toUi(next.support_needed) && bool.toUi(row.support_needed) &&
+            supportBinding && supportRows().some((req) =>
+              req.opportunity_id===id && req.status!=="Resolved"))
+          throw new HttpError(409,"Resolve the active Support Request before disabling Support Needed");
         // Do not let Region changes move the row out of the editor's scope.
         if (String(next.region_id ?? "") !== String(row.region_id ?? "") &&
             !scopedFilter(b, actor)(next)) {
           throw new HttpError(403, "Region change would move Pipeline outside your scope");
         }
       }
-      Object.assign(row, fitColumns(b, { ...changes, updated_at: stamp }));
+      Object.assign(row, fitColumns(b, { ...changes, updated_at: revisionStamp }));
       touch(b);
+      if (b.entity === "opportunities" && String(before.current_handler_user_id||"") !==
+          String(row.current_handler_user_id||""))
+        addHandoffNotification(id,before.current_handler_user_id,row.current_handler_user_id,actor,stamp);
       const auditEvents = b.entity === "opportunities"
         ? appendAudit(id, opportunityAuditEvents(before, row, { remark: data.audit_remark || data.last_remark || "" }), actor, stamp)
         : [];
@@ -853,6 +1098,24 @@ export function createCore({ contract, store, now, uuid }) {
         if (f.permissions) allowed[file]._file = Object.keys(f.permissions).filter((a) => (f.permissions[a] || []).includes(actor.role));
       }
       return { role: actor.role, scope: scopeForRole(actor.role), allowed };
+    }
+
+    if (parts[0] === "notifications") {
+      if (method === "GET" && parts.length === 1) return listNotifications(actor);
+      if (method === "POST" && parts[2] === "read" && parts.length === 3)
+        return readNotification(actor,parts[1]);
+      throw new HttpError(405,"Notifications only support list and mark-read");
+    }
+    if (parts[0] === "support-requests") {
+      if (method === "GET" && parts.length === 1) return listSupport(actor);
+      if (method === "POST" && parts.length === 1) return createSupport(actor,req.body);
+      if (method === "PATCH" && parts.length === 2) return updateSupport(actor,parts[1],req.body);
+      throw new HttpError(405,"Unsupported Support Requests action");
+    }
+
+    if (parts[0] === "imports" && parts[1] === "opportunities") {
+      if (method !== "POST") throw new HttpError(405, "Import requires POST");
+      return importOpportunities(actor, req.body);
     }
 
     if (parts[0] === "exports") {

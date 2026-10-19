@@ -1,4 +1,4 @@
-import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "./pipeline.js";
+import { formatMonth, agingDays, STATUS_LABELS } from "./pipeline.js";
 
 // Text identifiers (Business ID, phone, employee names) stay text in Excel,
 // avoiding lost leading zeroes and accidental numeric conversion.
@@ -15,6 +15,32 @@ export const PIPELINE_EXPORT_HEADERS = [
   "Won At", "Lost At", "Lost Reason", "Lost Note", "Created By", "Updated At",
 ];
 
+// Use genuine Excel Date values, not localized text. Date-only values keep
+// their calendar date, while UTC/offset instants use Thailand business dates.
+export function toBangkokExcelDate(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const dt=new Date(value.getTime()+7*3600000);
+    return new Date(Date.UTC(dt.getUTCFullYear(),dt.getUTCMonth(),dt.getUTCDate()));
+  }
+  const raw=String(value).trim();
+  const plain=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (plain) {
+    const result=new Date(Date.UTC(+plain[1],+plain[2]-1,+plain[3]));
+    return result.toISOString().slice(0,10)===raw ? result : null;
+  }
+  if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(raw)) return null;
+  const ms=Date.parse(raw);
+  if (!Number.isFinite(ms)) return null;
+  const dt=new Date(ms+7*3600000);
+  return new Date(Date.UTC(dt.getUTCFullYear(),dt.getUTCMonth(),dt.getUTCDate()));
+}
+
+export function monthKeyToExcelDate(value) {
+  const match=/^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(value||""));
+  return match ? new Date(Date.UTC(+match[1],+match[2]-1,1)) : null;
+}
+
 export function pipelineExportRows(ops, maps) {
   const dict = (key, id) => maps?.[key]?.[id]?.name || "";
   return ops.map((o) => [
@@ -27,19 +53,16 @@ export function pipelineExportRows(ops, maps) {
     dict("region", o.region_id), dict("territory", o.territory_id),
     dict("member", o.owner_id), dict("member", o.current_handler_id),
     dict("stage", o.stage_id), STATUS_LABELS[o.status] || o.status,
-    formatDate(o.created_date), o.created_month || "", formatMonth(o.expected_close_month),
+    toBangkokExcelDate(o.created_date), o.created_month || "", monthKeyToExcelDate(o.expected_close_month),
     agingDays(o.stage_entered_at), maps?.stage?.[o.stage_id]?.sla_days ?? null, agingDays(o.handler_since),
     o.working_with || "", o.working_with ? agingDays(o.working_with_since) : null,
     o.support_needed ? "Yes" : "No", o.support_type || "", o.support_note || "",
-    formatDate(o.won_at), formatDate(o.lost_at), dict("lostReason", o.lost_reason_id), o.lost_note || "",
-    dict("member", o.created_by_user_id), formatDate(o.updated_date),
+    toBangkokExcelDate(o.won_at), toBangkokExcelDate(o.lost_at), dict("lostReason", o.lost_reason_id), o.lost_note || "",
+    dict("member", o.created_by_user_id), toBangkokExcelDate(o.updated_date),
   ]);
 }
 
-export async function downloadPipelineExcel(ops, maps) {
-  // Lazy-load the installed ExcelJS dependency only when Export is requested.
-  const imported = await import("exceljs");
-  const ExcelJS = imported.default || imported;
+export function buildPipelineWorkbook(ops, maps, ExcelJS) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "B2B GEO Pipeline";
   workbook.created = new Date();
@@ -60,6 +83,17 @@ export async function downloadPipelineExcel(ops, maps) {
   financialIndexes.forEach((i) => { sheet.getColumn(i + 1).numFmt = '#,##0.00;[Red](#,##0.00)'; });
   sheet.getColumn(3).numFmt = "@"; // Business ID
   sheet.getColumn(8).numFmt = "@"; // Phone
+  [25, 36, 37, 41].forEach((column) => { sheet.getColumn(column).numFmt = "dd mmm yyyy"; });
+  sheet.getColumn(27).numFmt = "mmm yyyy"; // Expected Close Month as a real Date
+  sheet.getColumn(26).numFmt = "@"; // Created Month is a YYYY-MM identifier
+  return workbook;
+}
+
+export async function downloadPipelineExcel(ops, maps) {
+  // Lazy-load ExcelJS only when an export is requested.
+  const imported = await import("exceljs");
+  const ExcelJS = imported.default || imported;
+  const workbook = buildPipelineWorkbook(ops, maps, ExcelJS);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);

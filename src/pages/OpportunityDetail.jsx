@@ -54,6 +54,10 @@ export default function OpportunityDetail() {
   const stageAging = agingDays(op.stage_entered_at);
   const handlerAging = agingDays(op.handler_since);
   const wwAging = op.working_with ? agingDays(op.working_with_since) : 0;
+  const workingTeams = String(op.working_with_team_ids || "").split(",").filter(Boolean)
+    .map(x => (master?.WorkingWithOption || []).find(t=>t.id===x)?.name || x);
+  const workingPeople = String(op.working_with_user_ids || "").split(",").filter(Boolean)
+    .map(x => maps.member?.[x]?.name || x);
 
   const closeAction = () => {
     if (saving) return;
@@ -172,6 +176,8 @@ export default function OpportunityDetail() {
             <Field label="Working With" value={op.working_with ? `${op.working_with} (${wwAging} days)` : "—"} />
             <Field label="Support Needed" value={op.support_needed ? "Yes" : "No"} />
             {op.support_needed && <Field label="Support Type" value={op.support_type} />}
+            {workingTeams.length > 0 && <Field label="Working With Teams" value={workingTeams.join(", ")} />}
+            {workingPeople.length > 0 && <Field label="Working With People" value={workingPeople.join(", ")} />}
             {op.support_needed && <Field label="Support Note" value={op.support_note} />}
           </Section>
 
@@ -196,9 +202,13 @@ export default function OpportunityDetail() {
           {canEdit && <Section title="Other Actions" stacked>
             <div className="grid grid-cols-1 gap-2">
               <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "closemonth" })}><CalendarClock className="w-4 h-4 mr-2" /> Change Close Month</Button>
-              <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: !op.support_needed })}>
-                <Wrench className="w-4 h-4 mr-2" /> {op.support_needed ? "Disable Support" : "Enable Support"}
-              </Button>
+              {op.support_needed
+                ? <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => navigate("/support-requests")}>
+                    <Wrench className="w-4 h-4 mr-2" /> View Support Request
+                  </Button>
+                : <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: true })}>
+                    <Wrench className="w-4 h-4 mr-2" /> Request Support
+                  </Button>}
             </div>
           </Section>}
 
@@ -244,6 +254,7 @@ function actionValid(a, remark = "") {
   if (a.type === "handoff") return !!a.handlerId;
   if (a.type === "reassign") return !!a.ownerId || !!a.handlerId;
   if (a.type === "closemonth") return !!a.month;
+  if (a.type === "support") return !a.needed || (!!a.type_ && !!String(a.note||"").trim());
   return true;
 }
 
