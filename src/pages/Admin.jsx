@@ -12,6 +12,7 @@ import { Trash2, Plus, Check, X, Download, Camera } from "lucide-react";
 import SheetEditor from "@/components/SheetEditor";
 import { db } from "@/api/client";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
+import { safeCsvTable } from "@/lib/safeCsv";
 
 export default function Admin() {
   const { profile } = useData();
@@ -377,9 +378,7 @@ function ExportsManager() {
   const [exportError, setExportError] = useState("");
 
   const download = (name, headers, rows) => {
-    const csv = [headers, ...rows]
-      .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
-      .join("\n");
+    const csv = safeCsvTable(headers, rows);
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
