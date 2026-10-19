@@ -712,7 +712,14 @@ export function createCore({ contract, store, now, uuid }) {
       delete changes[b.primary_key];
       // Free-text audit remark is metadata, never a Pipeline column.
       delete changes.audit_remark;
-      const stamp = now();
+      // Monotonic revision: even two saves within the same millisecond must
+      // produce distinct updated_at values for optimistic conflict detection.
+      const currentStamp = now();
+      const priorMs = Date.parse(row.updated_at || "");
+      const currentMs = Date.parse(currentStamp);
+      const stamp = b.entity === "opportunities" &&
+        Number.isFinite(priorMs) && Number.isFinite(currentMs) && currentMs <= priorMs
+        ? new Date(priorMs + 1).toISOString() : currentStamp;
       if (b.entity === "opportunities") {
         changes = applyOpportunityTimers(keepOpportunityColumns(changes), row, stamp);
         const next = { ...row, ...changes };
