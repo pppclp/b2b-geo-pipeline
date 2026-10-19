@@ -16,6 +16,7 @@ const navFor = (role) => {
     { to: "/pipeline", label: "Pipeline", icon: KanbanSquare, view: "all" },
     { to: "/pipeline?view=assigned-to-me", label: "Assigned to Me", icon: HandHelping, view: "assigned-to-me" },
     { to: "/pipeline?view=support-needed", label: "Support Needed", icon: AlertCircle, view: "support-needed" },
+    { to: "/support-requests", label: "Support Requests", icon: HandHelping },
   ];
   if (role === "admin") {
     base.push({ to: "/admin", label: "Admin", icon: Settings });
@@ -31,6 +32,7 @@ const sectionTitle = (pathname) => {
   if (pathname === "/") return "Dashboard";
   if (pathname.startsWith("/pipeline")) return "Pipeline";
   if (pathname.startsWith("/opportunity")) return "Opportunity";
+  if (pathname.startsWith("/support-requests")) return "Support Requests";
   if (pathname.startsWith("/admin")) return "Admin";
   if (pathname.startsWith("/import")) return "Import";
   return "";
