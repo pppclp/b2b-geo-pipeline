@@ -35,7 +35,7 @@ function SupportRow({item,management,users,maps,onUpdated}){
         <Link className="text-sm font-semibold hover:underline text-brand" to={`/opportunity/${encodeURIComponent(item.opportunity_id)}`}>
           {item.opportunity_id} · {maps?.category?.[item.request_type_id]?.name || maps?.supportType?.[item.request_type_id]?.name || "Support"}
         </Link>
-        <p className="mt-1 text-xs text-muted-foreground">Region {maps.region?.[item.region_id]?.name || item.region_id} · ขอโดย {maps.member?.[item.requested_by_user_id]?.name || item.requested_by_user_id}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Region {maps.region?.[item.region_id]?.name || item.region_id} · ขอโดย {item.source==="migration" ? "ข้อมูลเดิมจาก Support Needed" : (maps.member?.[item.requested_by_user_id]?.name || item.requested_by_user_id)}</p>
       </div>
       <span className={`text-xs font-medium h-fit rounded-md px-2 py-1 ${isResolved?"bg-green-50 text-green-700":"bg-amber-50 text-amber-700"}`}>{item.status}</span>
     </div>
