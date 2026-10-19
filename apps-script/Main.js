@@ -79,7 +79,11 @@ function uatLogin_(store, body) {
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
   var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
-  if (key && Number(limiter.get(key) || 0) >= 5) {
+  // Username-only throttling is vulnerable to password spraying across accounts.
+  // The script-wide limit is a second brake, NOT a replacement for SSO/WAF.
+  var globalKey = "GEO_LOGIN_FAIL_GLOBAL_V1";
+  if (Number(limiter.get(globalKey) || 0) >= 50 ||
+      (key && Number(limiter.get(key) || 0) >= 5)) {
     throwUatError_(429, "Too many login attempts. Try again in 10 minutes.");
   }
 
@@ -104,7 +108,7 @@ function uatLogin_(store, body) {
     return normalizeEmployeeId_(row["employee_id / username"]) === username;
   });
 
-  if (!credential || String(credential.temporary_password || "") !== password) {
+  if (!credential || !verifyUatPassword_(credential, password)) {
     denyUatLogin_(limiter, key);
   }
   if (key) limiter.remove(key);
@@ -120,7 +124,126 @@ function uatLogin_(store, body) {
 
 function denyUatLogin_(cache, key) {
   if (key) cache.put(key, String(Number(cache.get(key) || 0) + 1), 600);
+  var globalKey = "GEO_LOGIN_FAIL_GLOBAL_V1";
+  cache.put(globalKey, String(Number(cache.get(globalKey) || 0) + 1), 600);
   throwUatError_(401, "Invalid username or password");
+}
+
+// UAT-only credential migration. Hash is salted + keyed with a separate
+// Script Property (pepper). This protects a leaked Sheet alone, but is NOT a
+// memory-hard password KDF and must not be marketed as production-grade.
+var GEO_UAT_PASSWORD_PEPPER_PROPERTY_ = "GEO_UAT_PASSWORD_PEPPER";
+var GEO_UAT_PASSWORD_HASH_SCHEME_ = "hmac-sha256-v1";
+
+function uatPasswordPepper_(create) {
+  var props = PropertiesService.getScriptProperties();
+  var value = props.getProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_);
+  if (!value && create) {
+    // Never generate a new pepper while hashes may exist; migration itself
+    // performs the first provisioning under the script lock.
+    value = Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_, value);
+  }
+  if (!value) throwUatError_(503, "UAT password verification is not configured");
+  return value;
+}
+
+function uatPasswordDigest_(salt, password) {
+  return Utilities.base64EncodeWebSafe(
+    Utilities.computeHmacSha256Signature(String(salt) + ":" + String(password), uatPasswordPepper_(false))
+  ).replace(/=+$/, "");
+}
+
+function uatConstantTimeEqual_(a, b) {
+  a = String(a); b = String(b);
+  var mismatch = a.length ^ b.length;
+  for (var i = 0; i < Math.max(a.length, b.length); i++) {
+    mismatch |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return mismatch === 0;
+}
+
+function verifyUatPassword_(credential, password) {
+  var stored = String(credential.password_hash || "").trim();
+  if (stored) {
+    var parts = stored.split("$");
+    if (parts.length !== 3 || parts[0] !== GEO_UAT_PASSWORD_HASH_SCHEME_ ||
+        !/^[a-f0-9]{32}$/.test(parts[1]) || !/^[A-Za-z0-9_-]{40,44}$/.test(parts[2])) {
+      throwUatError_(503, "UAT credential hash format is invalid");
+    }
+    return uatConstantTimeEqual_(parts[2], uatPasswordDigest_(parts[1], password));
+  }
+  if (String(PropertiesService.getScriptProperties().getProperty("GEO_UAT_REQUIRE_HASHED_PASSWORDS") || "") === "true") return false;
+  // Temporary backward compatibility only until the authorized migration.
+  return uatConstantTimeEqual_(String(credential.temporary_password || ""), String(password));
+}
+
+// MANUAL RUN ONLY. Never invoked from the public /exec API.
+// Before running, back up the restricted credential workbook, then set Script
+// Property GEO_UAT_HASH_MIGRATION_APPROVED=YES. It writes hash first, verifies,
+// and clears one plaintext password at a time; safe to rerun after interruption.
+// It never logs employee IDs, passwords, salt, pepper or hashes.
+function migrateUatCredentialsToSaltedHashes() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty("GEO_UAT_HASH_MIGRATION_APPROVED") !== "YES")
+    throw Error("Migration blocked: take a restricted backup, then set GEO_UAT_HASH_MIGRATION_APPROVED=YES.");
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var workbook = SpreadsheetApp.openById(sheetIdFor_("B2B_GEO_UAT_Credentials_Distribution.xlsx"));
+    if (workbook.getName() !== "UAT_Credentials") throw Error("Unexpected credentials workbook; no changes made.");
+    var sheet = workbook.getSheetByName("UAT_Credentials");
+    if (!sheet) throw Error("Missing UAT_Credentials tab");
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+    var usernameCol = headers.indexOf("employee_id / username") + 1;
+    var plainCol = headers.indexOf("temporary_password") + 1;
+    var hashCol = headers.indexOf("password_hash") + 1;
+    if (!usernameCol || !plainCol) throw Error("Missing employee_id / username or temporary_password column");
+    var values = sheet.getDataRange().getDisplayValues();
+    var seen = {};
+    var plans = [];
+    for (var i = 1; i < values.length; i++) {
+      var username = String(values[i][usernameCol - 1] || "").trim();
+      var plaintext = String(values[i][plainCol - 1] || "");
+      var existingHash = hashCol ? String(values[i][hashCol - 1] || "").trim() : "";
+      if (!username) continue;
+      if (seen[username]) throw Error("Duplicate credential employee ID; abort before writing");
+      seen[username] = true;
+      if (existingHash && plaintext && !verifyUatPassword_({ password_hash: existingHash }, plaintext))
+        throw Error("Credential hash and plaintext disagree; abort before writing");
+      if (plaintext && !existingHash) plans.push({ row: i + 1, password: plaintext });
+    }
+    // Never rotate the pepper if hashes already exist.
+    if (!props.getProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_)) {
+      if (values.some(function (row) { return hashCol && row[hashCol - 1]; }))
+        throw Error("Hashed credentials exist but pepper is missing; restore the original pepper.");
+      uatPasswordPepper_(true);
+    }
+    if (!hashCol) {
+      hashCol = headers.length + 1;
+      sheet.getRange(1, hashCol).setValue("password_hash");
+    }
+    for (var j = 0; j < plans.length; j++) {
+      var task = plans[j];
+      var salt = Utilities.getUuid().replace(/-/g, "").toLowerCase();
+      var hash = GEO_UAT_PASSWORD_HASH_SCHEME_ + "$" + salt + "$" + uatPasswordDigest_(salt, task.password);
+      sheet.getRange(task.row, hashCol).setValue(hash);
+      SpreadsheetApp.flush();
+      var written = String(sheet.getRange(task.row, hashCol).getDisplayValue() || "");
+      if (written !== hash) throw Error("Hash verification failed; plaintext preserved for row " + task.row);
+      sheet.getRange(task.row, plainCol).clearContent();
+    }
+    SpreadsheetApp.flush();
+    var remaining = sheet.getRange(2, plainCol, Math.max(sheet.getLastRow() - 1, 1), 1)
+      .getDisplayValues().filter(function (r) { return String(r[0]).trim(); }).length;
+    if (remaining === 0) props.setProperty("GEO_UAT_REQUIRE_HASHED_PASSWORDS", "true");
+    var summary = { ok: remaining === 0, migrated: plans.length, remainingPlaintext: remaining,
+      hashedRequired: remaining === 0 };
+    console.log(JSON.stringify(summary));
+    return summary;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // UAT signed sessions: self-contained and HMAC-protected, expiring after 4h.
