@@ -117,6 +117,10 @@ export const db = {
   exports: {
     pipelines: () => request("GET", "/exports/pipelines"),
   },
+  imports: {
+    opportunities: (batch_id, items) =>
+      request("POST", "/imports/opportunities", { body: { batch_id, items } }),
+  },
   snapshots: {
     capture: (snapshot_period) => request("POST", "/snapshots/capture", { body: { snapshot_period } }),
   },
