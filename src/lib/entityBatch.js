@@ -14,7 +14,14 @@ export function unpackEntityBatch(entities, replies) {
       const hint = status === 401 ? "Session expired; please sign in again"
         : status === 403 ? "Access to this data was denied"
         : "Check the Apps Script deployment and Sheet bindings";
-      throw new Error(`Cannot load ${entity} (${status}). ${hint}`);
+      const serverMessage = typeof reply?.body?.message === "string"
+        ? reply.body.message.replace(/[\r\n\t]+/g, " ").trim().slice(0, 240)
+        : "";
+      // A response like Opportunity (503) alone hides the actual backend
+      // explanation (wrong workbook, missing sheet or UAT mismatch).
+      // Preserve the server error so UAT can diagnose failures without
+      // mistaking them for zero Pipelines. Do not log request tokens.
+      throw new Error(`Cannot load ${entity} (${status}). ${serverMessage ? serverMessage + ". " : ""}${hint}`);
     }
     // Keep optional/read-restricted master sections non-blocking.
     if (status !== 403) console.warn(`Optional ${entity} data unavailable (${status})`);
