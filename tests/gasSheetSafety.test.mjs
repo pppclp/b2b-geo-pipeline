@@ -59,3 +59,41 @@ test("Master workbook errors fail the API request instead of silently claiming s
   };
   assert.throws(()=>ctx.SheetStore_.prototype.flush.call(state),/Master data save failed for Users/);
 });
+
+test("Apps Script writes many new Pipeline rows in one contiguous setValues call", () => {
+  const operations=[];
+  const headers=["opportunity_id","customer_name","pipeline_value"];
+  const original={opportunity_id:"OPP1",customer_name:"original",pipeline_value:100};
+  const records=[original,
+    {opportunity_id:"OPP2",customer_name:"second",pipeline_value:200},
+    {opportunity_id:"OPP3",customer_name:"third",pipeline_value:300},
+  ];
+  const ws={
+    getMaxRows(){return 2;},
+    insertRowsAfter(at,amount){operations.push(["resize",at,amount]);},
+    getRange(row,col,rowCount,colCount){
+      return {
+        setNumberFormat(fmt){operations.push(["format",row,col,rowCount,fmt]);return this;},
+        setValues(values){operations.push(["write",row,col,rowCount,values]);return this;},
+      };
+    },
+  };
+  const state={
+    tables:{"B2B_GEO_Pipeline_DB.xlsx|Pipelines":{headers,rows:records}},
+    loaded:{"B2B_GEO_Pipeline_DB.xlsx|Pipelines":{
+      headers:[...headers],rows:[original],json:[JSON.stringify(original)]
+    }},
+    book_(){return {getSheetByName:()=>ws};}
+  };
+  ctx.SheetStore_.prototype.writeDirty_.call(state,{
+    file:"B2B_GEO_Pipeline_DB.xlsx",sheet:"Pipelines"
+  });
+  const writes=operations.filter(x=>x[0]==="write");
+  assert.equal(writes.length,1);
+  assert.equal(writes[0][1],3);
+  assert.equal(writes[0][3],2);
+  assert.deepEqual(JSON.parse(JSON.stringify(writes[0][4])),[
+    ["OPP2","second",200],["OPP3","third",300]
+  ]);
+  assert.ok(operations.some(x=>x[0]==="resize"));
+});
