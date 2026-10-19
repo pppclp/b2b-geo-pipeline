@@ -382,8 +382,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         </div>
 
         <div className="flex items-center gap-3 pt-2 border-t">
-          <Switch checked={form.support_needed} onCheckedChange={(v) => set("support_needed", v)} />
-          <Label className="cursor-pointer">Support Needed</Label>
+          <Switch disabled={!!opportunity?.support_needed} checked={form.support_needed} onCheckedChange={(v) => set("support_needed", v)} />
+          <Label className="cursor-pointer">Support Needed {opportunity?.support_needed ? "· Resolve via Support Requests" : ""}</Label>
         </div>
         {form.support_needed && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
