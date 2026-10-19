@@ -6,6 +6,7 @@ import { ROLE_LABELS } from "@/lib/pipeline";
 import { LayoutDashboard, KanbanSquare, AlertCircle, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
+import HandoffBell from "@/components/HandoffBell";
 
 const LOGO_URL = "https://media.base44.com/images/public/6ac51b65ecc4f77b629b8848/b36c70394_image.png";
 
@@ -187,6 +188,7 @@ export default function AppLayout() {
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </Button>
             </div>
+            <HandoffBell userId={realProfile?.id} />
             <DemoAsBar variant="trigger" />
             <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
               {initials(displayName)}
