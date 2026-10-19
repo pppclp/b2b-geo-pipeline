@@ -369,6 +369,61 @@ export function createCore({ contract, store, now, uuid }) {
     return { captured: snapshots.length, snapshot_period: snapshotPeriod };
   }
 
+  // Stable import identity: indexed batch IDs prevent retry duplicates;
+  // a second batch containing the same commercial signature is rejected.
+  const importFingerprint = (item) => JSON.stringify([
+    "business_id","product_category_id","expected_close_month","owner_id",
+    "product_details","contact_phone","quantity","price_per_sub","oc"
+  ].map((key) => String(item[key] ?? "").trim().toLowerCase()));
+
+  function importOpportunities(actor, input) {
+    const b = binding("Opportunity");
+    need(actor, b, "import");
+    need(actor, b, "create");
+    if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Only SM or Admin may import Pipelines");
+    const batchId = String(input?.batch_id || "");
+    const items = input?.items;
+    if (!/^[A-Za-z0-9_-]{16,80}$/.test(batchId)) throw new HttpError(400, "Invalid import_batch_id");
+    if (!Array.isArray(items) || items.length < 1 || items.length > 200 ||
+      items.some((i) => !i || typeof i !== "object" || Array.isArray(i))) {
+      throw new HttpError(400, "Import must contain 1-200 Pipeline rows");
+    }
+    const sheet = tableOf(b).rows;
+    const previous = sheet.filter((r) => String(r.import_batch_id || "") === batchId);
+    if (previous.length) {
+      if (previous.length !== items.length ||
+          previous.some((r) => {
+            const n = Number(r.import_row_number);
+            return !Number.isInteger(n) || n < 1 || n > items.length ||
+              String(r.import_row_signature || "") !== importFingerprint(items[n - 1]);
+          })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
+      return { imported: 0, already_imported: true, total: previous.length,
+        opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
+          .map((r) => r.opportunity_id) };
+    }
+    const known = new Set(sheet.map((r) => r.import_row_signature || importFingerprint({
+      business_id:r.business_id, product_category_id:r.product_category_id,
+      expected_close_month:r.expected_close_month, owner_id:r.owner_user_id,
+      product_details:r.product_details, contact_phone:r.contact_phone,
+      quantity:r.quantity, price_per_sub:r.price_per_sub, oc:r.oc,
+    })));
+    const currentBatch = new Set();
+    const signatures = items.map((item) => {
+      const sign = importFingerprint(item);
+      if (currentBatch.has(sign)) throw new HttpError(409, "Duplicate Pipeline rows in import file");
+      if (known.has(sign)) throw new HttpError(409, "This Pipeline already exists. Review your import before retrying");
+      currentBatch.add(sign);
+      return sign;
+    });
+    // One core request: adapters commit Pipelines + Pipeline_Events together.
+    // If any validation or sheet write fails, neither workbook change commits.
+    const results = items.map((item, index) => entityApi.create("Opportunity", actor, item, {
+      batchId, rowNumber:index + 1, signature:signatures[index]
+    }));
+    return { imported: results.length, already_imported: false, total: results.length,
+      opportunity_ids: results.map((r) => r.id) };
+  }
+
   // ---- Entity API (used by the app screens) ----
   function matches(rec, query) {
     return Object.entries(query || {}).every(([k, v]) => String(rec[k] ?? "") === String(v));
@@ -493,7 +548,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (ENTITIES[uiEntity].virtual) return appConfigList().find((c) => c.id === id);
       return visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, findRow(b, actor, id))));
     },
-    create(uiEntity, actor, data) {
+    create(uiEntity, actor, data, importMeta = null) {
       const b = binding(uiEntity);
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, data.key, data.value);
       need(actor, b, "create");
@@ -505,6 +560,11 @@ export function createCore({ contract, store, now, uuid }) {
       const stamp = now();
       if (uiEntity === "Opportunity") {
         data = stripSystemFields(data);
+        if (importMeta) data = {
+          ...data, import_batch_id:importMeta.batchId,
+          import_row_number:importMeta.rowNumber,
+          import_row_signature:importMeta.signature,
+        };
         // New Pipelines always start Open. Close them via the audited
         // Won/Lost update flow, which requires a Lost Reason when applicable.
         if (String(data.status || "open").toLowerCase() !== "open") {
@@ -853,6 +913,11 @@ export function createCore({ contract, store, now, uuid }) {
         if (f.permissions) allowed[file]._file = Object.keys(f.permissions).filter((a) => (f.permissions[a] || []).includes(actor.role));
       }
       return { role: actor.role, scope: scopeForRole(actor.role), allowed };
+    }
+
+    if (parts[0] === "imports" && parts[1] === "opportunities") {
+      if (method !== "POST") throw new HttpError(405, "Import requires POST");
+      return importOpportunities(actor, req.body);
     }
 
     if (parts[0] === "exports") {
