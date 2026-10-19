@@ -1,111 +1,189 @@
-import React, { useMemo } from "react";
-import { useData } from "@/lib/dataContext";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import React, {useMemo, useState} from "react";
+import {useData} from "@/lib/dataContext";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
+import {Button} from "@/components/ui/button";
+import {X, SlidersHorizontal} from "lucide-react";
 import MonthPicker from "@/components/MonthPicker";
-import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import SearchableSelect from "@/components/SearchableSelect";
+import {
+  PIPELINE_FILTER_LABELS as LABELS,
+  advancedFilterCount, visibleActiveFilters, showQuickOwner, showQuickRegion,
+  allowedAeOwners, isActiveFilter,
+} from "@/lib/pipelineFilterUi";
 
-// Stable component identity: declaring SelectWrap inside FilterBar caused
-// the dropdown to remount on every filter state change.
-const SelectWrap = ({ label, value, onChange, children, placeholder }) => (
-    <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
-      <Select value={value || "all"} onValueChange={onChange}>
-        <SelectTrigger aria-label={label} className="w-full min-w-[140px] h-9 rounded-lg"><SelectValue placeholder={placeholder || "All"} /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All</SelectItem>
-          {children}
-        </SelectContent>
-      </Select>
-    </div>
+// Stable identity is essential: never define dropdown components inside FilterBar.
+const SelectWrap = ({label, value, onChange, children, className = "", allText = "All"}) => (
+  <div className={`flex min-w-0 flex-col gap-1 ${className}`}>
+    <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+    <Select value={value || "all"} onValueChange={onChange}>
+      <SelectTrigger aria-label={label}
+        className={`h-9 w-full rounded-lg ${isActiveFilter(label === "Status" ? "status" : "",value) ? "border-primary/60" : ""}`}>
+        <SelectValue placeholder={allText}/>
+      </SelectTrigger>
+      <SelectContent className="max-h-[300px]">
+        <SelectItem value="all">{allText}</SelectItem>
+        {children}
+      </SelectContent>
+    </Select>
+  </div>
 );
 
-// filters: object of key->value. onFilter(key, value)
-export default function FilterBar({ filters, onFilter, showCreatedMonth = true }) {
-  const { master } = useData();
+const MonthFilter = ({label, value, onChange}) => (
+  <div className="flex min-w-0 flex-col gap-1">
+    <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+    <MonthPicker value={value || ""} onChange={onChange} placeholder="All Months" allowAll className="w-full"/>
+  </div>
+);
 
-  const regionOptions = useMemo(
-    () => (master?.Region || []).filter((r) => r.active).sort((a, b) => a.order - b.order),
-    [master]
+// Presentation only. Never change user scope or derive access from selected filters.
+export default function FilterBar({filters, onFilter, showCreatedMonth = true}) {
+  const {master, profile, scopedOpportunities} = useData();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const regionOptions = useMemo(() =>
+    (master?.Region || []).filter(r=>r.active).sort((a,b)=>a.order-b.order),[master]);
+  const members = useMemo(() => (master?.TeamMember || []).filter(m=>m.active),[master]);
+  const categories = useMemo(() => (master?.ProductCategory || []).filter(c=>c.active),[master]);
+  const stages = useMemo(() =>
+    (master?.Stage || []).filter(s=>s.active).sort((a,b)=>a.order-b.order),[master]);
+  const scenarios = useMemo(() => (master?.Scenario || []).filter(s=>s.active),[master]);
+  const working = useMemo(() => (master?.WorkingWithOption || []).filter(w=>w.active),[master]);
+  const regionId = filters.region || "";
+  const showRegion = showQuickRegion(profile);
+  const showOwner = showQuickOwner(profile);
+  const ownerChoices = useMemo(
+    () => allowedAeOwners(members, scopedOpportunities, regionId),
+    [members, scopedOpportunities, regionId]
   );
-  const memberOptions = useMemo(() => (master?.TeamMember || []).filter((m) => m.active), [master]);
-  const categoryOptions = useMemo(() => (master?.ProductCategory || []).filter((c) => c.active), [master]);
-  const stageOptions = useMemo(() => (master?.Stage || []).filter((s) => s.active).sort((a, b) => a.order - b.order), [master]);
-  const scenarioOptions = useMemo(() => (master?.Scenario || []).filter((s) => s.active), [master]);
-  const workingWithOptions = useMemo(() => (master?.WorkingWithOption || []).filter((w) => w.active), [master]);
-
-  const hasFilters = Object.values(filters).some((v) => v !== "" && v != null);
-
-
-
+  const visibleHandlers = useMemo(() => {
+    const ids = new Set((scopedOpportunities || [])
+      .filter(o => !regionId || o.region_id === regionId)
+      .map(o => o.current_handler_id));
+    return members.filter(m => ids.has(m.id))
+      .sort((a,b)=>a.name.localeCompare(b.name));
+  },[members,scopedOpportunities,regionId]);
+  const advancedCount = advancedFilterCount(filters);
+  const chipEntries = visibleActiveFilters(filters);
+  const scopeLabel = !showRegion && (profile?.region_ids||[]).length===1
+    ? regionOptions.find(r=>r.id===profile.region_ids[0])?.name || ""
+    : "";
+  const display = (key,value) => {
+    if(key==="region") return regionOptions.find(r=>r.id===value)?.name || value;
+    if(key==="owner" || key==="handler") return members.find(m=>m.id===value)?.name || value;
+    if(key==="stage") return stages.find(s=>s.id===value)?.name || value;
+    if(key==="product_category") return categories.find(c=>c.id===value)?.name || value;
+    if(key==="scenario") return scenarios.find(s=>s.id===value)?.name || value;
+    if(key==="support") return value==="1"?"Needed":"Not Needed";
+    if(key==="status" && value==="all") return "All Statuses";
+    if(key==="ccp_check_result") return ({not_in_base:"Not in Base",enterprise_base:"Enterprise Existing Base",pending:"Pending Review"})[value] || value;
+    if(key==="stuck" || key==="internal_overdue") return "Yes";
+    return value;
+  };
+  const choice = (key) => (v) => onFilter(key,v==="all" ? "" : v);
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      {showCreatedMonth && (
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">เดือนที่สร้าง</span>
-          <MonthPicker value={filters.created_month || ""} onChange={(v) => onFilter("created_month", v)} placeholder="All Months" allowAll className="w-[140px]" />
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="w-[152px] max-w-full">
+          <MonthFilter label={LABELS.close_month} value={filters.close_month} onChange={v=>onFilter("close_month",v)}/>
         </div>
-      )}
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">เดือนปิดคาดการณ์</span>
-        <MonthPicker value={filters.close_month || ""} onChange={(v) => onFilter("close_month", v)} placeholder="All Months" allowAll className="w-[140px]" />
+        {showRegion && <SelectWrap label={LABELS.region} value={filters.region} onChange={choice("region")}
+          className="w-[130px]">
+          {regionOptions.filter(r=>profile?.app_role==="admin" ||
+            (profile?.region_ids||[]).includes(r.id)).map(r=><SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+        </SelectWrap>}
+        {showOwner && <div className="w-[190px] min-w-0 space-y-1">
+          <span className="text-[11px] font-medium text-muted-foreground">{LABELS.owner}</span>
+          <SearchableSelect value={filters.owner || "all"} ariaLabel={LABELS.owner}
+            onChange={choice("owner")} searchPlaceholder="Search name or Employee ID..."
+            placeholder="All AEs" className="h-9 rounded-lg"
+            options={[{value:"all",label:"All AEs"},...ownerChoices.map(m=>({
+              value:m.id,label:m.name,keywords:`${m.employee_id||""} ${m.id||""}`
+            }))]}/>
+        </div>}
+        <SelectWrap label={LABELS.stage} value={filters.stage} onChange={choice("stage")} className="w-[145px]">
+          {stages.map(s=><SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+        </SelectWrap>
+        <SelectWrap label={LABELS.status} value={filters.status || "all"}
+          onChange={v=>onFilter("status",v)} className="w-[132px]" allText="All Statuses">
+          {["open","won","lost","archived"].map(v=><SelectItem key={v} value={v}>
+            {v.charAt(0).toUpperCase()+v.slice(1)}
+          </SelectItem>)}
+        </SelectWrap>
+        <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" aria-label="Advanced Filters"
+              aria-expanded={advancedOpen} className="h-9 rounded-lg gap-2">
+              <SlidersHorizontal className="h-4 w-4"/> Filters
+              {advancedCount>0&&<span className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] tabular-nums">{advancedCount}</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" sideOffset={8}
+            className="w-[min(370px,calc(100vw-32px))] rounded-xl p-0" role="dialog" aria-label="Advanced Filters">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <strong className="text-sm font-semibold">Advanced Filters</strong>
+              <Button size="icon" variant="ghost" aria-label="Close Advanced Filters"
+                onClick={()=>setAdvancedOpen(false)} className="h-7 w-7"><X className="h-4 w-4"/></Button>
+            </div>
+            <div className="max-h-[min(60vh,450px)] overflow-y-auto space-y-4 p-4">
+              {showCreatedMonth&&<section className="space-y-2">
+                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Date</h4>
+                <MonthFilter label={LABELS.created_month} value={filters.created_month}
+                  onChange={v=>onFilter("created_month",v)}/>
+              </section>}
+              <section className="space-y-2">
+                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Ownership & Collaboration</h4>
+                <SelectWrap label={LABELS.handler} value={filters.handler} onChange={choice("handler")}>
+                  {visibleHandlers.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                </SelectWrap>
+                <SelectWrap label={LABELS.working_with} value={filters.working_with} onChange={choice("working_with")}>
+                  {working.map(w=><SelectItem key={w.id} value={w.name}>{w.name}</SelectItem>)}
+                </SelectWrap>
+              </section>
+              <section className="space-y-2">
+                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Opportunity Details</h4>
+                <SelectWrap label={LABELS.product_category} value={filters.product_category} onChange={choice("product_category")}>
+                  {categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectWrap>
+                <SelectWrap label={LABELS.scenario} value={filters.scenario} onChange={choice("scenario")}>
+                  {scenarios.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectWrap>
+                <SelectWrap label={LABELS.sales_channel} value={filters.sales_channel} onChange={choice("sales_channel")}>
+                  {["AE B2B GEO","AE Self","B2B Premium Partner"].map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}
+                </SelectWrap>
+                <SelectWrap label={LABELS.ccp_check_result} value={filters.ccp_check_result} onChange={choice("ccp_check_result")}>
+                  <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
+                  <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
+                  <SelectItem value="pending">Pending Review</SelectItem>
+                </SelectWrap>
+              </section>
+              <section className="space-y-2">
+                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Support</h4>
+                <SelectWrap label={LABELS.support} value={filters.support} onChange={choice("support")}>
+                  <SelectItem value="1">Needed</SelectItem>
+                  <SelectItem value="0">Not Needed</SelectItem>
+                </SelectWrap>
+              </section>
+            </div>
+            <div className="flex justify-between items-center border-t p-3">
+              <Button type="button" size="sm" variant="ghost" onClick={()=>onFilter("clear","")}>Reset to Default</Button>
+              <Button type="button" size="sm" onClick={()=>setAdvancedOpen(false)}>Show Results</Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
-
-      <SelectWrap label="Region" value={filters.region} onChange={(v) => onFilter("region", v === "all" ? "" : v)}>
-        {regionOptions.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="AE เจ้าของ Pipeline" value={filters.owner} onChange={(v) => onFilter("owner", v === "all" ? "" : v)}>
-        {memberOptions.filter((m) => m.app_role === "ae").map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="ผู้รับผิดชอบปัจจุบัน" value={filters.handler} onChange={(v) => onFilter("handler", v === "all" ? "" : v)}>
-        {memberOptions.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="Stage" value={filters.stage} onChange={(v) => onFilter("stage", v === "all" ? "" : v)}>
-        {stageOptions.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="Status" value={filters.status} onChange={(v) => onFilter("status", v === "all" ? "" : v)}>
-        <SelectItem value="open">Open</SelectItem>
-        <SelectItem value="won">Won</SelectItem>
-        <SelectItem value="lost">Lost</SelectItem>
-        <SelectItem value="archived">Archived</SelectItem>
-      </SelectWrap>
-
-      <SelectWrap label="Product Category" value={filters.product_category} onChange={(v) => onFilter("product_category", v === "all" ? "" : v)}>
-        {categoryOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="ช่องทางขาย" value={filters.sales_channel} onChange={(v) => onFilter("sales_channel", v === "all" ? "" : v)}>
-        {["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="CCP+ Check" value={filters.ccp_check_result} onChange={(v) => onFilter("ccp_check_result", v === "all" ? "" : v)}>
-        <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
-        <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
-        <SelectItem value="pending">Pending Review</SelectItem>
-      </SelectWrap>
-
-      <SelectWrap label="Scenario" value={filters.scenario} onChange={(v) => onFilter("scenario", v === "all" ? "" : v)}>
-        {scenarioOptions.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="ทำงานร่วมกับ" value={filters.working_with} onChange={(v) => onFilter("working_with", v === "all" ? "" : v)}>
-        {workingWithOptions.map((w) => <SelectItem key={w.id} value={w.name}>{w.name}</SelectItem>)}
-      </SelectWrap>
-
-      <SelectWrap label="ต้องการ Support" value={filters.support} onChange={(v) => onFilter("support", v === "all" ? "" : v)}>
-        <SelectItem value="1">Needed</SelectItem>
-        <SelectItem value="0">Not needed</SelectItem>
-      </SelectWrap>
-
-      {hasFilters && (
-        <Button variant="ghost" size="sm" className="mb-0.5" onClick={() => onFilter("clear", "")}>
-          <X className="w-4 h-4 mr-1" /> ล้างตัวกรอง
+      {scopeLabel&&<p className="text-[11px] text-muted-foreground">Region: {scopeLabel}</p>}
+      {chipEntries.length>0&&<div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+        <span className="mr-1 text-[11px] text-muted-foreground">Active Filters</span>
+        {chipEntries.map(([key,value])=><button key={key} type="button"
+          onClick={()=>onFilter(key,key==="status"?"open":"")}
+          aria-label={`Remove ${LABELS[key]} filter`}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-secondary/60 px-2 py-1 text-[11px] text-foreground hover:bg-secondary">
+          <span>{LABELS[key]}: {display(key,value)}</span><X className="h-3 w-3"/>
+        </button>)}
+        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={()=>onFilter("clear","")}>
+          Clear all
         </Button>
-      )}
+      </div>}
     </div>
   );
 }
