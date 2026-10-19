@@ -24,12 +24,12 @@ export function toBangkokExcelDate(value) {
     return new Date(Date.UTC(dt.getUTCFullYear(),dt.getUTCMonth(),dt.getUTCDate()));
   }
   const raw=String(value).trim();
-  const plain=/^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(raw);
+  const plain=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
   if (plain) {
     const result=new Date(Date.UTC(+plain[1],+plain[2]-1,+plain[3]));
     return result.toISOString().slice(0,10)===raw ? result : null;
   }
-  if (!/(Z|[+-]\\d{2}:?\\d{2})$/i.test(raw)) return null;
+  if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(raw)) return null;
   const ms=Date.parse(raw);
   if (!Number.isFinite(ms)) return null;
   const dt=new Date(ms+7*3600000);
@@ -37,7 +37,7 @@ export function toBangkokExcelDate(value) {
 }
 
 export function monthKeyToExcelDate(value) {
-  const match=/^(\\d{4})-(0[1-9]|1[0-2])$/.exec(String(value||""));
+  const match=/^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(value||""));
   return match ? new Date(Date.UTC(+match[1],+match[2]-1,1)) : null;
 }
 
