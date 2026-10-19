@@ -886,6 +886,9 @@ export function createCore({ contract, store, now, uuid }) {
         changes = applyOpportunityTimers(keepOpportunityColumns(changes), row, stamp);
         const next = { ...row, ...changes };
         validateCollaborators(changes,next.region_id);
+        if ("working_with_team_ids" in changes &&
+            String(changes.working_with_id || "") !== String(row.working_with_id || ""))
+          changes.working_with_since = changes.working_with_id ? stamp : "";
         Object.assign(next, changes);
         validateOpportunityRefs(next, row, actor);
         if (bool.toUi(next.support_needed) && !bool.toUi(row.support_needed)) {
