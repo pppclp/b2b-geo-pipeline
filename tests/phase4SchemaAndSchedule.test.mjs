@@ -87,3 +87,67 @@ test("phase4 migration and snapshot require explicit approval",()=>{
  assert.throws(()=>v.context.runGeoMonthEndSnapshot(),/not approved/);
  assert.throws(()=>v.context.backfillGeoPhase4SupportFlags(),/Approve Phase 4/);
 });
+
+test("Phase 2/4 required Pipeline columns exist in the YAML contract",()=>{
+ const columns=contract.columns.opportunities;
+ for(const field of ["import_batch_id","import_row_number","import_row_signature",
+   "working_with_team_ids","working_with_user_ids"]){
+   assert.ok(columns.includes(field),field+" must be in canonical Pipelines schema");
+ }
+});
+
+test("Phase 4 preparation appends only missing Pipeline headers and is idempotent",()=>{
+ const context={
+   console:{log(){},warn(){},error(){}},
+   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==="GEO_PHASE4_SCHEMA_APPROVED"?"YES":null})},
+   LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
+   GEO_CONTRACT:{columns:contract.columns}
+ };
+ const oldHeaders=["opportunity_id","business_id","region_id","owner_user_id",
+   "current_handler_user_id","status"];
+ const data=[["OPP1","123","R1","U1","U1","Open"]];
+ const sheetMap=new Map();
+ const writes=[];
+ function sheet(name,headers,rows=[]){
+   let cols=headers.slice();
+   return {
+     getName:()=>name,getLastRow:()=>rows.length+1,
+     getLastColumn:()=>cols.length,getMaxColumns:()=>80,
+     insertColumnAfter:()=>{throw Error("unexpected resize")},
+     getRange:(row,col,nRows,nCols)=>({
+       getDisplayValues:()=>[cols.slice(col-1,col-1+nCols)],
+       setNumberFormat(){return this},
+       setValue(value){
+         if(row!==1)throw Error("existing data row changed");
+         cols[col-1]=value;writes.push({sheet:name,row,col,value});return this;
+       },
+       setValues(values){
+         if(row!==1)throw Error("existing data row changed");
+         for(let i=0;i<values[0].length;i++)cols[col-1+i]=values[0][i];
+         writes.push({sheet:name,row,col,values});return this;
+       }
+     }),
+     headers:()=>cols,rows:()=>rows
+   };
+ }
+ const pipeline=sheet("Pipelines",oldHeaders,data);
+ sheetMap.set("Pipelines",pipeline);
+ const book={
+   getName:()=> "B2B_GEO_Pipeline_DB",
+   getSheetByName:name=>sheetMap.get(name)||null,
+   getId:()=> "1z2alvS2BSRCll-6CaQq2HetuVCjYW43cpdSuXTZNthc",
+   insertSheet:name=>{const obj=sheet(name,[]);sheetMap.set(name,obj);return obj;}
+ };
+ context.SpreadsheetApp={openById:()=>book,flush(){}};
+ runInNewContext(source,context);
+ context.sheetIdFor_=()=>book.getId();
+ const first=context.prepareGeoPhase4Sheets();
+ assert.equal(first.ok,true);
+ assert.equal(first.appendedPipelineHeaders.length,5);
+ assert.equal(pipeline.headers().length,oldHeaders.length+5);
+ assert.deepEqual(data,[["OPP1","123","R1","U1","U1","Open"]]);
+ const second=context.prepareGeoPhase4Sheets();
+ assert.equal(second.appendedPipelineHeaders.length,0);
+ assert.equal(sheetMap.size,3);
+ assert.ok(writes.every(w=>w.row===1));
+});
