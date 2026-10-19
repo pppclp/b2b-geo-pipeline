@@ -3,6 +3,7 @@ import { useData } from "@/lib/dataContext";
 import { currentMonthKey } from "@/lib/pipeline";
 import { db } from "@/api/client";
 import { mapImportHeaders } from "@/lib/importHeaderMapping";
+import { readImportFile } from "@/lib/importWorkbook";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -77,12 +78,16 @@ export default function Import() {
     if (!file) return;
     setImportError("");
     setImportBatchId(crypto.randomUUID().replace(/-/g, ""));
-    const text = await file.text();
-    const parsed = parseCSV(text);
-    if (!parsed.length) return;
-    const hdrs = parsed[0].map((h) => h.trim());
+    let parsed;
+    try {
+      parsed = await readImportFile(file, parseCSV);
+    } catch (error) {
+      setImportError(error.message || "Unable to read file");
+      return;
+    }
+    const hdrs = parsed.headers;
     setHeaders(hdrs);
-    setRows(parsed.slice(1));
+    setRows(parsed.rows);
     // auto-map
     const auto = mapImportHeaders(hdrs, FIELDS);
     setMapping(auto);
@@ -180,7 +185,7 @@ export default function Import() {
   return (
     <div className="p-5 md:p-7 max-w-[1000px] mx-auto">
       <h1 className="text-2xl font-semibold tracking-tight mb-1">Import Opportunities</h1>
-      <p className="text-sm text-muted-foreground mb-6">Upload a CSV, map columns, validate, then confirm. (Excel: save as CSV first.)</p>
+      <p className="text-sm text-muted-foreground mb-6">Upload .xlsx or .csv, map columns, validate, then confirm. Maximum 200 rows.</p>
 
       <div className="flex items-center gap-2 mb-6 text-sm">
         <Step n={1} active={step === "upload"} done={["map", "preview", "done"].includes(step)} label="Upload" />
@@ -197,9 +202,10 @@ export default function Import() {
           <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
             <FileUp className="w-7 h-7 text-muted-foreground" />
           </div>
-          <p className="text-sm text-muted-foreground mb-4">Select a CSV file with your opportunity data</p>
-          <input ref={fileRef} type="file" accept=".csv" onChange={onFile} className="hidden" id="csv-upload" />
+          <p className="text-sm text-muted-foreground mb-4">Select an Excel (.xlsx) or CSV file with your opportunity data</p>
+          <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={onFile} className="hidden" id="csv-upload" />
           <Button className="rounded-lg" onClick={() => document.getElementById("csv-upload").click()}><Upload className="w-4 h-4 mr-1.5" /> Choose File</Button>
+          {importError && <p role="alert" className="mt-3 text-sm text-red-600">{importError}</p>}
         </div>
       )}
 
