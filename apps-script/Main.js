@@ -837,3 +837,127 @@ function setup() {
 // Legacy output-template initialization was retired: exports are created
 // on demand and the three standalone template spreadsheets are not writable
 // runtime dependencies.
+
+
+// Phase 4 UAT migration: creates TWO new tabs inside the canonical DB only.
+// No existing Pipelines, Pipeline_Events, Snapshots, or Admin_Audit cells touched.
+// Must be invoked by an authorized operator after verifying the DB binding.
+function prepareGeoPhase4Sheets() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty("GEO_PHASE4_SCHEMA_APPROVED") !== "YES")
+    throw Error("Set GEO_PHASE4_SCHEMA_APPROVED=YES only after a restricted DB backup");
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var expectedId="1z2alvS2BSRCll-6CaQq2HetuVCjYW43cpdSuXTZNthc";
+    var actualId=sheetIdFor_("B2B_GEO_Pipeline_DB.xlsx");
+    if(actualId !== expectedId)throw Error("Pipeline DB binding differs from verified UAT workbook");
+    var book=SpreadsheetApp.openById(actualId);
+    if(book.getName()!=="B2B_GEO_Pipeline_DB")throw Error("Unexpected DB workbook name");
+    var tables=[
+      ["Handoff_Notifications",GEO_CONTRACT.columns.handoff_notifications],
+      ["Support_Requests",GEO_CONTRACT.columns.support_requests]
+    ];
+    var result=[];
+    tables.forEach(function(item){
+      var ws=book.getSheetByName(item[0]);
+      if(!ws){
+        ws=book.insertSheet(item[0]);
+        ws.getRange(1,1,1,item[1].length).setNumberFormat("@").setValues([item[1]]);
+        result.push({tab:item[0],created:true});
+        return;
+      }
+      var headers=ws.getRange(1,1,1,Math.max(1,ws.getLastColumn())).getDisplayValues()[0];
+      if(item[1].join("|")!==headers.slice(0,item[1].length).join("|"))
+        throw Error("Existing "+item[0]+" headers differ; stop for manual reconciliation");
+      result.push({tab:item[0],created:false});
+    });
+    SpreadsheetApp.flush();
+    console.log(JSON.stringify({ok:true,verifiedPipelineRows:book.getSheetByName("Pipelines").getLastRow()-1,tables:result}));
+    return {ok:true,tables:result};
+  } finally {lock.releaseLock();}
+}
+
+// One first-of-month trigger at 02:00 Bangkok captures the PREVIOUS month.
+// Re-running the scheduled function is idempotent: existing period is NEVER overwritten.
+function installGeoMonthEndSnapshotTrigger() {
+  if(PropertiesService.getScriptProperties().getProperty("GEO_AUTO_SNAPSHOT_APPROVED")!=="YES")
+    throw Error("Set GEO_AUTO_SNAPSHOT_APPROVED=YES after confirming snapshot permissions");
+  var existing=ScriptApp.getProjectTriggers().filter(function(t){
+    return t.getHandlerFunction()==="runGeoMonthEndSnapshot";
+  });
+  if(existing.length) return {ok:true,alreadyInstalled:true,count:existing.length};
+  ScriptApp.newTrigger("runGeoMonthEndSnapshot")
+    .timeBased().onMonthDay(1).atHour(2).inTimezone("Asia/Bangkok").create();
+  return {ok:true,alreadyInstalled:false};
+}
+
+function runGeoMonthEndSnapshot() {
+  if(PropertiesService.getScriptProperties().getProperty("GEO_AUTO_SNAPSHOT_APPROVED")!=="YES")
+    throw Error("Automatic month-end snapshot is not approved");
+  var lock=LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var today=Utilities.formatDate(new Date(),"Asia/Bangkok","yyyy-MM-dd");
+    if(today.slice(-2)!=="01") return {ok:true,skipped:"Not first day in Bangkok"};
+    var yyyy=Number(today.slice(0,4)), mm=Number(today.slice(5,7));
+    var period=new Date(Date.UTC(yyyy,mm-2,1)).toISOString().slice(0,7);
+    var store=new SheetStore_();
+    var prior=store.table("B2B_GEO_Pipeline_DB.xlsx","Snapshots").rows;
+    if(prior.some(function(r){return String(r.snapshot_period)===period;})){
+      return {ok:true,period:period,skipped:"Snapshot already captured"};
+    }
+    var admins=store.table("B2B_GEO_User_Org_Master.xlsx","Users").rows.filter(function(r){
+      return String(r.role).toLowerCase()==="admin" && String(r.status||"Active").toLowerCase()==="active";
+    });
+    if(!admins.length)throw Error("No active Admin in User Master for scheduled snapshot");
+    var core=GeoCoreLib.createCore({contract:GEO_CONTRACT,store:store,
+      now:function(){return new Date().toISOString();},
+      uuid:function(){return Utilities.getUuid();}
+    });
+    var result=core.handle({method:"POST",path:"snapshots/capture",
+      body:{snapshot_period:period},userId:admins[0].user_id});
+    store.flush();
+    console.log(JSON.stringify({ok:true,period:period,captured:result.captured}));
+    return {ok:true,period:period,captured:result.captured};
+  } finally {lock.releaseLock();}
+}
+
+
+// Run ONCE after prepareGeoPhase4Sheets. Migrates historical support_needed
+// flags into the new workflow without changing any existing Pipeline rows.
+// The source column marks them as migrated, not freshly requested by an AE.
+function backfillGeoPhase4SupportFlags() {
+  if(PropertiesService.getScriptProperties().getProperty("GEO_PHASE4_SCHEMA_APPROVED")!=="YES")
+    throw Error("Approve Phase 4 schema migration and keep a restricted DB backup first");
+  var lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    var store=new SheetStore_();
+    var pipelines=store.table("B2B_GEO_Pipeline_DB.xlsx","Pipelines").rows;
+    var requests=store.table("B2B_GEO_Pipeline_DB.xlsx","Support_Requests");
+    var headers=GEO_CONTRACT.columns.support_requests || [];
+    if(!headers.length)throw Error("Missing Support Request schema");
+    if(requests.headers.join("|") !== headers.join("|"))
+      throw Error("Unexpected Support_Requests headers; no records changed");
+    var seen={};
+    requests.rows.forEach(function(r){if(r.opportunity_id && r.status!=="Resolved")seen[r.opportunity_id]=true;});
+    var stamp=new Date().toISOString(),created=0;
+    pipelines.forEach(function(op){
+      if(!["yes","true","1"].includes(String(op.support_needed||"").toLowerCase().trim()) ||
+         !op.opportunity_id || seen[op.opportunity_id]) return;
+      if(!op.support_type_id || !String(op.support_note||"").trim())return;
+      requests.rows.push({
+        request_id:"SRQ-"+Utilities.getUuid(),
+        opportunity_id:op.opportunity_id,region_id:op.region_id,
+        request_type_id:op.support_type_id,note:op.support_note,
+        status:"Open",requested_by_user_id:"",assigned_to_user_id:"",
+        response_note:"",created_at:stamp,updated_at:stamp,resolved_at:"",
+        source:"migration"
+      });
+      seen[op.opportunity_id]=true;created++;
+    });
+    if(created)store.touch("B2B_GEO_Pipeline_DB.xlsx","Support_Requests");
+    store.flush();
+    var result={ok:true,created:created,totalSupportRequests:requests.rows.length,
+      pipelineRows:pipelines.length};
+    console.log(JSON.stringify(result));return result;
+  }finally{lock.releaseLock();}
+}

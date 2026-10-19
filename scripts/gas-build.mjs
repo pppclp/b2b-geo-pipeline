@@ -44,7 +44,7 @@ const manifest = {
   timeZone: "Asia/Bangkok",
   runtimeVersion: "V8",
   exceptionLogging: "STACKDRIVER",
-  oauthScopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  oauthScopes: ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/script.scriptapp"],
   webapp: { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" },
 };
 fs.writeFileSync(path.join(outDir, "appsscript.json"), JSON.stringify(manifest, null, 2) + "\n");

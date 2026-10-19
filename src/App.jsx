@@ -11,6 +11,7 @@ import { DataProvider } from '@/lib/dataContext';
 import AppLayout from '@/components/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import Pipeline from '@/pages/Pipeline';
+import SupportRequests from '@/pages/SupportRequests';
 import OpportunityDetail from '@/pages/OpportunityDetail';
 import Admin from '@/pages/Admin';
 import Import from '@/pages/Import';
@@ -48,6 +49,7 @@ const AuthenticatedApp = () => {
         <Route element={<DataProvider><AppLayout /></DataProvider>}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/support-requests" element={<SupportRequests />} />
           <Route path="/opportunity/:id" element={<OpportunityDetail />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/import" element={<Import />} />

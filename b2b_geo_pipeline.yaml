@@ -2347,7 +2347,7 @@ access_control:
             delete: ["Admin"]
 
     # Canonical application database; no mirrored runtime Export Template files.
-    # Exactly four runtime tabs: Pipelines, Pipeline_Events, Snapshots, Admin_Audit.
+    # Phase 4 adds Handoff_Notifications and Support_Requests via an explicitly approved migration.
     # Locally: data/B2B_GEO_Pipeline_DB.xlsx; UAT: the existing Google Sheet.
     "B2B_GEO_Pipeline_DB.xlsx":
       sheets:
@@ -2386,6 +2386,22 @@ access_control:
             update: []
             delete: []
             export: ["SM", "Management", "Admin"]
+        Handoff_Notifications:
+          entity: "handoff_notifications"
+          primary_key: "notification_id"
+          permissions:
+            read: []
+            create: []
+            update: []
+            delete: []
+        Support_Requests:
+          entity: "support_requests"
+          primary_key: "request_id"
+          permissions:
+            read: []
+            create: []
+            update: []
+            delete: []
         Admin_Audit:
           entity: "admin_audit"
           primary_key: "audit_id"
