@@ -373,7 +373,7 @@ function SnapshotManager() {
 }
 
 function ExportsManager() {
-  const { history, scopedOpportunities, maps, master } = useData();
+  const { scopedOpportunities, maps, master } = useData();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
@@ -388,7 +388,11 @@ function ExportsManager() {
     URL.revokeObjectURL(url);
   };
 
-  const exportChangeLog = () => {
+  const exportChangeLog = async () => {
+    setExportError("");
+    setExporting(true);
+    try {
+    const history = await db.entities.OpportunityHistory.list("-created_date");
     const headers = ["Event At", "Opportunity ID", "Customer", "Event Type", "Field", "Previous Value", "New Value", "Actor", "Remark"];
     const rows = history
       .slice()
@@ -402,6 +406,11 @@ function ExportsManager() {
         ];
       });
     download("change_log", headers, rows);
+    } catch (e) {
+      setExportError(e.message || "Change Log export failed");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const exportCurrentExcel = async () => {
@@ -426,9 +435,9 @@ function ExportsManager() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="font-medium text-sm">Change Log Export</div>
-            <p className="text-xs text-muted-foreground">All opportunity events ({history.length}) for audit and handoff analysis. CSV, one row per event.</p>
+            <p className="text-xs text-muted-foreground">Authorized opportunity events, loaded only when exporting. CSV, one row per event.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportChangeLog}><Download className="w-4 h-4 mr-1" /> Export Change Log</Button>
+          <Button variant="outline" size="sm" onClick={exportChangeLog} disabled={exporting}><Download className="w-4 h-4 mr-1" /> Export Change Log</Button>
         </div>
         <div className="border-t pt-3 flex items-center justify-between gap-3">
           <div>
