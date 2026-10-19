@@ -41,6 +41,7 @@ export function DataProvider({ children }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [demoMemberId, setDemoMemberId] = useState(() => {
     try { return localStorage.getItem("geo_demo_as") || ""; } catch { return ""; }
   });
@@ -49,12 +50,12 @@ export function DataProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const results = await fetchAllEntities([...MASTER_ENTITIES, "Opportunity", "OpportunityHistory"]);
+      const results = await fetchAllEntities([...MASTER_ENTITIES, "Opportunity"]);
       const masterObj = {};
       MASTER_ENTITIES.forEach((e, i) => (masterObj[e] = results[i]));
       setMaster(masterObj);
       setOpportunities(results[MASTER_ENTITIES.length] || []);
-      setHistory(results[MASTER_ENTITIES.length + 1] || []);
+      setLastLoadedAt(new Date().toISOString());
     } catch (e) {
       console.error(e);
       setError(e);
@@ -115,11 +116,13 @@ export function DataProvider({ children }) {
   }, [isDemoing, demoMember, realProfile]);
 
   const demoAs = useCallback((memberId) => {
+    setHistory([]);
     setDemoMemberId(memberId);
     try { localStorage.setItem("geo_demo_as", memberId); } catch (e) {}
     loadAll(); // backend scopes data to the demo user
   }, [loadAll]);
   const exitDemo = useCallback(() => {
+    setHistory([]);
     setDemoMemberId("");
     try { localStorage.removeItem("geo_demo_as"); } catch (e) {}
     loadAll();
@@ -478,6 +481,7 @@ export function DataProvider({ children }) {
   const value = {
     loading,
     error,
+    lastLoadedAt,
     master,
     maps,
     config,
