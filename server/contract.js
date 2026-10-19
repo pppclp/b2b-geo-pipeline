@@ -48,7 +48,7 @@ export function buildContract(yamlText) {
   columns.support_requests = [
     "request_id","opportunity_id","region_id","request_type_id","note",
     "status","requested_by_user_id","assigned_to_user_id","response_note",
-    "created_at","updated_at","resolved_at"
+    "created_at","updated_at","resolved_at","source"
   ];
 
   return { access: doc.access_control, references, columns, uatAuth: doc.uat_auth || {} };
