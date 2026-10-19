@@ -13,7 +13,7 @@ export const OPPORTUNITY_COLUMNS = new Set([
   "working_with_id", "working_with_since", "support_needed",
   "support_type_id", "support_note", "won_at", "won_by_user_id",
   "lost_at", "lost_by_user_id", "lost_reason_id", "lost_note",
-  "archived_at",
+  "archived_at", "import_batch_id", "import_row_number", "import_row_signature",
 ]);
 
 // UI names AND sheet names of fields the browser must never control.
@@ -25,6 +25,7 @@ export const SYSTEM_OPPORTUNITY_FIELDS = new Set([
   "stage_entered_at", "handler_since", "working_with_since",
   "won_at", "won_by", "won_by_user_id",
   "lost_at", "lost_by", "lost_by_user_id", "archived_at",
+  "import_batch_id", "import_row_number", "import_row_signature",
 ]);
 
 export function stripSystemFields(data) {
