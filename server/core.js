@@ -525,7 +525,7 @@ export function createCore({ contract, store, now, uuid }) {
       request_id:"SRQ-"+uuid(), opportunity_id:opportunityId, region_id:op.region_id,
       request_type_id:categoryId, note:String(note).slice(0,1000),
       status:"Open", requested_by_user_id:actor.real.id, assigned_to_user_id:"",
-      response_note:"", created_at:stamp,updated_at:stamp,resolved_at:""
+      response_note:"", created_at:stamp,updated_at:stamp,resolved_at:"",source:"user"
     };
     tableOf(supportBinding).rows.push(request);touch(supportBinding);
     return request;
