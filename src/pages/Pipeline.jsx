@@ -51,7 +51,7 @@ export default function Pipeline() {
   const { scopedOpportunities, opportunities, activeStages, maps, master, profile, config, loading, error, refresh } = useData();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const [view, setView] = useState("board");
+  const [view, setView] = useState("list");
   const [sort, setSort] = useState("close_month");
   const [formOpen, setFormOpen] = useState(false);
   const [quickView, setQuickView] = useState(null); // { id, targetStageId? }
@@ -175,10 +175,10 @@ export default function Pipeline() {
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
 
   return (
-    <div className="p-5 md:p-7 max-w-[1600px] mx-auto">
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+    <div className="p-4 md:p-5 max-w-[1600px] mx-auto">
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{params.get("view") === "assigned-to-me" ? "Assigned to Me" : params.get("view") === "support-needed" ? "Needs Support" : "All Opportunities"}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{sorted.length} opportunities · {formatTHB(totalValue)}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -194,39 +194,42 @@ export default function Pipeline() {
       </div>
 
       {exportError && <p role="alert" className="text-sm text-red-600 mb-3">{exportError}</p>}
-      {loading && <p role="status" className="text-sm text-muted-foreground mb-3">กำลังโหลด Pipeline และสิทธิ์ผู้ใช้…</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground mb-3">Loading Pipeline and access permissions…</p>}
       {error && (
         <div role="alert" className="flex flex-wrap gap-3 items-center justify-between rounded-xl border border-red-200 bg-red-50/70 p-3 mb-4 text-sm text-red-800">
-          <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> โหลดข้อมูลไม่สำเร็จ: {error.message}</span>
+          <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> Unable to load data: {error.message}</span>
           <Button type="button" size="sm" variant="outline" onClick={refresh} disabled={loading}>
-            <RefreshCw className="w-4 h-4 mr-1.5" /> ลองโหลดใหม่
+            <RefreshCw className="w-4 h-4 mr-1.5" /> Retry
           </Button>
         </div>
       )}
       {!loading && !error && scopedOpportunities.length === 0 && (
         <p role="status" className="text-sm text-muted-foreground mb-3">
           {opportunities.length > 0
-            ? "Backend ส่ง Pipeline กลับมาแล้ว แต่ไม่ตรงกับ Role / Region Access ที่โหลดในหน้านี้ กรุณาตรวจ User_Region และการตั้งค่า Deployment"
-            : "ยังไม่มี Pipeline ที่บัญชีนี้มีสิทธิ์เห็น ถ้าควรมีข้อมูล กรุณาตรวจ Apps Script Deployment, Users และ User_Region"}
+            ? "Pipeline records were returned, but none match your access scope. Check User Region access and deployment settings."
+            : "No Pipelines are available for this account. If you expect records, check the deployment and access settings."}
         </p>
       )}
       <div className="rounded-xl border border-border bg-card p-3 mb-4">
         <FilterBar filters={filters} onFilter={onFilter} />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="inline-flex rounded-xl bg-secondary p-1">
-          <button
-            onClick={() => setView("board")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg transition-all ${view === "board" ? "bg-card text-foreground shadow-soft font-medium" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            <KanbanSquare className="w-4 h-4" /> Board
-          </button>
-          <button
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+
+        <div className="inline-flex rounded-xl bg-secondary p-1" role="group" aria-label="Pipeline view">
+          <button type="button" aria-pressed={view === "list"}
             onClick={() => setView("list")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg transition-all ${view === "list" ? "bg-card text-foreground shadow-soft font-medium" : "text-muted-foreground hover:text-foreground"}`}
-          >
+            className={view === "list"
+              ? "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg bg-card text-foreground shadow-soft font-medium"
+              : "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg text-muted-foreground hover:text-foreground"}>
             <List className="w-4 h-4" /> List
+          </button>
+          <button type="button" aria-pressed={view === "board"}
+            onClick={() => setView("board")}
+            className={view === "board"
+              ? "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg bg-card text-foreground shadow-soft font-medium"
+              : "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg text-muted-foreground hover:text-foreground"}>
+            <KanbanSquare className="w-4 h-4" /> Board
           </button>
         </div>
         <div className="flex items-center gap-2">
@@ -240,6 +243,29 @@ export default function Pipeline() {
         </div>
       </div>
 
+
+      {view === "list" && (
+        <div className="flex items-center gap-2 flex-wrap mb-3" role="group" aria-label="Quick filter by Stage">
+          <span className="text-[11px] font-medium text-muted-foreground mr-1">Stage</span>
+          <button type="button" onClick={() => onFilter("stage", "")}
+            aria-pressed={!filters.stage}
+            className={!filters.stage
+              ? "rounded-full px-3 py-1.5 border border-primary/40 bg-brand-tint text-brand text-[11px] font-medium"
+              : "rounded-full px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground text-[11px]"}>
+            All Stages
+          </button>
+          {activeStages.map((stage) => (
+            <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
+              aria-pressed={filters.stage === stage.id}
+              className={filters.stage === stage.id
+                ? "rounded-full px-3 py-1.5 border border-primary/40 bg-brand-tint text-brand text-[11px] font-medium"
+                : "rounded-full px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground text-[11px]"}>
+              {stage.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {sorted.length === 0 ? (
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
       ) : view === "board" ? (
@@ -249,7 +275,7 @@ export default function Pipeline() {
               const stageOps = sorted.filter((o) => o.stage_id === stage.id);
               const stageValue = stageOps.reduce((a, o) => a + (o.pipeline_value || 0), 0);
               return (
-                <div key={stage.id} className="flex flex-col w-72 shrink-0">
+                <div key={stage.id} className="flex flex-col w-[280px] shrink-0">
                   <div className="flex items-center justify-between mb-2.5 px-1">
                     <span className="font-medium text-[13px]">{stage.name}</span>
                     <span className="text-[11px] text-muted-foreground tabular-nums bg-secondary rounded-md px-2 py-0.5">{stageOps.length} · {formatTHB(stageValue)}</span>
@@ -283,36 +309,59 @@ export default function Pipeline() {
           </div>
         </DragDropContext>
       ) : (
-        <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/50 text-muted-foreground">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="overflow-x-auto" aria-label="Pipeline opportunities table">
+            <table className="w-full min-w-[1020px] table-fixed text-[12px]">
+              <colgroup>
+                <col className="w-[23%]" /><col className="w-[10%]" /><col className="w-[9%]" />
+                <col className="w-[20%]" /><col className="w-[13%]" /><col className="w-[10%]" />
+                <col className="w-[9%]" /><col className="w-[6%]" />
+              </colgroup>
+              <thead className="bg-secondary/60 text-muted-foreground sticky top-0 z-10">
                 <tr>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Customer</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Product & Details</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Stage</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Status</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Owner</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Handler</th>
-                  <th className="text-right font-medium px-4 py-3 text-xs uppercase tracking-wide">Net RC</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Close</th>
-                  <th className="text-right font-medium px-4 py-3 text-xs uppercase tracking-wide">Stage Age</th>
-                  <th className="text-left font-medium px-4 py-3 text-xs uppercase tracking-wide">Support</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Customer / Product</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Stage</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Status</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">AE Owner / Handler</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2.5 text-[11px]">Net RC</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Close</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2.5 text-[11px]">Stage Age</th>
+                  <th scope="col" className="text-center font-medium px-2 py-2.5 text-[11px]">Support</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {sorted.map((o) => (
-                  <tr key={o.id} className="hover:bg-secondary/40 cursor-pointer transition-colors" onClick={() => openQuickView(o.id)}>
-                    <td className="px-4 py-3 font-medium">{o.customer_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{maps.category[o.product_category_id]?.name}{o.product_details ? ` · ${o.product_details}` : ""}</td>
-                    <td className="px-4 py-3">{maps.stage[o.stage_id]?.name}</td>
-                    <td className="px-4 py-3">{STATUS_LABELS[o.status]}</td>
-                    <td className="px-4 py-3">{maps.member[o.owner_id]?.name}</td>
-                    <td className="px-4 py-3">{maps.member[o.current_handler_id]?.name}</td>
-                    <td className="px-4 py-3 text-right tabular-nums font-medium">{formatTHB(o.pipeline_value)}</td>
-                    <td className="px-4 py-3">{formatMonth(o.expected_close_month)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{agingDays(o.stage_entered_at)}d</td>
-                    <td className="px-4 py-3">{o.support_needed ? <span className="inline-flex items-center rounded-md bg-amber-100 text-amber-700 px-1.5 py-0.5 text-xs">Yes</span> : "—"}</td>
+                  <tr key={o.id} className="hover:bg-secondary/40 cursor-pointer transition-colors align-middle"
+                    onClick={() => openQuickView(o.id)} tabIndex={0}
+                    onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openQuickView(o.id); } }}
+                    aria-label={"Open opportunity " + o.customer_name}>
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium leading-[1.4] line-clamp-2 break-words" title={o.customer_name}>{o.customer_name}</div>
+                      <div className="text-[11px] text-muted-foreground truncate mt-1"
+                        title={[maps.category[o.product_category_id]?.name, o.product_details].filter(Boolean).join(" · ")}>
+                        {maps.category[o.product_category_id]?.name || "—"}{o.product_details ? " · " + o.product_details : ""}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{STATUS_LABELS[o.status] || o.status}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="text-[11px] truncate" title={"AE Owner: " + (maps.member[o.owner_id]?.name || "Unassigned")}>
+                        <span className="text-muted-foreground">AE</span> {maps.member[o.owner_id]?.name || "Unassigned"}
+                      </div>
+                      <div className="text-[11px] truncate mt-1" title={"Current Handler: " + (maps.member[o.current_handler_id]?.name || "Unassigned")}>
+                        <span className="text-muted-foreground">H</span> {maps.member[o.current_handler_id]?.name || "Unassigned"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap">{formatTHB(o.pipeline_value)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatMonth(o.expected_close_month)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
+                      <span className={isStageSlaOverdue(o, maps.stage) ? "text-amber-700 font-medium" : "text-muted-foreground"}>
+                        {agingDays(o.stage_entered_at)}d
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5 text-center">
+                      {o.support_needed ? <span className="inline-flex rounded-md bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px]">Yes</span> : <span className="text-muted-foreground">—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
