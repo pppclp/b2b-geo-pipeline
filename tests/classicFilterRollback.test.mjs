@@ -51,3 +51,16 @@ test("List is default while Sort and Stage quick filters share the canonical Pip
   assert.match(pipeline,/aria-pressed=\{filters\.stage === stage\.id\}/);
   assert.match(pipeline,/min-w-\[1020px\]/);
 });
+
+
+test("Pipeline compact List minimizes repeated labels while keeping scope and detail access",()=>{
+  assert.match(pipeline,/sharedHandlerName/);
+  assert.match(pipeline,/All shown opportunities are with/);
+  assert.match(pipeline,/Handler \/ AE Owner/);
+  assert.match(pipeline,/o\.status !== "open"/);
+  assert.match(pipeline,/o\.support_needed/);
+  assert.match(pipeline,/isStageSlaOverdue\(o, maps\.stage\)/);
+  assert.match(pipeline,/onClick=\{\(\) => openQuickView\(o\.id\)\}/);
+  assert.match(pipeline,/Product details:/);
+  assert.ok(!pipeline.includes('>Status</th>'),"Do not repeat default Open in a status column");
+});
