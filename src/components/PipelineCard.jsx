@@ -53,7 +53,7 @@ export default function PipelineCard({ op, onOpen }) {
           Handler: {handler?.name || "Unassigned"}
         </span>
         {overdue && <span className="shrink-0 rounded-md bg-amber-100 text-amber-700 font-medium text-[10px] px-1.5 py-0.5" title={"Stage SLA overdue, " + age + " days"}>
-          {age}d overdue
+          Stage {age}d
         </span>}
       </div>
       {differentHandler && <div className="text-[10px] text-muted-foreground mt-1 truncate" title={"AE Owner: " + (owner?.name || "Unassigned")}>
