@@ -1,434 +1,374 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
+import { db } from "@/api/client";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { formatMonth, ROLE_LABELS } from "@/lib/pipeline";
-import { dashboardCohort, dashboardMetrics, isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
-import KpiCard from "@/components/dashboard/KpiCard";
-import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
+import { ROLE_LABELS, currentMonthKey } from "@/lib/pipeline";
+import { dashboardCohort, dashboardMetrics, isStageSlaOverdue } from "@/lib/dashboardMetrics";
 import MonthPicker from "@/components/MonthPicker";
+import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import { Button } from "@/components/ui/button";
-import { Trophy, XCircle, AlertCircle, Clock, PlusCircle, CalendarClock, RotateCcw, Layers, Users } from "lucide-react";
+import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
+
+const sumValue = (items) => items.reduce((total, item) => total + (Number(item.pipeline_value) || 0), 0);
+const isOpen = (item) => item.status === "open";
+const compactDate = (month) => month || "All Months";
 
 export default function Dashboard() {
-  const { scopedOpportunities, maps, activeStages, config, profile, loading, error, refresh } = useData();
+  const { scopedOpportunities, maps, activeStages, profile, config, loading, error, refresh } = useData();
   const navigate = useNavigate();
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
+  const [queueTab, setQueueTab] = useState("with");
+  const [supportRequests, setSupportRequests] = useState(null);
+  const [supportError, setSupportError] = useState("");
 
   const role = profile?.app_role || "ae";
-  const isManagementLike = role === "management" || role === "admin";
-  const internalTaskSlaDays = config?.internal_task_sla_days;
+  const isAdmin = role === "admin";
+  const isManagement = role === "management";
+  const isSM = role === "sm";
+  const isAE = role === "ae";
 
-  // Available regions for quick filter
-  const allRegions = useMemo(
-    () => Object.values(maps.region || {}).filter((r) => r.active).sort((a, b) => (a.order || 0) - (b.order || 0)),
-    [maps.region]
+  // UI filters are not access controls: all charts begin with server-scoped opportunities.
+  const regions = useMemo(
+    () => Object.values(maps.region || {}).filter((r) => r.active)
+      .filter((r) => isAdmin || (profile?.region_ids || []).includes(r.id))
+      .sort((a, b) => (a.order || 0) - (b.order || 0)),
+    [maps.region, profile?.region_ids, isAdmin]
   );
-  const availableRegions = useMemo(() => {
-    if (role === "sm") return allRegions.filter((r) => (profile?.region_ids || []).includes(r.id));
-    if (isManagementLike) return allRegions;
-    return [];
-  }, [allRegions, role, profile, isManagementLike]);
-
-  const showRegionFilter = isManagementLike || (role === "sm" && availableRegions.length > 1);
-
-  // Validate region filter against available regions
-  const effectiveRegion = availableRegions.find((r) => r.id === regionFilter) ? regionFilter : "";
-  // One cohort for the ENTIRE dashboard. Created Month and Expected Close
-  // combine as an intersection across every KPI/chart/list.
-  const cohort = dashboardCohort(scopedOpportunities, {
-    createdMonth, closeMonth, region: effectiveRegion,
+  const region = regions.some((r) => r.id === regionFilter) ? regionFilter : "";
+  const showRegions = isManagement || (isSM && regions.length > 1);
+  const cohort = dashboardCohort(scopedOpportunities, { createdMonth, closeMonth, region });
+  // Assigned work may belong to a different AE; never credit it to this AE's sales.
+  const sales = isAE ? cohort.filter((o) => o.owner_id === profile?.id) : cohort;
+  const { open, won, supportNeeded, stageOverdue } = dashboardMetrics(sales, {
+    stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
-  const { created, open, expected, won, lost, supportNeeded, stageOverdue, internalOverdue } =
-    dashboardMetrics(cohort, { stages: maps.stage, internalTaskSlaDays });
+  const assigned = cohort.filter((o) => isOpen(o) && o.current_handler_id === profile?.id);
+  const assignedOverdue = assigned.filter((o) => isStageSlaOverdue(o, maps.stage));
 
-  const sumVal = (arr) => arr.reduce((a, o) => a + (o.pipeline_value || 0), 0);
-  const monthLabel = (m) => (m ? formatMonth(m) : "All Months");
+  // Management requests are tasks, not Pipeline Current Handler assignments.
+  useEffect(() => {
+    if (!isManagement || !profile?.id) {
+      return;
+    }
+    setSupportRequests(null);
+    setSupportError("");
+    let active = true;
+    db.supportRequests.list()
+      .then((items) => {
+        if (active) {
+          setSupportRequests(Array.isArray(items) ? items : []);
+          setSupportError("");
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSupportRequests(null);
+          setSupportError("Unable to load assigned support requests.");
+        }
+      });
+    return () => { active = false; };
+  }, [isManagement, profile?.id]);
 
-  // Navigation helper — preserves region context
-  const go = (params) => {
-    const p = {
-      ...(createdMonth && { created_month: createdMonth }),
-      ...(closeMonth && { close_month: closeMonth }),
-      ...(effectiveRegion && { region: effectiveRegion }),
-      ...params,
-    };
-    navigate(`/pipeline?${new URLSearchParams(p).toString()}`);
-  };
-
-  const resetFilters = () => {
-    setCreatedMonth("");
-    setCloseMonth("");
-    setRegionFilter("");
-  };
-
-  const hasActiveFilters = !!createdMonth || !!closeMonth || !!effectiveRegion;
-
-  // Breakdowns
-  const byStage = activeStages.map((s) => {
-    const ops = open.filter((o) => o.stage_id === s.id);
-    return { stage: s, count: ops.length, value: sumVal(ops) };
+  const myRequests = (supportRequests || []).filter((request) =>
+    String(request.assigned_to_user_id) === String(profile?.id) && request.status !== "Resolved" &&
+    (!region || request.region_id === region) &&
+    cohort.some((o) => o.id === request.opportunity_id)
+  );
+  const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); };
+  const hasFilters = Boolean(createdMonth || closeMonth || region);
+  const params = (extra = {}) => ({
+    ...(createdMonth ? { created_month: createdMonth } : {}),
+    ...(closeMonth ? { close_month: closeMonth } : {}),
+    ...(region ? { region } : {}),
+    ...extra,
   });
-  const maxStageValue = Math.max(...byStage.map((x) => x.value), 1);
+  const toPipeline = (extra = {}) => navigate("/pipeline?" + new URLSearchParams(params(extra)).toString());
 
   const categories = Object.values(maps.category || {})
-    .filter((c) => c.active)
-    .sort((a, b) => (a.order || 0) - (b.order || 0));
-  const byCategory = categories.map((c) => {
-    const ops = open.filter((o) => o.product_category_id === c.id);
-    return { category: c, count: ops.length, value: sumVal(ops) };
+    .filter((c) => c.active).sort((a, b) => (a.order || 0) - (b.order || 0));
+  const stageRows = activeStages.map((s) => {
+    const items = open.filter((o) => o.stage_id === s.id);
+    return { id: s.id, name: s.name, count: items.length, value: sumValue(items) };
   });
-
-  const byRegion = allRegions
-    .map((r) => {
-      const ops = open.filter((o) => o.region_id === r.id);
-      return { region: r, count: ops.length, value: sumVal(ops) };
-    })
-    .filter((x) => x.count > 0)
-    .sort((a, b) => b.value - a.value);
-
-  const aes = Object.values(maps.member || {}).filter((m) => m.active && m.app_role === "ae");
-  const byAE = aes
+  const categoryRows = categories.map((c) => {
+    const items = open.filter((o) => o.product_category_id === c.id);
+    return { id: c.id, name: c.name, count: items.length, value: sumValue(items) };
+  });
+  const regionRows = regions.map((r) => {
+    const items = open.filter((o) => o.region_id === r.id);
+    return { id: r.id, name: r.name, count: items.length, value: sumValue(items) };
+  }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
+  const ownerRows = Object.values(maps.member || {})
+    .filter((m) => m.active && m.app_role === "ae")
     .map((m) => {
-      const ops = open.filter((o) => o.owner_id === m.id);
-      return { member: m, count: ops.length, value: sumVal(ops) };
-    })
-    .filter((x) => x.count > 0)
-    .sort((a, b) => b.value - a.value);
+      const items = open.filter((o) => o.owner_id === m.id);
+      return { id: m.id, name: m.name, count: items.length, value: sumValue(items) };
+    }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
 
-  const lostReasons = Object.values(maps.lostReason || {}).filter((r) => r.active);
-  const lostByReason = lostReasons
-    .map((r) => {
-      const ops = lost.filter((o) => o.lost_reason_id === r.id);
-      return { reason: r, count: ops.length, value: sumVal(ops) };
-    })
-    .filter((x) => x.count > 0)
-    .sort((a, b) => b.value - a.value);
+  const tabs = isManagement
+    ? [["with", "With Me"], ["overdue", "Stage Overdue"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+    : isSM
+      ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+      : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]];
+  const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : "with";
+  const queue = selectedTab === "with" ? assigned
+    : selectedTab === "overdue" ? (isManagement ? stageOverdue : assignedOverdue)
+    : selectedTab === "support" ? supportNeeded
+    : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
+  const queueItems = queue.slice().sort((a, b) => {
+    const aTime = new Date(a.stage_entered_at || 0).getTime();
+    const bTime = new Date(b.stage_entered_at || 0).getTime();
+    return aTime - bTime;
+  }).slice(0, 8);
+  const closeValue = sumValue(won) + sumValue(open);
 
-  const supportTypes = Object.values(maps.supportType || {})
-    .filter((s) => s.active)
-    .sort((a, b) => (a.order || 0) - (b.order || 0));
-  const supportByType = supportTypes
-    .map((st) => {
-      const ops = supportNeeded.filter((o) => o.support_type === st.id);
-      return { type: st, count: ops.length, value: sumVal(ops) };
-    })
-    .filter((x) => x.count > 0);
-
-  // Role-specific lists
-  const currentlyWithMe = open.filter((o) => o.current_handler_id === profile?.id);
-  const workingWithTeams = open.filter((o) => o.working_with);
-  const assignedToMe = open.filter((o) => o.current_handler_id === profile?.id);
-  const attentionOps = [...stageOverdue, ...internalOverdue, ...supportNeeded]
-    .filter((o, i, arr) => arr.findIndex((x) => x.id === o.id) === i)
-    .slice(0, 10);
-
-  // A failed required API batch must never look like a legitimate zero-pipeline dashboard.
-  // Keep all hooks above this guard so retrying does not change hook ordering.
   if (loading || error) {
     return (
       <div className="p-5 md:p-7 max-w-[1400px] mx-auto">
-        <h1 className="text-[22px] font-semibold tracking-tight mb-5">Dashboard</h1>
-        <div
-          role={error ? "alert" : "status"}
-          className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${error ? "border-destructive/40 bg-destructive/5" : "bg-muted/30"}`}
-        >
-          <AlertCircle className={`w-5 h-5 shrink-0 ${error ? "text-destructive" : "text-muted-foreground"}`} aria-hidden="true" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium">{error ? "โหลดข้อมูล Pipeline ไม่สำเร็จ" : "กำลังโหลดข้อมูล Pipeline…"}</p>
-            {error && (
-              <p className="text-sm text-muted-foreground break-words mt-1">
-                {error.message}. ตรวจสอบ Apps Script Deployment และการเชื่อมต่อ Pipeline DB
-              </p>
-            )}
+        <h1 className="text-[22px] font-semibold mb-5">Dashboard</h1>
+        <div role={error ? "alert" : "status"} className="rounded-xl border border-border bg-card p-4 flex gap-3 items-center">
+          <AlertCircle className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          <div className="flex-1 text-sm">
+            {error ? "Unable to load Pipeline data. " + error.message : "Loading Pipeline data…"}
           </div>
-          {error && (
-            <Button type="button" variant="outline" onClick={refresh}>ลองโหลดอีกครั้ง</Button>
-          )}
+          {error && <Button type="button" variant="outline" onClick={refresh}>Retry</Button>}
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="p-5 md:p-7 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {ROLE_LABELS[role]} view
-            {profile?.isProvisional ? " · Provisional admin" : ""}
-            {profile?.isDemo ? " (Demo)" : ""}
-          </p>
+  if (isAdmin) {
+    return (
+      <div className="p-5 md:p-7 max-w-[1400px] mx-auto space-y-4">
+        <div><h1 className="text-[22px] font-semibold">Data & Access</h1>
+          <p className="text-sm text-muted-foreground mt-1">Admin workspace · All regions</p></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Panel title="User & Organization"><p className="text-xs text-muted-foreground mb-3">Manage users and authorized Region mappings.</p>
+            <Button type="button" variant="outline" onClick={() => navigate("/admin")}><Settings2 className="h-4 w-4 mr-2" />Open Admin</Button></Panel>
+          <Panel title="Pipeline Import"><p className="text-xs text-muted-foreground mb-3">Review and import Pipeline records.</p>
+            <Button type="button" variant="outline" onClick={() => navigate("/import")}><Upload className="h-4 w-4 mr-2" />Open Import</Button></Panel>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Created Month</span>
-            <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll className="w-[150px]" />
+        <Panel title="Business Overview">
+          <p className="text-sm text-muted-foreground">Admin has all-region access. Use Pipeline to review live business records; data quality reports are not implemented yet.</p>
+          <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>Open Pipeline</Button>
+        </Panel>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-5 md:p-7 max-w-[1400px] mx-auto space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight">
+            {isAE ? "My Dashboard" : isSM ? "Regional Dashboard" : "Management Dashboard"}
+          </h1>
+          <p className="text-[12px] text-muted-foreground mt-0.5">{ROLE_LABELS[role]} · {isAE ? "Owned sales and assigned work" : "Authorized regions only"}</p>
+        </div>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-[150px]">
+            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">Created Month</label>
+            <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close</span>
-            <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll className="w-[150px]" />
+          <div className="w-[150px]">
+            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">Expected Close</label>
+            <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
           </div>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="mb-0.5" onClick={resetFilters}>
-              <RotateCcw className="w-4 h-4 mr-1" /> Reset Filters
-            </Button>
-          )}
+          {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
         </div>
       </div>
-
-      {/* Region Quick Filter */}
-      {showRegionFilter && (
-        <div className="mb-5">
-          <RegionQuickFilter regions={availableRegions} value={effectiveRegion} onChange={setRegionFilter} />
+      {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
+      {!showRegions && isSM && regions.length === 1 &&
+        <div className="text-[11px] text-muted-foreground">Region: {regions[0].name}</div>}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Metric title="Close Outlook" value={formatTHB(closeValue)} note="Won + Open (selected filters)" />
+        <Metric title={isAE ? "My Open Pipeline" : isSM ? "Region Open Pipeline" : "Open Pipeline"}
+          value={formatTHB(sumValue(open))} note={open.length + " opportunities"}
+          onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
+        <Metric title="With Me"
+          value={isManagement ? (supportError ? "—" : supportRequests === null ? "…" : String(myRequests.length)) : String(assigned.length)}
+          note={isManagement ? "Assigned support requests" : "Current Handler"}
+          onClick={() => isManagement ? navigate("/support-requests") : toPipeline({ status: "open", handler: profile.id })} />
+        <Metric title={isManagement ? "Stage Overdue" : "Overdue With Me"}
+          value={String(isManagement ? stageOverdue.length : assignedOverdue.length)} note="Beyond configured Stage SLA"
+          onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
+      </div>
+      <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
+        onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
+        onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
+        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={selectedTab === "with" && isManagement ? "Support Requests" : queue.length + " opportunities"}>
+          <div className="flex flex-wrap gap-1.5 mb-3" aria-label="Work queue filters">
+            {tabs.map(([id, label]) =>
+              <button key={id} type="button" onClick={() => setQueueTab(id)}
+                aria-pressed={selectedTab === id}
+                className={selectedTab === id
+                  ? "px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
+                  : "px-2.5 py-1.5 text-[11px] rounded-lg border border-border hover:bg-secondary"}>
+                {label}
+              </button>
+            )}
+          </div>
+          {selectedTab === "with" && isManagement
+            ? <div>
+                {supportError && <p role="alert" className="text-xs text-destructive mb-2">{supportError}</p>}
+                {supportRequests === null && !supportError && <p className="text-xs text-muted-foreground">Loading assigned requests…</p>}
+                {myRequests.slice(0, 8).map((request) =>
+                  <button key={request.request_id} className="w-full text-left flex justify-between gap-2 border-b border-border py-3 hover:bg-secondary/50"
+                    onClick={() => navigate("/support-requests")}>
+                    <span className="min-w-0"><span className="block font-medium text-[12px]">{request.opportunity_id}</span>
+                      <span className="block text-[11px] text-muted-foreground">{request.note || "Support request"}</span></span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{request.status}</span>
+                  </button>
+                )}
+                {supportRequests !== null && !myRequests.length && <EmptyRow />}
+              </div>
+            : <OpportunityTable rows={queueItems} maps={maps} onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />}
+          <div className="pt-3 flex justify-end">
+            <Button size="sm" variant="outline" onClick={() =>
+              isManagement && selectedTab === "with" ? navigate("/support-requests") :
+                toPipeline({
+                  status: "open",
+                  ...(selectedTab === "with" ? { handler: profile.id } : {}),
+                  ...(selectedTab === "overdue" ? { stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) } : {}),
+                  ...(selectedTab === "support" ? { support: "1" } : {}),
+                })
+            }>View All</Button>
+          </div>
+        </Panel>
+        <Panel title="Pipeline by Stage" meta="Open · Net RC">
+          <BarList rows={stageRows} onSelect={(id) => toPipeline({ status: "open", stage: id, ...(isAE ? { owner: profile.id } : {}) })} />
+        </Panel>
+      </div>
+      {(isSM || isManagement) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Panel title={isManagement && !region ? "Pipeline by Region" : "Pipeline by AE Owner"} meta="Open · Net RC">
+            <BreakdownTable rows={isManagement && !region ? regionRows : ownerRows}
+              label={isManagement && !region ? "Region" : "AE Owner"}
+              onSelect={(id) => isManagement && !region ? setRegionFilter(id) : toPipeline({ status: "open", owner: id })} />
+          </Panel>
+          <Panel title="Pipeline by Product Category" meta="Open · Net RC">
+            <BarList rows={categoryRows} onSelect={(id) => toPipeline({ status: "open", product_category: id, ...(isAE ? { owner: profile.id } : {}) })} />
+          </Panel>
         </div>
       )}
+      <p className="text-[11px] text-muted-foreground">
+        Metrics use the intersection of Created Month, Expected Close and permitted Region. Won is filtered by Expected Close, not by the actual Won date.
+      </p>
+    </div>
+  );
+}
 
-      {/* KPIs — all eight use the same created/close/region cohort. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <KpiCard
-          label="Created Pipelines"
-          count={created.length}
-          value={formatTHB(sumVal(created))}
-          context={`Created · ${monthLabel(createdMonth)} · all statuses`}
-          icon={PlusCircle}
-          onClick={() => go({ status: "all" })}
-        />
-        <KpiCard
-          label="Open Pipelines"
-          count={open.length}
-          value={formatTHB(sumVal(open))}
-          context="Currently open · selected cohort"
-          icon={Layers}
-          onClick={() => go({ status: "open" })}
-        />
-        <KpiCard
-          label="Expected to Close"
-          count={expected.length}
-          value={formatTHB(sumVal(expected))}
-          context={`Open with expected close · ${monthLabel(closeMonth)}`}
-          icon={CalendarClock}
-          onClick={() => go({ status: "open" })}
-        />
-        <KpiCard
-          label="Won"
-          count={won.length}
-          value={formatTHB(sumVal(won))}
-          context="Won · selected cohort"
-          icon={Trophy}
-          accent="text-emerald-600"
-          onClick={() => go({ status: "won" })}
-        />
-        <KpiCard
-          label="Lost"
-          count={lost.length}
-          value={formatTHB(sumVal(lost))}
-          context="Lost · selected cohort"
-          icon={XCircle}
-          accent="text-rose-600"
-          onClick={() => go({ status: "lost" })}
-        />
-        <KpiCard
-          label="Support Needed"
-          count={supportNeeded.length}
-          value={formatTHB(sumVal(supportNeeded))}
-          context="Open · selected cohort"
-          icon={AlertCircle}
-          accent="text-amber-600"
-          onClick={() => go({ status: "open", support: "1" })}
-        />
-        <KpiCard
-          label="Stage SLA Overdue"
-          count={stageOverdue.length}
-          value={formatTHB(sumVal(stageOverdue))}
-          context="Over configured Stage SLA"
-          icon={Clock}
-          accent="text-amber-600"
-          onClick={() => go({ status: "open", stuck: "1", sort: "stage_aging_desc" })}
-        />
-        <KpiCard
-          label="Internal SLA Overdue"
-          count={internalOverdue.length}
-          value={formatTHB(sumVal(internalOverdue))}
-          context="Working With handoff exceeds SLA"
-          icon={Users}
-          accent="text-amber-600"
-          onClick={() => go({ status: "open", internal_overdue: "1" })}
-        />
+function Panel({ title, meta, children }) {
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-soft min-w-0">
+      <div className="flex justify-between items-center gap-3 mb-4">
+        <h2 className="text-[13px] font-semibold">{title}</h2>
+        {meta && <span className="text-[10px] text-muted-foreground shrink-0">{meta}</span>}
       </div>
+      {children}
+    </section>
+  );
+}
 
-      {/* Role-specific sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Pipeline by Region — management only (first) */}
-        {isManagementLike && (
-          <Panel title="Pipeline by Region" empty={!byRegion.length}>
-            <BreakdownList
-              rows={byRegion.map((r) => ({ id: r.region.id, name: r.region.name, count: r.count, value: r.value }))}
-              onClick={(id) => setRegionFilter(id)}
-            />
-          </Panel>
-        )}
+function Metric({ title, value, note, onClick }) {
+  const children = <>
+    <div className="text-[11px] text-muted-foreground font-medium">{title}</div>
+    <div className="text-[22px] leading-7 font-semibold tabular-nums mt-2">{value}</div>
+    <div className="text-[11px] text-muted-foreground mt-1">{note}</div>
+  </>;
+  return onClick
+    ? <button type="button" onClick={onClick}
+        className="rounded-xl border border-border bg-card p-4 text-left hover:border-brand/40 hover:bg-secondary/20 min-w-0">{children}</button>
+    : <div className="rounded-xl border border-border bg-card p-4 min-w-0">{children}</div>;
+}
 
-        {/* Pipeline by AE — management + SM */}
-        {(isManagementLike || role === "sm") && (
-          <Panel title="Pipeline by AE (Owner)" empty={!byAE.length}>
-            <BreakdownList
-              rows={byAE.map((a) => ({ id: a.member.id, name: a.member.name, count: a.count, value: a.value }))}
-              onClick={(id) => go({ status: "open", owner: id })}
-            />
-          </Panel>
-        )}
-
-        {/* Pipeline by Stage — all roles */}
-        <Panel title="Pipeline by Stage">
-          <div className="space-y-2.5">
-            {byStage.map((s) => (
-              <button
-                key={s.stage.id}
-                type="button"
-                onClick={() => go({ status: "open", stage: s.stage.id })}
-                className="w-full text-left group"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[12px] font-medium">{s.stage.name}</span>
-                  <span className="text-[11px] text-muted-foreground tabular-nums">
-                    {s.count} · {formatTHB(s.value)}
-                  </span>
-                </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-brand/70 group-hover:bg-brand transition-all"
-                    style={{ width: `${(s.value / maxStageValue) * 100}%` }}
-                  />
-                </div>
-              </button>
-            ))}
-            {byStage.every((s) => s.count === 0) && <EmptyRow />}
-          </div>
-        </Panel>
-
-        {/* Pipeline by Product Category — all roles */}
-        <Panel title="Pipeline by Product Category">
-          <BreakdownList
-            rows={byCategory.map((c) => ({ id: c.category.id, name: c.category.name, count: c.count, value: c.value }))}
-            onClick={(id) => go({ status: "open", product_category: id })}
-          />
-        </Panel>
-
-        {/* Lost Reasons — management only */}
-        {isManagementLike && (
-          <Panel title="Lost Reasons" empty={!lostByReason.length}>
-            <BreakdownList
-              rows={lostByReason.map((r) => ({ id: r.reason.id, name: r.reason.name, count: r.count, value: r.value }))}
-              onClick={(id) => go({ status: "lost", lost_reason: id })}
-            />
-          </Panel>
-        )}
-
-        {/* Support by Type — all roles if data */}
-        {supportByType.length > 0 && (
-          <Panel title="Support Needed by Type">
-            <BreakdownList
-              rows={supportByType.map((s) => ({ id: s.type.id, name: s.type.name, count: s.count, value: s.value }))}
-              onClick={() => go({ status: "open", support: "1" })}
-            />
-          </Panel>
-        )}
-
-        {/* Currently With Me — SM */}
-        {role === "sm" && (
-          <Panel title={`Currently With Me (${currentlyWithMe.length})`} empty={!currentlyWithMe.length}>
-            <OpportunityMiniList ops={currentlyWithMe} maps={maps} navigate={navigate} />
-          </Panel>
-        )}
-
-        {/* Working With Internal Teams — SM */}
-        {role === "sm" && (
-          <Panel title={`Working With Internal Teams (${workingWithTeams.length})`} empty={!workingWithTeams.length}>
-            <OpportunityMiniList ops={workingWithTeams} maps={maps} navigate={navigate} />
-          </Panel>
-        )}
-
-        {/* Assigned to Me — AE */}
-        {role === "ae" && (
-          <Panel title={`Assigned to Me (${assignedToMe.length})`} empty={!assignedToMe.length}>
-            <OpportunityMiniList ops={assignedToMe} maps={maps} navigate={navigate} />
-          </Panel>
-        )}
-
-        {/* Attention Needed — management */}
-        {isManagementLike && (
-          <Panel title="Attention Needed" empty={!attentionOps.length}>
-            <OpportunityMiniList ops={attentionOps} maps={maps} navigate={navigate} showReason internalTaskSlaDays={internalTaskSlaDays} />
-          </Panel>
-        )}
+function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
+  const wonValue = sumValue(won);
+  const openValue = sumValue(open);
+  return (
+    <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-4">
+      <div className="min-w-[155px]">
+        <div className="text-[12px] font-semibold">Close Summary</div>
+        <div className="text-[10px] text-muted-foreground">{closeMonth ? "Selected Expected Close Month" : "All Expected Close Months"}</div>
       </div>
-
+      <div className="flex-1 min-w-[160px]">
+        <div className="flex gap-3 justify-between text-[11px] mb-2">
+          <button className="hover:underline" onClick={onWon} type="button"><strong>Won</strong> {formatTHB(wonValue)} · {won.length}</button>
+          <button className="hover:underline" onClick={onOpen} type="button"><strong>Open</strong> {formatTHB(openValue)} · {open.length}</button>
+        </div>
+        <div className="flex h-2 rounded-full bg-secondary overflow-hidden" aria-label="Won and Open Net RC">
+          <div className="bg-emerald-600/75 h-full" style={{ width: (closeValue ? wonValue / closeValue * 100 : 0) + "%" }} />
+          <div className="bg-brand/65 h-full" style={{ width: (closeValue ? openValue / closeValue * 100 : 0) + "%" }} />
+        </div>
+      </div>
     </div>
   );
 }
 
-function Panel({ title, children, empty }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-      <h3 className="text-[12px] font-semibold mb-4 text-foreground/80">{title}</h3>
-      {empty ? <EmptyRow /> : children}
-    </div>
-  );
+function BarList({ rows, onSelect }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  if (!rows.some((r) => r.count)) return <EmptyRow />;
+  return <div className="space-y-3">
+    {rows.map((row) =>
+      <button type="button" key={row.id} onClick={() => onSelect(row.id)} className="w-full text-left group rounded-md hover:bg-secondary/50 py-1">
+        <div className="flex justify-between items-center gap-2 text-[12px] mb-1">
+          <span className="font-medium group-hover:text-brand">{row.name}</span>
+          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">{row.count} · {formatTHB(row.value)}</span>
+        </div>
+        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+          <div className="h-full bg-brand/75 rounded-full" style={{ width: (row.value / max * 100) + "%" }} />
+        </div>
+      </button>
+    )}
+  </div>;
 }
 
-function BreakdownList({ rows, onClick }) {
-  return (
-    <div className="space-y-1">
-      {rows.map((r) => (
-        <button
-          key={r.id}
-          type="button"
-          onClick={() => onClick(r.id)}
-          className="w-full flex items-center justify-between py-2.5 px-3 -mx-3 rounded-lg text-[12px] hover:bg-secondary/70 transition-colors"
-        >
-          <span className="font-medium text-foreground/85">{r.name}</span>
-          <span className="text-muted-foreground tabular-nums">
-            {r.count} · {formatTHB(r.value)}
-          </span>
-        </button>
-      ))}
-      {rows.length === 0 && <EmptyRow />}
-    </div>
-  );
+function BreakdownTable({ rows, label, onSelect }) {
+  if (!rows.length) return <EmptyRow />;
+  return <div className="overflow-x-auto">
+    <table className="w-full text-[12px]">
+      <thead><tr className="text-muted-foreground border-b border-border">
+        <th className="text-left font-medium py-2">{label}</th>
+        <th className="text-right font-medium py-2">Deals</th>
+        <th className="text-right font-medium py-2">Net RC</th>
+      </tr></thead>
+      <tbody>{rows.map((row) =>
+        <tr key={row.id} className="border-b last:border-0 border-border">
+          <td className="py-3"><button type="button" className="font-medium text-left hover:text-brand hover:underline"
+            onClick={() => onSelect(row.id)}>{row.name}</button></td>
+          <td className="py-3 text-right tabular-nums">{row.count}</td>
+          <td className="py-3 text-right tabular-nums font-medium">{formatTHB(row.value)}</td>
+        </tr>
+      )}</tbody>
+    </table>
+  </div>;
 }
 
-function OpportunityMiniList({ ops, maps, navigate, showReason, internalTaskSlaDays }) {
-  return (
-    <div className="space-y-1.5 max-h-64 overflow-y-auto">
-      {ops.slice(0, 10).map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => navigate(`/opportunity/${o.id}`)}
-          className="w-full flex items-center justify-between py-2 px-3 -mx-3 rounded-lg hover:bg-secondary/70 transition-colors text-[12px] text-left"
-        >
-          <div className="min-w-0">
-            <div className="font-medium truncate">{o.customer_name}</div>
-            <div className="text-[11px] text-muted-foreground truncate">
-              {maps.stage[o.stage_id]?.name} · {maps.member[o.owner_id]?.name}
-              {showReason && o.support_needed && " · Support"}
-              {showReason && isStageSlaOverdue(o, maps.stage) && " · Stage SLA"}
-              {showReason && isInternalSlaOverdue(o, internalTaskSlaDays) && " · Internal SLA"}
-            </div>
-          </div>
-          <span className="text-muted-foreground tabular-nums ml-2 shrink-0">{formatTHB(o.pipeline_value)}</span>
-        </button>
-      ))}
-      {ops.length === 0 && <EmptyRow />}
-    </div>
-  );
+function OpportunityTable({ rows, maps, onOpen }) {
+  if (!rows.length) return <EmptyRow />;
+  return <div className="overflow-x-auto"><table className="w-full text-[12px]">
+    <thead><tr className="text-muted-foreground border-b border-border">
+      <th className="text-left font-medium py-2">Customer</th>
+      <th className="text-left font-medium py-2">Stage</th>
+      <th className="text-right font-medium py-2">Net RC</th>
+    </tr></thead>
+    <tbody>{rows.map((o) =>
+      <tr className="border-b border-border last:border-0" key={o.id}>
+        <td className="py-3 pr-2"><button type="button" className="font-medium text-left hover:text-brand hover:underline"
+          onClick={() => onOpen(o.id)}>{o.customer_name}</button>
+          {o.support_needed && <div className="text-[10px] text-muted-foreground">Needs Support</div>}
+        </td>
+        <td className="py-3 text-muted-foreground whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
+        <td className="py-3 text-right font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
+      </tr>
+    )}</tbody>
+  </table></div>;
 }
 
 function EmptyRow() {
-  return <div className="text-sm text-muted-foreground py-6 text-center">No data</div>;
+  return <div className="text-[12px] text-muted-foreground py-7 text-center">No matching opportunities</div>;
 }
