@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { db } from "@/api/client";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { ROLE_LABELS } from "@/lib/pipeline";
+import { ROLE_LABELS, currentMonthKey } from "@/lib/pipeline";
 import { dashboardCohort, dashboardMetrics, isStageSlaOverdue } from "@/lib/dashboardMetrics";
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
@@ -53,6 +53,8 @@ export default function Dashboard() {
     if (!isManagement || !profile?.id) {
       return;
     }
+    setSupportRequests(null);
+    setSupportError("");
     let active = true;
     db.supportRequests.list()
       .then((items) => {
@@ -107,15 +109,15 @@ export default function Dashboard() {
     }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
 
   const tabs = isManagement
-    ? [["with", "With Me"], ["overdue", "Stage Overdue"], ["support", "Needs Support"], ["due", "Due This Month"]]
+    ? [["with", "With Me"], ["overdue", "Stage Overdue"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
     : isSM
-      ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["support", "Needs Support"], ["due", "Due This Month"]]
-      : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", "Due This Month"]];
+      ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+      : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]];
   const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : "with";
   const queue = selectedTab === "with" ? assigned
     : selectedTab === "overdue" ? (isManagement ? stageOverdue : assignedOverdue)
     : selectedTab === "support" ? supportNeeded
-    : open.filter((o) => !closeMonth || o.expected_close_month === closeMonth);
+    : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
   const queueItems = queue.slice().sort((a, b) => {
     const aTime = new Date(a.stage_entered_at || 0).getTime();
     const bTime = new Date(b.stage_entered_at || 0).getTime();
