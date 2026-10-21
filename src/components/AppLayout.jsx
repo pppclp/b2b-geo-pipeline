@@ -54,7 +54,7 @@ export default function AppLayout() {
     return () => clearInterval(timer);
   }, []);
   const minutesSinceLoad = lastLoadedAt ? Math.max(0, Math.floor((clock - Date.parse(lastLoadedAt)) / 60000)) : null;
-  const freshnessText = error ? "โหลดล่าสุดไม่สำเร็จ" : !lastLoadedAt ? "ยังไม่โหลดข้อมูล" : minutesSinceLoad === 0 ? "อัปเดตล่าสุดเมื่อสักครู่" : `อัปเดตล่าสุด ${minutesSinceLoad} นาทีที่แล้ว`;
+  const freshnessText = error ? "Refresh failed" : loading ? "Loading data…" : !lastLoadedAt ? "Not yet refreshed" : minutesSinceLoad === 0 ? "Updated just now" : `Updated ${minutesSinceLoad} min ago`;
 
   const items = navFor(profile?.app_role || "ae");
   const displayName = profile?.name || user?.full_name || "User";
@@ -90,30 +90,41 @@ export default function AppLayout() {
     return location.pathname.startsWith(item.to.split("?")[0]);
   };
 
-  const NavList = () => (
-    <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
-      {items.map((it) => {
-        const Icon = it.icon;
-        const active = isItemActive(it);
-        return (
-          <Link
-            key={it.to}
-            to={it.to}
-            onClick={() => setOpen(false)}
-            className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-              active
-                ? "bg-brand-tint text-brand"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary/70"
-            }`}
-          >
-            {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-brand" />}
-            <Icon className="w-[18px] h-[18px] shrink-0" />
-            {it.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  const NavList = () => {
+    const sections = [
+      { title: "WORKSPACE", links: items.filter((it) =>
+        ["/", "/pipeline", "/pipeline?view=assigned-to-me"].includes(it.to)) },
+      { title: "SUPPORT", links: items.filter((it) =>
+        ["/pipeline?view=support-needed", "/support-requests"].includes(it.to)) },
+      { title: "TOOLS", links: items.filter((it) =>
+        ["/admin", "/import"].includes(it.to)) },
+    ].filter((section) => section.links.length > 0);
+    return (
+      <nav aria-label="Primary navigation" className="flex-1 px-3 py-3 space-y-4 overflow-y-auto">
+        {sections.map((section) => (
+          <div key={section.title} className="space-y-1">
+            <div className="text-[10px] tracking-wider font-semibold text-muted-foreground/80 px-3 pb-1">
+              {section.title}
+            </div>
+            {section.links.map((it) => {
+              const Icon = it.icon;
+              const active = isItemActive(it);
+              return (
+                <Link key={it.to} to={it.to} aria-current={active ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                  className={"group relative flex items-center gap-3 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors " +
+                    (active ? "bg-brand-tint text-brand" : "text-muted-foreground hover:text-foreground hover:bg-secondary/70")}>
+                  {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-brand" />}
+                  <Icon className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
+                  {it.label === "Support Needed" ? "Needs Support" : it.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+    );
+  };
 
   const UserCard = () => (
     <div className="border-t border-sidebar-border p-3 space-y-2">
@@ -152,7 +163,7 @@ export default function AppLayout() {
   return (
     <div className="h-screen bg-shell flex gap-3 p-3 overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 shrink-0 rounded-2xl bg-sidebar border border-sidebar-border shadow-card flex-col overflow-hidden">
+      <aside className="hidden md:flex w-[232px] shrink-0 rounded-2xl bg-sidebar border border-sidebar-border shadow-card flex-col overflow-hidden">
         <SidebarContent />
       </aside>
 
@@ -160,7 +171,7 @@ export default function AppLayout() {
       {open && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <aside className="relative w-64 bg-sidebar h-full rounded-r-2xl shadow-lift">
+          <aside className="relative w-[232px] bg-sidebar h-full rounded-r-2xl shadow-lift">
             <button className="absolute top-4 right-3 text-muted-foreground hover:text-foreground" onClick={() => setOpen(false)}>
               <X className="w-5 h-5" />
             </button>
@@ -185,7 +196,7 @@ export default function AppLayout() {
           </div>
           <div className="flex items-center gap-2.5">
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground" role="status" aria-live="polite">
-              <span title={lastLoadedAt ? new Date(lastLoadedAt).toLocaleString("th-TH") : ""}>{freshnessText}</span>
+              <span title={lastLoadedAt ? new Date(lastLoadedAt).toLocaleString("en-US") : ""}>{freshnessText}</span>
               <Button variant="ghost" size="sm" disabled={loading} onClick={refresh} aria-label="Refresh Pipeline data" title="Refresh Pipeline data">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </Button>
