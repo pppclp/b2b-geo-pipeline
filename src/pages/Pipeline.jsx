@@ -206,7 +206,7 @@ export default function Pipeline() {
       {!loading && !error && scopedOpportunities.length === 0 && (
         <p role="status" className="text-sm text-muted-foreground mb-3">
           {opportunities.length > 0
-            ? "Pipeline records were returned, but none match your access scope. Check User Region access and deployment settings."
+            ? "Pipeline records were returned, but none match your access scope. Check the User_Region mapping and deployment settings."
             : "No Pipelines are available for this account. If you expect records, check the deployment and access settings."}
         </p>
       )}
