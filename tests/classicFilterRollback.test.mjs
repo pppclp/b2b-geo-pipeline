@@ -41,3 +41,13 @@ test("Pipeline board and list share one scoped filtered data set",()=>{
   assert.match(pipeline,/User_Region/);
   assert.match(pipeline,/filters\.status/);
 });
+
+
+test("List is default while Sort and Stage quick filters share the canonical Pipeline filters",()=>{
+  assert.match(pipeline,/const \[view, setView\] = useState\("list"\)/);
+  assert.match(pipeline,/const \[sort, setSort\] = useState\("close_month"\)/);
+  assert.match(pipeline,/Quick filter by Stage/);
+  assert.match(pipeline,/onClick=\{\(\) => onFilter\("stage", stage\.id\)\}/);
+  assert.match(pipeline,/aria-pressed=\{filters\.stage === stage\.id\}/);
+  assert.match(pipeline,/min-w-\[1020px\]/);
+});
