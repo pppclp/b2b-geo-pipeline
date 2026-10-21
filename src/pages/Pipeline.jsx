@@ -173,6 +173,18 @@ export default function Pipeline() {
   const selectedPipeline = quickView ? scopedOpportunities.find((item) => item.id === quickView.id) : null;
 
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
+  // When every displayed opportunity has the same handler, state that once above
+  // the table instead of repeating the same name in every row.
+  const sharedHandlerId = sorted.length >= 3 &&
+    sorted[0]?.current_handler_id &&
+    sorted.every((o) => o.current_handler_id === sorted[0].current_handler_id) &&
+    sorted.some((o) => o.owner_id !== sorted[0].current_handler_id)
+      ? sorted[0].current_handler_id
+      : null;
+  const sharedHandlerName = sharedHandlerId
+    ? maps.member[sharedHandlerId]?.name || sharedHandlerId
+    : "";
+
 
   return (
     <div className="p-4 md:p-5 max-w-[1600px] mx-auto">
@@ -310,60 +322,113 @@ export default function Pipeline() {
         </DragDropContext>
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
+          {sharedHandlerName && (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-secondary/25 px-3 py-2 text-[11px] text-muted-foreground">
+              <span>All shown opportunities are with</span>
+              <span className="font-medium text-foreground">{sharedHandlerName}</span>
+              <span>· Current Handler</span>
+            </div>
+          )}
           <div className="overflow-x-auto" aria-label="Pipeline opportunities table">
             <table className="w-full min-w-[1020px] table-fixed text-[12px]">
               <colgroup>
-                <col className="w-[23%]" /><col className="w-[10%]" /><col className="w-[9%]" />
-                <col className="w-[20%]" /><col className="w-[13%]" /><col className="w-[10%]" />
-                <col className="w-[9%]" /><col className="w-[6%]" />
+                <col className="w-[30%]" />
+                <col className="w-[9%]" />
+                <col className="w-[26%]" />
+                <col className="w-[12%]" />
+                <col className="w-[13%]" />
+                <col className="w-[10%]" />
               </colgroup>
-              <thead className="bg-secondary/60 text-muted-foreground sticky top-0 z-10">
+              <thead className="bg-secondary/50 text-muted-foreground">
                 <tr>
-                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Customer / Product</th>
-                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Stage</th>
-                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Status</th>
-                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">AE Owner / Handler</th>
-                  <th scope="col" className="text-right font-medium px-3 py-2.5 text-[11px]">Net RC</th>
-                  <th scope="col" className="text-left font-medium px-3 py-2.5 text-[11px]">Close</th>
-                  <th scope="col" className="text-right font-medium px-3 py-2.5 text-[11px]">Stage Age</th>
-                  <th scope="col" className="text-center font-medium px-2 py-2.5 text-[11px]">Support</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">Opportunity</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">Stage</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">
+                    {sharedHandlerName ? "AE Owner" : "Handler / AE Owner"}
+                  </th>
+                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">Close</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2 text-[11px]">Net RC</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2 text-[11px]">Age / Alerts</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {sorted.map((o) => (
-                  <tr key={o.id} className="hover:bg-secondary/40 cursor-pointer transition-colors align-middle"
-                    onClick={() => openQuickView(o.id)} tabIndex={0}
-                    onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openQuickView(o.id); } }}
-                    aria-label={"Open opportunity " + o.customer_name}>
-                    <td className="px-3 py-2.5">
-                      <div className="font-medium leading-[1.4] line-clamp-2 break-words" title={o.customer_name}>{o.customer_name}</div>
-                      <div className="text-[11px] text-muted-foreground truncate mt-1"
-                        title={[maps.category[o.product_category_id]?.name, o.product_details].filter(Boolean).join(" · ")}>
-                        {maps.category[o.product_category_id]?.name || "—"}{o.product_details ? " · " + o.product_details : ""}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{STATUS_LABELS[o.status] || o.status}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-[11px] truncate" title={"AE Owner: " + (maps.member[o.owner_id]?.name || "Unassigned")}>
-                        <span className="text-muted-foreground">AE</span> {maps.member[o.owner_id]?.name || "Unassigned"}
-                      </div>
-                      <div className="text-[11px] truncate mt-1" title={"Current Handler: " + (maps.member[o.current_handler_id]?.name || "Unassigned")}>
-                        <span className="text-muted-foreground">H</span> {maps.member[o.current_handler_id]?.name || "Unassigned"}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap">{formatTHB(o.pipeline_value)}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatMonth(o.expected_close_month)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
-                      <span className={isStageSlaOverdue(o, maps.stage) ? "text-amber-700 font-medium" : "text-muted-foreground"}>
-                        {agingDays(o.stage_entered_at)}d
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5 text-center">
-                      {o.support_needed ? <span className="inline-flex rounded-md bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px]">Yes</span> : <span className="text-muted-foreground">—</span>}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-border/70">
+                {sorted.map((o) => {
+                  const ownerName = maps.member[o.owner_id]?.name || "Unassigned";
+                  const handlerName = maps.member[o.current_handler_id]?.name || "Unassigned";
+                  const categoryName = maps.category[o.product_category_id]?.name || "";
+                  const overdue = isStageSlaOverdue(o, maps.stage);
+                  const age = agingDays(o.stage_entered_at);
+                  const differentOwner = o.owner_id !== o.current_handler_id;
+                  return (
+                    <tr key={o.id}
+                      className="h-[54px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
+                      onClick={() => openQuickView(o.id)}
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+                          event.preventDefault(); openQuickView(o.id);
+                        }
+                      }}
+                      aria-label={"Open opportunity " + o.customer_name}>
+                      <td className="px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="min-w-0 truncate font-medium text-[12px]" title={o.customer_name}>
+                            {o.customer_name}
+                          </span>
+                          {categoryName && (
+                            <span title={[categoryName, o.product_details].filter(Boolean).join(" · ")}
+                              className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                              {categoryName}
+                            </span>
+                          )}
+                          {o.status !== "open" && (
+                            <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
+                              {STATUS_LABELS[o.status] || o.status}
+                            </span>
+                          )}
+                        </div>
+                        <div className="sr-only">Product details: {o.product_details || "Not specified"}</div>
+                      </td>
+                      <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                        {maps.stage[o.stage_id]?.name || "—"}
+                      </td>
+                      <td className="px-3 py-2 min-w-0">
+                        {sharedHandlerName ? (
+                          <div className="truncate text-[12px]" title={"AE Owner: " + ownerName}>{ownerName}</div>
+                        ) : (
+                          <>
+                            <div className="truncate text-[12px]" title={"Current Handler: " + handlerName}>
+                              {handlerName}
+                            </div>
+                            {differentOwner && (
+                              <div className="truncate text-[10px] text-muted-foreground mt-0.5"
+                                title={"AE Owner: " + ownerName}>Owner: {ownerName}</div>
+                            )}
+                          </>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                        {formatMonth(o.expected_close_month)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap">
+                        {formatTHB(o.pipeline_value)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                          <span className={overdue ? "font-semibold tabular-nums text-amber-700" : "tabular-nums text-muted-foreground"}
+                            title={overdue ? "Stage SLA overdue · " + age + " days in stage" : "Stage age · " + age + " days"}>
+                            {age}d
+                          </span>
+                          {o.support_needed && (
+                            <span role="img" aria-label="Needs Support" title="Needs Support">
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
