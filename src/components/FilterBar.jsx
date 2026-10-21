@@ -37,7 +37,7 @@ const MonthFilter = ({label, value, onChange}) => (
 );
 
 // Presentation only. Never change user scope or derive access from selected filters.
-export default function FilterBar({filters, onFilter, showCreatedMonth = true}) {
+export default function FilterBar({filters, onFilter, showCreatedMonth = true, showQuickStage = true}) {
   const {master, profile, scopedOpportunities} = useData();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const regionOptions = useMemo(() =>
@@ -100,9 +100,9 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true}) 
               value:m.id,label:m.name,keywords:`${m.employee_id||""} ${m.id||""}`
             }))]}/>
         </div>}
-        <SelectWrap label={LABELS.stage} value={filters.stage} onChange={choice("stage")} className="w-[145px]">
+        {showQuickStage && <SelectWrap label={LABELS.stage} value={filters.stage} onChange={choice("stage")} className="w-[145px]">
           {stages.map(s=><SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-        </SelectWrap>
+        </SelectWrap>}
         <SelectWrap label={LABELS.status} value={filters.status || "all"}
           onChange={v=>onFilter("status",v)} className="w-[132px]" allText="All Statuses">
           {["open","won","lost","archived"].map(v=><SelectItem key={v} value={v}>
