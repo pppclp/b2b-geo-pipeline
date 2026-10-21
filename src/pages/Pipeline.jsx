@@ -211,7 +211,7 @@ export default function Pipeline() {
         </p>
       )}
       <div className="rounded-xl border border-border bg-card p-3 mb-4">
-        <FilterBar filters={filters} onFilter={onFilter} />
+        <FilterBar filters={filters} onFilter={onFilter} showQuickStage={view !== "list"} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
