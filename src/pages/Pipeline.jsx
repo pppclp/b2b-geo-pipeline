@@ -288,7 +288,11 @@ export default function Pipeline() {
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
       ) : view === "board" ? (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-3 overflow-x-auto pb-4">
+          <div className="relative">
+            <div className="mb-2 text-right text-[11px] text-muted-foreground xl:hidden">
+              Scroll horizontally to see all stages →
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Sales stages — scroll horizontally for more">
             {activeStages.map((stage) => {
               const stageOps = sorted.filter((o) => o.stage_id === stage.id);
               const stageValue = stageOps.reduce((a, o) => a + (o.pipeline_value || 0), 0);
@@ -324,6 +328,8 @@ export default function Pipeline() {
                 </div>
               );
             })}
+            </div>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background to-transparent" />
           </div>
         </DragDropContext>
       ) : (
