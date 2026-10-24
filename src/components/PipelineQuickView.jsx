@@ -40,6 +40,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
   const canEdit = op.status === "open" && (
     profile?.app_role === "admin" ||
     profile?.app_role === "sm" ||
+    profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile?.id || op.current_handler_id === profile?.id))
   );
 
@@ -129,23 +130,21 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
             </Select>
           </div>
         </div>
-        <div className="flex items-center gap-4 py-3">
-          <div className="min-w-0 flex-1">
-            <Label htmlFor={`working-${op.id}`} className="text-[13px] font-medium">Working With</Label>
-            <p className="text-xs text-muted-foreground mt-1">Optional</p>
+        <div className="py-3 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label className="text-[13px] font-medium">Working With</Label>
+            <span className="text-xs text-muted-foreground">Optional · Teams first</span>
           </div>
-          <div className="w-[48%] shrink-0">
-            <WorkingWithMultiSelect
-              teams={master?.WorkingWithOption || []}
-              people={master?.TeamMember || []}
-              regionId={op.region_id}
-              disabled={!canEdit || saving}
-              teamIds={workingTeamIds}
-              userIds={workingUserIds}
-              onTeams={setWorkingTeamIds}
-              onUsers={setWorkingUserIds}
-            />
-          </div>
+          <WorkingWithMultiSelect
+            teams={master?.WorkingWithOption || []}
+            people={master?.TeamMember || []}
+            regionId={op.region_id}
+            disabled={!canEdit || saving}
+            teamIds={workingTeamIds}
+            userIds={workingUserIds}
+            onTeams={setWorkingTeamIds}
+            onUsers={setWorkingUserIds}
+          />
         </div>
       </div>
       {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
