@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
-// Visible region quick-filter chips for Management / SM dashboards.
+// Visible region quick-filter chips whenever a dashboard role can view more than one Region.
 // value === "" means all permitted Regions (no region filter applied).
 export default function RegionQuickFilter({ regions, value, onChange }) {
   if (!regions || regions.length === 0) return null;
@@ -18,7 +18,7 @@ export default function RegionQuickFilter({ regions, value, onChange }) {
             : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
         )}
       >
-        All My Regions
+        All Regions ({regions.length})
       </button>
       {regions.map((r) => (
         <button
