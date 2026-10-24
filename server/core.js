@@ -463,7 +463,7 @@ export function createCore({ contract, store, now, uuid }) {
   // A single regional alert is shared by all SMs in that Region. It does not
   // change Current Handler or create one notification per individual SM.
   function addSmInputNotification(op, actor, stamp) {
-    if (!notificationBinding || !["ae", "management", "admin"].includes(actor.role) || !needsSmInfo(op)) return;
+    if (!notificationBinding || !["ae", "management"].includes(actor.role) || !needsSmInfo(op)) return;
     const regionalSms = rows("users").some((user) =>
       normalizeRole(user.role) === "sm" && String(user.status || "Active").toLowerCase() === "active" &&
       regionIdsFor(user.user_id).includes(op.region_id));
@@ -479,7 +479,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Assignment on creation is distinct from a subsequent handler handoff.
   function addCreationAssignmentNotification(op, actor, stamp) {
-    if (!notificationBinding || !op.current_handler_user_id ||
+    if (!notificationBinding || !["sm", "management"].includes(actor.role) || !op.current_handler_user_id ||
         op.current_handler_user_id === actor.real.id) return;
     const recipient = findUser(op.current_handler_user_id);
     if (!recipient) return;
