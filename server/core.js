@@ -793,6 +793,9 @@ export function createCore({ contract, store, now, uuid }) {
       const stamp = now();
       if (uiEntity === "Opportunity") {
         data = stripSystemFields(data);
+        if (!importMeta && !String(data.client_request_id || "").trim()) {
+          throw new HttpError(400, "Client request ID is required");
+        }
         if (!importMeta && data.client_request_id) {
           const requestId = String(data.client_request_id);
           if (!/^[A-Za-z0-9_-]{16,100}$/.test(requestId)) throw new HttpError(400, "Invalid client request ID");
