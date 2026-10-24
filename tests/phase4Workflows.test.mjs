@@ -46,7 +46,10 @@ function harness(){
       body.expected_updated_at === undefined
       ? { ...body, expected_updated_at: String(table["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
       : body;
-    return core.handle({userId,method,path,body:actualBody});
+    const keyedBody = method === "POST" && path === "entities/Opportunity"
+      ? { ...actualBody, client_request_id: actualBody?.client_request_id || "phase4_req_" + String(++n).padStart(8,"0") }
+      : actualBody;
+    return core.handle({userId,method,path,body:keyedBody});
   };
  const create=()=>call("ADMIN","POST","entities/Opportunity",{
   customer_name:"Test Account",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
