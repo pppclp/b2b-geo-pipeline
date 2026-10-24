@@ -457,6 +457,46 @@ export function createCore({ contract, store, now, uuid }) {
       changes.working_with_user_ids = userIds.join(",");
     }
   }
+  // This is a data-completeness rule, not another Pipeline status or handoff.
+  // Only SM is responsible for completing both fields; Pending CCP+ is incomplete.
+  function needsSmInput(op) {
+    return !String(op.scenario_id || "").trim() ||
+      !String(op.ccp_check_result || "").trim() ||
+      String(op.ccp_check_result).toLowerCase() === "pending";
+  }
+  function addCreationNotifications(op, actor, stamp) {
+    if (!notificationBinding) return;
+    const t = tableOf(notificationBinding);
+    const recipients = new Map();
+    const ownerId = String(op.owner_user_id || "");
+    // When SM/Management creates for an AE, assign the work to that AE
+    // without changing the commercial ownership or handler semantics.
+    if (["sm", "management", "admin"].includes(actor.role) &&
+        ownerId && ownerId !== actor.real.id && findUser(ownerId)) {
+      recipients.set(ownerId, "pipeline_assigned");
+    }
+    if (["ae", "management"].includes(actor.role) && needsSmInput(op)) {
+      // Multiple eligible SMs in one Region each receive one notification.
+      // No arbitrary "primary SM" is inferred from User_Region.is_primary,
+      // which denotes a user's primary Region rather than a Region leader.
+      for (const user of rows("users")) {
+        if (String(user.role || "").trim().toLowerCase() !== "sm") continue;
+        const sm = findUser(user.user_id);
+        if (sm && sm.id !== actor.real.id &&
+            sm.region_ids.includes(String(op.region_id))) {
+          recipients.set(sm.id, "sm_input_needed");
+        }
+      }
+    }
+    for (const [recipientId, type] of recipients) {
+      t.rows.push({
+        notification_id: "NTF-" + uuid(), recipient_user_id: recipientId,
+        opportunity_id: op.opportunity_id, actor_user_id: actor.real.id,
+        type, created_at: stamp, read_at: "",
+      });
+    }
+    if (recipients.size) touch(notificationBinding);
+  }
   function addHandoffNotification(opportunityId, oldHandler, newHandler, actor, stamp) {
     if (!notificationBinding || !newHandler || oldHandler === newHandler || newHandler === actor.real.id) return;
     const recipient = findUser(newHandler);
@@ -473,6 +513,15 @@ export function createCore({ contract, store, now, uuid }) {
     });
     touch(notificationBinding);
   }
+  function opportunityName(id) {
+    const b = binding("Opportunity");
+    return tableOf(b).rows.find((o) => o.opportunity_id === id)?.customer_name || "";
+  }
+  function needsSmInputById(id) {
+    const b = binding("Opportunity");
+    const op = tableOf(b).rows.find((o) => o.opportunity_id === id);
+    return !!op && needsSmInput(op);
+  }
   function listNotifications(actor) {
     if (!notificationBinding) throw new HttpError(503, "Handoff Notifications need database setup");
     const mine = notificationRows().filter((n) => n.recipient_user_id === actor.real.id);
@@ -486,6 +535,8 @@ export function createCore({ contract, store, now, uuid }) {
       items: visible.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 30)
         .map((n) => ({ id:n.notification_id, opportunity_id:n.opportunity_id,
           actor_name:findUser(n.actor_user_id)?.name || "Colleague",
+          type:n.type || "handoff", customer_name:opportunityName(n.opportunity_id),
+          needs_sm_input:needsSmInputById(n.opportunity_id),
           created_at:n.created_at, read_at:n.read_at || "" }))
     };
   }
@@ -729,8 +780,8 @@ export function createCore({ contract, store, now, uuid }) {
         }
         // New AE modal fields must be validated server-side as well.
         // Imported historical data without sales_channel is handled separately.
-        if (actor.role === "ae" && (data.scenario_id || data.ccp_check_result)) {
-          throw new HttpError(403, "Only SM or Management can set Scenario and CCP+ Check");
+        if (!["sm", "admin"].includes(actor.role) && (data.scenario_id || data.ccp_check_result)) {
+          throw new HttpError(403, "Only SM or Admin can set Scenario and CCP+ Check");
         }
         if (actor.role === "ae" && String(data.owner_id || "") !== String(actor.id)) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
@@ -773,6 +824,7 @@ export function createCore({ contract, store, now, uuid }) {
       const auditEvents = b.entity === "opportunities"
         ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
         : [];
+      if (b.entity === "opportunities") addCreationNotifications(saved, actor, stamp);
       if (b.entity === "opportunities" && bool.toUi(saved.support_needed))
         openSupportRequest(actor,saved[b.primary_key],saved.support_type_id,saved.support_note,stamp);
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("CREATED", b, saved[b.primary_key], null, saved, actor);
@@ -827,14 +879,14 @@ export function createCore({ contract, store, now, uuid }) {
           }
         }
       }
-      if (uiEntity === "Opportunity" && actor.role === "ae") {
+      if (uiEntity === "Opportunity" && ["ae", "management"].includes(actor.role)) {
         const current = toUi(uiEntity, b.primary_key, row);
-        if ("owner_id" in data && String(data.owner_id) !== String(current.owner_id)) {
+        if (actor.role === "ae" && "owner_id" in data && String(data.owner_id) !== String(current.owner_id)) {
           throw new HttpError(403, "Only SM or Admin may reassign commercial ownership");
         }
         for (const field of ["scenario_id", "ccp_check_result"]) {
           if (field in data && String(data[field] || "") !== String(current[field] || "")) {
-            throw new HttpError(403, "Only SM or Management can update " + field);
+            throw new HttpError(403, "Only SM or Admin can update " + field);
           }
         }
       }

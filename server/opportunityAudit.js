@@ -9,6 +9,8 @@ const CHANGES = {
   current_handler_user_id: ["handler_change", "current_handler"],
   owner_user_id: ["reassign", "owner"],
   working_with_id: ["working_with_change", "working_with"],
+  working_with_team_ids: ["working_with_change", "working_with_teams"],
+  working_with_user_ids: ["working_with_change", "working_with_people"],
   expected_close_month: ["close_month_change", "expected_close_month"],
 };
 
@@ -28,6 +30,10 @@ export function opportunityAuditEvents(before, after, { remark = "" } = {}) {
   const changes = [];
   for (const field of Object.keys(after)) {
     if (IGNORED.has(field) || field === "opportunity_id") continue;
+    // The legacy primary-team mirror changes alongside a multi-team update.
+    // Record the multi-team event only, avoiding duplicate collaboration logs.
+    if (field === "working_with_id" &&
+        visible(before.working_with_team_ids) !== visible(after.working_with_team_ids)) continue;
     if (visible(before[field]) === visible(after[field])) continue;
     let [event_type, auditField] = CHANGES[field] || ["field_change", field];
     if (field === "status") {

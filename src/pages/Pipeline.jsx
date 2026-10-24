@@ -79,6 +79,7 @@ export default function Pipeline() {
     if (params.get("lost_reason")) f.lost_reason = params.get("lost_reason");
     if (params.get("stage")) f.stage = params.get("stage");
     if (params.get("status")) f.status = params.get("status");
+    if (profile?.app_role === "sm" && params.get("sm_info") === "missing") f.sm_info = "missing";
     if (params.get("sort")) setSort(params.get("sort"));
     setFilters(f);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,6 +122,9 @@ export default function Pipeline() {
       if (filters.handler && o.current_handler_id !== filters.handler) return false;
       if (filters.stage && o.stage_id !== filters.stage) return false;
       if (filters.status && filters.status !== "all" && o.status !== filters.status) return false;
+      if (filters.sm_info === "missing" &&
+          (o.status !== "open" ||
+            (o.scenario_id && o.ccp_check_result && o.ccp_check_result !== "pending"))) return false;
       if (filters.product_category && o.product_category_id !== filters.product_category) return false;
       if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
       if (filters.ccp_check_result && o.ccp_check_result !== filters.ccp_check_result) return false;
@@ -224,6 +228,22 @@ export default function Pipeline() {
       )}
       <div className="rounded-xl border border-border bg-card p-3 mb-4">
         <FilterBar filters={filters} onFilter={onFilter} showQuickStage={view !== "list"} />
+        {profile?.app_role === "sm" && (
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border/60">
+            <button type="button" aria-pressed={filters.sm_info === "missing"}
+              onClick={() => onFilter("sm_info", filters.sm_info === "missing" ? "" : "missing")}
+              className={filters.sm_info === "missing"
+                ? "rounded-lg border border-primary/40 bg-brand-tint px-3 py-1.5 text-[12px] font-medium text-brand"
+                : "rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-secondary"}>
+              Missing SM Info
+            </button>
+            <span className="text-[11px] text-muted-foreground">
+              {scopedOpportunities.filter((o) => o.status === "open" &&
+                (!o.scenario_id || !o.ccp_check_result || o.ccp_check_result === "pending")).length}
+              {" "}open Pipelines in your scope
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">

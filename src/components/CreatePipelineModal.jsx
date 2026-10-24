@@ -16,6 +16,7 @@ const EMPTY = {
   contact_name: "", contact_phone: "", remark: "", partner_name: "",
   product_category_id: "", product_details: "", quantity: "", price_per_sub: "",
   oc: "", contract_period: "", expected_close_month: "", owner_id: "",
+  scenario_id: "", ccp_check_result: "",
 };
 const SALES_CHANNELS = ["AE B2B GEO", "AE Self", "B2B Premium Partner"];
 
@@ -64,11 +65,15 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     setSaveError("");
   };
   const ownerIsAE = profile?.app_role === "ae";
+  const smCanReview = ["sm","admin"].includes(profile?.app_role);
   const selectedOwner = ownerIsAE
     ? profile
     : (master?.TeamMember || []).find((m) => m.id === form.owner_id);
   const regionIds = selectedOwner?.region_ids || [];
-  const regionId = selectedOwner?.default_region_id || (regionIds.length === 1 ? regionIds[0] : "");
+  const allowedOwnerRegions = profile?.app_role === "admin" ? regionIds :
+    regionIds.filter((id) => (profile?.region_ids || []).includes(id));
+  const regionId = allowedOwnerRegions.includes(selectedOwner?.default_region_id)
+    ? selectedOwner.default_region_id : allowedOwnerRegions[0] || "";
   const territoryIds = selectedOwner?.territory_ids || [];
   const territoryId = selectedOwner?.default_territory_id || (territoryIds.length === 1 ? territoryIds[0] : "");
 
@@ -77,8 +82,11 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     [master]
   );
   const aeMembers = useMemo(
-    () => (master?.TeamMember || []).filter((m) => m.active && m.app_role === "ae").sort((a, b) => a.name.localeCompare(b.name)),
-    [master]
+    () => (master?.TeamMember || []).filter((m) => m.active && m.app_role === "ae" &&
+      (profile?.app_role === "admin" ||
+        (m.region_ids || []).some((id) => (profile?.region_ids || []).includes(id))))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [master, profile]
   );
 
   const netRc = useMemo(() => {
@@ -140,8 +148,8 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
         region_id: regionId,
         territory_id: territoryId || "",
         stage_id: activeStages[0]?.id || "",
-        scenario_id: "",
-        ccp_check_result: "",
+        scenario_id: smCanReview ? form.scenario_id : "",
+        ccp_check_result: smCanReview ? form.ccp_check_result : "",
       };
       if (!payload.stage_id) throw new Error("No active Stage is configured");
       await createOpportunity(payload);
@@ -265,13 +273,30 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
             </section>
 
             <section aria-labelledby="section-3" className="border-t pt-5">
-              <SectionHeading number="3" trailing="SM Review">Additional Information</SectionHeading>
+              <SectionHeading number="3" trailing={smCanReview ? "SM Input · Optional at Create" : "Completed by SM"}>Additional Information</SectionHeading>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Scenario">
-                  <Input value="Pending SM Review" readOnly aria-readonly="true" className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>
+                  {smCanReview ? (
+                    <Select value={form.scenario_id || ""} onValueChange={(v) => set("scenario_id", v)}>
+                      <SelectTrigger aria-label="Scenario"><SelectValue placeholder="Not set" /></SelectTrigger>
+                      <SelectContent>{(master?.Scenario || []).filter((item) => item.active).map((item) =>
+                        <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  ) : <Input value="To be completed by SM" readOnly aria-readonly="true"
+                      className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>}
                 </Field>
                 <Field label="CCP+ Check">
-                  <Input value="Pending SM Review" readOnly aria-readonly="true" className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>
+                  {smCanReview ? (
+                    <Select value={form.ccp_check_result || ""} onValueChange={(v) => set("ccp_check_result", v)}>
+                      <SelectTrigger aria-label="CCP+ Check"><SelectValue placeholder="Not set" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
+                        <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
+                        <SelectItem value="pending">Pending Review</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : <Input value="To be completed by SM" readOnly aria-readonly="true"
+                      className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>}
                 </Field>
               </div>
             </section>

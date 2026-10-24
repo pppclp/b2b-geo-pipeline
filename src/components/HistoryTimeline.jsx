@@ -30,8 +30,17 @@ const EVENT_META = {
   status_change: { label: "Status changed", icon: RefreshCw },
 };
 
+// Multi-select collaborators are stored by stable IDs; show names in History.
+function auditValue(field, value, maps) {
+  if (!["working_with_teams", "working_with_people"].includes(field)) return value;
+  if (!value) return "None";
+  const dictionary = field === "working_with_teams" ? maps.workingWith : maps.member;
+  return String(value).split(",").filter(Boolean)
+    .map((id) => dictionary?.[id]?.name || id).join(", ");
+}
+
 export default function HistoryTimeline({ opportunityId }) {
-  const { profile } = useData();
+  const { profile, maps } = useData();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -79,6 +88,8 @@ export default function HistoryTimeline({ opportunityId }) {
       {items.map((h) => {
         const meta = EVENT_META[h.event_type] || { label: h.event_type, icon: RefreshCw };
         const Icon = meta.icon;
+        const previous = auditValue(h.field, h.previous_value, maps);
+        const next = auditValue(h.field, h.new_value, maps);
         return (
           <li key={h.id} className="ml-4">
             <span className="absolute -left-[9px] mt-1 w-4 h-4 rounded-full bg-card border border-border flex items-center justify-center">
@@ -90,9 +101,9 @@ export default function HistoryTimeline({ opportunityId }) {
             </div>
             {(h.previous_value || h.new_value) && (
               <div className="text-sm text-muted-foreground mt-0.5">
-                {h.previous_value && <span>{h.previous_value}</span>}
-                {h.previous_value && h.new_value && <span> → </span>}
-                {h.new_value && <span className="text-foreground font-medium">{h.new_value}</span>}
+                {previous && <span>{previous}</span>}
+                {previous && next && <span> → </span>}
+                {next && <span className="text-foreground font-medium">{next}</span>}
               </div>
             )}
             {h.remark && <div className="text-sm text-muted-foreground italic mt-0.5">“{h.remark}”</div>}
