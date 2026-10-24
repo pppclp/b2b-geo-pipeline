@@ -38,8 +38,17 @@ function validateLatestOpportunityFields(data, { requireRequired = false } = {})
   if ("sales_channel" in data && data.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
     throw new HttpError(400, "Invalid Sales Channel");
   }
-  if ("remark" in data && String(data.remark || "").length > 500) {
-    throw new HttpError(400, "Remark exceeds 500 characters");
+  // Bound each user-editable text field before Google Sheets receives the value.
+  // Limits match ordinary sales usage; do not trim data silently on the server.
+  const textLimits = {
+    customer_name: 200, contact_name: 120, contact_phone: 40,
+    partner_name: 200, product_details: 2000, remark: 500,
+    support_note: 1000, lost_note: 1000, last_remark: 500,
+  };
+  for (const [field, limit] of Object.entries(textLimits)) {
+    if (field in data && data[field] != null && String(data[field]).length > limit) {
+      throw new HttpError(400, field + " exceeds " + limit + " characters");
+    }
   }
   if ("ccp_check_result" in data && data.ccp_check_result && !["not_in_base", "enterprise_base", "pending"].includes(String(data.ccp_check_result))) {
     throw new HttpError(400, "Invalid CCP+ Check value");
@@ -217,6 +226,13 @@ export function createCore({ contract, store, now, uuid }) {
   }
   // Identity used for sign-in must not leak via ordinary team directories.
   // Admin retains access for account provisioning; UI hiding alone is not a guard.
+  // Restrict the actual server response, not merely the browser dropdown.
+  // A member is visible when they share an active Region assignment, or are self.
+  function directoryVisible(actor, userId) {
+    if (actor.role === "admin" || String(userId) === String(actor.real.id)) return true;
+    const allowedRegions = new Set(actor.region_ids || []);
+    return regionIdsFor(userId).some((id) => allowedRegions.has(id));
+  }
   function visibleMember(actor, uiEntity, record) {
     if (uiEntity !== "TeamMember" || actor.role === "admin") return record;
     const { employee_id: ignored, ...publicMember } = record;
@@ -719,6 +735,9 @@ export function createCore({ contract, store, now, uuid }) {
       // Management/Admin user customer-row access via an arbitrary handoff.
       if (["management", "admin"].includes(handler.role)) {
         if (actor?.role === "ae") throw new HttpError(403, "AE cannot hand off directly to Management or Admin");
+        if (handler.role === "management" && !handler.region_ids.includes(String(next.region_id))) {
+          throw new HttpError(400, "Management Handler is not assigned to this Pipeline's Region");
+        }
       } else if (!["ae", "sm"].includes(handler.role) || !handler.region_ids.includes(String(next.region_id))) {
         throw new HttpError(400, "Current Handler AE/SM must be assigned to this Pipeline's Region");
       }
@@ -746,7 +765,9 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "read");
       if (ENTITIES[uiEntity].virtual) return appConfigList();
       const inScope = scopedFilter(b, actor);
-      let out = tableOf(b).rows.filter(inScope).map((r) => visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, r))));
+      let out = tableOf(b).rows.filter(inScope);
+      if (uiEntity === "TeamMember") out = out.filter((r) => directoryVisible(actor, r.user_id));
+      out = out.map((r) => visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, r))));
       out = sortRows(out.filter((r) => matches(r, query)), sort);
       return limit ? out.slice(0, Number(limit)) : out;
     },
@@ -754,7 +775,11 @@ export function createCore({ contract, store, now, uuid }) {
       const b = binding(uiEntity);
       need(actor, b, "read");
       if (ENTITIES[uiEntity].virtual) return appConfigList().find((c) => c.id === id);
-      return visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, findRow(b, actor, id))));
+      const row = findRow(b, actor, id);
+      if (uiEntity === "TeamMember" && !directoryVisible(actor, row.user_id)) {
+        throw new HttpError(404, "Team member not found");
+      }
+      return visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, row)));
     },
     create(uiEntity, actor, data, importMeta = null) {
       const b = binding(uiEntity);
@@ -848,9 +873,13 @@ export function createCore({ contract, store, now, uuid }) {
         delete data.expected_updated_at;
       }
       const row = findRow(b, actor, id);
-      if (uiEntity === "Opportunity" && expectedUpdatedAt !== undefined &&
-          String(expectedUpdatedAt) !== String(row.updated_at || "")) {
-        throw new HttpError(409, "This Pipeline was updated by someone else. Refresh it before saving.");
+      if (uiEntity === "Opportunity") {
+        if (typeof expectedUpdatedAt !== "string") {
+          throw new HttpError(428, "Pipeline revision is required. Refresh before saving.");
+        }
+        if (String(expectedUpdatedAt) !== String(row.updated_at || "")) {
+          throw new HttpError(409, "This Pipeline was updated by someone else. Refresh it before saving.");
+        }
       }
       const before = { ...row };
       if (uiEntity === "TeamMember") {
@@ -869,13 +898,18 @@ export function createCore({ contract, store, now, uuid }) {
           if (!roleCanReopen) throw new HttpError(403, "Only SM, Management or Admin can Reopen a Pipeline");
           if (!String(data.audit_remark || "").trim()) throw new HttpError(400, "Reopen reason is required");
         }
-        if (actor.role === "ae" && prior !== "open") {
-          const previousView = toUi(uiEntity, b.primary_key, row);
-          for (const field of ["quantity", "price_per_sub", "oc", "contract_period", "contract_period_months", "expected_close_month"]) {
-            const oldValue = field === "contract_period_months" ? row.contract_period_months : previousView[field];
-            if (field in data && String(data[field] ?? "") !== String(oldValue ?? "")) {
-              throw new HttpError(403, "AE cannot change financial or close-month fields of a closed Pipeline");
+        if (prior !== "open") {
+          // Closed Pipelines are immutable except for harmless remarks or a
+          // separately audited status transition. Reopen is never bundled with
+          // edits to Stage, Handler, ownership, customer or financial fields.
+          const allowed = new Set(["status", "remark", "last_remark", "audit_remark"]);
+          for (const field of Object.keys(data)) {
+            if (!allowed.has(field)) {
+              throw new HttpError(409, "Reopen the Pipeline before editing " + field);
             }
+          }
+          if (desired === "open" && Object.keys(data).some((f) => f !== "status" && f !== "audit_remark")) {
+            throw new HttpError(400, "Reopen and edit must be separate audited actions");
           }
         }
       }
@@ -1032,7 +1066,10 @@ export function createCore({ contract, store, now, uuid }) {
       return {
         file, sheet, primary_key: b.primary_key,
         headers: b.entity === "users" && actor.role !== "admin" ? headers.filter((h) => h !== "employee_id") : headers,
-        rows: t.rows.filter(scopedFilter(b, actor)).map((r) => visibleSheetRow(actor, b, r)),
+        rows: t.rows.filter(scopedFilter(b, actor)).filter((r) =>
+          b.entity === "users" ? directoryVisible(actor, r.user_id) :
+          b.entity === "user_regions" ? directoryVisible(actor, r.user_id) : true
+        ).map((r) => visibleSheetRow(actor, b, r)),
         actions: actionsFor(actor, b),
       };
     },
