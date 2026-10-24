@@ -202,7 +202,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-4">
                 <Field label="Customer Name" required error={submitted && errors.customer_name}>
-                  <Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="Enter customer name" aria-invalid={submitted && !!errors.customer_name} />
+                  <Input maxLength={200} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="Enter customer name" aria-invalid={submitted && !!errors.customer_name} />
                 </Field>
                 <Field label="Business ID" required error={submitted && errors.business_id}>
                   <Input value={form.business_id} inputMode="numeric" onChange={(e) => set("business_id", e.target.value.replace(/\D/g, ""))} placeholder="Enter business ID" aria-invalid={submitted && !!errors.business_id}/>
@@ -220,10 +220,10 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                   </Select>
                 </Field>
                 <Field label="Contact Name" required error={submitted && errors.contact_name}>
-                  <Input value={form.contact_name} onChange={(e) => set("contact_name", e.target.value)} placeholder="Enter contact name" aria-invalid={submitted && !!errors.contact_name}/>
+                  <Input maxLength={120} value={form.contact_name} onChange={(e) => set("contact_name", e.target.value)} placeholder="Enter contact name" aria-invalid={submitted && !!errors.contact_name}/>
                 </Field>
                 <Field label="Contact Phone" required error={submitted && errors.contact_phone}>
-                  <Input type="tel" value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} placeholder="e.g. 08x-xxx-xxxx" aria-invalid={submitted && !!errors.contact_phone}/>
+                  <Input type="tel" maxLength={40} value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} placeholder="e.g. 08x-xxx-xxxx" aria-invalid={submitted && !!errors.contact_phone}/>
                 </Field>
                 <Field label="Remark" className="sm:col-span-2">
                   <Textarea rows={2} maxLength={500} value={form.remark} onChange={(e) => set("remark", e.target.value)} placeholder="Customer needs, next steps, details" className="resize-none" />
@@ -231,7 +231,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                 </Field>
                 {form.sales_channel === "B2B Premium Partner" && (
                   <Field label="Partner Name" className="sm:col-span-2">
-                    <Input value={form.partner_name} onChange={(e) => set("partner_name", e.target.value)} placeholder="Enter partner name"/>
+                    <Input maxLength={200} value={form.partner_name} onChange={(e) => set("partner_name", e.target.value)} placeholder="Enter partner name"/>
                   </Field>
                 )}
               </div>
@@ -247,7 +247,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                   </Select>
                 </Field>
                 <Field label="Product Description (Free Text)">
-                  <Input value={form.product_details} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter package / solution / equipment description" />
+                  <Input maxLength={2000} value={form.product_details} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter package / solution / equipment description" />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
