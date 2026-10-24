@@ -17,6 +17,7 @@ export default function SheetEditor() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState("");
+  const [cellFeedback, setCellFeedback] = useState({});
 
   // Source sheets only — app-maintained sheets (Opportunities, events, snapshots) are edited elsewhere.
   useEffect(() => {
@@ -61,9 +62,21 @@ export default function SheetEditor() {
   const can = (a) => data?.actions?.includes(a);
   const pk = data?.primary_key;
 
-  const saveCell = (row, col, value) => {
+  const saveCell = async (row, col, value) => {
     if (String(row[col] ?? "") === value) return;
-    run(() => db.sheets.update(current.file, current.sheet, row[pk], { [col]: value }));
+    const cellKey = `${row[pk]}:${col}`;
+    setCellFeedback((previous) => ({ ...previous, [cellKey]: { state: "saving" } }));
+    setBusy(true);
+    try {
+      await db.sheets.update(current.file, current.sheet, row[pk], { [col]: value });
+      await load();
+      refresh();
+      setCellFeedback((previous) => ({ ...previous, [cellKey]: { state: "saved" } }));
+    } catch (e) {
+      setCellFeedback((previous) => ({ ...previous, [cellKey]: { state: "error", message: e.message } }));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const addRow = () => run(() => db.sheets.create(current.file, current.sheet, draft));
@@ -129,13 +142,35 @@ export default function SheetEditor() {
                       {h === pk || !can("update") ? (
                         <span className="px-2 font-mono text-xs">{String(row[h] ?? "")}</span>
                       ) : (
-                        <Input
-                          key={String(row[h] ?? "")}
-                          className="h-8"
-                          defaultValue={String(row[h] ?? "")}
-                          onBlur={(e) => saveCell(row, h, e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                        />
+                        <>
+                          {current?.sheet === "Users" && (h === "role" || h === "status") ? (
+                            <Select value={String(row[h] ?? "")} disabled={busy}
+                              onValueChange={(value) => saveCell(row, h, value)}>
+                              <SelectTrigger className="h-8 min-w-[135px]" aria-label={`${h} for ${row[pk]}`}>
+                                <SelectValue placeholder={`Select ${h}`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(h === "role" ? ["AE", "SM", "Management", "Admin"] : ["Active", "Inactive"])
+                                  .map((value) => <SelectItem value={value} key={value}>{value}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              key={String(row[h] ?? "")}
+                              className="h-8"
+                              defaultValue={String(row[h] ?? "")}
+                              onBlur={(e) => saveCell(row, h, e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                            />
+                          )}
+                          {cellFeedback[`${row[pk]}:${h}`] && (
+                            <div role="status" className={`mt-1 text-[11px] ${cellFeedback[`${row[pk]}:${h}`].state === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+                              {cellFeedback[`${row[pk]}:${h}`].state === "error"
+                                ? cellFeedback[`${row[pk]}:${h}`].message
+                                : cellFeedback[`${row[pk]}:${h}`].state === "saving" ? "Saving…" : "Saved"}
+                            </div>
+                          )}
+                        </>
                       )}
                     </td>
                   ))}

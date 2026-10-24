@@ -1,34 +1,37 @@
-# AGENTS.md
+# AGENTS.md — B2B GEO Pipeline
 
-## Project Context
+This repository is a React/Vite frontend with a shared Node/Google Apps Script backend.
+It is **not** a Base44 app. Work from `README.md` and keep changes tightly scoped.
 
-This is a Base44 app repository. Treat it as user-owned application code, keep changes focused on the user's request, and preserve existing project conventions.
+## Architecture
+- `src/`: React frontend and API client. GitHub Pages deploys static `dist/` on changes to `main`.
+- `server/core.js`: authoritative business logic shared by local API and Apps Script.
+- `server/api.js`: local development server.
+- `apps-script/Main.js`: Google Apps Script entry point / Google Sheets transport.
+- `b2b_geo_pipeline.yaml`: Sheet binding, columns, permissions and references.
+- `scripts/gas-build.mjs`: generates Apps Script `GeoCore.js`, `Contract.js`, `SheetIds.js`.
+- `tests/`: Node test suite. Keep permission and audit changes covered by tests.
 
-Start with `README.md` for local setup, environment variables, and publish workflow.
-
-## Base44 References
-
-- CLI overview: https://docs.base44.com/developers/references/cli/get-started/overview.md
-- Agent skills: https://docs.base44.com/developers/backend/overview/skills.md
-
-If your agent supports Agent Skills, install or update Base44 skills before Base44-specific work:
-
+## Commands
 ```bash
-npx skills add base44/skills
+npm ci
+npm run dev
+npm run lint
+npm run build
+node --test tests/*.test.mjs
+npm run gas:build
 ```
+Never use `npm audit fix --force`; review any lockfile changes.
 
-## Key Files
+## Deployment (two independent sides)
+1. Frontend: merge approved PR to `main`; verify GitHub Pages action and deployed site.
+2. Backend: build the matching Apps Script bundle (`npm run gas:build`), update the actual Apps Script project, verify Sheet IDs/Script Properties and publish a new deployment version.
+3. Validate that the frontend API URL points to the updated Apps Script deployment. A GitHub Pages deploy does **not** update Apps Script.
+4. Before database migrations, verify the exact UAT Sheet ID, create a restricted backup, and use the guarded migration procedure documented in `README.md`.
 
-- `src/`: frontend application source.
-- `src/api/base44Client.js`: frontend Base44 SDK client.
-- `vite.config.js`: Vite config and Base44 Vite plugin setup.
-- `.env.local`: local-only environment values; never commit secrets.
-
-## Working Notes
-
-- Use `base44 dev` as the default local development command when you need the local Base44 backend. It can run the backend and frontend together.
-- When docs or code mention the frontend being started automatically, that usually means the Base44 project config includes `site.serveCommand`, for example `"serveCommand": "npm run dev"` in `base44/config.jsonc`.
-- Use `npm run dev` only for frontend-only work against the hosted Base44 backend.
-- Prefer the existing Base44 CLI workflow over adding new npm scripts for Base44-specific tasks.
-- Reuse the existing SDK client and Vite plugin patterns before adding new Base44 integration paths.
-- Run the relevant checks from `package.json` before finishing code changes.
+## Data/Access Safety
+- Never commit `.env.local`, UAT passwords, tokens, or private spreadsheet data.
+- Never change Google Sheets schema without explicit approval.
+- Respect existing AE/SM/Management/Admin permissions and ownership.
+- Keep `Pipeline_Events` append-only and preserve optimistic revision checks.
+- No unnecessary UX features or scope creep; user-provided business rules are authoritative.

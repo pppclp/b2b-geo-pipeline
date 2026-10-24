@@ -129,12 +129,12 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
             </Select>
           </div>
         </div>
-        <div className="flex items-center gap-4 py-3">
-          <div className="min-w-0 flex-1">
-            <Label htmlFor={`working-${op.id}`} className="text-[13px] font-medium">Working With</Label>
-            <p className="text-xs text-muted-foreground mt-1">Optional</p>
+        <div className="flex flex-col gap-2 py-3 min-w-0">
+          <div className="flex items-center justify-between gap-3">
+            <span id={`working-label-${op.id}`} className="text-[13px] font-medium">Working With</span>
+            <span className="text-xs text-muted-foreground">Optional</span>
           </div>
-          <div className="w-[48%] shrink-0">
+          <div className="w-full min-w-0" role="group" aria-labelledby={`working-label-${op.id}`}>
             <WorkingWithMultiSelect
               teams={master?.WorkingWithOption || []}
               people={master?.TeamMember || []}

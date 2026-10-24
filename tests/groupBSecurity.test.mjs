@@ -43,12 +43,17 @@ function fixture() {
     touch(){},
   };
   const core=createCore({contract,store,now:()=>"2026-10-18T10:00:00.000Z",uuid:()=>String(++counter)});
+  let requestSequence=0;
   const call=(userId,method,path,body)=>{
     const actualBody = body && method==="PUT" && path.startsWith("entities/Opportunity/") &&
       body.expected_updated_at === undefined
       ? { ...body, expected_updated_at: String(store.table(DB,"Pipelines").rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
       : body;
-    return core.handle({userId,method,path,body:actualBody});
+    const withRequestId = method==="POST" && path==="entities/Opportunity" && actualBody &&
+      !("client_request_id" in actualBody)
+      ? { ...actualBody, client_request_id: "test_req_"+String(++requestSequence).padStart(12,"0") }
+      : actualBody;
+    return core.handle({userId,method,path,body:withRequestId});
   };
   return {call,rawCall:(userId,method,path,body)=>core.handle({userId,method,path,body}),row:()=>store.table(DB,"Pipelines").rows[0],allRows:()=>store.table(DB,"Pipelines").rows,events:()=>store.table(DB,"Pipeline_Events").rows,regions:()=>store.table(ORG,"User_Region").rows};
 }
@@ -203,4 +208,20 @@ test("security: keyed create retries return the same Pipeline without duplicate 
   assert.equal(x.allRows().length,count);
   assert.equal(x.events().length,events);
   assert.throws(()=>x.call("AE1","POST","entities/Opportunity",{...data,customer_name:"Changed"}),denied(409));
+});
+
+test("A1: missing request key is rejected; keyed retries reuse the Pipeline",()=>{
+  const x=fixture();
+  const data={customer_name:"Keyed Lead",business_id:"111111",customer_type:"SME",
+    sales_channel:"AE Self",contact_name:"Test",contact_phone:"0812345678",
+    product_category_id:"CAT",expected_close_month:"2026-11",quantity:1,
+    price_per_sub:100,owner_id:"AE1",region_id:"R1",stage_id:"S1"};
+  const before=x.allRows().length;
+  assert.throws(()=>x.rawCall("AE1","POST","entities/Opportunity",data),denied(400));
+  assert.equal(x.allRows().length,before);
+  const withId={...data,client_request_id:"test_req_abcdefgh1234"};
+  const first=x.rawCall("AE1","POST","entities/Opportunity",withId);
+  const again=x.rawCall("AE1","POST","entities/Opportunity",withId);
+  assert.equal(again.id,first.id);
+  assert.equal(x.allRows().length,before+1);
 });
