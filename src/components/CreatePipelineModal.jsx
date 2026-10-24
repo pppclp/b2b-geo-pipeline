@@ -49,9 +49,11 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [clientRequestId, setClientRequestId] = useState("");
 
   useEffect(() => {
     if (open) {
+      setClientRequestId(crypto.randomUUID());
       setForm({ ...EMPTY, owner_id: profile?.app_role === "ae" ? profile.id : "" });
       setSubmitted(false);
       setExpanded(false);
@@ -127,6 +129,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     setSaveError("");
     try {
       const payload = {
+        client_request_id: clientRequestId,
         customer_name: form.customer_name.trim(),
         business_id: form.business_id,
         customer_type: form.customer_type,
