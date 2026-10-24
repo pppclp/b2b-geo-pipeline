@@ -65,13 +65,16 @@ test("successful handoff creates recipient-only unread notification; repeat read
  h.call("SM1","POST","notifications/"+bell.items[0].id+"/read");
  h.call("SM1","POST","notifications/"+bell.items[0].id+"/read");
  assert.equal(h.call("SM1","GET","notifications").unread_count,0);
- assert.equal(db(h,"Handoff_Notifications").length,1);
+ assert.equal(db(h,"Handoff_Notifications").filter(n=>n.type==="handoff").length,1);
+ assert.equal(db(h,"Handoff_Notifications").filter(n=>n.type==="pipeline_assigned").length,1);
 });
 test("a rejected handoff writes neither event nor notification",()=>{
  const h=harness(),op=h.create();
  const audit=db(h,"Pipeline_Events").length;
+ const notificationCount=db(h,"Handoff_Notifications").length;
  assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+op.id,{current_handler_id:"AE2"}),e=>e.status===400);
- assert.equal(db(h,"Handoff_Notifications").length,0);
+ assert.equal(db(h,"Handoff_Notifications").length,notificationCount);
+ assert.equal(db(h,"Handoff_Notifications").filter(n=>n.type==="handoff").length,0);
  assert.equal(db(h,"Pipeline_Events").length,audit);
 });
 test("support request follows lifecycle, management scopes and resolution safeguards",()=>{
