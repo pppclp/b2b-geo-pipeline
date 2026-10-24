@@ -48,8 +48,10 @@ function fixture(credentials) {
   return {ctx,cacheValues,properties,store};
 }
 
-test("existing UAT plaintext login remains active before explicit migration",()=>{
-  const {ctx,store}=fixture([{"employee_id / username":"90001",temporary_password:"good"}]);
+test("plaintext login fails closed unless migration window is explicitly enabled",()=>{
+  const {ctx,store,properties}=fixture([{"employee_id / username":"90001",temporary_password:"good"}]);
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
   assert.equal(ctx.uatLogin_(store,{username:"90001",password:"good"}).user_id,"U0001");
   assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"wrong"}),e=>e.status===401);
 });

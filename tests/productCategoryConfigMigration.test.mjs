@@ -60,6 +60,6 @@ test("Backend reads Config categories and persists arbitrary product description
   assert.ok(ops.length>0);
   const chosen=ops[0];
   const phrase="Special tailored circuit + on-site installation";
-  const updated=core.handle({method:"PUT",path:"entities/Opportunity/"+encodeURIComponent(chosen.id),userId:id,body:{product_details:phrase}});
+  const updated=core.handle({method:"PUT",path:"entities/Opportunity/"+encodeURIComponent(chosen.id),userId:id,body:{product_details:phrase,expected_updated_at:String(chosen.updated_date||"")}});
   assert.equal(updated.product_details,phrase);
 });

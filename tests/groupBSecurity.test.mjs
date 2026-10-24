@@ -43,7 +43,13 @@ function fixture() {
     touch(){},
   };
   const core=createCore({contract,store,now:()=>"2026-10-18T10:00:00.000Z",uuid:()=>String(++counter)});
-  const call=(userId,method,path,body)=>core.handle({userId,method,path,body});
+  const call=(userId,method,path,body)=>{
+    const actualBody = body && method==="PUT" && path.startsWith("entities/Opportunity/") &&
+      body.expected_updated_at === undefined
+      ? { ...body, expected_updated_at: String(store.table(DB,"Pipelines").rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
+      : body;
+    return core.handle({userId,method,path,body:actualBody});
+  };
   return {call,row:()=>store.table(DB,"Pipelines").rows[0],events:()=>store.table(DB,"Pipeline_Events").rows,regions:()=>store.table(ORG,"User_Region").rows};
 }
 const denied=(status)=>(e)=>e.status===status;

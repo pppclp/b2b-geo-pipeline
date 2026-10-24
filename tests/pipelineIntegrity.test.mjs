@@ -37,7 +37,13 @@ function fixture() {
   const store={table(file,sheet){return all[file+"|"+sheet];},touch(file,sheet){touched.push(file+"|"+sheet);}};
   let n=100;
   const core=createCore({contract:{access,columns:{}},store,now:()=>"2026-10-18T12:30:00.000Z",uuid:()=>String(n++)});
-  const call=(userId,method,path,body)=>core.handle({userId,method,path,body});
+  const call=(userId,method,path,body)=>{
+    const actualBody = body && method==="PUT" && path.startsWith("entities/Opportunity/") &&
+      body.expected_updated_at === undefined
+      ? { ...body, expected_updated_at: String(store.table("B2B_GEO_Pipeline_DB.xlsx","Pipelines").rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
+      : body;
+    return core.handle({userId,method,path,body:actualBody});
+  };
   return {call,all,touched};
 }
 const newPipeline={customer_name:"Shop",business_id:"123",customer_type:"SME",contact_name:"Jane",contact_phone:"111",sales_channel:"AE Self",

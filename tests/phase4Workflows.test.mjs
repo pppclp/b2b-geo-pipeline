@@ -41,7 +41,13 @@ function harness(){
  const touched=[];
  const store={table:(f,s)=>table[f+"|"+s],touch:(f,s)=>touched.push(f+"|"+s)};
  const core=createCore({contract:{access,columns:{}},store,now:()=>"2026-10-19T05:30:00.000Z",uuid:()=>String(++n).padStart(4,"0")});
- const call=(userId,method,path,body)=>core.handle({userId,method,path,body});
+ const call=(userId,method,path,body)=>{
+    const actualBody = body && method==="PUT" && path.startsWith("entities/Opportunity/") &&
+      body.expected_updated_at === undefined
+      ? { ...body, expected_updated_at: String(table["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
+      : body;
+    return core.handle({userId,method,path,body:actualBody});
+  };
  const create=()=>call("ADMIN","POST","entities/Opportunity",{
   customer_name:"Test Account",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
   contact_name:"Tester",contact_phone:"0812345678",quantity:1,price_per_sub:100,
