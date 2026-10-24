@@ -9,6 +9,7 @@ import { db } from "@/api/client";
 import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
+import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import {shouldClearOwnerOnRegionChange, matchesPipelineSearch} from "@/lib/pipelineFilterUi";
 import { sortPipelineRows, workingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
@@ -138,6 +139,17 @@ export default function Pipeline() {
     ? filteredWithoutStage.filter((o) => o.stage_id === filters.stage)
     : filteredWithoutStage, [filteredWithoutStage, filters.stage]);
   const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
+  // This is a presentation-only selector, never a replacement for server RBAC.
+  // Match the Dashboard's region choices: Admin sees active Regions; all other
+  // roles see only their own active User_Region assignments.
+  const quickRegions = useMemo(() => (master?.Region || [])
+    .filter((region) => region.active && (
+      profile?.app_role === "admin" || (profile?.region_ids || []).includes(region.id)
+    ))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [master?.Region, profile?.app_role, profile?.region_ids]
+  );
+  const hasRegionQuickFilter = quickRegions.length > 1;
   const stageCounts = useMemo(() => {
     const counts = new Map();
     filteredWithoutStage.forEach(o => counts.set(o.stage_id, (counts.get(o.stage_id) || 0) + 1));
@@ -217,8 +229,16 @@ export default function Pipeline() {
         </p>
       )}
       <div className="rounded-xl border border-border bg-card p-3 mb-4">
-        <FilterBar filters={filters} onFilter={onFilter} stageChipsVisible={view === "list"} />
+        <FilterBar filters={filters} onFilter={onFilter} stageChipsVisible={view === "list"}
+          showRegionControl={!hasRegionQuickFilter} />
       </div>
+
+      {hasRegionQuickFilter && (
+        <div className="mb-3">
+          <RegionQuickFilter regions={quickRegions} value={filters.region || ""}
+            onChange={(regionId) => onFilter("region", regionId)} />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
 
@@ -350,7 +370,7 @@ export default function Pipeline() {
                   const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
                   return (
                     <tr key={o.id}
-                      className="group hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
+                      className="group h-[76px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
                       onClick={() => openQuickView(o.id)}
                       tabIndex={0}
                       onKeyDown={(event) => {
@@ -377,21 +397,37 @@ export default function Pipeline() {
                           {maps.stage[o.stage_id]?.name || "—"}
                         </span>
                       </td>
-                      <td className="px-3 py-3 min-w-0">
-                        <div className="truncate font-medium text-[12px]" title={"AE Owner: " + ownerName}>{ownerName}</div>
-                        {differentOwner && <div className="truncate text-[11px] text-muted-foreground mt-1"
-                          title={"Current Handler: " + handlerName}>
-                          <span aria-hidden="true" className="mr-1 text-brand">↳</span>Handler: {handlerName}
-                        </div>}
-                        {teamLabels.length > 0 && (
-                          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1" title={"Working With: " + teamLabels.join(", ")}>
-                            <span className="text-[10px] text-muted-foreground mr-0.5">With</span>
-                            {teamLabels.slice(0, 2).map((label) => (
-                              <span key={label} className="inline-flex max-w-[112px] truncate rounded-md border border-sky-100 bg-sky-50 px-1.5 py-0.5 text-[10px] text-sky-800">{label}</span>
-                            ))}
-                            {teamLabels.length > 2 && <span className="text-[10px] text-muted-foreground">+{teamLabels.length - 2}</span>}
+                      <td className="px-3 py-2 min-w-0">
+                        {/* Two fixed text rows: tags never create a third, taller table row. */}
+                        <div className="flex h-[42px] min-w-0 flex-col justify-center gap-0.5">
+                          <div className="min-w-0 truncate font-medium text-[12px] leading-[19px]"
+                            title={"AE Owner: " + ownerName}>{ownerName}</div>
+                          <div className="flex h-[19px] min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground"
+                            title={[differentOwner && "Current Handler: " + handlerName,
+                              teamLabels.length > 0 && "Working With: " + teamLabels.join(", ")].filter(Boolean).join(" · ")}>
+                            {differentOwner && (
+                              <span className="min-w-0 truncate">
+                                <span aria-hidden="true" className="mr-0.5 text-brand">↳</span>
+                                Handler: {handlerName}
+                              </span>
+                            )}
+                            {/* Only actual Working With teams produce a tag.
+                                When handed off, the tag sits directly beside the Handler;
+                                otherwise the same second row remains available. */}
+                            {teamLabels.length > 0 && (
+                              <span className="inline-flex shrink-0 items-center gap-1">
+                                <span className="text-[10px] text-muted-foreground">With</span>
+                                <span className="inline-block max-w-[88px] truncate rounded-md border border-sky-100 bg-sky-50 px-1.5 py-0.5 text-[10px] leading-[14px] text-sky-800"
+                                  title={"Working With: " + teamLabels.join(", ")}>{teamLabels[0]}</span>
+                                {teamLabels.length > 1 && (
+                                  <span className="text-[10px] text-muted-foreground" title={teamLabels.slice(1).join(", ")}>
+                                    +{teamLabels.length - 1}
+                                  </span>
+                                )}
+                              </span>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </td>
                       {regionContext.showColumn && <td className="px-3 py-3 text-[11px] text-muted-foreground" title={regionName}>
                         <span className="line-clamp-2">{regionName}</span>
