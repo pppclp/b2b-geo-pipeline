@@ -120,6 +120,8 @@ export default function Pipeline() {
       if (filters.owner && o.owner_id !== filters.owner) return false;
       if (filters.handler && o.current_handler_id !== filters.handler) return false;
       if (filters.stage && o.stage_id !== filters.stage) return false;
+      if (filters.sm_info_missing === "1" && (o.scenario_id &&
+        o.ccp_check_result && o.ccp_check_result !== "pending")) return false;
       if (filters.status && filters.status !== "all" && o.status !== filters.status) return false;
       if (filters.product_category && o.product_category_id !== filters.product_category) return false;
       if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
@@ -256,6 +258,18 @@ export default function Pipeline() {
       </div>
 
 
+      {profile?.app_role === "sm" && (
+        <div className="mb-3">
+          <button type="button"
+            onClick={() => onFilter("sm_info_missing", filters.sm_info_missing === "1" ? "" : "1")}
+            aria-pressed={filters.sm_info_missing === "1"}
+            className={filters.sm_info_missing === "1"
+              ? "inline-flex items-center rounded-full border border-primary/40 bg-brand-tint px-3 py-1.5 text-[11px] font-semibold text-brand"
+              : "inline-flex items-center rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground"}>
+            Missing SM Info
+          </button>
+        </div>
+      )}
       {view === "list" && (
         <div className="flex items-center gap-2 flex-wrap mb-3" role="group" aria-label="Quick filter by Stage">
           <span className="text-[11px] font-medium text-muted-foreground mr-1">Stage</span>
