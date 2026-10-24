@@ -370,6 +370,7 @@ export default function Pipeline() {
                           </span>}
                         </div>
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
+                        <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
                       </td>
                       <td className="px-3 py-3 text-[12px] whitespace-nowrap">
                         <span className="inline-flex rounded-md bg-secondary/80 px-2 py-1 text-[11px] font-medium">
