@@ -59,9 +59,10 @@ test("List is default while Sort and Stage quick filters share the canonical Pip
 test("Pipeline list uses owner-first identity, conditional Working With and contextual Region",()=>{
   assert.match(pipeline,/AE Owner \/ Handling/);
   assert.match(pipeline,/const ownerName = maps\.member\[o\.owner_id\]/);
-  assert.match(pipeline,/const handlerName = maps\.member\[o\.current_handler_id\]/);
+  assert.match(pipeline,/const handler = maps\.member\[o\.current_handler_id\]/);
+  assert.match(pipeline,/const handlerName = handler\?\.name/);
   assert.match(pipeline,/differentOwner &&/);
-  assert.match(pipeline,/workingWithTeamLabels\(o, master\?\.WorkingWithOption/);
+  assert.match(pipeline,/smWorkingWithTeamLabels\(o, handler, master\?\.WorkingWithOption/);
   assert.match(pipeline,/teamLabels\.length > 0/);
   assert.match(pipeline,/regionContext\.showColumn/);
   assert.match(pipeline,/maps\.region\[o\.region_id\]/);

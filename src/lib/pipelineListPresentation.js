@@ -45,14 +45,26 @@ export function workingWithTeamLabels(opportunity, teamOptions = []) {
   return [...new Set(names)];
 }
 
+// Working With is inline only when the Pipeline is currently handled by an SM.
+// Preserve the underlying collaboration data for the Quick View / detail page.
+export function smWorkingWithTeamLabels(opportunity, handler, teamOptions = []) {
+  const ownerId = opportunity?.owner_id;
+  const handlerId = opportunity?.current_handler_id;
+  if (!handlerId || ownerId === handlerId ||
+      String(handler?.app_role || "").toLowerCase() !== "sm") return [];
+  return workingWithTeamLabels(opportunity, teamOptions);
+}
+
 export function regionDisplayContext(opportunities = [], regionMap = {}, selectedRegionId = "", accessibleRegionIds = []) {
   const visible = [...new Set(opportunities.map(o => o.region_id).filter(Boolean))];
   const permitted = [...new Set(accessibleRegionIds.filter(Boolean))];
   const labelFor = (id) => regionMap?.[id]?.name || id;
   if (selectedRegionId) return { label: "Region: " + labelFor(selectedRegionId), showColumn: false, multi: false };
-  if (visible.length > 1) return { label: "All Regions · " + visible.length, showColumn: true, multi: true };
-  if (visible.length === 1) return { label: "Region: " + labelFor(visible[0]), showColumn: false, multi: false };
-  if (permitted.length > 1) return { label: "All Regions · " + permitted.length, showColumn: false, multi: true };
-  if (permitted.length === 1) return { label: "Region: " + labelFor(permitted[0]), showColumn: false, multi: false };
+  // A multi-Region "All" view remains multi-Region even when month, stage or
+  // search filters temporarily leave only one Region in the visible records.
+  // Match the Dashboard and Pipeline; hide the column only on single-Region scope.
+  const available = permitted.length ? permitted : visible;
+  if (available.length > 1) return { label: "All Regions · " + available.length, showColumn: true, multi: true };
+  if (available.length === 1) return { label: "Region: " + labelFor(available[0]), showColumn: false, multi: false };
   return { label: "No matching Regions", showColumn: false, multi: false };
 }

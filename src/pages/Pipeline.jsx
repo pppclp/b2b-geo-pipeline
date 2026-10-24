@@ -11,7 +11,7 @@ import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import {shouldClearOwnerOnRegionChange, matchesPipelineSearch} from "@/lib/pipelineFilterUi";
-import { sortPipelineRows, workingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
+import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
@@ -156,8 +156,8 @@ export default function Pipeline() {
     return counts;
   }, [filteredWithoutStage]);
   const regionContext = useMemo(() => regionDisplayContext(
-    sorted, maps.region, filters.region || "", profile?.region_ids || []
-  ), [sorted, maps.region, filters.region, profile?.region_ids]);
+    sorted, maps.region, filters.region || "", quickRegions.map((region) => region.id)
+  ), [sorted, maps.region, filters.region, quickRegions]);
   const exportExcel = async () => {
     setExportError("");
     setExporting(true);
@@ -361,16 +361,20 @@ export default function Pipeline() {
               <tbody className="divide-y divide-border/70">
                 {sorted.map((o) => {
                   const ownerName = maps.member[o.owner_id]?.name || "Unassigned";
-                  const handlerName = maps.member[o.current_handler_id]?.name || "Unassigned";
+                  const handler = maps.member[o.current_handler_id];
+                  const handlerName = handler?.name || "Unassigned";
                   const categoryName = maps.category[o.product_category_id]?.name || "";
                   const overdue = isStageSlaOverdue(o, maps.stage);
                   const age = agingDays(o.stage_entered_at);
                   const differentOwner = Boolean(o.current_handler_id && o.owner_id !== o.current_handler_id);
-                  const teamLabels = workingWithTeamLabels(o, master?.WorkingWithOption || []);
+                  // Working With is a supporting-team indicator, not ownership.
+                  // Inline it beside an assigned SM only; other collaborators
+                  // remain visible in Pipeline Quick View without adding rows.
+                  const teamLabels = smWorkingWithTeamLabels(o, handler, master?.WorkingWithOption || []);
                   const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
                   return (
                     <tr key={o.id}
-                      className="group h-[76px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
+                      className="group h-[72px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
                       onClick={() => openQuickView(o.id)}
                       tabIndex={0}
                       onKeyDown={(event) => {
@@ -398,32 +402,25 @@ export default function Pipeline() {
                         </span>
                       </td>
                       <td className="px-3 py-2 min-w-0">
-                        {/* Two fixed text rows: tags never create a third, taller table row. */}
-                        <div className="flex h-[42px] min-w-0 flex-col justify-center gap-0.5">
-                          <div className="min-w-0 truncate font-medium text-[12px] leading-[19px]"
+                        {/* Fixed two-line owner/handler layout for every Pipeline.
+                            Working With stays inline with the SM, never a third row. */}
+                        <div className="flex h-[40px] min-w-0 flex-col justify-center gap-0.5">
+                          <div className="min-w-0 truncate font-medium leading-[18px]"
                             title={"AE Owner: " + ownerName}>{ownerName}</div>
-                          <div className="flex h-[19px] min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground"
-                            title={[differentOwner && "Current Handler: " + handlerName,
-                              teamLabels.length > 0 && "Working With: " + teamLabels.join(", ")].filter(Boolean).join(" · ")}>
+                          <div className="flex h-[18px] min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
                             {differentOwner && (
-                              <span className="min-w-0 truncate">
+                              <span className="min-w-0 shrink truncate leading-[18px]"
+                                title={"Current Handler: " + handlerName}>
                                 <span aria-hidden="true" className="mr-0.5 text-brand">↳</span>
-                                Handler: {handlerName}
+                                {handler?.app_role === "sm" ? "SM: " : "Handler: "}{handlerName}
                               </span>
                             )}
-                            {/* Only actual Working With teams produce a tag.
-                                When handed off, the tag sits directly beside the Handler;
-                                otherwise the same second row remains available. */}
                             {teamLabels.length > 0 && (
-                              <span className="inline-flex shrink-0 items-center gap-1">
-                                <span className="text-[10px] text-muted-foreground">With</span>
-                                <span className="inline-block max-w-[88px] truncate rounded-md border border-sky-100 bg-sky-50 px-1.5 py-0.5 text-[10px] leading-[14px] text-sky-800"
-                                  title={"Working With: " + teamLabels.join(", ")}>{teamLabels[0]}</span>
-                                {teamLabels.length > 1 && (
-                                  <span className="text-[10px] text-muted-foreground" title={teamLabels.slice(1).join(", ")}>
-                                    +{teamLabels.length - 1}
-                                  </span>
-                                )}
+                              <span className="inline-flex max-w-[116px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-sky-100 bg-sky-50 px-1.5 text-[10px] leading-[16px] text-sky-800"
+                                title={"Working With: " + teamLabels.join(", ")}>
+                                <span className="shrink-0 font-medium">With</span>
+                                <span className="min-w-0 truncate">{teamLabels[0]}</span>
+                                {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1}</span>}
                               </span>
                             )}
                           </div>
