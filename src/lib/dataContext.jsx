@@ -238,7 +238,8 @@ export function DataProvider({ children }) {
       };
       if (!payload.stage_id && firstStage) payload.stage_id = firstStage.id;
       const rec = acceptPipelineResult(await db.entities.Opportunity.create(payload));
-      setOpportunities((ops) => [rec, ...ops]);
+      // A successful retry may return an already-created Pipeline; do not duplicate it in browser state.
+      setOpportunities((ops) => [rec, ...ops.filter((op) => op.id !== rec.id)]);
       return rec;
     },
     [activeStages, acceptPipelineResult]
