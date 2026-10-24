@@ -12,9 +12,12 @@
 // its body). Without ?req it is a health check — clients treat that shape as
 // "not executed" and retry.
 function doGet(e) {
-  var raw = e && e.parameter && e.parameter.req;
-  if (!raw) return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API" }, health: true });
-  return serve_(raw);
+  // Never accept serialized API requests over GET: tokens in query strings leak
+  // into browser history and intermediaries. The authenticated client uses POST.
+  if (e && e.parameter && Object.prototype.hasOwnProperty.call(e.parameter, "req")) {
+    return json_({ status: 405, body: { message: "Use POST for API requests" } });
+  }
+  return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API" }, health: true });
 }
 
 function doPost(e) {
@@ -27,8 +30,16 @@ function serve_(raw) {
     var req = JSON.parse(raw);
     out = { status: 200, body: handle_(req) };
   } catch (err) {
-    if (!err.status) console.error(err && err.stack ? err.stack : err);
-    out = { status: err.status || 500, body: { message: String((err && err.message) || err) } };
+    var errorId = Utilities.getUuid();
+    // Internal exceptions may contain workbook identifiers or service errors.
+    // Log them server-side with a support reference, never in a public response.
+    if (!err.status || err.status >= 500) {
+      console.error("API error " + errorId + ": " + (err && err.stack ? err.stack : err));
+    }
+    var status = err.status || 500;
+    out = { status: status, body: status >= 500
+      ? { message: "Backend request failed. Contact support with error ID " + errorId, error_id: errorId }
+      : { message: String((err && err.message) || "Request failed") } };
   }
   return json_(out);
 }
@@ -174,7 +185,11 @@ function verifyUatPassword_(credential, password) {
     return uatConstantTimeEqual_(parts[2], uatPasswordDigest_(parts[1], password));
   }
   if (String(PropertiesService.getScriptProperties().getProperty("GEO_UAT_REQUIRE_HASHED_PASSWORDS") || "") === "true") return false;
-  // Temporary backward compatibility only until the authorized migration.
+  // Fail closed by default. Allow temporary plaintext only if explicitly
+  // approved during a time-boxed UAT migration window.
+  if (PropertiesService.getScriptProperties().getProperty("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS") !== "true") {
+    return false;
+  }
   return uatConstantTimeEqual_(String(credential.temporary_password || ""), String(password));
 }
 

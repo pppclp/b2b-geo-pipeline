@@ -69,6 +69,35 @@ Product_Categories is a tab in Pipeline Config; product_details is free text in
 each Pipeline. The old B2B_Product_Master spreadsheet is archived/read-only,
 not referenced by the runtime API or generated Apps Script SheetIds.js.
 
+## Hardened UAT rollout (2026-10-24)
+
+This change requires a coordinated release. GitHub Pages deploys the frontend
+only; the authenticated Apps Script /exec URL uses a separately versioned
+deployment. Generate and push matching Main.js, GeoCore.js, Contract.js and
+SheetIds.js, then edit the existing Apps Script deployment to a new version.
+Never replace the current backend with an unrelated older Code.gs file.
+
+Before deploying:
+- Back up the restricted UAT credential workbook; use the existing
+  migrateUatCredentialsToSaltedHashes() helper with explicitly approved
+  GEO_UAT_HASH_MIGRATION_APPROVED=YES. Verify no plaintext credentials remain,
+  and GEO_UAT_REQUIRE_HASHED_PASSWORDS=true. Remove migration approval.
+- Passwords stored as salted/peppered HMAC are for UAT ONLY. Corporate SSO
+  and a privacy/security review remain prerequisites to real customer data.
+  Plaintext fallback now requires the exceptional Script Property
+  GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS=true, to be removed after migration.
+- Verify Pipelines has the client_request_id column. It records the Create
+  form's stable UUID for retry deduplication; existing Import uses separate
+  batch identity. Legacy API clients without a key can still create duplicates.
+- All Pipeline PUT calls must send expected_updated_at. Missing revisions
+  return 428 and stale revisions return 409. Closed deals allow notes and
+  separately audited status transitions, not arbitrary Stage/Handler edits.
+- API requests use POST (including logical reads); GET supports health only.
+  Internal backend errors return an error ID instead of implementation details.
+- Verify Admin/SM/AE Pipeline visibility and all Create/Edit/Handoff/Reopen
+  flows in UAT after backend deployment. A passing GitHub build does not
+  confirm the Apps Script runtime or workbook bindings.
+
 ## Use Google Sheets (Apps Script backend)
 
 The same backend logic (`server/core.js`) runs as an Apps Script web app that reads and

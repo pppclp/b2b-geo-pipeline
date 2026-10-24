@@ -90,8 +90,10 @@ export default function OpportunityDetail() {
     }
   };
 
-  const canEdit = ["admin", "sm", "management"].includes(profile?.app_role) ||
-    op.owner_id === profile?.id || op.current_handler_id === profile?.id;
+  const canEdit = op.status === "open" && (
+    ["admin", "sm", "management"].includes(profile?.app_role) ||
+    op.owner_id === profile?.id || op.current_handler_id === profile?.id
+  );
   const canReassignOwner = ["sm", "management", "admin"].includes(profile?.app_role);
   const canChangeArchiveState = canReassignOwner;
 
@@ -111,11 +113,11 @@ export default function OpportunityDetail() {
             {category?.name}{op.product_details ? ` · ${op.product_details}` : ""} · {stage?.name} · {formatTHB(op.pipeline_value)} · Close {formatMonth(op.expected_close_month)}
           </p>
         </div>
-        {canEdit && (
+        {(canEdit || canChangeArchiveState) && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
-            {canReassignOwner && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>}
-            <PipelineCloseActions op={op} compact/>
+            {canEdit && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>}
+            {canEdit && canReassignOwner && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>}
+            {canEdit && <PipelineCloseActions op={op} compact/>}
             {canChangeArchiveState && op.status !== "archived" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1.5" /> Archive</Button>}
             {canChangeArchiveState && op.status !== "open" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1.5" /> Reopen</Button>}
           </div>

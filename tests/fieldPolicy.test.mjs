@@ -49,7 +49,13 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
   };
   let num=0;
   const core=createCore({contract,store,now:()=>now,uuid:()=>String(++num)});
-  const call=(userId,method,path,body)=>core.handle({userId,method,path,body});
+  const call=(userId,method,path,body)=>{
+    const actualBody = body && method==="PUT" && path.startsWith("entities/Opportunity/") &&
+      body.expected_updated_at === undefined
+      ? { ...body, expected_updated_at: String(store.table(DB,"Pipelines").rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
+      : body;
+    return core.handle({userId,method,path,body:actualBody});
+  };
   return {call,store,touched,row:()=>store.table(DB,"Pipelines").rows[0],events:()=>store.table(DB,"Pipeline_Events").rows};
 }
 const input=(changes={})=>({
