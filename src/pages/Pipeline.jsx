@@ -335,7 +335,33 @@ export default function Pipeline() {
               <span>· Current Handler</span>
             </div>
           )}
-          <div className="overflow-x-auto" aria-label="Pipeline opportunities table">
+          <div className="md:hidden divide-y divide-border/70" role="list" aria-label="Pipeline opportunities">
+            {sorted.map((o) => {
+              const age = agingDays(o.stage_entered_at);
+              const overdue = isStageSlaOverdue(o, maps.stage);
+              return (
+                <button key={o.id} type="button" role="listitem"
+                  aria-label={`Open opportunity ${o.customer_name}`}
+                  onClick={() => openQuickView(o.id)}
+                  className="block w-full min-w-0 px-3 py-3 text-left hover:bg-secondary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="flex min-w-0 items-start justify-between gap-3">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={o.customer_name}>{o.customer_name}</span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">{formatTHB(o.pipeline_value)}</span>
+                  </span>
+                  <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <span className="max-w-[45%] truncate" title={maps.stage[o.stage_id]?.name || "—"}>{maps.stage[o.stage_id]?.name || "—"}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{formatMonth(o.expected_close_month)}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className={overdue ? "font-semibold text-amber-700" : ""}>{age}d{overdue ? " overdue" : ""}</span>
+                    {o.support_needed && <span className="text-amber-700">Needs Support</span>}
+                    {o.status !== "open" && <span>{STATUS_LABELS[o.status] || o.status}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto" aria-label="Pipeline opportunities table">
             <table className="w-full min-w-[1020px] table-fixed text-[12px]">
               <colgroup>
                 <col className="w-[30%]" />
