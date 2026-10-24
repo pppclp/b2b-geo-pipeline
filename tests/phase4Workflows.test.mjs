@@ -147,6 +147,10 @@ test("AE creation alerts regional SM for missing Scenario / CCP+ without changin
  assert.equal(sm1.items[0].type,"sm_input_needed");
  assert.equal(sm1.items[0].needs_sm_input,true);
  assert.equal(sm1.items[0].customer_name,"Regional New Account");
+ assert.deepEqual(Object.keys(sm1.items[0]).sort(),[
+   "actor_name","created_at","customer_name","id","needs_sm_input",
+   "opportunity_id","read_at","type",
+ ].sort());
  assert.equal(h.call("M1","GET","notifications").unread_count,0);
  assert.equal(h.call("AE2","GET","notifications").unread_count,0);
  assert.equal(db(h,"Handoff_Notifications").length,2);
