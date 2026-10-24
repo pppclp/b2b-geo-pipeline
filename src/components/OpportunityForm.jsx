@@ -217,7 +217,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
           <div className="sm:col-span-2">
             <Label>Customer Name *</Label>
-            <Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="e.g. PTT Public Company Limited" />
+            <Input maxLength={200} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="e.g. PTT Public Company Limited" />
           </div>
 
           <div>
@@ -244,11 +244,11 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           {form.sales_channel === "B2B Premium Partner" && (
             <div>
               <Label>Partner Name</Label>
-              <Input value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
+              <Input maxLength={200} value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
             </div>
           )}
-          <div><Label>Contact Name *</Label><Input value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
-          <div><Label>Contact Phone *</Label><Input type="tel" value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
+          <div><Label>Contact Name *</Label><Input maxLength={120} value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
+          <div><Label>Contact Phone *</Label><Input type="tel" maxLength={40} value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
           <div className="sm:col-span-2">
             <Label>Remark</Label>
             <Textarea maxLength={500} rows={2} value={form.remark || ""} onChange={(e) => set("remark", e.target.value)} />
@@ -302,7 +302,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
           <div>
             <Label>Product Description (Free Text)</Label>
-            <Input value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter product / package description" />
+            <Input maxLength={2000} value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter product / package description" />
           </div>
           <div>
             <Label>Stage *</Label>
@@ -398,7 +398,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             </div>
             <div className="sm:col-span-2">
               <Label>Support Note</Label>
-              <Textarea value={form.support_note} onChange={(e) => set("support_note", e.target.value)} rows={2} />
+              <Textarea maxLength={1000} value={form.support_note} onChange={(e) => set("support_note", e.target.value)} rows={2} />
             </div>
           </div>
         )}
