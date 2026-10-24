@@ -1083,6 +1083,10 @@ opportunity_entity:
     import_row_signature:
       source: "SYSTEM"
       user_editable: false
+    client_request_id:
+      source: "BROWSER GENERATED"
+      user_editable: false
+      description: "Unique opaque request identifier retained for retry deduplication. Not a Business ID."
     working_with_team_ids:
       source: "AE / SM input"
       description: "Comma-separated active Working_With team_id values"
