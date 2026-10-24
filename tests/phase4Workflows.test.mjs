@@ -105,6 +105,12 @@ test("multi-team and people selection is validated and legacy first-team retaine
  assert.equal(updated.working_with_team_ids,"TEAM1,TEAM2");
  assert.equal(updated.working_with_user_ids,"SM1,AE1");
  assert.equal(db(h,"Pipelines")[0].working_with_id,"TEAM1");
+ const collaborationLogs=db(h,"Pipeline_Events").filter((e) =>
+   e.event_type==="working_with_change");
+ assert.equal(collaborationLogs.length,2);
+ assert.deepEqual(collaborationLogs.map((e) => e.field).sort(),
+   ["working_with_people","working_with_teams"]);
+ assert.equal(db(h,"Pipelines")[0].current_handler_user_id,"AE1");
  assert.throws(()=>h.call("M1","PUT","entities/Opportunity/"+op.id,{
    working_with_team_ids:"TEAM1,NOPE"
  }),e=>e.status===400);
