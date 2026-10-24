@@ -4,6 +4,12 @@
 
 const API_BASE = import.meta.env.VITE_GEO_API_URL || "/api";
 const SESSION_KEY = "geo_session_token";
+const SESSION_EXPIRED_EVENT = "geo-session-expired";
+export const onSessionExpired = (listener) => {
+  window.addEventListener(SESSION_EXPIRED_EVENT, listener);
+  return () => window.removeEventListener(SESSION_EXPIRED_EVENT, listener);
+};
+
 const LEGACY_USER_KEY = "geo_user_id";
 const DEMO_KEY = "geo_demo_as";
 
@@ -85,6 +91,11 @@ async function request(method, path, { query, body } = {}) {
     data = await res.json().catch(() => ({}));
   }
   if (status >= 400) {
+    // Keep the current route and any unsaved form mounted during re-auth.
+    // Login itself must not trigger the expired-session dialog.
+    if (status === 401 && path !== "/session/login" && path !== "/session/me") {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
     const err = new Error(data?.message || `${method} ${path} failed (${status})`);
     err.status = status;
     throw err;

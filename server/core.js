@@ -540,19 +540,25 @@ export function createCore({ contract, store, now, uuid }) {
   }
   function listNotifications(actor) {
     if (!notificationBinding) throw new HttpError(503, "Handoff Notifications need database setup");
+    const opportunityBinding = binding("Opportunity");
+    const inScope = scopedFilter(opportunityBinding, actor);
+    const opportunityById = new Map(tableOf(opportunityBinding).rows.map(
+      (op) => [op.opportunity_id, op]
+    ));
     const mine = notificationRows().filter((n) => n.recipient_user_id === actor.real.id);
     const visible = mine.filter((n) => {
-      const b = binding("Opportunity");
-      const op = tableOf(b).rows.find((o) => o.opportunity_id === n.opportunity_id);
-      return !!op && scopedFilter(b, actor)(op);
+      const op = opportunityById.get(n.opportunity_id);
+      return !!op && inScope(op);
     });
     return {
       unread_count: visible.filter((n) => !n.read_at).length,
       items: visible.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 30)
         .map((n) => ({ id:n.notification_id, opportunity_id:n.opportunity_id,
           actor_name:findUser(n.actor_user_id)?.name || "Colleague",
-          type:n.type || "handoff", customer_name:opportunityName(n.opportunity_id),
-          needs_sm_input:needsSmInputById(n.opportunity_id),
+          type:n.type || "handoff",
+          customer_name:opportunityById.get(n.opportunity_id)?.customer_name || "",
+          needs_sm_input:!!opportunityById.get(n.opportunity_id) &&
+            needsSmInput(opportunityById.get(n.opportunity_id)),
           created_at:n.created_at, read_at:n.read_at || "" }))
     };
   }
@@ -793,6 +799,9 @@ export function createCore({ contract, store, now, uuid }) {
       const stamp = now();
       if (uiEntity === "Opportunity") {
         data = stripSystemFields(data);
+        if (!importMeta && !String(data.client_request_id || "").trim()) {
+          throw new HttpError(400, "Client request ID is required");
+        }
         if (!importMeta && data.client_request_id) {
           const requestId = String(data.client_request_id);
           if (!/^[A-Za-z0-9_-]{16,100}$/.test(requestId)) throw new HttpError(400, "Invalid client request ID");
