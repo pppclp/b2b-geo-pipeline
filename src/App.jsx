@@ -17,13 +17,63 @@ const Admin = lazy(() => import('@/pages/Admin'));
 const Import = lazy(() => import('@/pages/Import'));
 import Login from '@/pages/Login';
 import { Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 
 const LazyPageFallback = () => (
   <div className="flex min-h-[240px] items-center justify-center" role="status" aria-label="Loading page">
     <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
   </div>
 );
+
+function SessionExpiredModal() {
+  const { sessionExpired, login } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!sessionExpired) return null;
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await login(username.trim(), password);
+      setPassword("");
+    } catch (cause) {
+      setError(cause.status === 401 ? "Employee ID or password is incorrect" : cause.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="session-expired-title"
+        className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl">
+        <h2 id="session-expired-title" className="text-lg font-semibold">Session expired</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Sign in again to continue. Your unfinished Pipeline edits will be kept.
+          After signing in, review the form and click Save again.
+        </p>
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <label className="block text-xs font-medium" htmlFor="renew-employee">Employee ID</label>
+          <input id="renew-employee" autoComplete="username" required value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" />
+          <label className="block text-xs font-medium" htmlFor="renew-password">Password</label>
+          <input id="renew-password" type="password" autoComplete="current-password" required
+            value={password} onChange={(event) => setPassword(event.target.value)}
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" />
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          <button type="submit" disabled={busy || !username.trim() || !password}
+            className="h-10 w-full rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
+            {busy ? "Signing in…" : "Sign in and continue"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -76,6 +126,7 @@ function App() {
         <Router basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <ScrollToTop />
           <AuthenticatedApp />
+          <SessionExpiredModal />
         </Router>
         <Toaster />
       </QueryClientProvider>
