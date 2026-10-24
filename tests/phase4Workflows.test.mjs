@@ -46,7 +46,11 @@ function harness(){
       body.expected_updated_at === undefined
       ? { ...body, expected_updated_at: String(table["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
       : body;
-    return core.handle({userId,method,path,body:actualBody});
+    const withRequestId = method==="POST" && path==="entities/Opportunity" && actualBody &&
+      !("client_request_id" in actualBody)
+      ? { ...actualBody, client_request_id: "test_req_"+String(++requestSequence).padStart(12,"0") }
+      : actualBody;
+    return core.handle({userId,method,path,body:withRequestId});
   };
  const create=()=>call("ADMIN","POST","entities/Opportunity",{
   customer_name:"Test Account",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
@@ -204,4 +208,26 @@ test("Management creation alerts AE and regional SM but cannot override SM-only 
  assert.equal(h.call("M1","PUT","entities/Opportunity/"+op.id,{
   remark:"Shared customer update"
  }).remark,"Shared customer update");
+});
+
+test("A2: notification API shape and scope are stable with multiple notifications",()=>{
+ const h=harness();
+ const op=h.call("AE1","POST","entities/Opportunity",{
+  customer_name:"Notifications Test",business_id:"990022",customer_type:"SME",
+  sales_channel:"AE Self",contact_name:"Test",contact_phone:"0812345678",
+  quantity:1,price_per_sub:100,product_category_id:"CAT1",
+  expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",stage_id:"STG1"
+ });
+ const result=h.call("SM1","GET","notifications");
+ assert.equal(result.unread_count,1);
+ assert.deepEqual(Object.keys(result.items[0]).sort(),[
+  "actor_name","created_at","customer_name","id","needs_sm_input",
+  "opportunity_id","read_at","type"
+ ].sort());
+ assert.equal(result.items[0].opportunity_id,op.id);
+ assert.equal(result.items[0].customer_name,"Notifications Test");
+ assert.equal(result.items[0].needs_sm_input,true);
+ assert.equal(h.call("AE2","GET","notifications").unread_count,0);
+ h.call("SM1","POST","notifications/"+result.items[0].id+"/read");
+ assert.equal(h.call("SM1","GET","notifications").items[0].read_at !== "",true);
 });
