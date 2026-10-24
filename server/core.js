@@ -793,6 +793,19 @@ export function createCore({ contract, store, now, uuid }) {
       const stamp = now();
       if (uiEntity === "Opportunity") {
         data = stripSystemFields(data);
+        if (!importMeta && data.client_request_id) {
+          const requestId = String(data.client_request_id);
+          if (!/^[A-Za-z0-9_-]{16,100}$/.test(requestId)) throw new HttpError(400, "Invalid client request ID");
+          const previous = tableOf(b).rows.find((r) => r.client_request_id === requestId);
+          if (previous) {
+            if (String(previous.created_by_user_id) !== String(actor.real.id)) throw new HttpError(409, "Request ID in use");
+            const candidate = toSheet("Opportunity", b.primary_key, namesToIds("Opportunity", data));
+            const keys = ["customer_name", "business_id", "product_category_id", "owner_user_id", "region_id", "quantity", "price_per_sub", "expected_close_month"];
+            if (keys.some((key) => key in candidate && String(candidate[key] ?? "") !== String(previous[key] ?? ""))) throw new HttpError(409, "Request ID changed payload");
+            if (!scopedFilter(b, actor)(previous)) throw new HttpError(403, "Pipeline is outside scope");
+            return { ...decorate("Opportunity", toUi("Opportunity", b.primary_key, previous)), _audit_events: [] };
+          }
+        }
         if (importMeta) data = {
           ...data, import_batch_id:importMeta.batchId,
           import_row_number:importMeta.rowNumber,
@@ -871,6 +884,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "Opportunity") {
         data = stripSystemFields(data);
         delete data.expected_updated_at;
+        if ("client_request_id" in data) throw new HttpError(403, "Request identity cannot be edited");
       }
       const row = findRow(b, actor, id);
       if (uiEntity === "Opportunity") {
