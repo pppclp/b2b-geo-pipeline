@@ -9,14 +9,21 @@ import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { DataProvider } from '@/lib/dataContext';
 import AppLayout from '@/components/AppLayout';
-import Dashboard from '@/pages/Dashboard';
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
 import Pipeline from '@/pages/Pipeline';
 import SupportRequests from '@/pages/SupportRequests';
-import OpportunityDetail from '@/pages/OpportunityDetail';
-import Admin from '@/pages/Admin';
-import Import from '@/pages/Import';
+const OpportunityDetail = lazy(() => import('@/pages/OpportunityDetail'));
+const Admin = lazy(() => import('@/pages/Admin'));
+const Import = lazy(() => import('@/pages/Import'));
 import Login from '@/pages/Login';
 import { Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+
+const LazyPageFallback = () => (
+  <div className="flex min-h-[240px] items-center justify-center" role="status" aria-label="Loading page">
+    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+  </div>
+);
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -47,12 +54,12 @@ const AuthenticatedApp = () => {
       <Route path="/login" element={<Login />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<DataProvider><AppLayout /></DataProvider>}>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Suspense fallback={<LazyPageFallback />}><Dashboard /></Suspense>} />
           <Route path="/pipeline" element={<Pipeline />} />
           <Route path="/support-requests" element={<SupportRequests />} />
-          <Route path="/opportunity/:id" element={<OpportunityDetail />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/import" element={<Import />} />
+          <Route path="/opportunity/:id" element={<Suspense fallback={<LazyPageFallback />}><OpportunityDetail /></Suspense>} />
+          <Route path="/admin" element={<Suspense fallback={<LazyPageFallback />}><Admin /></Suspense>} />
+          <Route path="/import" element={<Suspense fallback={<LazyPageFallback />}><Import /></Suspense>} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
