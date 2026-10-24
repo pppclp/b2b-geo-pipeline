@@ -229,7 +229,7 @@ export function createCore({ contract, store, now, uuid }) {
   // Restrict the actual server response, not merely the browser dropdown.
   // A member is visible when they share an active Region assignment, or are self.
   function directoryVisible(actor, userId) {
-    if (actor.role === "admin" || String(userId) === String(actor.real.id)) return true;
+    if (actor.role === "admin" || String(userId) === String(actor.id)) return true;
     const allowedRegions = new Set(actor.region_ids || []);
     return regionIdsFor(userId).some((id) => allowedRegions.has(id));
   }
