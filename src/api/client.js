@@ -85,6 +85,11 @@ async function request(method, path, { query, body } = {}) {
     data = await res.json().catch(() => ({}));
   }
   if (status >= 400) {
+    // Keep the mounted form and its unsaved edits. AuthProvider prompts for a
+    // fresh session; the failed request must be retried explicitly by the user.
+    if (status === 401 && path !== "/session/login" && session.token()) {
+      window.dispatchEvent(new Event("geo:session-expired"));
+    }
     const err = new Error(data?.message || `${method} ${path} failed (${status})`);
     err.status = status;
     throw err;
