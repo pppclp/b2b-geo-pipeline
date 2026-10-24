@@ -91,7 +91,7 @@ test("B1: AE cannot reprice or change expected close month on a closed Pipeline"
   const x=fixture();
   x.call("AE1","PUT","entities/Opportunity/P1",{status:"won"});
   for(const values of [{quantity:5},{price_per_sub:50},{oc:200},{contract_period:24},{contract_period_months:12},{expected_close_month:"2026-12"}]) {
-    assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/P1",values),denied(403));
+    assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/P1",values),denied(409));
   }
   x.call("AE1","PUT","entities/Opportunity/P1",{remark:"A nonfinancial note"});
   assert.equal(x.row().remark,"A nonfinancial note");
