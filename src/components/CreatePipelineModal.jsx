@@ -16,6 +16,7 @@ const EMPTY = {
   contact_name: "", contact_phone: "", remark: "", partner_name: "",
   product_category_id: "", product_details: "", quantity: "", price_per_sub: "",
   oc: "", contract_period: "", expected_close_month: "", owner_id: "",
+  scenario_id: "", ccp_check_result: "",
 };
 const SALES_CHANNELS = ["AE B2B GEO", "AE Self", "B2B Premium Partner"];
 
@@ -64,6 +65,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     setSaveError("");
   };
   const ownerIsAE = profile?.app_role === "ae";
+  const isSm = profile?.app_role === "sm";
   const selectedOwner = ownerIsAE
     ? profile
     : (master?.TeamMember || []).find((m) => m.id === form.owner_id);
@@ -77,9 +79,13 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     [master]
   );
   const aeMembers = useMemo(
-    () => (master?.TeamMember || []).filter((m) => m.active && m.app_role === "ae").sort((a, b) => a.name.localeCompare(b.name)),
-    [master]
+    () => (master?.TeamMember || []).filter((m) => m.active && m.app_role === "ae" &&
+      (profile?.app_role === "admin" || (m.region_ids || []).some((region) => (profile?.region_ids || []).includes(region))))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [master, profile]
   );
+  const scenarios = useMemo(() => (master?.Scenario || []).filter((s) => s.active)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [master]);
 
   const netRc = useMemo(() => {
     try {
@@ -140,8 +146,8 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
         region_id: regionId,
         territory_id: territoryId || "",
         stage_id: activeStages[0]?.id || "",
-        scenario_id: "",
-        ccp_check_result: "",
+        scenario_id: isSm ? form.scenario_id : "",
+        ccp_check_result: isSm ? form.ccp_check_result : "",
       };
       if (!payload.stage_id) throw new Error("No active Stage is configured");
       await createOpportunity(payload);
@@ -265,13 +271,31 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
             </section>
 
             <section aria-labelledby="section-3" className="border-t pt-5">
-              <SectionHeading number="3" trailing="SM Review">Additional Information</SectionHeading>
+              <SectionHeading number="3" trailing={isSm ? "SM input · Optional at creation" : "Completed by SM"}>Additional Information</SectionHeading>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Scenario">
-                  <Input value="Pending SM Review" readOnly aria-readonly="true" className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>
+                  {isSm ? (
+                    <Select value={form.scenario_id || "none"} onValueChange={(v) => set("scenario_id", v === "none" ? "" : v)}>
+                      <SelectTrigger aria-label="Scenario"><SelectValue placeholder="Not Set"/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not Set</SelectItem>
+                        {scenarios.map((x) => <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : <Input value="Not Set · SM will complete" readOnly aria-readonly="true" className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>}
                 </Field>
                 <Field label="CCP+ Check">
-                  <Input value="Pending SM Review" readOnly aria-readonly="true" className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>
+                  {isSm ? (
+                    <Select value={form.ccp_check_result || "none"} onValueChange={(v) => set("ccp_check_result", v === "none" ? "" : v)}>
+                      <SelectTrigger aria-label="CCP+ Check"><SelectValue placeholder="Not Set"/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not Set</SelectItem>
+                        <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
+                        <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
+                        <SelectItem value="pending">Pending Review</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : <Input value="Not Set · SM will complete" readOnly aria-readonly="true" className="bg-slate-50/70 text-slate-500 border-slate-200 cursor-default"/>}
                 </Field>
               </div>
             </section>
