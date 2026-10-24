@@ -3,7 +3,8 @@ import {useData} from "@/lib/dataContext";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Button} from "@/components/ui/button";
-import {X, SlidersHorizontal} from "lucide-react";
+import {X, SlidersHorizontal, Search} from "lucide-react";
+import {Input} from "@/components/ui/input";
 import MonthPicker from "@/components/MonthPicker";
 import SearchableSelect from "@/components/SearchableSelect";
 import {
@@ -62,11 +63,18 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
     return members.filter(m => ids.has(m.id))
       .sort((a,b)=>a.name.localeCompare(b.name));
   },[members,scopedOpportunities,regionId]);
-  const advancedCount = advancedFilterCount(filters);
-  const chipEntries = visibleActiveFilters(filters);
-  const scopeLabel = !showRegion && (profile?.region_ids||[]).length===1
-    ? regionOptions.find(r=>r.id===profile.region_ids[0])?.name || ""
-    : "";
+  const advancedCount = advancedFilterCount(filters, profile);
+  // Only show chips for additional filters that are hidden behind More Filters.
+  const chipEntries = visibleActiveFilters(filters).filter(([key]) =>
+    !["search", "close_month", "region", "status"].includes(key) &&
+    !(key === "owner" && showOwner) &&
+    !(key === "sm_info" && profile?.app_role === "sm") &&
+    !(key === "stage" && showQuickStage));
+  const missingSmInfoCount = profile?.app_role === "sm"
+    ? scopedOpportunities.filter(o => o.status === "open" &&
+      (!o.scenario_id || !o.ccp_check_result || o.ccp_check_result === "pending")).length
+    : 0;
+
   const display = (key,value) => {
     if(key==="region") return regionOptions.find(r=>r.id===value)?.name || value;
     if(key==="owner" || key==="handler") return members.find(m=>m.id===value)?.name || value;
@@ -82,8 +90,21 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   const choice = (key) => (v) => onFilter(key,v==="all" ? "" : v);
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-        <div className="w-[152px] max-w-full">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
+        <div className="w-full min-w-[190px] sm:w-[260px] sm:flex-1 sm:max-w-[340px] space-y-1">
+          <label htmlFor="pipeline-search" className="block text-[11px] font-medium text-muted-foreground">Search Pipeline</label>
+          <div className="relative">
+            <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"/>
+            <Input id="pipeline-search" aria-label="Search customer, Business ID or Opportunity ID"
+              value={filters.search || ""} onChange={e=>onFilter("search",e.target.value)}
+              placeholder="Customer, Business ID or Pipeline ID"
+              className="h-9 rounded-lg pl-9 pr-8 text-[13px]"/>
+            {filters.search && <button type="button" aria-label="Clear search"
+              className="absolute right-2 top-2 rounded-md p-1 hover:bg-secondary"
+              onClick={()=>onFilter("search","")}><X className="h-3.5 w-3.5"/></button>}
+          </div>
+        </div>
+        <div className="w-[158px] max-w-full">
           <MonthFilter label={LABELS.close_month} value={filters.close_month} onChange={v=>onFilter("close_month",v)}/>
         </div>
         {showRegion && <SelectWrap label={LABELS.region} value={filters.region} onChange={choice("region")}
@@ -100,28 +121,33 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
               value:m.id,label:m.name,keywords:`${m.employee_id||""} ${m.id||""}`
             }))]}/>
         </div>}
-        {showQuickStage && <SelectWrap label={LABELS.stage} value={filters.stage} onChange={choice("stage")} className="w-[145px]">
-          {stages.map(s=><SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-        </SelectWrap>}
         <SelectWrap label={LABELS.status} value={filters.status || "all"}
           onChange={v=>onFilter("status",v)} className="w-[132px]" allText="All Statuses">
           {["open","won","lost","archived"].map(v=><SelectItem key={v} value={v}>
             {v.charAt(0).toUpperCase()+v.slice(1)}
           </SelectItem>)}
         </SelectWrap>
+        {profile?.app_role === "sm" && (
+          <Button type="button" variant={filters.sm_info === "missing" ? "secondary" : "outline"}
+            size="sm" aria-pressed={filters.sm_info === "missing"}
+            onClick={()=>onFilter("sm_info",filters.sm_info === "missing" ? "" : "missing")}
+            className={`h-9 rounded-lg text-xs ${filters.sm_info === "missing" ? "border border-primary/50 text-brand bg-brand-tint" : ""}`}>
+            Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}
+          </Button>
+        )}
         <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" aria-label="Advanced Filters"
+            <Button variant="outline" size="sm" aria-label="More Filters"
               aria-expanded={advancedOpen} className="h-9 rounded-lg gap-2">
-              <SlidersHorizontal className="h-4 w-4"/> Filters
+              <SlidersHorizontal className="h-4 w-4"/> More Filters
               {advancedCount>0&&<span className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] tabular-nums">{advancedCount}</span>}
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" sideOffset={8}
-            className="w-[min(370px,calc(100vw-32px))] rounded-xl p-0" role="dialog" aria-label="Advanced Filters">
+            className="w-[min(420px,calc(100vw-32px))] rounded-xl p-0" role="dialog" aria-label="More Filters">
             <div className="flex items-center justify-between border-b px-4 py-3">
-              <strong className="text-sm font-semibold">Advanced Filters</strong>
-              <Button size="icon" variant="ghost" aria-label="Close Advanced Filters"
+              <strong className="text-sm font-semibold">More Filters</strong>
+              <Button size="icon" variant="ghost" aria-label="Close More Filters"
                 onClick={()=>setAdvancedOpen(false)} className="h-7 w-7"><X className="h-4 w-4"/></Button>
             </div>
             <div className="max-h-[min(60vh,450px)] overflow-y-auto space-y-4 p-4">
@@ -131,16 +157,30 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
                   onChange={v=>onFilter("created_month",v)}/>
               </section>}
               <section className="space-y-2">
-                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Ownership & Collaboration</h4>
-                <SelectWrap label={LABELS.handler} value={filters.handler} onChange={choice("handler")}>
-                  {visibleHandlers.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-                </SelectWrap>
+                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Sales & Ownership</h4>
+                {!showOwner && profile?.app_role !== "ae" && <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">{LABELS.owner}</span>
+                  <SearchableSelect value={filters.owner || "all"} ariaLabel={LABELS.owner}
+                    onChange={choice("owner")} searchPlaceholder="Search AE..."
+                    placeholder="All AEs" className="h-9 rounded-lg"
+                    options={[{value:"all",label:"All AEs"},...ownerChoices.map(m=>({
+                      value:m.id,label:m.name,keywords:`${m.employee_id||""} ${m.id||""}`
+                    }))]}/>
+                </div>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <SelectWrap label={LABELS.stage} value={filters.stage} onChange={choice("stage")}>
+                    {stages.map(s=><SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectWrap>
+                  <SelectWrap label={LABELS.handler} value={filters.handler} onChange={choice("handler")}>
+                    {visibleHandlers.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                  </SelectWrap>
+                </div>
                 <SelectWrap label={LABELS.working_with} value={filters.working_with} onChange={choice("working_with")}>
                   {working.map(w=><SelectItem key={w.id} value={w.name}>{w.name}</SelectItem>)}
                 </SelectWrap>
               </section>
               <section className="space-y-2">
-                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Opportunity Details</h4>
+                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Other Details</h4>
                 <SelectWrap label={LABELS.product_category} value={filters.product_category} onChange={choice("product_category")}>
                   {categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectWrap>
@@ -171,9 +211,8 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
           </PopoverContent>
         </Popover>
       </div>
-      {scopeLabel&&<p className="text-[11px] text-muted-foreground">Region: {scopeLabel}</p>}
       {chipEntries.length>0&&<div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
-        <span className="mr-1 text-[11px] text-muted-foreground">Active Filters</span>
+        <span className="mr-1 text-[11px] text-muted-foreground">Applied</span>
         {chipEntries.map(([key,value])=><button key={key} type="button"
           onClick={()=>onFilter(key,key==="status"?"open":"")}
           aria-label={`Remove ${LABELS[key]} filter`}
