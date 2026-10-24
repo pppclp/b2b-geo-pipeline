@@ -50,7 +50,7 @@ function fixture() {
       : body;
     return core.handle({userId,method,path,body:actualBody});
   };
-  return {call,row:()=>store.table(DB,"Pipelines").rows[0],events:()=>store.table(DB,"Pipeline_Events").rows,regions:()=>store.table(ORG,"User_Region").rows};
+  return {call,rawCall:(userId,method,path,body)=>core.handle({userId,method,path,body}),row:()=>store.table(DB,"Pipelines").rows[0],allRows:()=>store.table(DB,"Pipelines").rows,events:()=>store.table(DB,"Pipeline_Events").rows,regions:()=>store.table(ORG,"User_Region").rows};
 }
 const denied=(status)=>(e)=>e.status===status;
 
@@ -137,4 +137,70 @@ test("B6: frontend applies Bangkok business month to timestamps but keeps YYYY-M
   assert.equal(monthOf("2026-10-31T23:00:00+07:00"),"2026-10");
   assert.equal(monthOf("not-a-date"),"");
   assert.equal(dashboardCohort([{created_date:instant,region_id:"R1"}],{createdMonth:"2026-11"}).length,1);
+});
+
+test("security: closed Pipelines reject changing Stage, Handler, owner and customer",()=>{
+  const x=fixture();
+  x.call("AE1","PUT","entities/Opportunity/P1",{status:"won"});
+  const before=x.events().length;
+  for(const changes of [{stage_id:"S1"},{current_handler_id:"SM1"},{customer_name:"Modified"},{owner_id:"AE2"}]){
+    assert.throws(()=>x.call("ADMIN","PUT","entities/Opportunity/P1",changes),denied(409));
+  }
+  assert.equal(x.events().length,before);
+  x.call("SM1","PUT","entities/Opportunity/P1",{status:"open",audit_remark:"Requalified"});
+  x.call("SM1","PUT","entities/Opportunity/P1",{customer_name:"Legitimate edit"});
+  assert.equal(x.row().customer_name,"Legitimate edit");
+});
+
+test("security: Management outside Region cannot become handler",()=>{
+  const x=fixture();
+  x.regions().push({user_region_id:"UR4",user_id:"M1",region_id:"R2",active:"Yes"});
+  assert.throws(()=>x.call("ADMIN","PUT","entities/Opportunity/P1",{current_handler_id:"M1"}),denied(400));
+});
+
+test("security: API requires explicit revision and rejects stale writes",()=>{
+  const x=fixture();
+  assert.throws(()=>x.rawCall("AE1","PUT","entities/Opportunity/P1",{remark:"No revision"}),denied(428));
+  const first=x.call("AE1","PUT","entities/Opportunity/P1",{remark:"First"});
+  assert.throws(()=>x.rawCall("AE1","PUT","entities/Opportunity/P1",{
+    remark:"Stale",expected_updated_at:"wrong"
+  }),denied(409));
+  assert.equal(x.row().remark,"First");
+  assert.ok(first.updated_date);
+});
+
+test("security: text limits reject oversize fields",()=>{
+  const x=fixture();
+  for(const changes of [{customer_name:"X".repeat(201)},{product_details:"X".repeat(2001)},{contact_name:"X".repeat(121)}]){
+    assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/P1",changes),denied(400));
+  }
+});
+
+test("security: non-admin user directory and raw master are region-scoped",()=>{
+  const x=fixture();
+  const list=x.call("AE1","GET","entities/TeamMember");
+  assert.ok(list.some((u)=>u.id==="AE1"));
+  assert.ok(!list.some((u)=>u.id==="AE2"));
+  assert.ok(!list.some((u)=>u.id==="M1"));
+  assert.throws(()=>x.call("AE1","GET","entities/TeamMember/AE2"),denied(404));
+  const users=x.call("AE1","GET","sheets/"+ORG+"/Users");
+  assert.ok(!users.rows.some((u)=>u.user_id==="AE2"));
+  const assignments=x.call("AE1","GET","sheets/"+ORG+"/User_Region");
+  assert.ok(!assignments.rows.some((u)=>u.user_id==="AE2"));
+  assert.ok(x.call("ADMIN","GET","entities/TeamMember").some((u)=>u.id==="AE2"));
+});
+
+test("security: keyed create retries return the same Pipeline without duplicate events",()=>{
+  const x=fixture();
+  const data={client_request_id:"req_abcdef0123456789",customer_name:"New Business",business_id:"123456",
+    customer_type:"SME",sales_channel:"AE Self",contact_name:"Test",
+    contact_phone:"0812345678",product_category_id:"CAT",expected_close_month:"2026-11",
+    quantity:1,price_per_sub:100,owner_id:"AE1",region_id:"R1",stage_id:"S1"};
+  const created=x.call("AE1","POST","entities/Opportunity",data);
+  const count=x.allRows().length,events=x.events().length;
+  const replay=x.call("AE1","POST","entities/Opportunity",data);
+  assert.equal(replay.id,created.id);
+  assert.equal(x.allRows().length,count);
+  assert.equal(x.events().length,events);
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",{...data,customer_name:"Changed"}),denied(409));
 });
