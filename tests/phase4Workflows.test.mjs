@@ -41,6 +41,7 @@ function harness(){
  const touched=[];
  const store={table:(f,s)=>table[f+"|"+s],touch:(f,s)=>touched.push(f+"|"+s)};
  const core=createCore({contract:{access,columns:{}},store,now:()=>"2026-10-19T05:30:00.000Z",uuid:()=>String(++n).padStart(4,"0")});
+ let requestSequence=0;
  const call=(userId,method,path,body)=>{
     const actualBody = body && method==="PUT" && path.startsWith("entities/Opportunity/") &&
       body.expected_updated_at === undefined
