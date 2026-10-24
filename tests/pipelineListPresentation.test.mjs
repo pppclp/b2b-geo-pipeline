@@ -32,3 +32,14 @@ test("Region is a column only for multi-region rows without a selected region",(
   assert.equal(regionDisplayContext([{region_id:"R2"}],byId).label,"Region: South");
   assert.equal(regionDisplayContext([],byId,"",["R1"]).label,"Region: BMA East");
 });
+
+test("All Regions scope stays visible even when filtered rows contain just one Region",()=>{
+  const map={R1:{name:"BMA East"},R2:{name:"South"}};
+  const current=[{region_id:"R1"}];
+  assert.deepEqual(regionDisplayContext(current,map,"",["R1","R2"]),
+    {label:"All Regions · 2",showColumn:true,multi:true});
+  assert.deepEqual(regionDisplayContext([],map,"",["R1","R2"]),
+    {label:"All Regions · 2",showColumn:true,multi:true});
+  assert.deepEqual(regionDisplayContext(current,map,"R1",["R1","R2"]),
+    {label:"Region: BMA East",showColumn:false,multi:false});
+});

@@ -50,9 +50,11 @@ export function regionDisplayContext(opportunities = [], regionMap = {}, selecte
   const permitted = [...new Set(accessibleRegionIds.filter(Boolean))];
   const labelFor = (id) => regionMap?.[id]?.name || id;
   if (selectedRegionId) return { label: "Region: " + labelFor(selectedRegionId), showColumn: false, multi: false };
-  if (visible.length > 1) return { label: "All Regions · " + visible.length, showColumn: true, multi: true };
-  if (visible.length === 1) return { label: "Region: " + labelFor(visible[0]), showColumn: false, multi: false };
-  if (permitted.length > 1) return { label: "All Regions · " + permitted.length, showColumn: false, multi: true };
-  if (permitted.length === 1) return { label: "Region: " + labelFor(permitted[0]), showColumn: false, multi: false };
+  // A multi-Region "All" view remains multi-Region even when month, stage or
+  // search filters temporarily leave only one Region in the visible records.
+  // Match the Dashboard and Pipeline; hide the column only on single-Region scope.
+  const available = permitted.length ? permitted : visible;
+  if (available.length > 1) return { label: "All Regions · " + available.length, showColumn: true, multi: true };
+  if (available.length === 1) return { label: "Region: " + labelFor(available[0]), showColumn: false, multi: false };
   return { label: "No matching Regions", showColumn: false, multi: false };
 }

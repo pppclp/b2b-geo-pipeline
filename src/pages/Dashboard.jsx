@@ -148,6 +148,7 @@ export default function Dashboard() {
       <div className="p-5 md:p-7 max-w-[1400px] mx-auto space-y-4">
         <div><h1 className="text-[22px] font-semibold">Data & Access</h1>
           <p className="text-sm text-muted-foreground mt-1">Admin workspace · {regionContext.label}</p></div>
+        {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Panel title="User & Organization"><p className="text-xs text-muted-foreground mb-3">Manage users and authorized Region mappings.</p>
             <Button type="button" variant="outline" onClick={() => navigate("/admin")}><Settings2 className="h-4 w-4 mr-2" />Open Admin</Button></Panel>
@@ -155,7 +156,7 @@ export default function Dashboard() {
             <Button type="button" variant="outline" onClick={() => navigate("/import")}><Upload className="h-4 w-4 mr-2" />Open Import</Button></Panel>
         </div>
         <Panel title="Business Overview">
-          <p className="text-sm text-muted-foreground">You can review {scopedOpportunities.length} authorized Pipelines across {regions.length} configured Regions. Region breakdown below shows Open Pipeline Net RC.</p>
+          <p className="text-sm text-muted-foreground">You can review {cohort.length} Pipelines for {regionContext.label}. Region breakdown below shows Open Pipeline Net RC.</p>
           <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>Open Pipeline</Button>
         </Panel>
         <Panel title="Open Pipeline by Region" meta="Open · Net RC">
