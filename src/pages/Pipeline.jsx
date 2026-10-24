@@ -293,7 +293,7 @@ export default function Pipeline() {
               const stageOps = sorted.filter((o) => o.stage_id === stage.id);
               const stageValue = stageOps.reduce((a, o) => a + (o.pipeline_value || 0), 0);
               return (
-                <div key={stage.id} className="flex flex-col w-[280px] shrink-0">
+                <div key={stage.id} className={`flex flex-col w-[280px] min-w-[170px] shrink-0 ${activeStages.length === 5 ? "xl:w-[calc((100%-3rem)/5)]" : ""}`}>
                   <div className="flex items-center justify-between mb-2.5 px-1">
                     <span className="font-medium text-[13px]">{stage.name}</span>
                     <span className="text-[11px] text-muted-foreground tabular-nums bg-secondary rounded-md px-2 py-0.5">{stageOps.length} · {formatTHB(stageValue)}</span>
