@@ -212,7 +212,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
         </Popover>
       </div>
       {chipEntries.length>0&&<div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
-        <span className="mr-1 text-[11px] text-muted-foreground">Applied</span>
+        <span className="mr-1 text-[11px] text-muted-foreground">Active Filters</span>
         {chipEntries.map(([key,value])=><button key={key} type="button"
           onClick={()=>onFilter(key,key==="status"?"open":"")}
           aria-label={`Remove ${LABELS[key]} filter`}
