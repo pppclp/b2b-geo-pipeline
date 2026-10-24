@@ -3,6 +3,7 @@
  * Never convert these UI labels into sheet/API keys or backend permissions.
  */
 export const PIPELINE_FILTER_LABELS = Object.freeze({
+  search: "Search",
   created_month: "Created Month",
   close_month: "Expected Close Month",
   region: "Region",
@@ -23,10 +24,10 @@ export const PIPELINE_FILTER_LABELS = Object.freeze({
   lost_month: "Lost Month",
   lost_reason: "Lost Reason",
 });
-export const QUICK_FILTER_KEYS = ["close_month", "region", "owner", "stage", "status"];
+export const QUICK_FILTER_KEYS = ["search", "close_month", "region", "status"];
 export const ADVANCED_FILTER_KEYS = [
-  "created_month", "handler", "working_with",
-  "product_category", "scenario", "sales_channel",
+  "created_month", "owner", "handler", "working_with",
+  "stage", "product_category", "scenario", "sales_channel",
   "ccp_check_result", "support",
 ];
 
@@ -44,8 +45,18 @@ export function visibleActiveFilters(filters) {
   );
 }
 
-export function advancedFilterCount(filters) {
-  return ADVANCED_FILTER_KEYS.filter((key) => isActiveFilter(key, filters?.[key])).length;
+export function advancedFilterCount(filters, profile) {
+  // Management/Admin have AE Owner in the primary bar; all others find it in More Filters.
+  return ADVANCED_FILTER_KEYS.filter((key) =>
+    !(key === "owner" && showQuickOwner(profile)) && isActiveFilter(key, filters?.[key])
+  ).length;
+}
+
+export function matchesPipelineSearch(op, query) {
+  const q = String(query || "").trim().toLocaleLowerCase();
+  if (!q) return true;
+  return [op?.customer_name, op?.business_id, op?.id, op?.opportunity_id]
+    .some((value) => String(value || "").toLocaleLowerCase().includes(q));
 }
 
 export function showQuickRegion(profile) {
@@ -57,7 +68,7 @@ export function showQuickRegion(profile) {
 }
 
 export function showQuickOwner(profile) {
-  return !!profile && ["sm", "management", "admin"].includes(profile.app_role);
+  return !!profile && ["management", "admin"].includes(profile.app_role);
 }
 
 export function allowedAeOwners(members, scopedOpportunities, regionId) {

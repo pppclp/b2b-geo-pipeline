@@ -9,7 +9,7 @@ import { db } from "@/api/client";
 import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
-import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
+import {shouldClearOwnerOnRegionChange, matchesPipelineSearch} from "@/lib/pipelineFilterUi";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
@@ -78,6 +78,7 @@ export default function Pipeline() {
     if (params.get("lost_month")) f.lost_month = params.get("lost_month");
     if (params.get("lost_reason")) f.lost_reason = params.get("lost_reason");
     if (params.get("stage")) f.stage = params.get("stage");
+    if (params.get("search")) f.search = params.get("search");
     if (params.get("status")) f.status = params.get("status");
     if (profile?.app_role === "sm" && params.get("sm_info") === "missing") f.sm_info = "missing";
     if (params.get("sort")) setSort(params.get("sort"));
@@ -115,6 +116,7 @@ export default function Pipeline() {
 
   const filtered = useMemo(() => {
     return scopedOpportunities.filter((o) => {
+      if (!matchesPipelineSearch(o, filters.search)) return false;
       if (filters.created_month && o.created_month !== filters.created_month) return false;
       if (filters.close_month && o.expected_close_month !== filters.close_month) return false;
       if (filters.region && o.region_id !== filters.region) return false;
@@ -227,23 +229,7 @@ export default function Pipeline() {
         </p>
       )}
       <div className="rounded-xl border border-border bg-card p-3 mb-4">
-        <FilterBar filters={filters} onFilter={onFilter} showQuickStage={view !== "list"} />
-        {profile?.app_role === "sm" && (
-          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border/60">
-            <button type="button" aria-pressed={filters.sm_info === "missing"}
-              onClick={() => onFilter("sm_info", filters.sm_info === "missing" ? "" : "missing")}
-              className={filters.sm_info === "missing"
-                ? "rounded-lg border border-primary/40 bg-brand-tint px-3 py-1.5 text-[12px] font-medium text-brand"
-                : "rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-secondary"}>
-              Missing SM Info
-            </button>
-            <span className="text-[11px] text-muted-foreground">
-              {scopedOpportunities.filter((o) => o.status === "open" &&
-                (!o.scenario_id || !o.ccp_check_result || o.ccp_check_result === "pending")).length}
-              {" "}open Pipelines in your scope
-            </span>
-          </div>
-        )}
+        <FilterBar filters={filters} onFilter={onFilter} stageChipsVisible={view === "list"} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">

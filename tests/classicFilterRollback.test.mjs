@@ -22,7 +22,7 @@ test("Compact English quick filters retain access to all existing advanced field
   for(const component of ["Popover","SearchableSelect","MonthPicker"]){
     assert.ok(filter.includes(component),`${component} is missing`);
   }
-  for(const label of ["Active Filters","Advanced Filters","Reset to Default","Show Results"]){
+  for(const label of ["Active Filters","More Filters","Reset to Default","Show Results"]){
     assert.ok(filter.includes(label),`${label} is missing`);
   }
   assert.ok(!filter.includes("shouldShowDropdown"));
