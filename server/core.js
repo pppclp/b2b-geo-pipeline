@@ -529,31 +529,27 @@ export function createCore({ contract, store, now, uuid }) {
     });
     touch(notificationBinding);
   }
-  function opportunityName(id) {
-    const b = binding("Opportunity");
-    return tableOf(b).rows.find((o) => o.opportunity_id === id)?.customer_name || "";
-  }
-  function needsSmInputById(id) {
-    const b = binding("Opportunity");
-    const op = tableOf(b).rows.find((o) => o.opportunity_id === id);
-    return !!op && needsSmInput(op);
-  }
   function listNotifications(actor) {
     if (!notificationBinding) throw new HttpError(503, "Handoff Notifications need database setup");
+    const opportunityBinding = binding("Opportunity");
+    const inScope = scopedFilter(opportunityBinding, actor);
+    const opportunitiesById = new Map(tableOf(opportunityBinding).rows
+      .filter(inScope).map((op) => [op.opportunity_id, op]));
     const mine = notificationRows().filter((n) => n.recipient_user_id === actor.real.id);
-    const visible = mine.filter((n) => {
-      const b = binding("Opportunity");
-      const op = tableOf(b).rows.find((o) => o.opportunity_id === n.opportunity_id);
-      return !!op && scopedFilter(b, actor)(op);
-    });
+    const visible = mine.filter((n) => opportunitiesById.has(n.opportunity_id));
     return {
       unread_count: visible.filter((n) => !n.read_at).length,
       items: visible.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 30)
-        .map((n) => ({ id:n.notification_id, opportunity_id:n.opportunity_id,
-          actor_name:findUser(n.actor_user_id)?.name || "Colleague",
-          type:n.type || "handoff", customer_name:opportunityName(n.opportunity_id),
-          needs_sm_input:needsSmInputById(n.opportunity_id),
-          created_at:n.created_at, read_at:n.read_at || "" }))
+        .map((n) => {
+          const op = opportunitiesById.get(n.opportunity_id);
+          return {
+            id:n.notification_id, opportunity_id:n.opportunity_id,
+            actor_name:findUser(n.actor_user_id)?.name || "Colleague",
+            type:n.type || "handoff", customer_name:op.customer_name || "",
+            needs_sm_input:needsSmInput(op),
+            created_at:n.created_at, read_at:n.read_at || ""
+          };
+        })
     };
   }
   function readNotification(actor, id) {
