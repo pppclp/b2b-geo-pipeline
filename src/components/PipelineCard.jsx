@@ -3,19 +3,21 @@ import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, agingDays } from "@/lib/pipeline";
 import { isStageSlaOverdue } from "@/lib/dashboardMetrics";
+import { workingWithTeamLabels } from "@/lib/pipelineListPresentation";
 import { AlertCircle, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Board cards are a compact overview. Full ownership, handoff and working-with
 // history stays available in the shared Pipeline Quick View.
-export default function PipelineCard({ op, onOpen }) {
-  const { maps } = useData();
+export default function PipelineCard({ op, onOpen, showRegion = false }) {
+  const { maps, master } = useData();
   const owner = maps.member[op.owner_id];
   const handler = maps.member[op.current_handler_id];
   const category = maps.category[op.product_category_id];
   const overdue = isStageSlaOverdue(op, maps.stage);
   const differentHandler = op.current_handler_id !== op.owner_id && Boolean(op.current_handler_id);
   const age = agingDays(op.stage_entered_at);
+  const teams = workingWithTeamLabels(op, master?.WorkingWithOption || []);
 
   return (
     <div role="button" tabIndex={0}
@@ -48,17 +50,29 @@ export default function PipelineCard({ op, onOpen }) {
         <span className="text-[14px] font-semibold tabular-nums whitespace-nowrap">{formatTHB(op.pipeline_value)}</span>
         <span className="text-[11px] text-muted-foreground whitespace-nowrap">{formatMonth(op.expected_close_month)}</span>
       </div>
-      <div className="mt-2 pt-2 border-t border-border/70 flex gap-2 items-center justify-between">
-        <span className="text-[11px] text-muted-foreground truncate" title={"Current Handler: " + (handler?.name || "Unassigned")}>
-          Handler: {handler?.name || "Unassigned"}
-        </span>
-        {overdue && <span className="shrink-0 rounded-md bg-amber-100 text-amber-700 font-medium text-[10px] px-1.5 py-0.5" title={"Stage SLA overdue, " + age + " days"}>
-          Stage {age}d
-        </span>}
-      </div>
-      {differentHandler && <div className="text-[10px] text-muted-foreground mt-1 truncate" title={"AE Owner: " + (owner?.name || "Unassigned")}>
-        AE Owner: {owner?.name || "Unassigned"}
+      {showRegion && <div className="mt-2 text-[10px] text-muted-foreground truncate"
+        title={"Region: " + (maps.region[op.region_id]?.name || op.region_id)}>
+        Region: {maps.region[op.region_id]?.name || op.region_id || "Unassigned"}
       </div>}
+      <div className="mt-2 pt-2 border-t border-border/70 space-y-1.5">
+        <div className="flex justify-between items-center gap-2">
+          <span className="text-[11px] font-medium truncate" title={"AE Owner: " + (owner?.name || "Unassigned")}>
+            {owner?.name || "Unassigned"}
+          </span>
+          {overdue && <span className="shrink-0 text-amber-700 font-medium text-[10px]" title={"Stage SLA overdue, " + age + " days"}>
+            SLA {age}d
+          </span>}
+        </div>
+        {differentHandler && <div className="text-[10px] text-muted-foreground truncate" title={"Current Handler: " + (handler?.name || "Unassigned")}>
+          ↳ Handler: {handler?.name || "Unassigned"}
+        </div>}
+        {teams.length > 0 && <div className="flex items-center gap-1 flex-wrap" title={"Working With: " + teams.join(", ")}>
+          <span className="text-[10px] text-muted-foreground">With</span>
+          {teams.slice(0, 2).map((name) => <span key={name}
+            className="inline-flex max-w-[94px] truncate rounded-md bg-sky-50 text-sky-800 border border-sky-100 px-1.5 py-0.5 text-[10px]">{name}</span>)}
+          {teams.length > 2 && <span className="text-[10px] text-muted-foreground">+{teams.length - 2}</span>}
+        </div>}
+      </div>
     </div>
   );
 }
