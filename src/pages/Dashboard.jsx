@@ -7,6 +7,7 @@ import { ROLE_LABELS, currentMonthKey } from "@/lib/pipeline";
 import { dashboardCohort, dashboardMetrics, isStageSlaOverdue } from "@/lib/dashboardMetrics";
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
+import { regionDisplayContext } from "@/lib/pipelineListPresentation";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
 
@@ -38,8 +39,10 @@ export default function Dashboard() {
     [maps.region, profile?.region_ids, isAdmin]
   );
   const region = regions.some((r) => r.id === regionFilter) ? regionFilter : "";
-  const showRegions = isManagement || (isSM && regions.length > 1);
+  // The same context rule applies to AE, SM, Management, and Admin.
+  const showRegions = regions.length > 1;
   const cohort = dashboardCohort(scopedOpportunities, { createdMonth, closeMonth, region });
+  const regionContext = regionDisplayContext(cohort, maps.region, region, regions.map(r => r.id));
   // Assigned work may belong to a different AE; never credit it to this AE's sales.
   const sales = isAE ? cohort.filter((o) => o.owner_id === profile?.id) : cohort;
   const { open, won, supportNeeded, stageOverdue } = dashboardMetrics(sales, {
@@ -144,7 +147,7 @@ export default function Dashboard() {
     return (
       <div className="p-5 md:p-7 max-w-[1400px] mx-auto space-y-4">
         <div><h1 className="text-[22px] font-semibold">Data & Access</h1>
-          <p className="text-sm text-muted-foreground mt-1">Admin workspace · All regions</p></div>
+          <p className="text-sm text-muted-foreground mt-1">Admin workspace · {regionContext.label}</p></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Panel title="User & Organization"><p className="text-xs text-muted-foreground mb-3">Manage users and authorized Region mappings.</p>
             <Button type="button" variant="outline" onClick={() => navigate("/admin")}><Settings2 className="h-4 w-4 mr-2" />Open Admin</Button></Panel>
@@ -152,8 +155,12 @@ export default function Dashboard() {
             <Button type="button" variant="outline" onClick={() => navigate("/import")}><Upload className="h-4 w-4 mr-2" />Open Import</Button></Panel>
         </div>
         <Panel title="Business Overview">
-          <p className="text-sm text-muted-foreground">Admin has all-region access. Use Pipeline to review live business records; data quality reports are not implemented yet.</p>
+          <p className="text-sm text-muted-foreground">You can review {scopedOpportunities.length} authorized Pipelines across {regions.length} configured Regions. Region breakdown below shows Open Pipeline Net RC.</p>
           <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>Open Pipeline</Button>
+        </Panel>
+        <Panel title="Open Pipeline by Region" meta="Open · Net RC">
+          <BreakdownTable rows={regionRows} label="Region"
+            onSelect={(id) => toPipeline({ status: "open", region: id })} />
         </Panel>
       </div>
     );
@@ -166,7 +173,11 @@ export default function Dashboard() {
           <h1 className="text-[22px] font-semibold tracking-tight">
             {isAE ? "My Dashboard" : isSM ? "Regional Dashboard" : "Management Dashboard"}
           </h1>
-          <p className="text-[12px] text-muted-foreground mt-0.5">{ROLE_LABELS[role]} · {isAE ? "Owned sales and assigned work" : "Authorized regions only"}</p>
+          <p className="text-[12px] text-muted-foreground mt-0.5">
+            {ROLE_LABELS[role]} · {isAE ? "Owned sales and assigned work" : "Authorized regions only"}
+            <span className="mx-2" aria-hidden="true">·</span>
+            <span aria-label={"Region scope: " + regionContext.label}>{regionContext.label}</span>
+          </p>
         </div>
         <div className="flex flex-wrap gap-3 items-end">
           <div className="w-[150px]">
@@ -181,8 +192,6 @@ export default function Dashboard() {
         </div>
       </div>
       {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
-      {!showRegions && isSM && regions.length === 1 &&
-        <div className="text-[11px] text-muted-foreground">Region: {regions[0].name}</div>}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Metric title="Close Outlook" value={formatTHB(closeValue)} note="Won + Open (selected filters)" />
         <Metric title={isAE ? "My Open Pipeline" : isSM ? "Region Open Pipeline" : "Open Pipeline"}
@@ -221,12 +230,15 @@ export default function Dashboard() {
                     onClick={() => navigate("/support-requests")}>
                     <span className="min-w-0"><span className="block font-medium text-[12px]">{request.opportunity_id}</span>
                       <span className="block text-[11px] text-muted-foreground">{request.note || "Support request"}</span></span>
-                    <span className="text-[10px] text-muted-foreground shrink-0">{request.status}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0 text-right">
+                      {regionContext.showColumn && <span className="block">{maps.region[request.region_id]?.name || request.region_id}</span>}
+                      {request.status}
+                    </span>
                   </button>
                 )}
                 {supportRequests !== null && !myRequests.length && <EmptyRow />}
               </div>
-            : <OpportunityTable rows={queueItems} maps={maps} onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />}
+            : <OpportunityTable rows={queueItems} maps={maps} showRegion={regionContext.showColumn} onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />}
           <div className="pt-3 flex justify-end">
             <Button size="sm" variant="outline" onClick={() =>
               isManagement && selectedTab === "with" ? navigate("/support-requests") :
@@ -245,10 +257,10 @@ export default function Dashboard() {
       </div>
       {(isSM || isManagement) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Panel title={isManagement && !region ? "Pipeline by Region" : "Pipeline by AE Owner"} meta="Open · Net RC">
-            <BreakdownTable rows={isManagement && !region ? regionRows : ownerRows}
-              label={isManagement && !region ? "Region" : "AE Owner"}
-              onSelect={(id) => isManagement && !region ? setRegionFilter(id) : toPipeline({ status: "open", owner: id })} />
+          <Panel title={(isManagement || isSM) && !region && regions.length > 1 ? "Pipeline by Region" : "Pipeline by AE Owner"} meta="Open · Net RC">
+            <BreakdownTable rows={(isManagement || isSM) && !region && regions.length > 1 ? regionRows : ownerRows}
+              label={(isManagement || isSM) && !region && regions.length > 1 ? "Region" : "AE Owner"}
+              onSelect={(id) => (isManagement || isSM) && !region && regions.length > 1 ? setRegionFilter(id) : toPipeline({ status: "open", owner: id })} />
           </Panel>
           <Panel title="Pipeline by Product Category" meta="Open · Net RC">
             <BarList rows={categoryRows} onSelect={(id) => toPipeline({ status: "open", product_category: id, ...(isAE ? { owner: profile.id } : {}) })} />
@@ -348,7 +360,7 @@ function BreakdownTable({ rows, label, onSelect }) {
   </div>;
 }
 
-function OpportunityTable({ rows, maps, onOpen }) {
+function OpportunityTable({ rows, maps, showRegion = false, onOpen }) {
   if (!rows.length) return <EmptyRow />;
   return <div className="overflow-x-auto"><table className="w-full text-[12px]">
     <thead><tr className="text-muted-foreground border-b border-border">
@@ -360,7 +372,8 @@ function OpportunityTable({ rows, maps, onOpen }) {
       <tr className="border-b border-border last:border-0" key={o.id}>
         <td className="py-3 pr-2"><button type="button" className="font-medium text-left hover:text-brand hover:underline"
           onClick={() => onOpen(o.id)}>{o.customer_name}</button>
-          {o.support_needed && <div className="text-[10px] text-muted-foreground">Needs Support</div>}
+          {showRegion && <div className="text-[10px] text-muted-foreground mt-0.5">{maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}</div>}
+          {o.support_needed && <div className="text-[10px] text-amber-700">Needs Support</div>}
         </td>
         <td className="py-3 text-muted-foreground whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
         <td className="py-3 text-right font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
