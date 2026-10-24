@@ -11,7 +11,7 @@ import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import {shouldClearOwnerOnRegionChange, matchesPipelineSearch} from "@/lib/pipelineFilterUi";
-import { sortPipelineRows, workingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
+import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
@@ -370,9 +370,7 @@ export default function Pipeline() {
                   // Working With is a supporting-team indicator, not ownership.
                   // Inline it beside an assigned SM only; other collaborators
                   // remain visible in Pipeline Quick View without adding rows.
-                  const teamLabels = differentOwner && handler?.app_role === "sm"
-                    ? workingWithTeamLabels(o, master?.WorkingWithOption || [])
-                    : [];
+                  const teamLabels = smWorkingWithTeamLabels(o, handler, master?.WorkingWithOption || []);
                   const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
                   return (
                     <tr key={o.id}

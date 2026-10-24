@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {sortPipelineRows, workingWithTeamLabels, regionDisplayContext} from "../src/lib/pipelineListPresentation.js";
+import {sortPipelineRows, workingWithTeamLabels, smWorkingWithTeamLabels, regionDisplayContext} from "../src/lib/pipelineListPresentation.js";
 
 const sample = [
   {id:"B",expected_close_month:"2026-11",pipeline_value:500,stage_entered_at:"2026-10-10T00:00:00Z"},
@@ -42,4 +42,15 @@ test("All Regions scope stays visible even when filtered rows contain just one R
     {label:"All Regions · 2",showColumn:true,multi:true});
   assert.deepEqual(regionDisplayContext(current,map,"R1",["R1","R2"]),
     {label:"Region: BMA East",showColumn:false,multi:false});
+});
+
+test("Working With is shown inline only for the actual SM handler",()=>{
+  const teams=[{id:"PRE",name:"Presales"}];
+  const op={owner_id:"AE1",current_handler_id:"SM1",working_with_team_ids:"PRE"};
+  assert.deepEqual(smWorkingWithTeamLabels(op,{app_role:"sm"},teams),["Presales"]);
+  assert.deepEqual(smWorkingWithTeamLabels(op,{app_role:"SM"},teams),["Presales"]);
+  assert.deepEqual(smWorkingWithTeamLabels(op,{app_role:"ae"},teams),[]);
+  assert.deepEqual(smWorkingWithTeamLabels(op,undefined,teams),[]);
+  assert.deepEqual(smWorkingWithTeamLabels({...op,current_handler_id:"AE1"},{app_role:"sm"},teams),[]);
+  assert.deepEqual(smWorkingWithTeamLabels({...op,working_with_team_ids:""},{app_role:"sm"},teams),[]);
 });

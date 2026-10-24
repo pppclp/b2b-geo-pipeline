@@ -3,7 +3,7 @@ import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, agingDays } from "@/lib/pipeline";
 import { isStageSlaOverdue } from "@/lib/dashboardMetrics";
-import { workingWithTeamLabels } from "@/lib/pipelineListPresentation";
+import { smWorkingWithTeamLabels } from "@/lib/pipelineListPresentation";
 import { AlertCircle, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
   const overdue = isStageSlaOverdue(op, maps.stage);
   const differentHandler = op.current_handler_id !== op.owner_id && Boolean(op.current_handler_id);
   const age = agingDays(op.stage_entered_at);
-  const teams = workingWithTeamLabels(op, master?.WorkingWithOption || []);
+  const teams = smWorkingWithTeamLabels(op, handler, master?.WorkingWithOption || []);
 
   return (
     <div role="button" tabIndex={0}
@@ -63,15 +63,19 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
             SLA {age}d
           </span>}
         </div>
-        {differentHandler && <div className="text-[10px] text-muted-foreground truncate" title={"Current Handler: " + (handler?.name || "Unassigned")}>
-          ↳ Handler: {handler?.name || "Unassigned"}
-        </div>}
-        {teams.length > 0 && <div className="flex items-center gap-1 flex-wrap" title={"Working With: " + teams.join(", ")}>
-          <span className="text-[10px] text-muted-foreground">With</span>
-          {teams.slice(0, 2).map((name) => <span key={name}
-            className="inline-flex max-w-[94px] truncate rounded-md bg-sky-50 text-sky-800 border border-sky-100 px-1.5 py-0.5 text-[10px]">{name}</span>)}
-          {teams.length > 2 && <span className="text-[10px] text-muted-foreground">+{teams.length - 2}</span>}
-        </div>}
+        <div className="flex h-[19px] min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
+          {differentHandler && <span className="min-w-0 truncate"
+            title={"Current Handler: " + (handler?.name || "Unassigned")}>
+            ↳ {handler?.app_role === "sm" ? "SM: " : "Handler: "}{handler?.name || "Unassigned"}
+          </span>}
+          {teams.length > 0 && <span
+            className="inline-flex max-w-[120px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-sky-100 bg-sky-50 px-1.5 leading-[16px] text-sky-800"
+            title={"Working With: " + teams.join(", ")}>
+            <span className="shrink-0 font-medium">With</span>
+            <span className="min-w-0 truncate">{teams[0]}</span>
+            {teams.length > 1 && <span className="shrink-0">+{teams.length - 1}</span>}
+          </span>}
+        </div>
       </div>
     </div>
   );

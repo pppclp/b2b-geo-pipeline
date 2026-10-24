@@ -45,6 +45,16 @@ export function workingWithTeamLabels(opportunity, teamOptions = []) {
   return [...new Set(names)];
 }
 
+// Working With is inline only when the Pipeline is currently handled by an SM.
+// Preserve the underlying collaboration data for the Quick View / detail page.
+export function smWorkingWithTeamLabels(opportunity, handler, teamOptions = []) {
+  const ownerId = opportunity?.owner_id;
+  const handlerId = opportunity?.current_handler_id;
+  if (!handlerId || ownerId === handlerId ||
+      String(handler?.app_role || "").toLowerCase() !== "sm") return [];
+  return workingWithTeamLabels(opportunity, teamOptions);
+}
+
 export function regionDisplayContext(opportunities = [], regionMap = {}, selectedRegionId = "", accessibleRegionIds = []) {
   const visible = [...new Set(opportunities.map(o => o.region_id).filter(Boolean))];
   const permitted = [...new Set(accessibleRegionIds.filter(Boolean))];
