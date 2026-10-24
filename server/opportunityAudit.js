@@ -9,6 +9,8 @@ const CHANGES = {
   current_handler_user_id: ["handler_change", "current_handler"],
   owner_user_id: ["reassign", "owner"],
   working_with_id: ["working_with_change", "working_with"],
+  working_with_team_ids: ["working_with_change", "working_with_teams"],
+  working_with_user_ids: ["working_with_change", "working_with_people"],
   expected_close_month: ["close_month_change", "expected_close_month"],
 };
 
