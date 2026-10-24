@@ -38,7 +38,7 @@ const MonthFilter = ({label, value, onChange}) => (
 );
 
 // Presentation only. Never change user scope or derive access from selected filters.
-export default function FilterBar({filters, onFilter, showCreatedMonth = true, showQuickStage = true}) {
+export default function FilterBar({filters, onFilter, showCreatedMonth = true, stageChipsVisible = false}) {
   const {master, profile, scopedOpportunities} = useData();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const regionOptions = useMemo(() =>
@@ -69,7 +69,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
     !["search", "close_month", "region", "status"].includes(key) &&
     !(key === "owner" && showOwner) &&
     !(key === "sm_info" && profile?.app_role === "sm") &&
-    !(key === "stage" && showQuickStage));
+    !(key === "stage" && stageChipsVisible));
   const missingSmInfoCount = profile?.app_role === "sm"
     ? scopedOpportunities.filter(o => o.status === "open" &&
       (!o.scenario_id || !o.ccp_check_result || o.ccp_check_result === "pending")).length
