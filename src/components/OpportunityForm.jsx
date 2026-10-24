@@ -50,7 +50,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const canReview = ["sm", "management", "admin"].includes(profile?.app_role);
+  const canReview = ["sm", "admin"].includes(profile?.app_role);
   const closedAe = !!opportunity && opportunity.status !== "open" && profile?.app_role === "ae";
 
   useEffect(() => {

@@ -109,3 +109,67 @@ test("multi-team and people selection is validated and legacy first-team retaine
    working_with_user_ids:"AE2"
  }),e=>e.status===400);
 });
+
+
+const pipelineInput = (changes = {}) => ({
+  customer_name:"New Prospect",business_id:"12399",customer_type:"SME",sales_channel:"AE Self",
+  contact_name:"Buyer",contact_phone:"0812345678",quantity:1,price_per_sub:100,
+  product_category_id:"CAT1",expected_close_month:"2026-11",region_id:"R1",
+  owner_id:"AE1",current_handler_id:"AE1",stage_id:"STG1",status:"open",...changes
+});
+
+test("AE creation creates one shared Regional SM alert without transferring AE's handler",()=>{
+  const h=harness();
+  const op=h.call("AE1","POST","entities/Opportunity",pipelineInput());
+  assert.equal(op.owner_id,"AE1");
+  assert.equal(op.current_handler_id,"AE1");
+  assert.equal(h.call("AE1","GET","entities/Opportunity").length,1);
+  const sm1=h.call("SM1","GET","notifications");
+  const sm2=h.call("SM2","GET","notifications");
+  assert.equal(sm1.unread_count,1);
+  assert.equal(sm2.unread_count,1);
+  assert.equal(sm1.items[0].type,"sm_input_needed");
+  assert.equal(sm1.items[0].id,sm2.items[0].id);
+  assert.equal(db(h,"Handoff_Notifications").length,1,"only one Region notification, not one per SM");
+  assert.throws(()=>h.call("AE1","POST","notifications/"+sm1.items[0].id+"/read"),e=>e.status===404);
+  h.call("SM1","POST","notifications/"+sm1.items[0].id+"/read");
+  assert.equal(h.call("SM2","GET","notifications").unread_count,0,"shared Region notification read state");
+  h.call("SM1","PUT","entities/Opportunity/"+op.id,{scenario_id:"SC001",ccp_check_result:"enterprise_base"});
+  assert.equal(h.call("SM1","GET","notifications").items.length,0,"completed SM info leaves pending alerts");
+  assert.equal(h.call("SM2","GET","notifications").items.length,0);
+  assert.equal(h.call("AE1","GET","entities/Opportunity")[0].current_handler_id,"AE1");
+});
+
+test("SM/Management can create for AE; SM owns Scenario/CCP+ editing",()=>{
+  const h=harness();
+  const fromSm=h.call("SM1","POST","entities/Opportunity",pipelineInput({
+    scenario_id:"SC001",ccp_check_result:"not_in_base"
+  }));
+  assert.equal(fromSm.owner_id,"AE1");
+  assert.equal(fromSm.current_handler_id,"AE1");
+  assert.equal(h.call("SM1","GET","notifications").unread_count,0);
+  assert.equal(h.call("AE1","GET","notifications").items[0].type,"assignment");
+  const fromMgmt=h.call("M1","POST","entities/Opportunity",pipelineInput({business_id:"12398"}));
+  assert.equal(fromMgmt.owner_id,"AE1");
+  assert.equal(fromMgmt.current_handler_id,"AE1");
+  assert.equal(h.call("SM1","GET","notifications").items[0].type,"sm_input_needed");
+  assert.throws(()=>h.call("M1","PUT","entities/Opportunity/"+fromMgmt.id,{scenario_id:"SC001"}),e=>e.status===403);
+  assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+fromMgmt.id,{ccp_check_result:"not_in_base"}),e=>e.status===403);
+  assert.throws(()=>h.call("M1","POST","entities/Opportunity",pipelineInput({business_id:"12397",ccp_check_result:"pending"})),e=>e.status===403);
+});
+
+test("Working With can change teams without handoff; readable team history is append-only",()=>{
+  const h=harness(),op=h.create();
+  const row=db(h,"Pipelines")[0],beforeStage=row.stage_entered_at,beforeHandler=row.handler_since;
+  const first=h.call("SM1","PUT","entities/Opportunity/"+op.id,{working_with_team_ids:"TEAM1"});
+  assert.equal(first._audit_events.filter(e=>e.event_type==="working_with_change").length,1);
+  const second=h.call("SM1","PUT","entities/Opportunity/"+op.id,{working_with_team_ids:"TEAM2"});
+  const teamEvent=second._audit_events.find(e=>e.field==="working_with_teams");
+  assert.equal(teamEvent?.event_type,"working_with_change");
+  assert.equal(teamEvent?.previous_value,"Presales");
+  assert.equal(teamEvent?.new_value,"Pricing");
+  assert.equal(db(h,"Pipelines")[0].stage_entered_at,beforeStage);
+  assert.equal(db(h,"Pipelines")[0].handler_since,beforeHandler);
+  assert.equal(db(h,"Pipelines")[0].current_handler_user_id,"AE1");
+  assert.equal(db(h,"Pipeline_Events").filter(e=>e.event_type==="working_with_change").length,2);
+});

@@ -457,6 +457,40 @@ export function createCore({ contract, store, now, uuid }) {
       changes.working_with_user_ids = userIds.join(",");
     }
   }
+  const needsSmInfo = (op) => !String(op.scenario_id || "").trim() ||
+    !String(op.ccp_check_result || "").trim() || String(op.ccp_check_result).toLowerCase() === "pending";
+
+  // A single regional alert is shared by all SMs in that Region. It does not
+  // change Current Handler or create one notification per individual SM.
+  function addSmInputNotification(op, actor, stamp) {
+    if (!notificationBinding || !["ae", "management"].includes(actor.role) || !needsSmInfo(op)) return;
+    const regionalSms = rows("users").some((user) =>
+      normalizeRole(user.role) === "sm" && String(user.status || "Active").toLowerCase() === "active" &&
+      regionIdsFor(user.user_id).includes(op.region_id));
+    if (!regionalSms) return;
+    const table = tableOf(notificationBinding);
+    table.rows.push({
+      notification_id: "NTF-" + uuid(), recipient_user_id: "",
+      opportunity_id: op.opportunity_id, actor_user_id: actor.real.id,
+      type: "sm_input_needed", created_at: stamp, read_at: "",
+    });
+    touch(notificationBinding);
+  }
+
+  // Assignment on creation is distinct from a subsequent handler handoff.
+  function addCreationAssignmentNotification(op, actor, stamp) {
+    if (!notificationBinding || !["sm", "management"].includes(actor.role) || !op.current_handler_user_id ||
+        op.current_handler_user_id === actor.real.id) return;
+    const recipient = findUser(op.current_handler_user_id);
+    if (!recipient) return;
+    tableOf(notificationBinding).rows.push({
+      notification_id: "NTF-" + uuid(), recipient_user_id: recipient.id,
+      opportunity_id: op.opportunity_id, actor_user_id: actor.real.id,
+      type: "assignment", created_at: stamp, read_at: "",
+    });
+    touch(notificationBinding);
+  }
+
   function addHandoffNotification(opportunityId, oldHandler, newHandler, actor, stamp) {
     if (!notificationBinding || !newHandler || oldHandler === newHandler || newHandler === actor.real.id) return;
     const recipient = findUser(newHandler);
@@ -473,30 +507,37 @@ export function createCore({ contract, store, now, uuid }) {
     });
     touch(notificationBinding);
   }
+  // Role/Region permissions for shared SM input alerts are derived from the
+  // Opportunity's current Region. A notification row never grants access.
+  function notificationVisible(actor, item) {
+    const b = binding("Opportunity");
+    const op = tableOf(b).rows.find((o) => o.opportunity_id === item.opportunity_id);
+    if (!op || !scopedFilter(b, actor)(op)) return false;
+    if (item.type === "sm_input_needed") {
+      return actor.role === "sm" && actor.region_ids.includes(op.region_id) && needsSmInfo(op);
+    }
+    return item.recipient_user_id === actor.real.id;
+  }
   function listNotifications(actor) {
-    if (!notificationBinding) throw new HttpError(503, "Handoff Notifications need database setup");
-    const mine = notificationRows().filter((n) => n.recipient_user_id === actor.real.id);
-    const visible = mine.filter((n) => {
-      const b = binding("Opportunity");
-      const op = tableOf(b).rows.find((o) => o.opportunity_id === n.opportunity_id);
-      return !!op && scopedFilter(b, actor)(op);
-    });
+    if (!notificationBinding) throw new HttpError(503, "Notifications need database setup");
+    const visible = notificationRows().filter((item) => notificationVisible(actor, item));
     return {
       unread_count: visible.filter((n) => !n.read_at).length,
       items: visible.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 30)
-        .map((n) => ({ id:n.notification_id, opportunity_id:n.opportunity_id,
-          actor_name:findUser(n.actor_user_id)?.name || "Colleague",
-          created_at:n.created_at, read_at:n.read_at || "" }))
+        .map((n) => ({
+          id: n.notification_id, opportunity_id: n.opportunity_id, type: n.type || "handoff",
+          actor_name: findUser(n.actor_user_id)?.name || "Colleague",
+          created_at: n.created_at, read_at: n.read_at || "",
+        })),
     };
   }
   function readNotification(actor, id) {
-    if (!notificationBinding) throw new HttpError(503, "Handoff Notifications need database setup");
-    const item=notificationRows().find((n) => n.notification_id === id &&
-      n.recipient_user_id === actor.real.id);
+    if (!notificationBinding) throw new HttpError(503, "Notifications need database setup");
+    const item = notificationRows().find((n) => n.notification_id === id && notificationVisible(actor, n));
     if (!item) throw new HttpError(404, "Notification not found");
-    // Only the recipient, not Admin or the sender, may mark it read.
+    // Recipient-only for personal handoffs/assignments; shared for Regional SM.
     if (!item.read_at) { item.read_at = now(); touch(notificationBinding); }
-    return { ok:true };
+    return { ok: true };
   }
   function supportVisible(actor, request) {
     const b=binding("Opportunity");
@@ -729,8 +770,8 @@ export function createCore({ contract, store, now, uuid }) {
         }
         // New AE modal fields must be validated server-side as well.
         // Imported historical data without sales_channel is handled separately.
-        if (actor.role === "ae" && (data.scenario_id || data.ccp_check_result)) {
-          throw new HttpError(403, "Only SM or Management can set Scenario and CCP+ Check");
+        if (!["sm", "admin"].includes(actor.role) && (data.scenario_id || data.ccp_check_result)) {
+          throw new HttpError(403, "Only SM can set Scenario and CCP+ Check");
         }
         if (actor.role === "ae" && String(data.owner_id || "") !== String(actor.id)) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
@@ -773,6 +814,10 @@ export function createCore({ contract, store, now, uuid }) {
       const auditEvents = b.entity === "opportunities"
         ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
         : [];
+      if (b.entity === "opportunities" && !importMeta) {
+        addCreationAssignmentNotification(saved, actor, stamp);
+        addSmInputNotification(saved, actor, stamp);
+      }
       if (b.entity === "opportunities" && bool.toUi(saved.support_needed))
         openSupportRequest(actor,saved[b.primary_key],saved.support_type_id,saved.support_note,stamp);
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("CREATED", b, saved[b.primary_key], null, saved, actor);
@@ -827,14 +872,16 @@ export function createCore({ contract, store, now, uuid }) {
           }
         }
       }
-      if (uiEntity === "Opportunity" && actor.role === "ae") {
+      if (uiEntity === "Opportunity") {
         const current = toUi(uiEntity, b.primary_key, row);
-        if ("owner_id" in data && String(data.owner_id) !== String(current.owner_id)) {
-          throw new HttpError(403, "Only SM or Admin may reassign commercial ownership");
+        if (actor.role === "ae" && "owner_id" in data && String(data.owner_id) !== String(current.owner_id)) {
+          throw new HttpError(403, "Only SM or Management may reassign commercial ownership");
         }
-        for (const field of ["scenario_id", "ccp_check_result"]) {
-          if (field in data && String(data[field] || "") !== String(current[field] || "")) {
-            throw new HttpError(403, "Only SM or Management can update " + field);
+        if (!["sm", "admin"].includes(actor.role)) {
+          for (const field of ["scenario_id", "ccp_check_result"]) {
+            if (field in data && String(data[field] || "") !== String(current[field] || "")) {
+              throw new HttpError(403, "Only SM can update " + field);
+            }
           }
         }
       }
@@ -911,7 +958,8 @@ export function createCore({ contract, store, now, uuid }) {
           String(row.current_handler_user_id||""))
         addHandoffNotification(id,before.current_handler_user_id,row.current_handler_user_id,actor,stamp);
       const auditEvents = b.entity === "opportunities"
-        ? appendAudit(id, opportunityAuditEvents(before, row, { remark: data.audit_remark || data.last_remark || "" }), actor, stamp)
+        ? appendAudit(id, opportunityAuditEvents(before, row, { remark: data.audit_remark || data.last_remark || "",
+          teamNames: Object.fromEntries(rows("working_with_options").map((t) => [t.team_id, t.team_name])) }), actor, stamp)
         : [];
       if (uiEntity === "TeamMember") syncUserRegions(id, data.region_ids);
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("UPDATED", b, id, before, row, actor);

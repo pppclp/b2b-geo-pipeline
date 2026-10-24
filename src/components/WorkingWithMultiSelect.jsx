@@ -6,7 +6,8 @@ import {Checkbox} from "@/components/ui/checkbox";
 export const splitWorkingIds=(value)=>String(value||"").split(",").map(x=>x.trim()).filter(Boolean);
 export default function WorkingWithMultiSelect({teams=[],people=[],regionId,teamIds="",userIds="",disabled=false,onTeams,onUsers}){
   const activeTeams=teams.filter(t=>t.active||splitWorkingIds(teamIds).includes(t.id));
-  const activePeople=people.filter(p=>p.active&&(p.region_ids||[]).includes(regionId) || splitWorkingIds(userIds).includes(p.id));
+  const activePeople=people.filter(p=>splitWorkingIds(userIds).includes(p.id) ||
+    (p.active && !["management", "admin"].includes(p.app_role) && (p.region_ids||[]).includes(regionId)));
   const toggle=(value,id,callback)=>{
     const current=new Set(splitWorkingIds(value));
     current.has(id)?current.delete(id):current.add(id);
@@ -14,7 +15,7 @@ export default function WorkingWithMultiSelect({teams=[],people=[],regionId,team
   };
   return <div className="space-y-3 rounded-xl border border-border p-3 bg-secondary/20">
     <div>
-      <p className="text-xs font-semibold mb-2">Teams · เลือกได้หลายทีม</p>
+      <p className="text-xs font-semibold mb-2">Teams · Select multiple</p>
       <div className="grid grid-cols-2 gap-2">
         {activeTeams.map(t=><label key={t.id} className="flex gap-2 items-center text-xs cursor-pointer">
           <Checkbox disabled={disabled} checked={splitWorkingIds(teamIds).includes(t.id)} onCheckedChange={()=>toggle(teamIds,t.id,onTeams)}/>
@@ -24,7 +25,7 @@ export default function WorkingWithMultiSelect({teams=[],people=[],regionId,team
       </div>
     </div>
     <div className="border-t pt-3">
-      <p className="text-xs font-semibold mb-2">People · เลือกได้หลายคนใน Region</p>
+      <p className="text-xs font-semibold mb-2">People · Optional Region collaborators</p>
       <div className="grid grid-cols-2 gap-2 max-h-44 overflow-auto">
         {activePeople.map(p=><label key={p.id} className="flex gap-2 items-center text-xs cursor-pointer">
           <Checkbox disabled={disabled} checked={splitWorkingIds(userIds).includes(p.id)} onCheckedChange={()=>toggle(userIds,p.id,onUsers)}/>

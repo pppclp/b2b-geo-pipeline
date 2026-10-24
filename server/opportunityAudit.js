@@ -17,7 +17,7 @@ function visible(value) {
   return typeof value === "boolean" ? (value ? "On" : "Off") : String(value);
 }
 
-export function opportunityAuditEvents(before, after, { remark = "" } = {}) {
+export function opportunityAuditEvents(before, after, { remark = "", teamNames = {} } = {}) {
   if (!before) return [{
     event_type: "create",
     field: "opportunity_id",
@@ -26,8 +26,24 @@ export function opportunityAuditEvents(before, after, { remark = "" } = {}) {
     remark: "",
   }];
   const changes = [];
+  // Treat a team selection as a set; reordering checkboxes is not a business
+  // change. Log old/new team names once, not a second legacy first-team event.
+  const ids = (value) => [...new Set(String(value || "").split(",").map((id) => id.trim()).filter(Boolean))].sort();
+  const oldTeams = ids(before.working_with_team_ids);
+  const newTeams = ids(after.working_with_team_ids);
+  const teamsChanged = oldTeams.join(",") !== newTeams.join(",");
+  const teamLabels = (values) => values.map((id) => teamNames[id] || id).join(", ") || "None";
+  if (teamsChanged) changes.push({
+    event_type: "working_with_change",
+    field: "working_with_teams",
+    previous_value: teamLabels(oldTeams),
+    new_value: teamLabels(newTeams),
+    remark: String(remark || "").slice(0, 500),
+  });
   for (const field of Object.keys(after)) {
     if (IGNORED.has(field) || field === "opportunity_id") continue;
+    if (field === "working_with_team_ids" ||
+        (field === "working_with_id" && teamsChanged)) continue;
     if (visible(before[field]) === visible(after[field])) continue;
     let [event_type, auditField] = CHANGES[field] || ["field_change", field];
     if (field === "status") {

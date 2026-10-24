@@ -588,6 +588,7 @@ source_03_pipeline_config:
       - "Fulfillment"
       - "Operation"
       - "Other"
+      - "Management"
 
     business_rule:
       - "These are internal teams, NOT application Users."
