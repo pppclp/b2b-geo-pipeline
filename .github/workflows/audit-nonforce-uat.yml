@@ -1,0 +1,40 @@
+name: One-time Non-force Audit Fix
+
+on:
+  push:
+    branches: [fix/uat-hardening-scoped-22d885c]
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Audit before
+        run: |
+          npm audit --json > /tmp/geo-audit-before.json || true
+          node -e 'const a=require("/tmp/geo-audit-before.json"); console.log("Before:",JSON.stringify(a.metadata?.vulnerabilities || {}))'
+      - name: Apply compatible audit fixes (never --force)
+        run: npm audit fix || true
+      - name: Audit after
+        run: |
+          npm audit --json > /tmp/geo-audit-after.json || true
+          node -e 'const a=require("/tmp/geo-audit-after.json"); console.log("After:",JSON.stringify(a.metadata?.vulnerabilities || {}))'
+      - name: Commit patched lockfile, if any
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "B2: apply npm audit fix without force"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
