@@ -27,7 +27,8 @@ test("default Open is not an active chip, explicit All Statuses is a chip",()=>{
   const selected={status:"all",region:"R1",handler:"SM1",support:"0"};
   assert.deepEqual(visibleActiveFilters(selected),Object.entries(selected));
   assert.equal(advancedFilterCount(selected,{app_role:"management"}),2);
-  assert.equal(advancedFilterCount(selected,{app_role:"sm"}),3);
+  assert.equal(advancedFilterCount(selected,{app_role:"sm"}),2);
+  assert.equal(advancedFilterCount({...selected,owner:"AE1"},{app_role:"sm"}),3);
   assert.equal(advancedFilterCount({status:"open",close_month:"2026-10"}),0);
 });
 
