@@ -14,6 +14,13 @@ test("all roles share a compact, single-line Pipeline table header", () => {
   assert.ok(header.includes(">Pipeline</th>"), "user-facing Pipeline terminology");
   assert.ok(!header.includes(">Opportunity</th>"));
   assert.ok(src.includes('className="group h-[64px]'), "compact rows still allow two-line handling");
+  // The table can be narrower than its scroll viewport: paint any trailing
+  // gutter in the same neutral gray without affecting white data rows.
+  assert.ok(src.includes('hsl(var(--secondary)) 0px'));
+  assert.ok(src.includes('hsl(var(--secondary)) 40px'));
+  assert.ok(src.includes('hsl(var(--card)) 40px'));
+  assert.ok(header.includes('className="bg-secondary px-3 py-1.5 text-right'));
+
 });
 
 test("user supplied True logo is used on app shell and sign-in, not a placeholder", () => {
@@ -29,8 +36,10 @@ test("user supplied True logo is used on app shell and sign-in, not a placeholde
 test("Vite GH Pages favicon uses original True logo mark and deployment base URL", () => {
   const html = read("index.html");
   const favicon = read("public/favicon.svg");
-  assert.ok(html.includes('href="%BASE_URL%favicon.svg?v=20261025"'));
-  assert.ok(favicon.includes('viewBox="-12 -10 406 640"'));
+  assert.ok(html.includes('href="%BASE_URL%favicon.svg?v=20261025-fullwordmark"'));
+  assert.ok(favicon.includes('viewBox="0 0 1725 626"'), "favicon contains full True wordmark, not a cropped t");
   assert.ok(favicon.includes('fill="#ec2127"'));
+  assert.ok(favicon.includes('Entire True wordmark'));
+  assert.ok(!favicon.includes('viewBox="-12 -10 406 640"'));
   assert.ok(!favicon.includes("data:image"));
 });
