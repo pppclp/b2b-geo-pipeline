@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { db } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { currentMonthKey } from "@/lib/pipeline";
@@ -42,25 +42,30 @@ export function DataProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
+  const dataRequestSequence = useRef(0);
   const [demoMemberId, setDemoMemberId] = useState(() => {
     try { return localStorage.getItem("geo_demo_as") || ""; } catch { return ""; }
   });
 
   const loadAll = useCallback(async () => {
+    const requestId = ++dataRequestSequence.current;
     setLoading(true);
     setError(null);
     try {
       const results = await fetchAllEntities([...MASTER_ENTITIES, "Opportunity"]);
+      if (requestId !== dataRequestSequence.current) return;
       const masterObj = {};
       MASTER_ENTITIES.forEach((e, i) => (masterObj[e] = results[i]));
       setMaster(masterObj);
       setOpportunities(results[MASTER_ENTITIES.length] || []);
       setLastLoadedAt(new Date().toISOString());
     } catch (e) {
-      console.error(e);
-      setError(e);
+      if (requestId === dataRequestSequence.current) {
+        console.error(e);
+        setError(e);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === dataRequestSequence.current) setLoading(false);
     }
   }, []);
 
@@ -263,8 +268,11 @@ export function DataProvider({ children }) {
         return rec;
       } catch (error) {
         if (error.status === 409) {
-          // Preserve the user's form so they can copy edits before reloading.
-          throw new Error("This Pipeline has changed since it was opened. Close this form, refresh, and review the latest values before saving again.");
+          // Preserve the original API status so the UI can offer a safe review rather than blind retry.
+          const conflict = new Error("This Pipeline changed while you were editing. Copy any draft notes and refresh to review the latest version before saving.");
+          conflict.status = 409;
+          conflict.code = "STALE_PIPELINE_REVISION";
+          throw conflict;
         }
         throw error;
       }
@@ -378,7 +386,7 @@ export function DataProvider({ children }) {
   );
 
   const setSupport = useCallback(
-    async (id, { needed, type, note }) => {
+    async (id, { needed, type, note, expectedUpdatedAt }) => {
       const op = opportunities.find((o) => o.id === id);
       if (!op) return;
       const changes = {
@@ -386,12 +394,12 @@ export function DataProvider({ children }) {
         support_type: needed ? type || "" : "",
         support_note: needed ? note || "" : "",
       };
-      await updateWithHistory(id, changes, {
+      return updateWithHistory(id, changes, {
         event_type: needed ? "support_on" : "support_off",
         field: "support_needed",
         previous_value: op.support_needed ? "On" : "Off",
         new_value: needed ? "On" : "Off",
-      });
+      }, { expectedUpdatedAt });
     },
     [opportunities, updateWithHistory]
   );
