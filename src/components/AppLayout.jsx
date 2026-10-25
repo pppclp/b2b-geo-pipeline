@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
 import HandoffBell from "@/components/HandoffBell";
 
-const LOGO_URL = `${import.meta.env.BASE_URL}true-logo.svg`;
+const LOGO_URL = `${import.meta.env.BASE_URL}true-logo.svg?v=20261025`;
 
 const navFor = (role) => {
   const base = [
