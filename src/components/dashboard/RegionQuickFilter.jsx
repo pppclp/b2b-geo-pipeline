@@ -20,7 +20,7 @@ export default function RegionQuickFilter({ regions, value, onChange }) {
             : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
         )}
       >
-        All Regions ({regions.length})
+        All Regions
       </button>
       {regions.map((region) => (
         <button
