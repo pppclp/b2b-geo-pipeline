@@ -2178,6 +2178,7 @@ var GeoCoreLib = (function(exports) {
 					row.stage_entered_at = stamp;
 					row.handler_since = stamp;
 					row.working_with_since = row.working_with_id ? stamp : "";
+					if (bool.toUi(row.support_needed) && (!String(row.support_type_id || "").trim() || !String(row.support_note || "").trim())) throw new HttpError(400, "Select Support Type and enter Support Note");
 					validateOpportunityRefs(row, null, actor);
 				}
 				row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
