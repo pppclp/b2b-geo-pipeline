@@ -623,6 +623,11 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(403,"Only Management or Admin can process support requests");
     const req=supportRows().find((r)=>r.request_id===id && supportVisible(actor,r));
     if (!req) throw new HttpError(404,"Support request not found");
+    // Protect Management hand-offs from simultaneous stale edits.
+    if (typeof data?.expected_updated_at !== "string" || !data.expected_updated_at)
+      throw new HttpError(428,"Support Request revision is required. Refresh before saving.");
+    if (String(data.expected_updated_at) !== String(req.updated_at || ""))
+      throw new HttpError(409,"Support Request changed. Refresh before saving your changes.");
     const desired=String(data?.status||req.status);
     if (!["Open","In Progress","Resolved"].includes(desired))
       throw new HttpError(400,"Invalid support status");
@@ -631,6 +636,8 @@ export function createCore({ contract, store, now, uuid }) {
     if (desired === "Resolved" && !String(data?.response_note||req.response_note||"").trim())
       throw new HttpError(400,"Resolution note is required");
     const assignee=String(data?.assigned_to_user_id ?? req.assigned_to_user_id ?? "");
+    if (desired !== "Open" && !assignee)
+      throw new HttpError(400,"Assign a Management owner before starting or resolving the request");
     if (assignee) {
       const user=findUser(assignee);
       if (!user || !["management","admin"].includes(user.role) ||
@@ -639,7 +646,11 @@ export function createCore({ contract, store, now, uuid }) {
     }
     req.status=desired;req.assigned_to_user_id=assignee;
     req.response_note=String(data?.response_note ?? req.response_note ?? "").slice(0,1000);
-    req.updated_at=now();
+    const stamp=now();
+    const priorMs=Date.parse(req.updated_at||"");
+    const currentMs=Date.parse(stamp);
+    req.updated_at=Number.isFinite(priorMs) && Number.isFinite(currentMs) && currentMs<=priorMs
+      ? new Date(priorMs+1).toISOString() : stamp;
     if (desired==="Resolved" && !req.resolved_at) {
       req.resolved_at=now();
       const b=binding("Opportunity"),op=tableOf(b).rows.find((o)=>o.opportunity_id===req.opportunity_id);
