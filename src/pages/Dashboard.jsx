@@ -80,18 +80,19 @@ export default function Dashboard() {
     }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
 
   const tabs = isManagement
-    ? [["support", "Needs Support"], ["overdue", "Stage Overdue"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+    ? [["with", "With Me"], ["support", "Needs Support"], ["overdue", "Stage Overdue"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
     : isSM
       ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
       : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]];
-  const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : (isManagement ? "support" : "with");
+  const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : "with";
   const queue = selectedTab === "with" ? assigned
     : selectedTab === "overdue" ? (isManagement ? stageOverdue : assignedOverdue)
     : selectedTab === "support" ? supportNeeded
     : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
   const queueItems = queue.slice().sort((a, b) => {
-    const aTime = new Date(a.stage_entered_at || 0).getTime();
-    const bTime = new Date(b.stage_entered_at || 0).getTime();
+    const agingKey = selectedTab === "with" ? "handler_since" : "stage_entered_at";
+    const aTime = new Date(a[agingKey] || a.stage_entered_at || 0).getTime();
+    const bTime = new Date(b[agingKey] || b.stage_entered_at || 0).getTime();
     return aTime - bTime;
   }).slice(0, 8);
   const closeValue = sumValue(won) + sumValue(open);
@@ -166,10 +167,10 @@ export default function Dashboard() {
         <Metric title={isAE ? "My Open Pipeline" : isSM ? "Region Open Pipeline" : "Open Pipeline"}
           value={formatTHB(sumValue(open))} note={open.length + " opportunities"}
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
-        <Metric title={isManagement ? "Needs Support" : "With Me"}
-          value={String(isManagement ? supportNeeded.length : assigned.length)}
-          note={isManagement ? "Open Pipelines requiring help" : "Current Handler"}
-          onClick={() => toPipeline(isManagement ? { status: "open", support: "1" } : { status: "open", handler: profile.id })} />
+        <Metric title="With Me"
+          value={String(assigned.length)}
+          note={isManagement ? "Assigned to your management account" : "Current Handler"}
+          onClick={() => toPipeline({ status: "open", handler: profile.id })} />
         <Metric title={isManagement ? "Stage Overdue" : "Overdue With Me"}
           value={String(isManagement ? stageOverdue.length : assignedOverdue.length)} note="Beyond configured Stage SLA"
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
@@ -177,8 +178,8 @@ export default function Dashboard() {
       <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
-        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={queue.length + " opportunities"}>
+      <div className={`grid grid-cols-1 gap-4 ${isManagement ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"}`}>
+        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={queue.length + " Pipelines"}>
           <div className="flex flex-wrap gap-1.5 mb-3" aria-label="Work queue filters">
             {tabs.map(([id, label]) =>
               <button key={id} type="button" onClick={() => setQueueTab(id)}
@@ -190,7 +191,15 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          <OpportunityTable rows={queueItems} maps={maps} showRegion={regionContext.showColumn} onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />
+          {isManagement && selectedTab === "with" && (
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Assigned to you as Current Handler. Pending approvals appear here when handed off to your account.
+            </p>
+          )}
+          <OpportunityTable rows={queueItems} maps={maps}
+            showRegion={isManagement || regionContext.showColumn}
+            regionColumn={isManagement}
+            onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />
           <div className="pt-3 flex justify-end">
             <Button size="sm" variant="outline" onClick={() =>
               toPipeline({
@@ -311,26 +320,49 @@ function BreakdownTable({ rows, label, onSelect }) {
   </div>;
 }
 
-function OpportunityTable({ rows, maps, showRegion = false, onOpen }) {
+function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false, onOpen }) {
   if (!rows.length) return <EmptyRow />;
-  return <div className="overflow-x-auto"><table className="w-full text-[12px]">
-    <thead><tr className="text-muted-foreground border-b border-border">
-      <th className="text-left font-medium py-2">Customer</th>
-      <th className="text-left font-medium py-2">Stage</th>
-      <th className="text-right font-medium py-2">Net RC</th>
-    </tr></thead>
-    <tbody>{rows.map((o) =>
-      <tr className="border-b border-border last:border-0" key={o.id}>
-        <td className="py-3 pr-2"><button type="button" className="font-medium text-left hover:text-brand hover:underline"
-          onClick={() => onOpen(o.id)}>{o.customer_name}</button>
-          {showRegion && <div className="text-[10px] text-muted-foreground mt-0.5">{maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}</div>}
-          {o.support_needed && <div className="text-[10px] text-amber-700">Needs Support</div>}
-        </td>
-        <td className="py-3 text-muted-foreground whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
-        <td className="py-3 text-right font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
-      </tr>
-    )}</tbody>
-  </table></div>;
+  return <div className="overflow-x-auto">
+    <table className={`w-full table-fixed text-[12px] ${regionColumn ? "min-w-[510px]" : "min-w-[390px]"}`}>
+      <colgroup>
+        <col style={{ width: regionColumn ? "40%" : "54%" }} />
+        {regionColumn && <col style={{ width: "21%" }} />}
+        <col style={{ width: regionColumn ? "15%" : "19%" }} />
+        <col style={{ width: regionColumn ? "24%" : "27%" }} />
+      </colgroup>
+      <thead><tr className="text-muted-foreground border-b border-border">
+        <th className="text-left font-medium py-2">Customer</th>
+        {regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}
+        <th className="text-left font-medium py-2">Stage</th>
+        <th className="text-right font-medium py-2">Net RC</th>
+      </tr></thead>
+      <tbody>{rows.map((o) =>
+        <tr className="h-[76px] border-b border-border last:border-0" key={o.id}>
+          <td className="py-2 pr-2 align-middle">
+            <div className="flex min-h-[52px] flex-col justify-center">
+              <button type="button" className="block max-w-full truncate text-left font-medium hover:text-brand hover:underline"
+                title={o.customer_name} onClick={() => onOpen(o.id)}>{o.customer_name}</button>
+              <div className="mt-0.5 flex min-h-[16px] flex-wrap items-center gap-x-2 text-[10px] leading-4">
+                {showRegion && !regionColumn && (
+                  <span className="truncate text-muted-foreground">
+                    {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
+                  </span>
+                )}
+                {o.support_needed && <span className="shrink-0 text-amber-700">Needs Support</span>}
+              </div>
+            </div>
+          </td>
+          {regionColumn && <td className="py-2 pr-2 align-middle text-[11px] text-muted-foreground">
+            <span className="block truncate" title={maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}>
+              {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
+            </span>
+          </td>}
+          <td className="py-2 align-middle text-muted-foreground whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
+          <td className="py-2 text-right align-middle font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
+        </tr>
+      )}</tbody>
+    </table>
+  </div>;
 }
 
 function EmptyRow() {
