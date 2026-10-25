@@ -9,7 +9,7 @@ import { LifeBuoy } from "lucide-react";
 
 // One contextual request action shared by Full Detail and Quick View.
 // No ticket is created; this changes the role-scoped Pipeline flag.
-export default function SupportToggleAction({ op, canEdit, onSaved, compact = false }) {
+export default function SupportToggleAction({ op, canEdit, onSaved, compact = false, disabled = false }) {
   const { master, setSupport } = useData();
   const [open, setOpen] = useState(false);
   const [supportType, setSupportType] = useState("");
@@ -22,7 +22,7 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
   const close = () => { if (!saving) { setOpen(false); setError(""); } };
   const openDialog = () => { setSupportType(""); setSupportNote(""); setError(""); setOpen(true); };
   const save = async () => {
-    if (saving || !canEdit || (!needed && (!supportType || !supportNote.trim()))) return;
+    if (saving || disabled || !canEdit || (!needed && (!supportType || !supportNote.trim()))) return;
     setSaving(true);
     setError("");
     try {
@@ -36,6 +36,7 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
 
   return <>
     {canEdit && <Button type="button" size="sm" variant="outline" onClick={openDialog}
+      disabled={disabled || saving} title={disabled ? "Save or discard unsaved Quick Update changes first" : undefined}
       className={compact ? "h-8 text-xs" : "h-9 rounded-lg"}>
       <LifeBuoy className="mr-2 h-4 w-4" />
       {needed ? "Remove Needs Support" : "Request Support"}
