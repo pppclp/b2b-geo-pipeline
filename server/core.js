@@ -9,6 +9,7 @@
 import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
+import { businessIdError, normalizeCustomerType } from "../src/lib/pipelineValidation.js";
 import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
@@ -26,14 +27,18 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
 function validateLatestOpportunityFields(data, { requireRequired = false } = {}) {
-  const required = ["customer_name", "business_id", "customer_type", "sales_channel", "contact_name", "contact_phone", "product_category_id", "expected_close_month"];
+  const required = ["customer_name", "business_id", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
       throw new HttpError(400, key + " is required");
     }
   }
-  if ("business_id" in data && data.business_id && !/^[0-9]+$/.test(String(data.business_id))) {
-    throw new HttpError(400, "Business ID must contain digits only");
+  if ("business_id" in data && data.business_id) {
+    const error = businessIdError(data.business_id);
+    if (error) throw new HttpError(400, error);
+  }
+  if ("customer_type" in data && data.customer_type && !normalizeCustomerType(data.customer_type)) {
+    throw new HttpError(400, "Invalid Customer Type. Choose a supported value.");
   }
   if ("sales_channel" in data && data.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
     throw new HttpError(400, "Invalid Sales Channel");
