@@ -12,7 +12,6 @@ import { DataProvider } from '@/lib/dataContext';
 import AppLayout from '@/components/AppLayout';
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 import Pipeline from '@/pages/Pipeline';
-import SupportRequests from '@/pages/SupportRequests';
 const OpportunityDetail = lazy(() => import('@/pages/OpportunityDetail'));
 const Admin = lazy(() => import('@/pages/Admin'));
 const Import = lazy(() => import('@/pages/Import'));
@@ -56,7 +55,8 @@ const AuthenticatedApp = () => {
         <Route element={<DataProvider><AppLayout /></DataProvider>}>
           <Route path="/" element={<Suspense fallback={<RouteLoading />}><Dashboard /></Suspense>} />
           <Route path="/pipeline" element={<Pipeline />} />
-          <Route path="/support-requests" element={<SupportRequests />} />
+          {/* Preserve old deep links without exposing the retired ticket workflow. */}
+          <Route path="/support-requests" element={<Navigate to="/pipeline?view=support-needed" replace />} />
           <Route path="/opportunity/:id" element={<Suspense fallback={<RouteLoading />}><OpportunityDetail /></Suspense>} />
           <Route path="/admin" element={<Suspense fallback={<RouteLoading />}><Admin /></Suspense>} />
           <Route path="/import" element={<Suspense fallback={<RouteLoading />}><Import /></Suspense>} />

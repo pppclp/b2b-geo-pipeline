@@ -70,22 +70,18 @@ test("month-end trigger captures preceding Bangkok month exactly once",()=>{
  assert.equal(call.path,"snapshots/capture");
  assert.equal(call.body.snapshot_period,"2026-10");
 });
-test("legacy support-flag backfill does not rewrite Pipelines and is safe to rerun",()=>{
+test("legacy support backfill is disabled and historical records remain untouched",()=>{
  const v=gasMock();
- const once=v.context.backfillGeoPhase4SupportFlags();
- assert.equal(once.created,1);
- assert.equal(once.pipelineRows,2);
- assert.equal(v.support.rows[0].source,"migration");
- assert.equal(v.support.rows[0].requested_by_user_id,"");
- assert.equal(v.context.backfillGeoPhase4SupportFlags().created,0);
- assert.equal(v.support.rows.length,1);
- assert.ok(v.events.every(x=>x[0]!=="touch"||x[1]==="Support_Requests"));
+ assert.throws(()=>v.context.backfillGeoPhase4SupportFlags(),/Retired/);
+ assert.equal(v.support.rows.length,0);
+ assert.equal(v.pipelines.length,2);
+ assert.equal(v.events.length,0);
 });
-test("phase4 migration and snapshot require explicit approval",()=>{
+test("phase4 schema preparation and snapshot still require explicit approval",()=>{
  const v=gasMock({approved:false});
  assert.throws(()=>v.context.prepareGeoPhase4Sheets(),/APPROVED/);
  assert.throws(()=>v.context.runGeoMonthEndSnapshot(),/not approved/);
- assert.throws(()=>v.context.backfillGeoPhase4SupportFlags(),/Approve Phase 4/);
+ assert.throws(()=>v.context.backfillGeoPhase4SupportFlags(),/Retired/);
 });
 
 test("Phase 2/4 required Pipeline columns exist in the YAML contract",()=>{

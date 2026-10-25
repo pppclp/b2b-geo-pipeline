@@ -205,11 +205,11 @@ export default function OpportunityDetail() {
             <div className="grid grid-cols-1 gap-2">
               <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "closemonth" })}><CalendarClock className="w-4 h-4 mr-2" /> Change Close Month</Button>
               {op.support_needed
-                ? <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => navigate("/support-requests")}>
-                    <Wrench className="w-4 h-4 mr-2" /> View Support Request
+                ? <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: false })}>
+                    <Wrench className="w-4 h-4 mr-2" /> Remove Needs Support
                   </Button>
                 : <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: true })}>
-                    <Wrench className="w-4 h-4 mr-2" /> Request Support
+                    <Wrench className="w-4 h-4 mr-2" /> Mark Needs Support
                   </Button>}
             </div>
           </Section>}
@@ -226,7 +226,7 @@ export default function OpportunityDetail() {
       <Dialog open={!!action} onOpenChange={(o) => !o && closeAction()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{actionTitle(action?.type)}</DialogTitle>
+            <DialogTitle>{actionTitle(action)}</DialogTitle>
           </DialogHeader>
           <ActionBody action={action} setAction={setAction} remark={remark} setRemark={setRemark}
             members={members} stages={activeStages} supportTypes={(master?.SupportType || []).filter((s) => s.active)} op={op} />
@@ -241,12 +241,14 @@ export default function OpportunityDetail() {
   );
 }
 
-function actionTitle(t) {
+function actionTitle(action) {
+  if (action?.type === "support")
+    return action.needed ? "Mark Needs Support" : "Remove Needs Support?";
   return ({
     reassign: "Reassign", closemonth: "Change Close Month",
     archive: "Archive", reopen: "Reopen",
-    workingwith: "Set Working With", support: "Toggle Support Needed",
-  })[t] || "Action";
+    workingwith: "Set Working With",
+  })[action?.type] || "Action";
 }
 
 function actionValid(a, remark = "") {
@@ -328,6 +330,10 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
     );
   }
   if (t === "support") {
+    if (!action.needed) return <DialogDescription>
+      Remove the Needs Support flag from this Pipeline? Support Type and Note will be
+      cleared from its current details. The change will remain in Pipeline History.
+    </DialogDescription>;
     return (
       <div className="space-y-2">
         <Label>Support Type</Label>
