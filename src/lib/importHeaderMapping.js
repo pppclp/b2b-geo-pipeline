@@ -6,6 +6,7 @@ export const IMPORT_HEADER_ALIASES = {
   customer_type: ["ประเภทลูกค้า"],
   sales_channel: ["ช่องทางขาย", "ช่องทางการขาย"],
   partner_name: ["ชื่อพาร์ทเนอร์", "ชื่อคู่ค้า"],
+  reference_net_rc: ["Net RC", "Net RC (Existing)", "Reference Net RC", "ยอด Net RC อ้างอิง"],
   contact_name: ["ชื่อผู้ติดต่อ", "ผู้ติดต่อ"],
   contact_phone: ["เบอร์ผู้ติดต่อ", "เบอร์โทรผู้ติดต่อ", "หมายเลขโทรศัพท์", "โทรศัพท์ผู้ติดต่อ"],
   remark: ["หมายเหตุ"],
