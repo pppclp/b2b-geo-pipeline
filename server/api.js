@@ -96,8 +96,12 @@ export function createApi({ yamlPath, dataDir }) {
       });
       send(res, 200, result);
     } catch (e) {
-      if (!e.status) console.error("[geo-api]", e);
-      send(res, e.status || 500, { message: e.message });
+      const status = e.status || 500;
+      const errorId = crypto.randomUUID();
+      if (status >= 500) console.error("[geo-api]", errorId, e);
+      send(res, status, status >= 500
+        ? { message: "Backend request failed. Contact support with error ID " + errorId, code: e.publicCode || "BACKEND_ERROR", error_id: errorId }
+        : { message: e.message, code: ({401:"UNAUTHENTICATED",403:"FORBIDDEN",409:"CONFLICT",410:"GONE",428:"PRECONDITION_REQUIRED",429:"RATE_LIMITED"}[status] || "REQUEST_ERROR") });
     }
   };
 }
