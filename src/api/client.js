@@ -139,11 +139,6 @@ export const db = {
     list: () => request("GET", "/notifications"),
     markRead: (id) => request("POST", `/notifications/${encodeURIComponent(id)}/read`),
   },
-  supportRequests: {
-    list: () => request("GET", "/support-requests"),
-    create: (data) => request("POST", "/support-requests", { body: data }),
-    update: (id, data) => request("PATCH", `/support-requests/${encodeURIComponent(id)}`, { body: data }),
-  },
   // Several reads in one round trip: [{ path, query }] -> [{ status, body }]
   batch: (requests) => request("POST", "/batch", { body: { requests } }),
   // Raw row editor over the source sheets bound in access_control.
