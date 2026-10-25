@@ -69,6 +69,14 @@ Product_Categories is a tab in Pipeline Config; product_details is free text in
 each Pipeline. The old B2B_Product_Master spreadsheet is archived/read-only,
 not referenced by the runtime API or generated Apps Script SheetIds.js.
 
+## Temporary UAT login recovery (2026-10-25)
+
+If existing Employee ID + temporary-password logins suddenly fail after the
+hardened backend release, follow [UAT login recovery and role smoke tests](docs/UAT_LOGIN_RECOVERY.md).
+The guarded manual 14-day recovery is **UAT-only**, must be explicitly approved,
+and does not change Pipeline scopes or provision new user accounts. Production
+requires a separately reviewed corporate identity integration.
+
 ## Hardened UAT rollout (2026-10-24)
 
 This change requires a coordinated release. GitHub Pages deploys the frontend

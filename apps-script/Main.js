@@ -86,6 +86,10 @@ function handle_(req) {
 }
 
 function uatLogin_(store, body) {
+  // This endpoint is never a valid Production identity provider.
+  var environment = String(PropertiesService.getScriptProperties().getProperty("GEO_ENVIRONMENT") || "").toUpperCase();
+  if (environment === "PRODUCTION" || environment === "PROD")
+    throwUatError_(503, "UAT password login is disabled in Production");
   var username = normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
@@ -187,10 +191,129 @@ function verifyUatPassword_(credential, password) {
   if (String(PropertiesService.getScriptProperties().getProperty("GEO_UAT_REQUIRE_HASHED_PASSWORDS") || "") === "true") return false;
   // Fail closed by default. Allow temporary plaintext only if explicitly
   // approved during a time-boxed UAT migration window.
-  if (PropertiesService.getScriptProperties().getProperty("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS") !== "true") {
-    return false;
-  }
+  if (!geoUatTemporaryPasswordWindowOpen_()) return false;
   return uatConstantTimeEqual_(String(credential.temporary_password || ""), String(password));
+}
+
+// The emergency plaintext window is deliberately UAT-only and reversible.
+// Existing Script Properties continue to work without expiry, but any new
+// recovery window configured by the operator expires automatically.
+function geoUatTemporaryPasswordWindowOpen_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS") !== "true") return false;
+  var environment = String(props.getProperty("GEO_ENVIRONMENT") || "").toUpperCase();
+  if (environment !== "UAT") return false;
+  var expiresAt = props.getProperty("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT");
+  if (expiresAt) {
+    var timestamp = Date.parse(expiresAt);
+    if (!Number.isFinite(timestamp) || Date.now() >= timestamp) return false;
+  }
+  return true;
+}
+
+// MANUAL, READ-ONLY health check in Apps Script editor. Never returns or logs
+// names, employee IDs, temporary passwords, password hashes, or sheet contents.
+function debugUatLoginReadiness() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
+    var credentials = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
+    var credentialIndex = {};
+    var duplicates = 0;
+    credentials.forEach(function (row) {
+      var id = normalizeEmployeeId_(row["employee_id / username"]);
+      if (!id) return;
+      if (Object.prototype.hasOwnProperty.call(credentialIndex, id)) duplicates++;
+      credentialIndex[id] = row;
+    });
+    var result = {
+      active_users: 0,
+      credential_ready: 0,
+      missing_employee_id: 0,
+      missing_credential_record: 0,
+      missing_password: 0,
+      duplicate_credential_ids: duplicates,
+      by_role: {}
+    };
+    users.forEach(function (user) {
+      if (String(user.status || "Active").toLowerCase() !== "active") return;
+      var role = String(user.role || "Unknown");
+      var item = result.by_role[role] || (result.by_role[role] = {
+        active: 0, ready: 0, blocked: 0
+      });
+      result.active_users++;
+      item.active++;
+      var id = normalizeEmployeeId_(user.employee_id);
+      if (!id) {
+        result.missing_employee_id++;
+        item.blocked++;
+        return;
+      }
+      var credential = credentialIndex[id];
+      if (!credential) {
+        result.missing_credential_record++;
+        item.blocked++;
+        return;
+      }
+      if (!String(credential.password_hash || "") &&
+          !String(credential.temporary_password || "")) {
+        result.missing_password++;
+        item.blocked++;
+        return;
+      }
+      result.credential_ready++;
+      item.ready++;
+    });
+    result.temporary_password_window_open = geoUatTemporaryPasswordWindowOpen_();
+    result.hashed_passwords_required =
+      PropertiesService.getScriptProperties().getProperty("GEO_UAT_REQUIRE_HASHED_PASSWORDS") === "true";
+    console.log(JSON.stringify(result));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// MANUAL UAT-ONLY recovery. Set GEO_ENVIRONMENT=UAT and
+// GEO_UAT_TEMP_LOGIN_APPROVED=YES in Script Properties first; never expose as
+// an HTTP route. Automatically expires after 14 days. No passwords are changed.
+function enableUatTemporaryLoginFor14Days() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
+      props.getProperty("GEO_UAT_TEMP_LOGIN_APPROVED") !== "YES") {
+    throw Error("UAT recovery not approved. Set GEO_ENVIRONMENT=UAT and GEO_UAT_TEMP_LOGIN_APPROVED=YES.");
+  }
+  if (props.getProperty("GEO_UAT_REQUIRE_HASHED_PASSWORDS") === "true") {
+    throw Error("Hashed-password-only mode is active; do not downgrade a migrated credential store.");
+  }
+  var readiness = debugUatLoginReadiness();
+  if (readiness.credential_ready === 0 || readiness.duplicate_credential_ids) {
+    throw Error("Credential readiness failed; review private workbook. No settings changed.");
+  }
+  var expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  props.setProperty("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT", expiresAt);
+  props.setProperty("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS", "true");
+  props.deleteProperty("GEO_UAT_TEMP_LOGIN_APPROVED");
+  return {
+    enabled: true,
+    expires_at: expiresAt,
+    credential_ready: readiness.credential_ready,
+    active_users: readiness.active_users,
+    missing_employee_id: readiness.missing_employee_id,
+    missing_credential_record: readiness.missing_credential_record,
+    missing_password: readiness.missing_password
+  };
+}
+
+// MANUAL revocation. Sets all UAT plaintext password checks to fail closed.
+function disableUatTemporaryLogin() {
+  var props = PropertiesService.getScriptProperties();
+  props.deleteProperty("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS");
+  props.deleteProperty("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT");
+  props.deleteProperty("GEO_UAT_TEMP_LOGIN_APPROVED");
+  return { enabled: false };
 }
 
 // MANUAL RUN ONLY. Never invoked from the public /exec API.
