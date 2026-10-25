@@ -4,8 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
-    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg?v=20261025-fullwordmark" />
-    <link rel="shortcut icon" type="image/svg+xml" href="%BASE_URL%favicon.svg?v=20261025-fullwordmark" />
+    <!-- Raster + ICO fallbacks support browsers that ignore SVG favicons. -->
+    <link rel="icon" type="image/png" sizes="64x64" href="%BASE_URL%favicon-64.png?v=20261025-raster" />
+    <link rel="shortcut icon" type="image/x-icon" href="%BASE_URL%favicon.ico?v=20261025-raster" />
+    <link rel="apple-touch-icon" sizes="180x180" href="%BASE_URL%apple-touch-icon.png?v=20261025-raster" />
     <title>B2B GEO Pipeline</title>
   </head>
   <body>

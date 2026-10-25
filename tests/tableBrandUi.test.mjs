@@ -36,7 +36,12 @@ test("user supplied True logo is used on app shell and sign-in, not a placeholde
 test("Vite GH Pages favicon uses original True logo mark and deployment base URL", () => {
   const html = read("index.html");
   const favicon = read("public/favicon.svg");
-  assert.ok(html.includes('href="%BASE_URL%favicon.svg?v=20261025-fullwordmark"'));
+  assert.ok(html.includes('href="%BASE_URL%favicon-64.png?v=20261025-raster"'));
+  assert.ok(html.includes('href="%BASE_URL%favicon.ico?v=20261025-raster"'));
+  assert.ok(html.includes('href="%BASE_URL%apple-touch-icon.png?v=20261025-raster"'));
+  for (const asset of ["favicon-64.png", "favicon.ico", "apple-touch-icon.png"]) {
+    assert.ok(fs.statSync(new URL("../public/" + asset, import.meta.url)).size > 500, asset + " is not empty");
+  }
   assert.ok(favicon.includes('viewBox="0 0 1725 626"'), "favicon contains full True wordmark, not a cropped t");
   assert.ok(favicon.includes('fill="#ec2127"'));
   assert.ok(favicon.includes('Entire True wordmark'));
