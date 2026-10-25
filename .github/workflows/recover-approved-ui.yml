@@ -1,0 +1,84 @@
+# One-time UAT frontend recovery. The trigger runs on main (approved Pages
+# deployment branch), but builds from the last successful Pages source
+# plus ONLY audited UI changes, never from unverified main backend code.
+name: Recover Approved UI Hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-approved-ui.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out backend-compatible UI hotfix
+        uses: actions/checkout@v4
+        with:
+          ref: d5608232f640b754733edfcde5d5172d1f79ee38
+          fetch-depth: 0
+      - name: Enforce Pages #57 backend compatibility and unchanged protected source
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="56b1166686c2376cdabca259f17389b04b84a021"
+          APPROVED="d5608232f640b754733edfcde5d5172d1f79ee38"
+          [[ "$(git rev-parse HEAD)" == "$APPROVED" ]] || { echo "::error::Unexpected hotfix commit"; exit 1; }
+          git merge-base --is-ancestor "$BASE" HEAD || { echo "::error::Baseline ancestry mismatch"; exit 1; }
+          mapfile -t files < <(git diff --name-only "$BASE" HEAD)
+          [[ "${#files[@]}" -gt 0 ]] || { echo "::error::No UI files changed"; exit 1; }
+          for file in "${files[@]}"; do
+            case "$file" in
+              .github/workflows/deploy-pages.yml|index.html|tailwind.config.js|src/index.css|src/components/AuthLayout.jsx|src/pages/Dashboard.jsx|src/pages/Pipeline.jsx|src/lib/pipelineListFilters.js|src/lib/pipelineFilterUi.js|tests/pipelineCompactToolbar.test.mjs)
+                echo "Allowed frontend-only patch: $file";;
+              *)
+                echo "::error::Disallowed backend/API change: $file"; exit 1;;
+            esac
+          done
+          echo "UI-only hotfix verified against published source."
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify original Apps Script API endpoint still configured
+        env:
+          VITE_GEO_API_URL: ${{ vars.VITE_GEO_API_URL }}
+        run: |
+          case "$VITE_GEO_API_URL" in
+            */exec) echo "Existing Apps Script /exec URL configured";;
+            *) echo "::error::VITE_GEO_API_URL must be the existing Apps Script /exec URL"; exit 1;;
+          esac
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: UAT regression tests
+        run: node --test tests/*.test.mjs
+      - name: Build only approved UI
+        env:
+          VITE_GEO_API_URL: ${{ vars.VITE_GEO_API_URL }}
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
