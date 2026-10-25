@@ -206,3 +206,9 @@ GitHub integration: [https://docs.base44.com/developers/app-code/local-developme
 Local development: [https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview)
 
 Support: [https://app.base44.com/support](https://app.base44.com/support)
+
+## UAT vs. Production safety boundary
+
+This GitHub Pages app and its internet-reachable Apps Script endpoint are **UAT-only**, not production security-approved CRM infrastructure. Use synthetic/mock customer records only until authorized corporate identity, access controls, data protection and operational review are approved. A four-hour signed UAT session and credential hashing do **not** replace corporate SSO, MFA or security monitoring.
+
+Before deploying, verify backend/frontend release alignment and required Google Sheet schemas. See [UAT release gates](docs/UAT_RELEASE_GATES.md) and [security review](docs/UAT_SECURITY_REVIEW.md). Opening a PR or passing GitHub Actions **does not deploy** an Apps Script version.
