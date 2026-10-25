@@ -343,9 +343,9 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
             <div className="flex min-h-[52px] flex-col justify-center">
               <button type="button" className="block max-w-full truncate text-left font-medium hover:text-brand hover:underline"
                 title={o.customer_name} onClick={() => onOpen(o.id)}>{o.customer_name}</button>
-              <div className="mt-0.5 flex min-h-[16px] flex-wrap items-center gap-x-2 text-[10px] leading-4">
+              <div className="mt-0.5 flex min-h-[16px] flex-nowrap items-center gap-x-2 overflow-hidden whitespace-nowrap text-[10px] leading-4">
                 {showRegion && !regionColumn && (
-                  <span className="truncate text-muted-foreground">
+                  <span className="min-w-0 truncate text-muted-foreground">
                     {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
                   </span>
                 )}
