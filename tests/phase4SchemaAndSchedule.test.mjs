@@ -34,8 +34,8 @@ function gasMock({date="2026-11-01",approved=true,existingSnapshot=false}={}){
   })},
   LockService:{getScriptLock:()=>({waitLock:()=>{},releaseLock:()=>{}})},
   Utilities:{formatDate:()=>date,getUuid:()=>"uuid-"+(events.length+1)},
-  GeoCoreLib:{createCore:()=>({handle:(req)=>{
-    events.push(["capture",req]);return {captured:1};
+  GeoCoreLib:{createCore:()=>({captureScheduledSnapshot:(period)=>{
+    events.push(["capture",{snapshot_period:period,actor:"SYSTEM_MONTH_END"}]);return {captured:1};
   }})},
   ScriptApp:{getProjectTriggers:()=>[],newTrigger:()=>({
     timeBased:()=>({onMonthDay:()=>({atHour:()=>({inTimezone:()=>({
@@ -67,8 +67,8 @@ test("month-end trigger captures preceding Bangkok month exactly once",()=>{
  assert.equal(result.period,"2026-10");
  assert.equal(result.captured,1);
  const call=v.events.find(x=>x[0]==="capture")[1];
- assert.equal(call.path,"snapshots/capture");
- assert.equal(call.body.snapshot_period,"2026-10");
+ assert.equal(call.actor,"SYSTEM_MONTH_END");
+ assert.equal(call.snapshot_period,"2026-10");
 });
 test("legacy support backfill is disabled and historical records remain untouched",()=>{
  const v=gasMock();
