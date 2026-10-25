@@ -413,9 +413,9 @@ export default function Pipeline() {
                 <col className={regionContext.showColumn ? "w-[12%]" : "w-[12%]"} />
                 <col className={regionContext.showColumn ? "w-[7%]" : "w-[8%]"} />
               </colgroup>
-              <thead className="bg-secondary/50 text-muted-foreground">
+              <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
                 <tr className="h-10">
-                  <th scope="col" className="sticky left-0 z-20 bg-secondary/95 px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
+                  <th scope="col" className="sticky left-0 z-20 bg-secondary px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
                   <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Stage</th>
                   <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
                   {regionContext.showColumn && <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Region</th>}
