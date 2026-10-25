@@ -76,9 +76,10 @@ export default function Dashboard() {
     return () => { active = false; };
   }, [isManagement, profile?.id]);
 
+  // Triage is a task queue, not a sales-date metric. Month filters must
+  // never hide urgent unassigned requests; backend still enforces user scope.
   const visibleRequests = (supportRequests || []).filter((request) =>
-    (!region || request.region_id === region) &&
-    cohort.some((o) => o.id === request.opportunity_id)
+    !region || request.region_id === region
   );
   const myRequests = filterSupportRequests(visibleRequests, "mine", profile?.id);
   const unassignedRequests = filterSupportRequests(visibleRequests, "unassigned", profile?.id);
@@ -212,7 +213,7 @@ export default function Dashboard() {
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
-        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={isManagement && (selectedTab === "with" || selectedTab === "unassigned") ? "Support Requests" : queue.length + " opportunities"}>
+        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={isManagement && (selectedTab === "with" || selectedTab === "unassigned") ? "Support Requests · all months" : queue.length + " opportunities"}>
           <div className="flex flex-wrap gap-1.5 mb-3" aria-label="Work queue filters">
             {tabs.map(([id, label]) =>
               <button key={id} type="button" onClick={() => setQueueTab(id)}
