@@ -91,26 +91,6 @@ test("a rejected handoff writes neither event nor notification",()=>{
  assert.equal(db(h,"Handoff_Notifications").filter(n=>n.type==="handoff").length,0);
  assert.equal(db(h,"Pipeline_Events").length,audit);
 });
-test("support request follows lifecycle, management scopes and resolution safeguards",()=>{
- const h=harness(),op=h.create();
- const request=h.call("AE1","POST","support-requests",{opportunity_id:op.id,request_type_id:"SUP1",note:"Please review pricing"});
- assert.equal(request.status,"Open");
- assert.equal(h.call("M1","GET","support-requests").length,1);
- assert.equal(h.call("AE2","GET","support-requests").length,0);
- assert.throws(()=>h.call("AE1","PATCH","support-requests/"+request.request_id,{status:"Resolved",response_note:"Done"}),e=>e.status===403);
- assert.throws(()=>h.call("M1","PATCH","support-requests/"+request.request_id,{status:"Resolved"}),e=>e.status===400);
- const progress=h.call("M1","PATCH","support-requests/"+request.request_id,{
-  status:"In Progress",assigned_to_user_id:"M1",response_note:"Reviewing"
- });
- assert.equal(progress.status,"In Progress");
- const done=h.call("M1","PATCH","support-requests/"+request.request_id,{
-  status:"Resolved",response_note:"Special pricing approved"
- });
- assert.equal(done.status,"Resolved");
- const row=db(h,"Pipelines")[0];
- assert.equal(row.support_needed,"No");
- assert.throws(()=>h.call("M1","PATCH","support-requests/"+request.request_id,{status:"Open"}),e=>e.status===409);
-});
 test("multi-team and people selection is validated and legacy first-team retained",()=>{
  const h=harness(),op=h.create();
  const updated=h.call("M1","PUT","entities/Opportunity/"+op.id,{
@@ -218,25 +198,44 @@ test("Management creation alerts AE and regional SM but cannot override SM-only 
  }).remark,"Shared customer update");
 });
 
-test("Support Request cannot be progressed without a responsible Management owner", () => {
- const h=harness(),op=h.create();
- const req=h.call("AE1","POST","support-requests",{opportunity_id:op.id,request_type_id:"SUP1",note:"Review pricing"});
- assert.equal(req.assigned_to_user_id,"");
- assert.throws(()=>h.call("M1","PATCH","support-requests/"+req.request_id,
-   {status:"In Progress"}), e=>e.status===400);
- const claimed=h.call("M1","PATCH","support-requests/"+req.request_id,
-   {assigned_to_user_id:"M1"});
- assert.equal(claimed.assigned_to_user_id,"M1");
- assert.equal(claimed.status,"Open");
+test("Needs Support toggle works for AE, SM, Management and Admin without creating tickets",()=>{
+ const h=harness(),op=h.create(),id=op.id;
+ const initialEvents=db(h,"Pipeline_Events").length;
+ const turnOn=(user)=>h.call(user,"PUT","entities/Opportunity/"+id,{
+   support_needed:true,support_type:"Pricing",support_note:"Help with pricing"
+ });
+ const turnOff=(user)=>h.call(user,"PUT","entities/Opportunity/"+id,{support_needed:false});
+ const on=turnOn("AE1");
+ assert.equal(on.support_needed,true);
+ assert.equal(db(h,"Pipelines")[0].support_type_id,"SUP1");
+ assert.equal(db(h,"Pipelines")[0].support_note,"Help with pricing");
+ assert.equal(turnOff("SM1").support_needed,false);
+ assert.equal(db(h,"Pipelines")[0].support_type_id,"");
+ assert.equal(db(h,"Pipelines")[0].support_note,"");
+ turnOn("M1");turnOff("ADMIN");
+ assert.equal(db(h,"Support_Requests").length,0);
+ assert.equal(db(h,"Pipelines")[0].support_needed,"No");
+ const events=db(h,"Pipeline_Events").slice(initialEvents);
+ assert.ok(events.some(x=>x.field_name==="support_needed"));
+ assert.ok(events.some(x=>x.field_name==="support_type_id"));
 });
 
-test("Support Request rejects stale updates without changing assignee or status", () => {
- const h=harness(),op=h.create();
- const req=h.call("AE1","POST","support-requests",{opportunity_id:op.id,request_type_id:"SUP1",note:"Review"});
- const claimed=h.call("M1","PATCH","support-requests/"+req.request_id,{assigned_to_user_id:"M1"});
- assert.notEqual(claimed.updated_at,req.updated_at);
- assert.throws(()=>h.call("M1","PATCH","support-requests/"+req.request_id,
-   {expected_updated_at:req.updated_at,status:"Resolved",response_note:"Done"}),e=>e.status===409);
- assert.equal(db(h,"Support_Requests")[0].status,"Open");
- assert.equal(db(h,"Support_Requests")[0].assigned_to_user_id,"M1");
+test("Toggle rejects invalid inputs and enforces AE scope; old ticket API is retired",()=>{
+ const h=harness(),op=h.create(),id=op.id;
+ assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{support_needed:true}),e=>e.status===403);
+ assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+id,{support_needed:true}),e=>e.status===400);
+ assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+id,{
+   support_needed:true,support_type:"Pricing",support_note:""
+ }),e=>e.status===400);
+ h.call("AE1","PUT","entities/Opportunity/"+id,{support_needed:true,support_type:"Pricing",support_note:"Approval"});
+ const auditBefore=db(h,"Pipeline_Events").length;
+ assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{support_needed:false}),e=>e.status===403);
+ assert.equal(db(h,"Pipeline_Events").length,auditBefore);
+ const legacy={request_id:"SRQ-HIST",opportunity_id:id,status:"In Progress",assigned_to_user_id:"M1"};
+ db(h,"Support_Requests").push(legacy);
+ h.call("AE1","PUT","entities/Opportunity/"+id,{support_needed:false});
+ assert.deepEqual(db(h,"Support_Requests"),[legacy]);
+ assert.equal(db(h,"Pipelines")[0].support_needed,"No");
+ for(const method of ["GET","POST","PATCH"])
+   assert.throws(()=>h.call("M1",method,method==="PATCH"?"support-requests/SRQ-HIST":"support-requests",{}),e=>e.status===410);
 });
