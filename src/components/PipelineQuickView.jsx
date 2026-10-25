@@ -210,7 +210,7 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
               <p className="text-sm font-semibold">Needs Support</p>
               <p className="text-xs text-muted-foreground">{op.support_needed ? "Support requested" : "No support requested"}</p>
             </div>
-            <SupportToggleAction op={op} canEdit={canClose} compact
+            <SupportToggleAction op={op} canEdit={canClose} compact disabled={dirty}
               onSaved={() => { setDirty(false); onClose(); }} />
           </div>
           <div className="border-t pt-4">
