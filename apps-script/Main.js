@@ -37,9 +37,10 @@ function serve_(raw) {
       console.error("API error " + errorId + ": " + (err && err.stack ? err.stack : err));
     }
     var status = err.status || 500;
+    var publicCode = err.publicCode || ({401:"UNAUTHENTICATED",403:"FORBIDDEN",409:"CONFLICT",410:"GONE",428:"PRECONDITION_REQUIRED",429:"RATE_LIMITED",503:"DATA_SOURCE_ERROR"}[status] || "REQUEST_ERROR");
     out = { status: status, body: status >= 500
-      ? { message: "Backend request failed. Contact support with error ID " + errorId, error_id: errorId, code: err.publicCode || "BACKEND_ERROR" }
-      : { message: String((err && err.message) || "Request failed") } };
+      ? { message: "Backend request failed. Contact support with error ID " + errorId, error_id: errorId, code: publicCode }
+      : { message: String((err && err.message) || "Request failed"), code: publicCode } };
   }
   return json_(out);
 }
