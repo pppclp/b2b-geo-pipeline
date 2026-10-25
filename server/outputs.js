@@ -90,5 +90,26 @@ export function createOutputs({ contract, store, now, uuid }) {
     return entries;
   }
 
-  return { logMaster };
+  // Scheduled jobs must never masquerade as the first human Admin.
+  // Persist one server-owned provenance record in the existing Admin_Audit table.
+  function logScheduledSnapshot(snapshotPeriod, count, actorId = "SYSTEM_MONTH_END") {
+    if (!auditBinding || auditBinding.entity !== AUDIT_ENTITY ||
+        auditBinding.primary_key !== "audit_id") throw new Error("Admin_Audit required for scheduled snapshot provenance");
+    const table = store.table(AUDIT_FILE, AUDIT_SHEET);
+    if (!table.headers.length) throw new Error("Admin_Audit headers missing");
+    const existing = new Set(table.rows.map(r => String(r.audit_id)));
+    const base = "ADM-" + uuid();
+    let id = base, i = 1;
+    while (existing.has(id)) id = base + "-" + i++;
+    table.rows.push({
+      audit_id: id, event_type: "SNAPSHOT_AUTO_CAPTURE",
+      source_file: AUDIT_FILE, source_sheet: "Snapshots", source_record_id: snapshotPeriod,
+      field_name: "snapshot_period", previous_value: "", new_value: String(count),
+      actor_user_id: actorId, actor_name: "Scheduled Snapshot", actor_role: "system",
+      event_at: now(),
+    });
+    store.touch(AUDIT_FILE, AUDIT_SHEET);
+  }
+
+  return { logMaster, logScheduledSnapshot };
 }
