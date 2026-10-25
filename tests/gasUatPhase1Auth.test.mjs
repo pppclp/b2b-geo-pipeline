@@ -21,6 +21,7 @@ function fixture(credentials) {
   };
   const ctx = {
     CacheService: {getScriptCache:()=>cache},
+    console: {warn:()=>{}, log:()=>{}},
     PropertiesService: {getScriptProperties:()=>({
       getProperty:k=>properties.get(k)??null,
       setProperty:(k,v)=>properties.set(k,v),
@@ -59,13 +60,16 @@ test("plaintext login fails closed unless migration window is explicitly enabled
   assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"wrong"}),e=>e.status===401);
 });
 
-test("global throttle blocks password spraying across different usernames",()=>{
-  const {ctx,store,cacheValues}=fixture([]);
+test("aggregate password spraying is alerted, not a global account lockout",()=>{
+  const {ctx,store,cacheValues,properties}=fixture([{"employee_id / username":"90001",temporary_password:"good"}]);
   for(let i=0;i<50;i++) {
     assert.throws(()=>ctx.uatLogin_(store,{username:String(100000+i),password:"bad"}),e=>e.status===401);
   }
   assert.equal(cacheValues.get("GEO_LOGIN_FAIL_GLOBAL_V1"),"50");
-  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===429);
+  assert.equal(cacheValues.get("GEO_LOGIN_SPRAY_ALERT_V1"),"1");
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  assert.equal(ctx.uatLogin_(store,{username:"90001",password:"good"}).user_id,"U0001");
 });
 
 test("hashed credentials win over plaintext and compare against the protected pepper",()=>{
