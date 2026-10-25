@@ -4,6 +4,8 @@ import { currentMonthKey } from "@/lib/pipeline";
 import { db } from "@/api/client";
 import { mapImportHeaders } from "@/lib/importHeaderMapping";
 import { readImportFile } from "@/lib/importWorkbook";
+import { calculateNetRc } from "@/lib/netRc";
+import { businessIdError, normalizeCustomerType, netRcReconciliation } from "@/lib/pipelineValidation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -15,8 +17,8 @@ const FIELDS = [
   { key: "customer_type", label: "Customer Type", required: true },
   { key: "sales_channel", label: "Sales Channel", required: true },
   { key: "partner_name", label: "Partner Name" },
-  { key: "contact_name", label: "Contact Name", required: true },
-  { key: "contact_phone", label: "Contact Phone", required: true },
+  { key: "contact_name", label: "Contact Name" },
+  { key: "contact_phone", label: "Contact Phone" },
   { key: "remark", label: "Remark" },
   { key: "region", label: "Region", required: true, resolve: "region" },
   { key: "territory", label: "Territory", resolve: "territory" },
@@ -27,6 +29,7 @@ const FIELDS = [
   { key: "quantity", label: "Number of Subs", required: true, type: "number" },
   { key: "price_per_sub", label: "Price per Sub", required: true, type: "number" },
   { key: "oc", label: "OC", type: "number" },
+  { key: "reference_net_rc", label: "Reference Net RC" },
   { key: "contract_period", label: "Contract Period", type: "number" },
   { key: "expected_close_month", label: "Expected Close Month", required: true },
   { key: "scenario", label: "Scenario", resolve: "scenario" },
@@ -64,6 +67,7 @@ export default function Import() {
   const [step, setStep] = useState("upload"); // upload | map | preview | done
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
+  const [rowNumbers, setRowNumbers] = useState([]);
   const [mapping, setMapping] = useState({}); // fieldKey -> headerIndex
   const [result, setResult] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -88,6 +92,7 @@ export default function Import() {
     const hdrs = parsed.headers;
     setHeaders(hdrs);
     setRows(parsed.rows);
+    setRowNumbers(parsed.rowNumbers || parsed.rows.map((_, i) => i + 2));
     // auto-map
     const auto = mapImportHeaders(hdrs, FIELDS);
     setMapping(auto);
@@ -125,6 +130,10 @@ export default function Import() {
           else if (f.resolve === "category") rec.product_category_id = ent.id;
           else if (f.resolve === "scenario") rec.scenario_id = ent.id;
           else if (f.resolve === "stage") rec.stage_id = ent.id;
+        } else if (f.key === "customer_type") {
+          const canonical = normalizeCustomerType(val);
+          if (!canonical) errors.push(`Customer Type "${val}" is not supported`);
+          else rec.customer_type = canonical;
         } else if (f.type === "number") {
           const parsed = Number(val);
           if (!Number.isFinite(parsed)) errors.push(`${f.label} must be a number`);
@@ -141,15 +150,24 @@ export default function Import() {
       if (!rec.current_handler_id && rec.owner_id) rec.current_handler_id = rec.owner_id;
       if (!rec.stage_id && activeStages[0]) rec.stage_id = activeStages[0].id;
       if (rec.support_needed) rec.support_needed = ["yes", "true", "1", "y"].includes(rec.support_needed.toLowerCase());
-      if (rec.business_id && !/^\d+$/.test(String(rec.business_id))) errors.push("Business ID must contain digits only");
+      if (rec.business_id && businessIdError(rec.business_id)) errors.push(businessIdError(rec.business_id));
+      const referenceNetRc = rec.reference_net_rc;
+      delete rec.reference_net_rc;
+      let reconciliation = { checked: false, matches: null };
+      if (referenceNetRc !== undefined) {
+        let calculated = NaN;
+        try { calculated = calculateNetRc({ quantity: rec.quantity, pricePerSub: rec.price_per_sub, oc: rec.oc }); } catch { /* validation below handles missing price */ }
+        reconciliation = netRcReconciliation({ expected: referenceNetRc, calculated });
+        if (reconciliation.error) errors.push(reconciliation.error);
+      }
       if (rec.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(rec.sales_channel)) errors.push("Sales Channel is invalid");
       if (rec.remark && rec.remark.length > 500) errors.push("Remark exceeds 500 characters");
       if (rec.quantity != null && (!Number.isSafeInteger(Number(rec.quantity)) || Number(rec.quantity) <= 0)) errors.push("Number of Subs must be a positive whole number");
       if (rec.price_per_sub != null && (!Number.isFinite(Number(rec.price_per_sub)) || Number(rec.price_per_sub) < 0)) errors.push("Price per Sub is invalid");
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
-      return { row: i + 2, rec, errors };
+      return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, mapping, resolve, step, activeStages]);
+  }, [rows, rowNumbers, mapping, resolve, step, activeStages]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
@@ -164,7 +182,7 @@ export default function Import() {
   const invalidRows = validated.filter((v) => v.errors.length > 0);
 
   const doImport = async () => {
-    if (importing || !validRows.length || !importBatchId) return;
+    if (importing || !validRows.length || invalidRows.length || !importBatchId) return;
     setImporting(true);
     setImportError("");
     try {
@@ -180,7 +198,7 @@ export default function Import() {
     }
   };
 
-  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setMapping({}); setResult(null); setImportBatchId(""); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
+  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setRowNumbers([]); setMapping({}); setResult(null); setImportBatchId(""); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
 
   return (
     <div className="p-5 md:p-7 max-w-[1000px] mx-auto">
@@ -258,6 +276,8 @@ export default function Import() {
             </div>
           )}
 
+          {validated.length > 0 && !validated.some(v => v.reconciliation.checked) && <p role="status" className="mb-3 text-xs text-amber-700">No Reference Net RC mapped. Confirm the approved financial formula and reconcile totals with the source report before production import.</p>}
+          {validated.some(v => v.reconciliation.checked && !v.reconciliation.matches) && <p role="alert" className="mb-3 text-xs text-red-600">Source Net RC differs from the calculated value. Resolve all mismatches before importing this file.</p>}
           {validRows.length > 0 && (
             <div className="rounded-2xl border border-border bg-card p-5 shadow-soft max-h-64 overflow-auto">
               <h3 className="font-semibold text-sm mb-3">Valid Rows Preview</h3>
@@ -269,7 +289,7 @@ export default function Import() {
                       <td className="py-1">{v.rec.customer_name}</td>
                       <td>{master?.Region?.find((r) => r.id === v.rec.region_id)?.name}</td>
                       <td>{master?.Stage?.find((s) => s.id === v.rec.stage_id)?.name}</td>
-                      <td className="text-right tabular-nums">{Number(v.rec.quantity || 0) * Number(v.rec.price_per_sub || 0) + Number(v.rec.oc || 0) / 12}</td>
+                      <td className="text-right tabular-nums">{calculateNetRc({ quantity: v.rec.quantity, pricePerSub: v.rec.price_per_sub, oc: v.rec.oc })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -280,7 +300,7 @@ export default function Import() {
           {importError && <p role="alert" className="text-sm text-red-600">{importError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" disabled={importing} onClick={() => setStep("map")}>Back</Button>
-            <Button onClick={doImport} disabled={validRows.length === 0 || importing}>{importing ? "Importing…" : "Confirm Import (" + validRows.length + ")"}</Button>
+            <Button onClick={doImport} disabled={validRows.length === 0 || invalidRows.length > 0 || importing}>{importing ? "Importing…" : "Confirm Import (" + validRows.length + ")"}</Button>
           </div>
         </div>
       )}
