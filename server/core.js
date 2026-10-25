@@ -10,6 +10,7 @@ import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
 import { businessIdError, normalizeCustomerType } from "../src/lib/pipelineValidation.js";
+import { API_CONTRACT_VERSION, REQUIRED_CAPABILITIES } from "../src/lib/apiContract.js";
 import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
@@ -1130,7 +1131,8 @@ export function createCore({ contract, store, now, uuid }) {
 
     if (parts[0] === "session" && parts[1] === "me") {
       const r = actor.real;
-      return { id: r.id, email: r.email, full_name: r.name, role: r.role };
+      return { id: r.id, email: r.email, full_name: r.name, role: r.role,
+        api_contract_version: API_CONTRACT_VERSION, capabilities: [...REQUIRED_CAPABILITIES] };
     }
 
     if (parts[0] === "access" && method === "GET") {
