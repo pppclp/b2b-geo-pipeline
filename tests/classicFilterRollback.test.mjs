@@ -38,8 +38,8 @@ test("Pipeline board and list share one scoped filtered data set",()=>{
   assert.match(pipeline,/const filtered = useMemo\(\(\) => filters\.stage/);
   assert.match(pipeline,/sorted\.filter\(\(o\) => o\.stage_id/);
   assert.match(pipeline,/sorted\.map\(\(o\) =>/);
-  assert.match(pipeline,/error && \(/);
-  assert.match(pipeline,/onClick=\{refresh\}/);
+  assert.match(pipeline,/if \(loading \|\| error\) return \(/);
+  assert.match(pipeline,/error&&<Button[^>]*onClick=\{refresh\}/);
   assert.match(pipeline,/User_Region/);
   assert.match(pipeline,/filters\.status/);
 });
