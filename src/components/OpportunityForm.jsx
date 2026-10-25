@@ -138,6 +138,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     requiredProblem("stage_id", !!form.stage_id, "Stage"),
     requiredProblem("expected_close_month", !!form.expected_close_month, "Expected Close Month"),
     String(form.remark || "").length > 500 && "Remark (max 500 characters)",
+    form.support_needed && !String(form.support_type || "").trim() && "Support Type",
+    form.support_needed && !String(form.support_note || "").trim() && "Support Note",
     (pricingChanged || !opportunity) && !(legacyEdit && !hasUnitPrice) && calculatedNetRc === null &&
       "Number of Subs / Price per Sub",
   ].filter(Boolean);
@@ -382,8 +384,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         </div>
 
         <div className="flex items-center gap-3 pt-2 border-t">
-          <Switch disabled={!!opportunity?.support_needed} checked={form.support_needed} onCheckedChange={(v) => set("support_needed", v)} />
-          <Label className="cursor-pointer">Support Needed {opportunity?.support_needed ? "· Resolve via Support Requests" : ""}</Label>
+          <Switch checked={form.support_needed} onCheckedChange={(v) => set("support_needed", v)} />
+          <Label className="cursor-pointer">Needs Support</Label>
         </div>
         {form.support_needed && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
