@@ -9,7 +9,7 @@ import MonthPicker from "@/components/MonthPicker";
 import SearchableSelect from "@/components/SearchableSelect";
 import {
   PIPELINE_FILTER_LABELS as LABELS,
-  advancedFilterCount, visibleActiveFilters, showQuickOwner, showQuickRegion,
+  advancedFilterCount, visibleActiveFilters, showQuickRegion,
   allowedAeOwners, isActiveFilter,
 } from "@/lib/pipelineFilterUi";
 
@@ -51,7 +51,6 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   const working = useMemo(() => (master?.WorkingWithOption || []).filter(w=>w.active),[master]);
   const regionId = filters.region || "";
   const showRegion = showQuickRegion(profile);
-  const showOwner = showQuickOwner(profile);
   const ownerChoices = useMemo(
     () => allowedAeOwners(members, scopedOpportunities, regionId),
     [members, scopedOpportunities, regionId]
@@ -63,11 +62,10 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
     return members.filter(m => ids.has(m.id))
       .sort((a,b)=>a.name.localeCompare(b.name));
   },[members,scopedOpportunities,regionId]);
-  const advancedCount = advancedFilterCount(filters, profile);
+  const advancedCount = advancedFilterCount(filters);
   // Only show chips for additional filters that are hidden behind More Filters.
   const chipEntries = visibleActiveFilters(filters).filter(([key]) =>
-    !["search", "close_month", "region", "status"].includes(key) &&
-    !(key === "owner" && showOwner) &&
+    !["search", "close_month", "product_category", "region", "status"].includes(key) &&
     !(key === "sm_info" && profile?.app_role === "sm") &&
     !(key === "stage" && stageChipsVisible));
   const missingSmInfoCount = profile?.app_role === "sm"
@@ -90,12 +88,12 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   const choice = (key) => (v) => onFilter(key,v==="all" ? "" : v);
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
-        <div className="w-full min-w-[190px] sm:w-[260px] sm:flex-1 sm:max-w-[340px] space-y-1">
-          <label htmlFor="pipeline-search" className="block text-[11px] font-medium text-muted-foreground">Search Pipeline</label>
+      <div className="flex flex-wrap items-end gap-x-2.5 gap-y-2.5">
+        <div className="w-full min-w-[190px] sm:w-[250px] sm:flex-1 sm:max-w-[340px] space-y-1">
+          <label htmlFor="pipeline-search" className="block text-[11px] font-medium text-muted-foreground">Search</label>
           <div className="relative">
             <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"/>
-            <Input id="pipeline-search" aria-label="Search customer, Business ID or Opportunity ID"
+            <Input id="pipeline-search" aria-label="Search customer, Business ID or Pipeline ID"
               value={filters.search || ""} onChange={e=>onFilter("search",e.target.value)}
               placeholder="Customer, Business ID or Pipeline ID"
               className="h-9 rounded-lg pl-9 pr-8 text-[13px]"/>
@@ -112,17 +110,15 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
           {regionOptions.filter(r=>profile?.app_role==="admin" ||
             (profile?.region_ids||[]).includes(r.id)).map(r=><SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
         </SelectWrap>}
-        {showOwner && <div className="w-[190px] min-w-0 space-y-1">
-          <span className="text-[11px] font-medium text-muted-foreground">{LABELS.owner}</span>
-          <SearchableSelect value={filters.owner || "all"} ariaLabel={LABELS.owner}
-            onChange={choice("owner")} searchPlaceholder="Search name or Employee ID..."
-            placeholder="All AEs" className="h-9 rounded-lg"
-            options={[{value:"all",label:"All AEs"},...ownerChoices.map(m=>({
-              value:m.id,label:m.name,keywords:`${m.employee_id||""} ${m.id||""}`
-            }))]}/>
-        </div>}
+        <SelectWrap label={LABELS.product_category}
+          value={filters.product_category} onChange={choice("product_category")}
+          className="w-[160px] min-w-0 sm:w-[185px]" allText="All Categories">
+          {categories.map((category) =>
+            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+          )}
+        </SelectWrap>
         <SelectWrap label={LABELS.status} value={filters.status || "all"}
-          onChange={v=>onFilter("status",v)} className="w-[132px]" allText="All Statuses">
+          onChange={v=>onFilter("status",v)} className="w-[120px] sm:w-[132px]" allText="All Statuses">
           {["open","won","lost","archived"].map(v=><SelectItem key={v} value={v}>
             {v.charAt(0).toUpperCase()+v.slice(1)}
           </SelectItem>)}
@@ -158,7 +154,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
               </section>}
               <section className="space-y-2">
                 <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Sales & Ownership</h4>
-                {!showOwner && profile?.app_role !== "ae" && <div className="space-y-1">
+                {profile?.app_role !== "ae" && <div className="space-y-1">
                   <span className="text-[11px] font-medium text-muted-foreground">{LABELS.owner}</span>
                   <SearchableSelect value={filters.owner || "all"} ariaLabel={LABELS.owner}
                     onChange={choice("owner")} searchPlaceholder="Search AE..."
@@ -181,9 +177,6 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
               </section>
               <section className="space-y-2">
                 <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Other Details</h4>
-                <SelectWrap label={LABELS.product_category} value={filters.product_category} onChange={choice("product_category")}>
-                  {categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectWrap>
                 <SelectWrap label={LABELS.scenario} value={filters.scenario} onChange={choice("scenario")}>
                   {scenarios.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectWrap>
