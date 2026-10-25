@@ -200,8 +200,6 @@ export default function Pipeline() {
           <h1 className="text-xl font-semibold tracking-tight">Pipeline</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {sorted.length} Pipelines · {formatTHB(totalValue)} Net RC
-            <span className="mx-2 text-border" aria-hidden="true">·</span>
-            <span aria-label={"Region scope: " + regionContext.label}>{regionContext.label}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
