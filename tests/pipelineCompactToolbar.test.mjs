@@ -81,7 +81,7 @@ test("switching views preserves scope, search, stage, and independent advanced f
   assert.equal(activePipelineView(all,"MGMT1"),"all");
   assert.equal(activePipelineView({...all,status:"won"},"MGMT1"),"");
   assert.equal(activePipelineView({...all,handler:"OTHER"},"MGMT1"),"");
-  const overdue=switchPipelineView(needs,"stage-overdue","MGMT1");
+  const overdue=switchPipelineView({status:"open",region:"R1",product_category:"CAT1",close_month:"2026-10",support:"1"},"stage-overdue","MGMT1");
   assert.equal(overdue.stuck,"1");
   assert.equal(overdue.support,"");
   assert.equal(overdue.handler,"");
