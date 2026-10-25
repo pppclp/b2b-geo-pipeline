@@ -24,7 +24,13 @@ review. The UAT plaintext window is NOT a production authentication solution.
 - Runtime password verification rejects temporary passwords when the window
   expires or `GEO_ENVIRONMENT` is `PRODUCTION` / `PROD`. A populated
   `password_hash` always wins over `temporary_password`.
-- No frontend redesign, no role/scope policy change and no credential sheet
+- The UAT_Credentials tab was backed up and normalized to only four headers:
+  `user_id`, `employee_id / username`, `temporary_password`, `password_hash`.
+  Historical role, employee name and distribution fields were removed from
+  this private credential tab (all retained in a restricted backup). User Role
+  and Region remain authoritative in User & Org Master; their live records
+  were not modified. The initial hash column is empty.
+- No frontend redesign, no role/scope policy change and no password-value
   mutation are part of this patch.
 
 ## Deployment: KEEP the existing Apps Script URL
