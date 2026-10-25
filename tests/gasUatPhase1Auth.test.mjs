@@ -23,7 +23,8 @@ function fixture(credentials) {
     CacheService: {getScriptCache:()=>cache},
     PropertiesService: {getScriptProperties:()=>({
       getProperty:k=>properties.get(k)??null,
-      setProperty:(k,v)=>properties.set(k,v)
+      setProperty:(k,v)=>properties.set(k,v),
+      deleteProperty:(k)=>properties.delete(k)
     })},
     Utilities: {
       DigestAlgorithm:{SHA_256:"SHA_256"},
@@ -84,4 +85,45 @@ test("plaintext login is blocked once migration is sealed",()=>{
 test("migration cannot run without explicit approval property",()=>{
   const {ctx}=fixture([]);
   assert.throws(()=>ctx.migrateUatCredentialsToSaltedHashes(),/take a restricted backup/);
+});
+
+test("UAT plaintext window blocks production environment and expires on schedule",()=>{
+  const {ctx,properties,store}=fixture([{"employee_id / username":"90001",temporary_password:"good"}]);
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT",new Date(Date.now()-60_000).toISOString());
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+  properties.set("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT",new Date(Date.now()+60_000).toISOString());
+  assert.equal(ctx.uatLogin_(store,{username:"90001",password:"good"}).user_id,"U0001");
+  properties.set("GEO_ENVIRONMENT","PRODUCTION");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+});
+
+test("manual temporary-login recovery needs UAT and explicit approval and clears it",()=>{
+  const {ctx,properties}=fixture([]);
+  assert.throws(()=>ctx.enableUatTemporaryLoginFor14Days(),/UAT recovery not approved/);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  assert.throws(()=>ctx.enableUatTemporaryLoginFor14Days(),/UAT recovery not approved/);
+  properties.set("GEO_UAT_TEMP_LOGIN_APPROVED","YES");
+  ctx.debugUatLoginReadiness=()=>({
+    active_users:3, credential_ready:2, missing_employee_id:1,
+    missing_credential_record:0, missing_password:0, duplicate_credential_ids:0
+  });
+  const result=ctx.enableUatTemporaryLoginFor14Days();
+  assert.equal(result.enabled,true);
+  assert.equal(result.credential_ready,2);
+  assert.equal(properties.get("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS"),"true");
+  assert.ok(Date.parse(properties.get("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT"))>Date.now());
+  assert.equal(properties.has("GEO_UAT_TEMP_LOGIN_APPROVED"),false);
+  assert.equal(ctx.disableUatTemporaryLogin().enabled,false);
+  assert.equal(properties.has("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS"),false);
+});
+
+test("manual recovery never downgrades hashed-password-only mode",()=>{
+  const {ctx,properties}=fixture([]);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_TEMP_LOGIN_APPROVED","YES");
+  properties.set("GEO_UAT_REQUIRE_HASHED_PASSWORDS","true");
+  assert.throws(()=>ctx.enableUatTemporaryLoginFor14Days(),/do not downgrade/);
+  assert.equal(properties.has("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS"),false);
 });
