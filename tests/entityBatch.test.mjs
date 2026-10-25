@@ -30,3 +30,10 @@ test("Incomplete or malformed batch response is rejected",()=>{
  assert.throws(()=>unpackEntityBatch(["Opportunity"],{}),/incomplete backend/);
  assert.throws(()=>unpackEntityBatch(["Opportunity"],[{status:200,body:{}}]),/Cannot load Opportunity/);
 });
+
+test("Optional master HTTP 503 is a hard failure, not an empty master",()=>{
+ assert.throws(()=>unpackEntityBatch(["LostReason","Opportunity"],[
+  {status:503,body:{code:"REQUIRED_SHEET_MISSING",message:"Backend unavailable"}},
+  {status:200,body:[{id:"OPP-1"}]},
+ ]),/Cannot load LostReason \\(503, REQUIRED_SHEET_MISSING\\)/);
+});
