@@ -194,7 +194,7 @@ export default function Pipeline() {
 
 
   return (
-    <div className="p-4 md:p-5 max-w-[1600px] mx-auto">
+    <div className="w-full min-w-0 p-4 md:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Pipeline</h1>
@@ -301,19 +301,23 @@ export default function Pipeline() {
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
       ) : view === "board" ? (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="relative">
-            <p className="mb-2 text-right text-[11px] text-muted-foreground xl:hidden">
-              Scroll horizontally to see all stages →
-            </p>
-            <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Sales stages — scroll horizontally for more">
+          <div className="min-w-0 w-full">
+            {/* Share available width across every active stage. When many stages
+                cannot meet the minimum readable width, scroll horizontally. */}
+            <div
+              className="grid w-full min-w-0 gap-3 overflow-x-auto pb-4"
+              style={{ gridTemplateColumns: `repeat(${Math.max(activeStages.length, 1)}, minmax(280px, 1fr))` }}
+              aria-label="Sales stages — scroll horizontally when needed"
+              tabIndex={0}
+            >
             {activeStages.map((stage) => {
               const stageOps = sorted.filter((o) => o.stage_id === stage.id);
               const stageValue = stageOps.reduce((a, o) => a + (o.pipeline_value || 0), 0);
               return (
-                <div key={stage.id} className="flex flex-col w-[280px] shrink-0">
-                  <div className="flex items-center justify-between mb-2.5 px-1">
-                    <span className="font-medium text-[13px]">{stage.name}</span>
-                    <span className="text-[11px] text-muted-foreground tabular-nums bg-secondary rounded-md px-2 py-0.5">{stageOps.length} · {formatTHB(stageValue)}</span>
+                <div key={stage.id} className="flex min-w-0 flex-col">
+                  <div className="flex min-w-0 items-center justify-between gap-2 mb-2.5 px-1">
+                    <span className="min-w-0 truncate font-medium text-[13px]" title={stage.name}>{stage.name}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums bg-secondary rounded-md px-2 py-0.5">{stageOps.length} · {formatTHB(stageValue)}</span>
                   </div>
                   <Droppable droppableId={stage.id}>
                     {(provided, snapshot) => (
@@ -342,7 +346,6 @@ export default function Pipeline() {
               );
             })}
             </div>
-            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background to-transparent" />
           </div>
         </DragDropContext>
       ) : (
