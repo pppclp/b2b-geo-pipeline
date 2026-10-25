@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Maximize2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
+import SupportToggleAction from "@/components/SupportToggleAction";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
 
 const NONE = "__none__";
@@ -24,7 +25,6 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
   const [handlerId, setHandlerId] = useState(op.current_handler_id || "");
   const [workingWith, setWorkingWith] = useState(op.working_with || "");
   const [workingTeamIds, setWorkingTeamIds] = useState(op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
-  const [workingUserIds, setWorkingUserIds] = useState(op.working_with_user_ids || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -33,13 +33,12 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
     setHandlerId(op.current_handler_id || "");
     setWorkingWith(op.working_with || "");
     setWorkingTeamIds(op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
-    setWorkingUserIds(op.working_with_user_ids || "");
     setError("");
   }, [op.id, initialStageId, op.stage_id, op.current_handler_id, op.working_with]);
 
   const canEdit = op.status === "open" && (
     profile?.app_role === "admin" ||
-    profile?.app_role === "sm" ||
+    profile?.app_role === "sm" || profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile?.id || op.current_handler_id === profile?.id))
   );
 
@@ -67,8 +66,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
   const changed = stageId !== op.stage_id ||
     handlerId !== (op.current_handler_id || "") ||
     workingWith !== (op.working_with || "") ||
-    workingTeamIds !== (op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "") ||
-    workingUserIds !== (op.working_with_user_ids || "");
+    workingTeamIds !== (op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
   const hasPending = Boolean(initialStageId && initialStageId !== op.stage_id);
   useEffect(() => { onDirtyChange?.(changed); }, [changed, onDirtyChange]);
 
@@ -78,7 +76,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
     setSaving(true);
     setError("");
     try {
-      await updateQuickActions(op.id, { stageId, handlerId, workingWith, workingTeamIds, workingUserIds });
+      await updateQuickActions(op.id, { stageId, handlerId, workingWith, workingTeamIds });
       onSaved?.();
     } catch (err) {
       setError(err?.message || "Unable to save Pipeline changes");
@@ -137,13 +135,9 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
           <div className="w-full min-w-0" role="group" aria-labelledby={`working-${op.id}`}>
             <WorkingWithMultiSelect
               teams={master?.WorkingWithOption || []}
-              people={master?.TeamMember || []}
-              regionId={op.region_id}
               disabled={!canEdit || saving}
               teamIds={workingTeamIds}
-              userIds={workingUserIds}
               onTeams={setWorkingTeamIds}
-              onUsers={setWorkingUserIds}
             />
           </div>
         </div>
@@ -172,7 +166,7 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
   const canClose = op.status === "open" && (
-    profile?.app_role === "admin" || profile?.app_role === "sm" ||
+    profile?.app_role === "admin" || profile?.app_role === "sm" || profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
   );
 
@@ -211,6 +205,14 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
                 onClosed={() => { setDirty(false); onClose(); }}/>
             </div>
           )}
+          <div className="border-t pt-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Needs Support</p>
+              <p className="text-xs text-muted-foreground">{op.support_needed ? "Support requested" : "No support requested"}</p>
+            </div>
+            <SupportToggleAction op={op} canEdit={canClose} compact
+              onSaved={() => { setDirty(false); onClose(); }} />
+          </div>
           <div className="border-t pt-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Pipeline Summary</h3>
