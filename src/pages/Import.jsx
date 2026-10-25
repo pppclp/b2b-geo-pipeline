@@ -1,15 +1,15 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useData } from "@/lib/dataContext";
-import { currentMonthKey } from "@/lib/pipeline";
 import { db } from "@/api/client";
 import { mapImportHeaders } from "@/lib/importHeaderMapping";
-import { readImportFile } from "@/lib/importWorkbook";
+import { readImportFile, parseImportCreatedMonth } from "@/lib/importWorkbook";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
 
 // Known importable fields and their target keys
 const FIELDS = [
+  { key: "created_month", label: "Create Month" },
   { key: "customer_name", label: "Customer Name", required: true },
   { key: "business_id", label: "Business ID", required: true },
   { key: "customer_type", label: "Customer Type", required: true },
@@ -108,13 +108,20 @@ export default function Import() {
     if (step !== "preview" && step !== "map") return [];
     return rows.map((row, i) => {
       const errors = [];
-      const rec = { status: "open", created_month: currentMonthKey() };
+      const rec = { status: "open" };
       FIELDS.forEach((f) => {
         const idx = mapping[f.key];
         if (idx == null) return;
         let val = (row[idx] || "").trim();
-        if (!val) return;
-        if (f.resolve) {
+        if (!val) {
+          if (f.key === "created_month") errors.push("Create Month is blank; provide the original month");
+          return;
+        }
+        if (f.key === "created_month") {
+          const parsed = parseImportCreatedMonth(val);
+          if (!parsed) errors.push('Create Month "' + val + '" must be a valid YYYY-MM or date (e.g. 1-Jul-26)');
+          else rec.source_created_month = parsed;
+        } else if (f.resolve) {
           const ent = resolve[f.resolve][val.toLowerCase()];
           if (!ent) errors.push(`${f.label} "${val}" not found`);
           else rec[f.key + (f.resolve === "member" ? (f.key === "owner" ? "_id" : "_id") : "_id")] = ent.id;
@@ -262,11 +269,12 @@ export default function Import() {
             <div className="rounded-2xl border border-border bg-card p-5 shadow-soft max-h-64 overflow-auto">
               <h3 className="font-semibold text-sm mb-3">Valid Rows Preview</h3>
               <table className="w-full text-xs">
-                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Region</th><th className="text-left">Stage</th><th className="text-right">Net RC</th></tr></thead>
+                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Created Month</th><th className="text-left">Region</th><th className="text-left">Stage</th><th className="text-right">Net RC</th></tr></thead>
                 <tbody>
                   {validRows.slice(0, 50).map((v) => (
                     <tr key={v.row} className="border-t border-border">
                       <td className="py-1">{v.rec.customer_name}</td>
+                      <td>{v.rec.source_created_month || "Import month (no source)"}</td>
                       <td>{master?.Region?.find((r) => r.id === v.rec.region_id)?.name}</td>
                       <td>{master?.Stage?.find((s) => s.id === v.rec.stage_id)?.name}</td>
                       <td className="text-right tabular-nums">{Number(v.rec.quantity || 0) * Number(v.rec.price_per_sub || 0) + Number(v.rec.oc || 0) / 12}</td>

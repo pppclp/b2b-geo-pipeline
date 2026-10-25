@@ -17,3 +17,9 @@ test("does not guess when a header is duplicated",()=>{
 test("matches English headers with punctuation but no substring false positives",()=>{
   assert.deepEqual(mapImportHeaders(["Business-ID","Stage", "Region Group"],fields),{business_id:0,stage:1});
 });
+
+test("Create Month source headers map without touching Expected Close Month",()=>{
+ const fields=[{key:"created_month",label:"Create Month"},{key:"expected_close_month",label:"Expected Close Month"}];
+ assert.deepEqual(mapImportHeaders(["Create Month","Monthly Sale Plan"],fields),{created_month:0});
+ assert.deepEqual(mapImportHeaders(["เดือนที่สร้าง","Expected Close Month"],fields),{created_month:0,expected_close_month:1});
+});

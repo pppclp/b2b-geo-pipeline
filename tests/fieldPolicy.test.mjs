@@ -177,3 +177,27 @@ test("A2: archiving stores server time, never a spoofed client archived_at", () 
   assert.equal(x.row().archived_at,stamp);
   assert.equal(x.row().remark,"Archived note");
 });
+
+test("batch import preserves source-created business month without spoofing system timestamps",()=>{
+ const x=fixture("2026-10-25T10:00:00.000Z");
+ const batch={batch_id:"legacy-source-month-001",items:[input({
+  customer_name:"Imported July Lead",business_id:"997766",source_created_month:"2026-07",
+  client_request_id:undefined,
+ })]};
+ const first=x.call("SM1","POST","imports/opportunities",batch);
+ assert.equal(first.total,1);
+ const row=x.store.table(DB,"Pipelines").rows.find(r=>r.business_id==="997766");
+ assert.equal(row.created_month,"2026-07");
+ assert.equal(row.created_at,"2026-10-25T10:00:00.000Z");
+ assert.equal("source_created_month" in row,false);
+ const repeated=x.call("SM1","POST","imports/opportunities",batch);
+ assert.equal(repeated.already_imported,true);
+ assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+  ...batch,items:[{...batch.items[0],source_created_month:"2026-08"}]
+ }),rejected(409));
+ assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+  batch_id:"legacy-source-month-002",items:[input({
+   business_id:"887766",source_created_month:"2026-13",client_request_id:undefined
+  })]
+ }),rejected(400));
+});

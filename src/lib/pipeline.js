@@ -10,7 +10,15 @@ export const SUPPORT_TYPES = [
   "Other",
 ];
 
-export const CUSTOMER_TYPES = ["Government", "Enterprise", "SME", "Education", "Telco", "Other"];
+export const CUSTOMER_TYPES = [
+  "CP GROUP AND TECH",
+  "ENERGY AND GROWTH",
+  "FINANCIAL SERVICES AND INSURANCE",
+  "HEALTH AND EDUCATION",
+  "MANUFACTURING INDUSTRIAL AND PROPERTY",
+  "PUBLIC",
+  "SERVICE AND RETAIL",
+];
 
 export const STATUS_LABELS = {
   open: "Open",
