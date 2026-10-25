@@ -1,13 +1,18 @@
 import { isStageSlaOverdue, isInternalSlaOverdue } from "./dashboardMetrics.js";
-import { monthOf } from "./pipeline.js";
+import { monthOf, currentMonthKey } from "./pipeline.js";
 import { matchesPipelineSearch } from "./pipelineFilterUi.js";
 
 // Filtering is presentation-only and always runs on backend-authorized records.
 // A single predicate keeps Quick View counts in sync with the list.
-export function matchesPipelineFilters(o, f, { master, maps, config }, { ignoreStage = false } = {}) {
+export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = {}) {
+  const { master, maps, config } = context;
   if (!matchesPipelineSearch(o, f.search)) return false;
   if (f.created_month && o.created_month !== f.created_month) return false;
   if (f.close_month && o.expected_close_month !== f.close_month) return false;
+  // "Due This Month" is a work view, not a mutation of the user's Close Month filter.
+  // If a month is explicitly selected, mirror the Dashboard's selected-month queue.
+  if (f.due_this_month === "1" &&
+    o.expected_close_month !== (f.close_month || context.nowMonth || currentMonthKey())) return false;
   if (f.region && o.region_id !== f.region) return false;
   if (f.owner && o.owner_id !== f.owner) return false;
   if (f.handler && o.current_handler_id !== f.handler) return false;
@@ -38,28 +43,34 @@ export function matchesPipelineFilters(o, f, { master, maps, config }, { ignoreS
 // Work view counts exclude the view selector itself and Stage, but respect
 // Region, Close Month, Product Category and other independent filters.
 export function quickViewCounts(scopedRecords, filters, profileId, context) {
-  const base = { ...filters, status: "open", handler: "", support: "", stage: "" };
+  const base = { ...filters, status: "open", handler: "", support: "", stuck: "", due_this_month: "", stage: "" };
   const pool = (scopedRecords || []).filter(o => matchesPipelineFilters(o, base, context));
   return {
     all: pool.length,
     "assigned-to-me": pool.filter(o => profileId && o.current_handler_id === profileId).length,
     "support-needed": pool.filter(o => o.support_needed).length,
+    "stage-overdue": pool.filter(o => isStageSlaOverdue(o, context.maps?.stage)).length,
+    "due-this-month": pool.filter(o => o.expected_close_month === (filters.close_month || context.nowMonth || currentMonthKey())).length,
   };
 }
 
 export function activePipelineView(filters, profileId) {
   if (filters.status !== "open") return "";
-  if (filters.support === "1" && !filters.handler) return "support-needed";
-  if (!filters.support && profileId && filters.handler === profileId) return "assigned-to-me";
-  if (!filters.support && !filters.handler) return "all";
+  if (filters.due_this_month === "1" && !filters.stuck && !filters.support && !filters.handler) return "due-this-month";
+  if (filters.stuck === "1" && !filters.due_this_month && !filters.support) return "stage-overdue";
+  if (filters.support === "1" && !filters.stuck && !filters.due_this_month && !filters.handler) return "support-needed";
+  if (!filters.support && !filters.stuck && !filters.due_this_month && profileId && filters.handler === profileId) return "assigned-to-me";
+  if (!filters.support && !filters.handler && !filters.stuck && !filters.due_this_month) return "all";
   return "";
 }
 
 // Switch work modes without erasing customer search, selected Region,
 // Product Category, Close Month, Stage, or independent advanced filters.
 export function switchPipelineView(filters, view, profileId) {
-  const next = { ...filters, status: "open", support: "", handler: "" };
+  const next = { ...filters, status: "open", support: "", handler: "", stuck: "", due_this_month: "" };
   if (view === "assigned-to-me" && profileId) next.handler = profileId;
   if (view === "support-needed") next.support = "1";
+  if (view === "stage-overdue") next.stuck = "1";
+  if (view === "due-this-month") next.due_this_month = "1";
   return next;
 }

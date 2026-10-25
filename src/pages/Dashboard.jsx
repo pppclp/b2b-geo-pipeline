@@ -203,6 +203,7 @@ export default function Dashboard() {
                 ...(selectedTab === "with" ? { handler: profile.id } : {}),
                 ...(selectedTab === "overdue" ? { stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) } : {}),
                 ...(selectedTab === "support" ? { support: "1" } : {}),
+                ...(selectedTab === "due" ? { due_this_month: "1" } : {}),
               })
             }>View All</Button>
           </div>
