@@ -1,6 +1,7 @@
 // Conservative, deterministic import header matching. Never auto-map ambiguous columns.
 // Thai combining marks must survive normalization; empty/unknown headers never match.
 export const IMPORT_HEADER_ALIASES = {
+  created_month: ["Create Month", "Created Month", "วันที่สร้าง", "เดือนที่สร้าง", "เดือนสร้าง"],
   customer_name: ["ชื่อลูกค้า", "ชื่อบริษัท", "ชื่อนิติบุคคล", "ลูกค้า"],
   business_id: ["เลขทะเบียนนิติบุคคล", "เลขประจำตัวผู้เสียภาษี", "เลขผู้เสียภาษี", "เลขทะเบียนบริษัท", "เลขประจำตัวผู้เสียภาษี13หลัก"],
   customer_type: ["ประเภทลูกค้า"],
