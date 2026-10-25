@@ -40,7 +40,7 @@ test("xlsx import rejects formulas instead of silently importing formula code",a
 });
 test("xlsx import enforces 200-row API limit before preview",async()=>{
  const data=await makeWorkbook([["Customer Name"],...Array.from({length:201},(_,i)=>["Acme "+i])]);
- await assert.rejects(()=>parseImportXlsx(data),/200 rows/);
+ await assert.rejects(()=>parseImportXlsx(data),/200 data rows/);
 });
 test("safe input handling rejects unknown and oversized files",async()=>{
  await assert.rejects(()=>readImportFile({name:"file.xls",size:22}),/Choose a/);
