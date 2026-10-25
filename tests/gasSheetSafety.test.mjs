@@ -97,3 +97,24 @@ test("Apps Script writes many new Pipeline rows in one contiguous setValues call
   ]);
   assert.ok(operations.some(x=>x[0]==="resize"));
 });
+
+test("missing configured runtime sheet fails closed with identifiable error code", () => {
+  const store = new ctx.SheetStore_();
+  store.book_ = () => ({getSheetByName: () => null});
+  assert.throws(() => store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines"),
+    (error) => error.status === 503 && error.publicCode === "REQUIRED_SHEET_MISSING");
+});
+
+test("runtime schema rejects missing columns and duplicate headers rather than returning empty rows", () => {
+  ctx.GEO_CONTRACT = {access: {files: {
+    "B2B_GEO_Pipeline_DB.xlsx": {sheets: {Pipelines: {primary_key: "opportunity_id"}}},
+  }}};
+  const headers = ["opportunity_id","business_id","customer_name","region_id",
+    "owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"];
+  assert.doesNotThrow(() => ctx.geoAssertSheetSchema_("B2B_GEO_Pipeline_DB.xlsx", "Pipelines", headers));
+  assert.throws(() => ctx.geoAssertSheetSchema_("B2B_GEO_Pipeline_DB.xlsx", "Pipelines",
+    headers.filter(h => h !== "region_id")),
+  e => e.status === 503 && e.publicCode === "SCHEMA_MISMATCH");
+  assert.throws(() => ctx.geoAssertSheetSchema_("B2B_GEO_Pipeline_DB.xlsx", "Pipelines",
+    [...headers, "status"]), e => e.publicCode === "SCHEMA_MISMATCH");
+});
