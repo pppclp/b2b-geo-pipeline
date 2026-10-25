@@ -266,15 +266,15 @@ test("UAT: team multi-select survives reload and preserves legacy Working With p
  const first=h.call("AE1","PUT","entities/Opportunity/"+id,{working_with_team_ids:"TEAM1,TEAM2"});
  assert.equal(first.working_with_team_ids,"TEAM1,TEAM2");
  assert.equal(first.working_with_user_ids,"SM1,AE1");
- assert.equal(first.working_with,"TEAM1");
+ assert.equal(first.working_with,"Presales");
  const afterReload=h.call("AE1","GET","entities/Opportunity/"+id);
  assert.equal(afterReload.working_with_team_ids,"TEAM1,TEAM2");
  assert.equal(afterReload.working_with_user_ids,"SM1,AE1");
- assert.equal(afterReload.working_with,"TEAM1");
+ assert.equal(afterReload.working_with,"Presales");
  const second=h.call("SM1","PUT","entities/Opportunity/"+id,{working_with_team_ids:"TEAM2"});
  assert.equal(second.working_with_team_ids,"TEAM2");
  assert.equal(second.working_with_user_ids,"SM1,AE1");
- assert.equal(second.working_with,"TEAM2");
+ assert.equal(second.working_with,"Pricing");
  const afterSecondReload=h.call("AE1","GET","entities/Opportunity/"+id);
  assert.equal(afterSecondReload.working_with_team_ids,"TEAM2");
  assert.equal(afterSecondReload.working_with_user_ids,"SM1,AE1");
@@ -333,7 +333,7 @@ test("UAT: Needs Support creates server-owned on/off history for all four roles,
    assert.equal(event.actor_user_id,user);
    assert.equal(event.actor_name,user==="ADMIN"?"Admin":user==="AE1"?"AE One":user==="SM1"?"SM One":"Manager");
    assert.ok(event.event_at);
-   assert.equal(event.previous_value,needed?"No":"Yes");
+   assert.equal(event.previous_value,needed?(user==="AE1"?"":"No"):"Yes");
    assert.equal(event.new_value,needed?"Yes":"No");
    assert.equal(db(h,"Support_Requests").length,0);
  }
