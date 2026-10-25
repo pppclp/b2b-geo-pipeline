@@ -11,8 +11,8 @@
 
 ## Read-only source & security preflight
 - Confirm approved UAT-only data and four role accounts. Production requires organization-approved identity (SSO/MFA or approved equivalent), hosting/API exposure, secrets, retention/privacy policy and sign-off.
-- Using authorized editor access, verify Script Properties and workbook bindings from the **existing** project without logging IDs or row data. Existing runtime helpers in `apps-script/Main.js` include `debugB2bSheetBindings()`, `debugUatLoginReadiness()`, and `debugGeoDbState()` (verify exact helper names in the build). Do not run retired `bindCurrentPipelineSources()` or `diagnoseMockPipelineVisibility()` unless independently verified in your deployed source.
-- Confirm essential DB tabs and headers; missing tabs must fail closed with `REQUIRED_SHEET_MISSING` / `SCHEMA_MISMATCH`. No `setup()` or destructive regeneration of the canonical workbook.
+- Using authorized editor access, verify Script Properties and workbook bindings from the **existing** project without logging IDs or row data. Existing runtime helpers in `apps-script/Main.js` include `debugB2bSheetBindings()`, `debugUatLoginReadiness()`, and `debugPipelineDbBinding()` (verify exact helper names in the build). Do not run retired `bindCurrentPipelineSources()` or `diagnoseMockPipelineVisibility()` unless independently verified in your deployed source.
+- Confirm essential DB tabs and headers; missing tabs must fail closed with `REQUIRED_SHEET_MISSING` / `SCHEMA_MISMATCH`. No `setup()` or destructive regeneration of the canonical workbook. If the approved Phase-4 sheet preparation is explicitly needed, set the **private** Script Property `GEO_APPROVED_PIPELINE_DB_ID` to the verified live workbook ID under change control; this value must never enter Git. Do not rerun preparation casually.
 - Verify the restricted credential store, signed UAT sessions and current policy. UAT temporary passwords are **not** Production auth. Never run `backfillGeoPhase4SupportFlags()` (retired and intentionally throws).
 
 ## Business data gate — REQUIRED before customer data
