@@ -192,7 +192,7 @@ test("security: non-admin user directory and raw master are region-scoped",()=>{
 
 test("security: keyed create retries return the same Pipeline without duplicate events",()=>{
   const x=fixture();
-  const data={client_request_id:"req_abcdef0123456789",customer_name:"New Business",business_id:"123456",
+  const data={client_request_id:"req_abcdef0123456789",customer_name:"New Business",business_id:"0000000123456",
     customer_type:"SME",sales_channel:"AE Self",contact_name:"Test",
     contact_phone:"0812345678",product_category_id:"CAT",expected_close_month:"2026-11",
     quantity:1,price_per_sub:100,owner_id:"AE1",region_id:"R1",stage_id:"S1"};
