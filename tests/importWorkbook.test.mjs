@@ -22,13 +22,25 @@ test("xlsx import reads bilingual headers and preserves formatted ID zeroes",asy
  assert.deepEqual(parsed.headers,["ชื่อลูกค้า","เลขทะเบียนนิติบุคคล","Expected Close Month","Price per Sub"]);
  assert.deepEqual(parsed.rows,[["บริษัททดสอบ","0000000000123","2026-12","349"]]);
 });
+test("styled blank rows through row 500 do not exceed the 200 valued-row limit", async()=>{
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet("Pipelines");
+  ws.addRow(["Business ID", "Customer Name"]);
+  ws.addRow(["0001234567890", "Test customer"]);
+  ws.getRow(500).getCell(1).numFmt="@";
+  ws.getRow(500).getCell(2).font={bold:true};
+  const parsed=await parseImportXlsx(await wb.xlsx.writeBuffer());
+  assert.equal(parsed.rows.length,1);
+  assert.equal(parsed.rowNumbers[0],2);
+  assert.equal(parsed.rows[0][0],"0001234567890");
+});
 test("xlsx import rejects formulas instead of silently importing formula code",async()=>{
  const data=await makeWorkbook([["Customer Name"],[{formula:'1+1',result:2}]]);
  await assert.rejects(()=>parseImportXlsx(data),/formulas are not supported/i);
 });
 test("xlsx import enforces 200-row API limit before preview",async()=>{
  const data=await makeWorkbook([["Customer Name"],...Array.from({length:201},(_,i)=>["Acme "+i])]);
- await assert.rejects(()=>parseImportXlsx(data),/200 rows/);
+ await assert.rejects(()=>parseImportXlsx(data),/200 data rows/);
 });
 test("safe input handling rejects unknown and oversized files",async()=>{
  await assert.rejects(()=>readImportFile({name:"file.xls",size:22}),/Choose a/);

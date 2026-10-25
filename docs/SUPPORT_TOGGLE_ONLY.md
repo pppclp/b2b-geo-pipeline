@@ -33,19 +33,6 @@ extra coordination steps for AE / SM / Management.
   for history/rollback, and no new rows are written. Legacy backfill helper is
   disabled. No schema deletion, data backfill, or Sheets mutation needed.
 
-## Rollout
+## Release procedure
 
-1. Review PR, run lint, tests and frontend build in GitHub Actions.
-2. Deploy frontend after merge via GitHub Pages workflow.
-3. Run `npm run gas:build` and `npm run gas:push` against existing Apps Script
-   project (or use the generated **new** single-file Code.gs artifact).
-4. Deploy **New version of the existing Apps Script web-app deployment**. Never
-   use the old 2026-10-25 login-only Code.gs release for this change: its core
-   includes the retired ticket workflow.
-5. Test real UAT access on all 4 roles, including two users in different Regions;
-   confirm Off→On→Off, Support Type and Note clearing, History actor/time, and
-   that 28 existing flagged Pipelines remain visible in the quick filter.
-6. Do not run `backfillGeoPhase4SupportFlags()` or delete the Support_Requests tab.
-
-Notes: A legacy Support Request is not automatically converted to a Pipeline
-flag; current canonical UAT data already stores Support Needed on Pipelines.
+Use the single authoritative [Release Runbook](RELEASE_RUNBOOK.md). This file describes **product behavior only**, not a separate deployment workflow. Never run the retired Support Request ticket backfill.

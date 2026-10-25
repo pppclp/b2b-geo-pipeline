@@ -46,7 +46,7 @@ function fixture() {
   };
   return {call,all,touched};
 }
-const newPipeline={customer_name:"Shop",business_id:"123",customer_type:"SME",contact_name:"Jane",contact_phone:"111",sales_channel:"AE Self",
+const newPipeline={customer_name:"Shop",business_id:"0000000000123",customer_type:"SME",contact_name:"Jane",contact_phone:"111",sales_channel:"AE Self",
   product_category_id:"CAT1",expected_close_month:"2026-11",owner_id:"AE1",current_handler_id:"AE1",region_id:"R1",status:"open",quantity:1,price_per_sub:100,client_request_id:"integrity_req_000001"};
 
 test("Management can create a Pipeline with a single authoritative audit entry",()=>{
@@ -113,8 +113,8 @@ test("stale Pipeline revisions return 409 without mutation or audit",()=>{
 test("server-side import writes once and a retry is idempotent",()=>{
   const x=fixture();
   const payload={batch_id:"uat-import-batch-00000001",items:[
-    {...newPipeline,business_id:"100001"},
-    {...newPipeline,business_id:"100002"}
+    {...newPipeline,business_id:"0000000100001"},
+    {...newPipeline,business_id:"0000000100002"}
   ]};
   const first=x.call("ADMIN","POST","imports/opportunities",payload);
   assert.equal(first.imported,2);
@@ -127,7 +127,7 @@ test("server-side import writes once and a retry is idempotent",()=>{
   assert.deepEqual(second.opportunity_ids,first.opportunity_ids);
   assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.length,2);
   assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
-    ...payload,items:[{...newPipeline,business_id:"100003"},payload.items[1]]
+    ...payload,items:[{...newPipeline,business_id:"0000000100003"},payload.items[1]]
   }),e=>e.status===409);
   assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
     batch_id:"uat-import-batch-00000002",items:payload.items
@@ -136,8 +136,8 @@ test("server-side import writes once and a retry is idempotent",()=>{
 test("batch import rejects unauthorized roles and duplicates before writing",()=>{
   const x=fixture();
   const input={batch_id:"uat-import-batch-00000003",items:[
-    {...newPipeline,business_id:"100004"},
-    {...newPipeline,business_id:"100004"}
+    {...newPipeline,business_id:"0000000100004"},
+    {...newPipeline,business_id:"0000000100004"}
   ]};
   assert.throws(()=>x.call("AE1","POST","imports/opportunities",input),e=>e.status===403);
   assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",input),e=>e.status===409);

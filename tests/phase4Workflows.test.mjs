@@ -57,7 +57,7 @@ function harness(){
   return core.handle({userId,method,path,body:revisionBody});
   };
  const create=()=>call("ADMIN","POST","entities/Opportunity",{
-  customer_name:"Test Account",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
+  customer_name:"Test Account",business_id:"0000000000123",customer_type:"SME",sales_channel:"AE Self",
   contact_name:"Tester",contact_phone:"0812345678",quantity:1,price_per_sub:100,
   product_category_id:"CAT1",expected_close_month:"2026-11",region_id:"R1",
   owner_id:"AE1",current_handler_id:"AE1",stage_id:"STG1",status:"open"
@@ -66,6 +66,22 @@ function harness(){
 }
 const db=(h,s)=>h.table["B2B_GEO_Pipeline_DB.xlsx|"+s].rows;
 
+test("imports accept omitted contacts and Industrial, but reject a truncated Business ID",()=>{
+ const h=harness(),base={
+  customer_name:"De-identified factory",business_id:"0000000000123",customer_type:"Industrial",
+  sales_channel:"AE Self",quantity:2,price_per_sub:300,
+  product_category_id:"CAT1",expected_close_month:"2026-11",region_id:"R1",
+  owner_id:"AE1",current_handler_id:"AE1",stage_id:"STG1",status:"open"
+ };
+ const created=h.call("ADMIN","POST","entities/Opportunity",base);
+ assert.equal(created.customer_type,"Industrial");
+ assert.equal(created.contact_name || "","");
+ assert.equal(created.contact_phone || "","");
+ const prior=h.table["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length;
+ assert.throws(()=>h.call("ADMIN","POST","entities/Opportunity",{...base,business_id:"123456789012"}),
+   e=>e.status===400&&/13 digits/.test(e.message));
+ assert.equal(h.table["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,prior);
+});
 test("successful handoff creates recipient-only unread notification; repeat read idempotent",()=>{
  const h=harness(),op=h.create();
  assert.equal(h.call("SM1","GET","notifications").unread_count,0);
@@ -117,7 +133,7 @@ test("multi-team and people selection is validated and legacy first-team retaine
 test("AE creation alerts regional SM for missing Scenario / CCP+ without changing Handler",()=>{
  const h=harness();
  const op=h.call("AE1","POST","entities/Opportunity",{
-  customer_name:"Regional New Account",business_id:"123456",customer_type:"SME",
+  customer_name:"Regional New Account",business_id:"0000000123456",customer_type:"SME",
   sales_channel:"AE Self",contact_name:"Contact",contact_phone:"0800000000",
   quantity:1,price_per_sub:100,product_category_id:"CAT1",
   expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",stage_id:"STG1",
@@ -153,7 +169,7 @@ test("AE creation alerts regional SM for missing Scenario / CCP+ without changin
 test("SM creation can set Scenario and CCP+ immediately and alerts the AE owner once",()=>{
  const h=harness();
  const op=h.call("SM1","POST","entities/Opportunity",{
-  customer_name:"SM Account",business_id:"123456",customer_type:"SME",
+  customer_name:"SM Account",business_id:"0000000123456",customer_type:"SME",
   sales_channel:"AE Self",contact_name:"Contact",contact_phone:"0800000000",
   quantity:1,price_per_sub:100,product_category_id:"CAT1",
   expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",stage_id:"STG1",
@@ -173,7 +189,7 @@ test("SM creation can set Scenario and CCP+ immediately and alerts the AE owner 
 test("Management creation alerts AE and regional SM but cannot override SM-only fields",()=>{
  const h=harness();
  const fields={
-  customer_name:"Manager Account",business_id:"123456",customer_type:"SME",
+  customer_name:"Manager Account",business_id:"0000000123456",customer_type:"SME",
   sales_channel:"AE Self",contact_name:"Contact",contact_phone:"0800000000",
   quantity:1,price_per_sub:100,product_category_id:"CAT1",
   expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",stage_id:"STG1",
@@ -223,7 +239,7 @@ test("Needs Support toggle works for AE, SM, Management and Admin without creati
 test("Creating with Needs Support requires Type/Note but does not create a ticket",()=>{
  const h=harness();
  const payload={
-   customer_name:"Flagged account",business_id:"989",customer_type:"SME",
+   customer_name:"Flagged account",business_id:"0000000000989",customer_type:"SME",
    sales_channel:"AE Self",contact_name:"Contact",contact_phone:"0800000000",
    quantity:1,price_per_sub:100,product_category_id:"CAT1",
    expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",
@@ -313,7 +329,7 @@ test("UAT: two browser snapshots cannot overwrite changed teams; stale save has 
 test("UAT: Needs Support creates server-owned on/off history for all four roles, limited by scope",()=>{
  const h=harness(),r1=h.create(),id=r1.id;
  const r2=h.call("ADMIN","POST","entities/Opportunity",{
-   customer_name:"Region 2 test",business_id:"22222",customer_type:"SME",sales_channel:"AE Self",
+   customer_name:"Region 2 test",business_id:"0000000022222",customer_type:"SME",sales_channel:"AE Self",
    contact_name:"Region 2",contact_phone:"0800000011",quantity:1,price_per_sub:100,
    product_category_id:"CAT1",expected_close_month:"2026-12",region_id:"R2",
    owner_id:"AE2",current_handler_id:"AE2",stage_id:"STG1"

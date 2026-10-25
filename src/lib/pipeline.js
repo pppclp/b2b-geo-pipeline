@@ -10,7 +10,7 @@ export const SUPPORT_TYPES = [
   "Other",
 ];
 
-export const CUSTOMER_TYPES = ["Government", "Enterprise", "SME", "Education", "Telco", "Other"];
+export { CUSTOMER_TYPES } from "./pipelineValidation.js";
 
 export const STATUS_LABELS = {
   open: "Open",

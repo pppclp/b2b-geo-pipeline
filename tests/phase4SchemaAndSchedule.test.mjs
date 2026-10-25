@@ -34,8 +34,8 @@ function gasMock({date="2026-11-01",approved=true,existingSnapshot=false}={}){
   })},
   LockService:{getScriptLock:()=>({waitLock:()=>{},releaseLock:()=>{}})},
   Utilities:{formatDate:()=>date,getUuid:()=>"uuid-"+(events.length+1)},
-  GeoCoreLib:{createCore:()=>({handle:(req)=>{
-    events.push(["capture",req]);return {captured:1};
+  GeoCoreLib:{createCore:()=>({captureScheduledSnapshot:(period)=>{
+    events.push(["capture",{snapshot_period:period,actor:"SYSTEM_MONTH_END"}]);return {captured:1};
   }})},
   ScriptApp:{getProjectTriggers:()=>[],newTrigger:()=>({
     timeBased:()=>({onMonthDay:()=>({atHour:()=>({inTimezone:()=>({
@@ -67,8 +67,8 @@ test("month-end trigger captures preceding Bangkok month exactly once",()=>{
  assert.equal(result.period,"2026-10");
  assert.equal(result.captured,1);
  const call=v.events.find(x=>x[0]==="capture")[1];
- assert.equal(call.path,"snapshots/capture");
- assert.equal(call.body.snapshot_period,"2026-10");
+ assert.equal(call.actor,"SYSTEM_MONTH_END");
+ assert.equal(call.snapshot_period,"2026-10");
 });
 test("legacy support backfill is disabled and historical records remain untouched",()=>{
  const v=gasMock();
@@ -95,7 +95,7 @@ test("Phase 2/4 required Pipeline columns exist in the YAML contract",()=>{
 test("Phase 4 preparation appends only missing Pipeline headers and is idempotent",()=>{
  const context={
    console:{log(){},warn(){},error(){}},
-   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==="GEO_PHASE4_SCHEMA_APPROVED"?"YES":null})},
+   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==="GEO_PHASE4_SCHEMA_APPROVED"?"YES":k==="GEO_APPROVED_PIPELINE_DB_ID"?"TEST_APPROVED_WORKBOOK_ID":null})},
    LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
    GEO_CONTRACT:{columns:contract.columns}
  };
@@ -131,7 +131,7 @@ test("Phase 4 preparation appends only missing Pipeline headers and is idempoten
  const book={
    getName:()=> "B2B_GEO_Pipeline_DB",
    getSheetByName:name=>sheetMap.get(name)||null,
-   getId:()=> "1z2alvS2BSRCll-6CaQq2HetuVCjYW43cpdSuXTZNthc",
+   getId:()=> "TEST_APPROVED_WORKBOOK_ID",
    insertSheet:name=>{const obj=sheet(name,[]);sheetMap.set(name,obj);return obj;}
  };
  context.SpreadsheetApp={openById:()=>book,flush(){}};

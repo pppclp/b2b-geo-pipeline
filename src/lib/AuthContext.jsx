@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { db, session, onSessionExpired } from '@/api/client';
+import { validateApiContract } from '@/lib/apiContract';
 
 // UAT password gate: validate credentials and store a signed short-lived session.
 // The backend derives identity from that session, not a browser-supplied user ID.
@@ -31,13 +32,13 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
     } else {
       try {
-        setUser(await db.session.me());
+        setUser(validateApiContract(await db.session.me()));
         setIsAuthenticated(true);
       } catch (error) {
         session.clear();
         setUser(null);
         setIsAuthenticated(false);
-        if (error.status !== 401) setAuthError({ type: 'unknown', message: error.message });
+        if (error.status !== 401) setAuthError({ type: error.code === 'API_CONTRACT_MISMATCH' ? 'contract_mismatch' : 'unknown', message: error.message });
       }
     }
     setIsLoadingAuth(false);
@@ -54,7 +55,9 @@ export const AuthProvider = ({ children }) => {
     session.setToken(result.session_token);
     // Re-auth must not set isLoadingAuth: AuthenticatedApp would unmount
     // the current route and discard an in-progress form.
-    const account = await db.session.me();
+    let account;
+    try { account = validateApiContract(await db.session.me()); }
+    catch (error) { session.clear(); throw error; }
     setUser(account);
     setIsAuthenticated(true);
     setAuthError(null);

@@ -9,6 +9,8 @@
 import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
+import { businessIdError, normalizeCustomerType } from "../src/lib/pipelineValidation.js";
+import { API_CONTRACT_VERSION, REQUIRED_CAPABILITIES } from "../src/lib/apiContract.js";
 import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
@@ -25,15 +27,20 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
-function validateLatestOpportunityFields(data, { requireRequired = false } = {}) {
-  const required = ["customer_name", "business_id", "customer_type", "sales_channel", "contact_name", "contact_phone", "product_category_id", "expected_close_month"];
+function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null } = {}) {
+  const required = ["customer_name", "business_id", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
       throw new HttpError(400, key + " is required");
     }
   }
-  if ("business_id" in data && data.business_id && !/^[0-9]+$/.test(String(data.business_id))) {
-    throw new HttpError(400, "Business ID must contain digits only");
+  if ("business_id" in data && data.business_id &&
+      (previousBusinessId === null || String(data.business_id) !== String(previousBusinessId))) {
+    const error = businessIdError(data.business_id);
+    if (error) throw new HttpError(400, error);
+  }
+  if ("customer_type" in data && data.customer_type && !normalizeCustomerType(data.customer_type)) {
+    throw new HttpError(400, "Invalid Customer Type. Choose a supported value.");
   }
   if ("sales_channel" in data && data.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
     throw new HttpError(400, "Invalid Sales Channel");
@@ -368,7 +375,7 @@ export function createCore({ contract, store, now, uuid }) {
     });
   }
 
-  function captureSnapshot(actor, snapshotPeriod) {
+  function captureSnapshot(actor, snapshotPeriod, { scheduled = false } = {}) {
     const b = binding("MonthlySnapshot");
     need(actor, b, "create");
     if (!snapshotPeriodValid(snapshotPeriod)) throw new HttpError(400, "Snapshot period must be YYYY-MM");
@@ -382,7 +389,14 @@ export function createCore({ contract, store, now, uuid }) {
     // Validate and build the entire new state before touching the underlying sheet.
     table.rows = replacement;
     touch(b);
+    if (scheduled) outputs.logScheduledSnapshot(snapshotPeriod, snapshots.length);
     return { captured: snapshots.length, snapshot_period: snapshotPeriod };
+  }
+
+  // Server-internal method only; never expose a request flag that could forge system identity.
+  function captureScheduledSnapshot(snapshotPeriod) {
+    const scheduledPrincipal = {role:"admin", id:"SYSTEM_MONTH_END", real:{id:"SYSTEM_MONTH_END", name:"Scheduled Snapshot", role:"system"}};
+    return captureSnapshot(scheduledPrincipal, snapshotPeriod, {scheduled:true});
   }
 
   // Stable import identity: indexed batch IDs prevent retry duplicates;
@@ -752,7 +766,8 @@ export function createCore({ contract, store, now, uuid }) {
         if (actor.role === "ae" && String(data.owner_id || "") !== String(actor.id)) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
         }
-        validateLatestOpportunityFields(data, { requireRequired: "sales_channel" in data });
+        validateLatestOpportunityFields(data, { requireRequired: !!importMeta || "sales_channel" in data });
+        if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
@@ -869,7 +884,10 @@ export function createCore({ contract, store, now, uuid }) {
       }
       // Validate latest editable fields on partial updates without breaking
       // workflow-only updates such as Stage / Handler / Support.
-      if (uiEntity === "Opportunity") validateLatestOpportunityFields(data);
+      if (uiEntity === "Opportunity") {
+        validateLatestOpportunityFields(data, { previousBusinessId: row.business_id });
+        if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
+      }
 
       // Validate loss reason and close only an Open Pipeline. The real actor
       // and timestamp are taken from the backend, never from the browser.
@@ -1125,7 +1143,8 @@ export function createCore({ contract, store, now, uuid }) {
 
     if (parts[0] === "session" && parts[1] === "me") {
       const r = actor.real;
-      return { id: r.id, email: r.email, full_name: r.name, role: r.role };
+      return { id: r.id, email: r.email, full_name: r.name, role: r.role,
+        api_contract_version: API_CONTRACT_VERSION, capabilities: [...REQUIRED_CAPABILITIES] };
     }
 
     if (parts[0] === "access" && method === "GET") {
@@ -1202,5 +1221,5 @@ export function createCore({ contract, store, now, uuid }) {
     throw new HttpError(404, `No route for ${method} /${parts.join("/")}`);
   }
 
-  return { handle, bindings };
+  return { handle, bindings, captureScheduledSnapshot };
 }

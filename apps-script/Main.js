@@ -37,9 +37,10 @@ function serve_(raw) {
       console.error("API error " + errorId + ": " + (err && err.stack ? err.stack : err));
     }
     var status = err.status || 500;
+    var publicCode = err.publicCode || ({401:"UNAUTHENTICATED",403:"FORBIDDEN",409:"CONFLICT",410:"GONE",428:"PRECONDITION_REQUIRED",429:"RATE_LIMITED",503:"DATA_SOURCE_ERROR"}[status] || "REQUEST_ERROR");
     out = { status: status, body: status >= 500
-      ? { message: "Backend request failed. Contact support with error ID " + errorId, error_id: errorId, code: err.publicCode || "BACKEND_ERROR" }
-      : { message: String((err && err.message) || "Request failed") } };
+      ? { message: "Backend request failed. Contact support with error ID " + errorId, error_id: errorId, code: publicCode }
+      : { message: String((err && err.message) || "Request failed"), code: publicCode } };
   }
   return json_(out);
 }
@@ -94,11 +95,9 @@ function uatLogin_(store, body) {
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
   var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
-  // Username-only throttling is vulnerable to password spraying across accounts.
-  // The script-wide limit is a second brake, NOT a replacement for SSO/WAF.
-  var globalKey = "GEO_LOGIN_FAIL_GLOBAL_V1";
-  if (Number(limiter.get(globalKey) || 0) >= 50 ||
-      (key && Number(limiter.get(key) || 0) >= 5)) {
+  // Global failures are observed for security alerting but must NOT lock out
+  // every legitimate user when an attacker sprays random account names.
+  if (key && Number(limiter.get(key) || 0) >= 5) {
     throwUatError_(429, "Too many login attempts. Try again in 10 minutes.");
   }
 
@@ -140,7 +139,12 @@ function uatLogin_(store, body) {
 function denyUatLogin_(cache, key) {
   if (key) cache.put(key, String(Number(cache.get(key) || 0) + 1), 600);
   var globalKey = "GEO_LOGIN_FAIL_GLOBAL_V1";
-  cache.put(globalKey, String(Number(cache.get(globalKey) || 0) + 1), 600);
+  var attempts = Number(cache.get(globalKey) || 0) + 1;
+  cache.put(globalKey, String(attempts), 600);
+  if (attempts >= 50 && !cache.get("GEO_LOGIN_SPRAY_ALERT_V1")) {
+    cache.put("GEO_LOGIN_SPRAY_ALERT_V1", "1", 600);
+    console.warn("UAT_SECURITY_ALERT: high aggregate failed login count; investigate. No employee ID was logged.");
+  }
   throwUatError_(401, "Invalid username or password");
 }
 
@@ -1023,7 +1027,9 @@ function prepareGeoPhase4Sheets() {
     throw Error("Set GEO_PHASE4_SCHEMA_APPROVED=YES only after a restricted DB backup");
   var lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
-    var expectedId="1z2alvS2BSRCll-6CaQq2HetuVCjYW43cpdSuXTZNthc";
+    // Approved binding is stored privately in Script Properties; never in public source.
+    var expectedId=String(props.getProperty("GEO_APPROVED_PIPELINE_DB_ID") || "");
+    if(!expectedId)throw Error("Set private GEO_APPROVED_PIPELINE_DB_ID after workbook identity verification");
     var actualId=sheetIdFor_("B2B_GEO_Pipeline_DB.xlsx");
     if(actualId !== expectedId)throw Error("Pipeline DB binding differs from verified UAT workbook");
     var book=SpreadsheetApp.openById(actualId);
@@ -1106,18 +1112,13 @@ function runGeoMonthEndSnapshot() {
     if(prior.some(function(r){return String(r.snapshot_period)===period;})){
       return {ok:true,period:period,skipped:"Snapshot already captured"};
     }
-    var admins=store.table("B2B_GEO_User_Org_Master.xlsx","Users").rows.filter(function(r){
-      return String(r.role).toLowerCase()==="admin" && String(r.status||"Active").toLowerCase()==="active";
-    });
-    if(!admins.length)throw Error("No active Admin in User Master for scheduled snapshot");
     var core=GeoCoreLib.createCore({contract:GEO_CONTRACT,store:store,
       now:function(){return new Date().toISOString();},
       uuid:function(){return Utilities.getUuid();}
     });
-    var result=core.handle({method:"POST",path:"snapshots/capture",
-      body:{snapshot_period:period},userId:admins[0].user_id});
+    var result=core.captureScheduledSnapshot(period);
     store.flush();
-    console.log(JSON.stringify({ok:true,period:period,captured:result.captured}));
+    console.log(JSON.stringify({ok:true,period:period,captured:result.captured,actor:"SYSTEM_MONTH_END"}));
     return {ok:true,period:period,captured:result.captured};
   } finally {lock.releaseLock();}
 }

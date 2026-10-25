@@ -40,6 +40,12 @@ const AuthenticatedApp = () => {
   if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
+    } else if (authError.type === 'contract_mismatch' || authError.type === 'unknown') {
+      return <div role="alert" className="max-w-xl mx-auto mt-12 p-6 rounded-xl border bg-background">
+        <h1 className="font-semibold">Backend unavailable or version mismatch</h1>
+        <p className="text-sm mt-2">{authError.message || "Data cannot be loaded safely."}</p>
+        <button className="mt-4 rounded-lg border px-4 py-2 text-sm" onClick={() => window.location.reload()}>Retry Connection</button>
+      </div>;
     } else if (authError.type === 'auth_required') {
       // Redirect to login automatically
       navigateToLogin();

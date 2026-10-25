@@ -36,18 +36,27 @@ export async function parseImportXlsx(arrayBuffer) {
   await workbook.xlsx.load(arrayBuffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error("This workbook has no worksheet");
-  if (sheet.columnCount > MAX_COLUMNS) throw new Error("Import exceeds 80 columns");
-  const headers = Array.from({length:sheet.columnCount},(_,i)=>excelCellText(sheet.getRow(1).getCell(i+1)).trim());
-  if (!headers.some(Boolean)) throw new Error("The first row must contain column names");
-  if (sheet.rowCount - 1 > MAX_IMPORT_ROWS) throw new Error("Import supports up to 200 rows per file");
-  const rows = [];
-  for (let rowNumber=2;rowNumber<=sheet.rowCount;rowNumber++) {
+  // worksheet.rowCount/columnCount include styled blank cells. Only valued
+  // headers and data rows count toward the 80-column / 200-row import limits.
+  let lastHeaderColumn = 0;
+  sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, col) => {
+    if (excelCellText(cell).trim()) lastHeaderColumn = Math.max(lastHeaderColumn, col);
+  });
+  if (!lastHeaderColumn) throw new Error("The first row must contain column names");
+  if (lastHeaderColumn > MAX_COLUMNS) throw new Error("Import exceeds 80 columns");
+  const headers = Array.from({length:lastHeaderColumn},(_,i)=>excelCellText(sheet.getRow(1).getCell(i+1)).trim());
+  const rows = [], rowNumbers = [];
+  sheet.eachRow({ includeEmpty: false }, (excelRow, rowNumber) => {
+    if (rowNumber === 1) return;
     const row = Array.from({length:headers.length},(_,i)=>
-      excelCellText(sheet.getRow(rowNumber).getCell(i+1), headers[i]));
-    if (row.some((cell)=>String(cell).trim())) rows.push(row);
-  }
+      excelCellText(excelRow.getCell(i+1), headers[i]));
+    if (!row.some((cell)=>String(cell).trim())) return;
+    rows.push(row);
+    rowNumbers.push(rowNumber);
+    if (rows.length > MAX_IMPORT_ROWS) throw new Error("Import supports up to 200 data rows per file");
+  });
   if (!rows.length) throw new Error("This workbook contains no data rows");
-  return {headers,rows};
+  return {headers,rows,rowNumbers};
 }
 
 export async function readImportFile(file, parseCsv) {

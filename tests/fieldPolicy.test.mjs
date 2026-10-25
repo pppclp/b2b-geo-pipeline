@@ -59,7 +59,7 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
   return {call,store,touched,row:()=>store.table(DB,"Pipelines").rows[0],events:()=>store.table(DB,"Pipeline_Events").rows};
 }
 const input=(changes={})=>({
-  customer_name:"Shop",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
+  customer_name:"Shop",business_id:"0000000000123",customer_type:"SME",sales_channel:"AE Self",
   contact_name:"Jane",contact_phone:"0812345678",product_category_id:"CAT1",
   expected_close_month:"2026-11",owner_id:"AE1",region_id:"R1",stage_id:"S1",
   quantity:1,price_per_sub:100,client_request_id:"field_policy_req_000001",...changes

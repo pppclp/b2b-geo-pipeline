@@ -1,12 +1,16 @@
-# Builds the web app and publishes it to GitHub Pages on every push to main.
+# Controlled UAT deployment. GitHub Pages is deployed only after the matching Apps Script release is verified.
 # Needs a repository variable VITE_GEO_API_URL (Settings → Secrets and variables →
 # Actions → Variables) holding the Apps Script web app URL ending in /exec.
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      backend_verified:
+        description: "I verified the matching Apps Script deployment and API contract in UAT"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -26,6 +30,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Require backend compatibility verification
+        env:
+          VERIFIED: ${{ inputs.backend_verified }}
+        run: |
+          if [ "$VERIFIED" != "true" ]; then echo "::error::Verify compatible Apps Script deployment before Pages release"; exit 1; fi
       - name: Check backend URL
         env:
           VITE_GEO_API_URL: ${{ vars.VITE_GEO_API_URL }}

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES, formatMonth } from "@/lib/pipeline";
+import { businessIdError, normalizeCustomerType } from "@/lib/pipelineValidation";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
@@ -125,11 +126,9 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const pricingChanged = ["quantity", "price_per_sub", "oc"].some(changed);
   const problems = [
     requiredProblem("customer_name", !!String(form.customer_name || "").trim(), "Customer Name"),
-    requiredProblem("business_id", /^\d+$/.test(String(form.business_id || "").trim()), "Business ID"),
-    requiredProblem("customer_type", !!form.customer_type, "Customer Type"),
+    requiredProblem("business_id", !businessIdError(form.business_id), "Business ID (13 digits)"),
+    requiredProblem("customer_type", !!normalizeCustomerType(form.customer_type), "Customer Type"),
     requiredProblem("sales_channel", !!form.sales_channel, "Sales Channel"),
-    requiredProblem("contact_name", !!String(form.contact_name || "").trim(), "Contact Name"),
-    requiredProblem("contact_phone", !!String(form.contact_phone || "").trim(), "Contact Phone"),
     requiredProblem("region_id", !!form.region_id, "Region"),
     requiredProblem("owner_id", !!form.owner_id, "Opportunity Owner"),
     requiredProblem("product_category_id", !!form.product_category_id, "Product Category"),
@@ -216,7 +215,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
           <div>
             <Label>Business ID *</Label>
-            <Input value={form.business_id} onChange={(e) => set("business_id", e.target.value)} placeholder="Tax ID / ref" />
+            <Input value={form.business_id} onChange={(e) => set("business_id", e.target.value)} placeholder="13-digit juristic/tax ID" />
           </div>
           <div>
             <Label>Customer Type *</Label>
@@ -241,8 +240,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
               <Input maxLength={200} value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
             </div>
           )}
-          <div><Label>Contact Name *</Label><Input maxLength={120} value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
-          <div><Label>Contact Phone *</Label><Input type="tel" maxLength={40} value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
+          <div><Label>Contact Name (optional)</Label><Input maxLength={120} value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
+          <div><Label>Contact Phone (optional)</Label><Input type="tel" maxLength={40} value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
           <div className="sm:col-span-2">
             <Label>Remark</Label>
             <Textarea maxLength={500} rows={2} value={form.remark || ""} onChange={(e) => set("remark", e.target.value)} />

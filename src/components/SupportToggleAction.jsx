@@ -16,20 +16,23 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
   const [supportNote, setSupportNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editingRevision, setEditingRevision] = useState("");
+  const [conflicted, setConflicted] = useState(false);
   const needed = !!op.support_needed;
   const types = (master?.SupportType || []).filter((type) => type.active);
 
   const close = () => { if (!saving) { setOpen(false); setError(""); } };
-  const openDialog = () => { setSupportType(""); setSupportNote(""); setError(""); setOpen(true); };
+  const openDialog = () => { setSupportType(""); setSupportNote(""); setError(""); setConflicted(false); setEditingRevision(op.updated_date || ""); setOpen(true); };
   const save = async () => {
-    if (saving || disabled || !canEdit || (!needed && (!supportType || !supportNote.trim()))) return;
+    if (saving || conflicted || disabled || !canEdit || (!needed && (!supportType || !supportNote.trim()))) return;
     setSaving(true);
     setError("");
     try {
-      await setSupport(op.id, { needed: !needed, type: supportType, note: supportNote.trim() });
+      await setSupport(op.id, { needed: !needed, type: supportType, note: supportNote.trim(), expectedUpdatedAt: editingRevision });
       setOpen(false);
       onSaved?.();
     } catch (err) {
+      if (err?.status === 409) setConflicted(true);
       setError(err?.message || "Unable to update Needs Support. Please retry.");
     } finally { setSaving(false); }
   };
@@ -69,9 +72,10 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
           </div>
         </div>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {conflicted && <p className="text-xs text-muted-foreground">This form is locked to protect the latest update. Copy your notes, close it and refresh the Pipeline before editing again.</p>}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={close} disabled={saving}>Cancel</Button>
-          <Button type="button" onClick={save} disabled={saving || !canEdit || (!needed && (!supportType || !supportNote.trim()))}>
+          <Button type="button" onClick={save} disabled={saving || conflicted || !canEdit || (!needed && (!supportType || !supportNote.trim()))}>
             {saving ? "Saving…" : needed ? "Remove Support" : "Request Support"}
           </Button>
         </DialogFooter>
