@@ -22,9 +22,12 @@ test("Public source does not hardcode a canonical Spreadsheet ID or deploy old C
   assert.equal(fs.existsSync(new URL("../releases/support-toggle-2026-10-25/Code.gs",import.meta.url)),false);
   assert.doesNotMatch(src("docs/RELEASE_RUNBOOK.md"),/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]{25,}/);
 });
-test("Frontend Pages deployment needs explicit operator verification",()=>{
+test("Pages releases gate backend-changing updates and auto-publish UI-only changes",()=>{
   const yaml=src(".github/workflows/deploy-pages.yml");
   assert.match(yaml,/workflow_dispatch/);
   assert.match(yaml,/backend_verified/);
-  assert.doesNotMatch(yaml,/branches: \[main\]/);
+  assert.match(yaml,/branches: \[main\]/);
+  assert.match(yaml,/scripts\/pages-release-gate\.mjs/);
+  assert.match(yaml,/needs\.preflight\.outputs\.release_allowed == 'true'/);
+  assert.match(yaml,/node --test tests\/\*\.test\.mjs/);
 });
