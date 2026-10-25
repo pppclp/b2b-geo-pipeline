@@ -9,7 +9,9 @@ import { db } from "@/api/client";
 import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
+import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import {shouldClearOwnerOnRegionChange, matchesPipelineSearch} from "@/lib/pipelineFilterUi";
+import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
@@ -18,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KanbanSquare, List, Plus, Download, AlertTriangle, RefreshCw } from "lucide-react";
 
 const SORTS = [
-  { value: "close_month", label: "Expected Close Month" },
+  { value: "close_month", label: "Close Month ↑ · Net RC ↓" },
   { value: "value_desc", label: "Value — High to Low" },
   { value: "value_asc", label: "Value — Low to High" },
   { value: "stage_aging_desc", label: "Stage Aging — Longest First" },
@@ -30,22 +32,6 @@ const SORTS = [
 ];
 
 
-
-function applySort(ops, sort) {
-  const arr = [...ops];
-  switch (sort) {
-    case "value_desc": return arr.sort((a, b) => (b.pipeline_value || 0) - (a.pipeline_value || 0));
-    case "value_asc": return arr.sort((a, b) => (a.pipeline_value || 0) - (b.pipeline_value || 0));
-    case "stage_aging_desc": return arr.sort((a, b) => agingDays(b.stage_entered_at) - agingDays(a.stage_entered_at));
-    case "handler_aging_desc": return arr.sort((a, b) => agingDays(b.handler_since) - agingDays(a.handler_since));
-    case "updated_desc": return arr.sort((a, b) => new Date(b.updated_date) - new Date(a.updated_date));
-    case "created_desc": return arr.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-    case "customer_asc": return arr.sort((a, b) => (a.customer_name || "").localeCompare(b.customer_name || ""));
-    case "support_first": return arr.sort((a, b) => (b.support_needed ? 1 : 0) - (a.support_needed ? 1 : 0));
-    case "close_month":
-    default: return arr.sort((a, b) => (a.expected_close_month || "9999").localeCompare(b.expected_close_month || "9999"));
-  }
-}
 
 export default function Pipeline() {
   const { scopedOpportunities, opportunities, activeStages, maps, master, profile, config, loading, error, refresh } = useData();
@@ -114,7 +100,7 @@ export default function Pipeline() {
     });
   };
 
-  const filtered = useMemo(() => {
+  const filteredWithoutStage = useMemo(() => {
     return scopedOpportunities.filter((o) => {
       if (!matchesPipelineSearch(o, filters.search)) return false;
       if (filters.created_month && o.created_month !== filters.created_month) return false;
@@ -122,7 +108,6 @@ export default function Pipeline() {
       if (filters.region && o.region_id !== filters.region) return false;
       if (filters.owner && o.owner_id !== filters.owner) return false;
       if (filters.handler && o.current_handler_id !== filters.handler) return false;
-      if (filters.stage && o.stage_id !== filters.stage) return false;
       if (filters.status && filters.status !== "all" && o.status !== filters.status) return false;
       if (filters.sm_info === "missing" &&
           (o.status !== "open" ||
@@ -150,7 +135,29 @@ export default function Pipeline() {
     });
   }, [scopedOpportunities, filters, config, maps.stage, master?.WorkingWithOption]);
 
-  const sorted = useMemo(() => applySort(filtered, sort), [filtered, sort]);
+  const filtered = useMemo(() => filters.stage
+    ? filteredWithoutStage.filter((o) => o.stage_id === filters.stage)
+    : filteredWithoutStage, [filteredWithoutStage, filters.stage]);
+  const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
+  // This is a presentation-only selector, never a replacement for server RBAC.
+  // Match the Dashboard's region choices: Admin sees active Regions; all other
+  // roles see only their own active User_Region assignments.
+  const quickRegions = useMemo(() => (master?.Region || [])
+    .filter((region) => region.active && (
+      profile?.app_role === "admin" || (profile?.region_ids || []).includes(region.id)
+    ))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [master?.Region, profile?.app_role, profile?.region_ids]
+  );
+  const hasRegionQuickFilter = quickRegions.length > 1;
+  const stageCounts = useMemo(() => {
+    const counts = new Map();
+    filteredWithoutStage.forEach(o => counts.set(o.stage_id, (counts.get(o.stage_id) || 0) + 1));
+    return counts;
+  }, [filteredWithoutStage]);
+  const regionContext = useMemo(() => regionDisplayContext(
+    sorted, maps.region, filters.region || "", quickRegions.map((region) => region.id)
+  ), [sorted, maps.region, filters.region, quickRegions]);
   const exportExcel = async () => {
     setExportError("");
     setExporting(true);
@@ -179,17 +186,6 @@ export default function Pipeline() {
   const selectedPipeline = quickView ? scopedOpportunities.find((item) => item.id === quickView.id) : null;
 
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
-  // When every displayed opportunity has the same handler, state that once above
-  // the table instead of repeating the same name in every row.
-  const sharedHandlerId = sorted.length >= 3 &&
-    sorted[0]?.current_handler_id &&
-    sorted.every((o) => o.current_handler_id === sorted[0].current_handler_id) &&
-    sorted.some((o) => o.owner_id !== sorted[0].current_handler_id)
-      ? sorted[0].current_handler_id
-      : null;
-  const sharedHandlerName = sharedHandlerId
-    ? maps.member[sharedHandlerId]?.name || sharedHandlerId
-    : "";
 
 
   return (
@@ -197,7 +193,11 @@ export default function Pipeline() {
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{params.get("view") === "assigned-to-me" ? "Assigned to Me" : params.get("view") === "support-needed" ? "Needs Support" : "All Opportunities"}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{sorted.length} opportunities · {formatTHB(totalValue)}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {sorted.length} opportunities · {formatTHB(totalValue)}
+            <span className="mx-2 text-border" aria-hidden="true">·</span>
+            <span aria-label={"Region scope: " + regionContext.label}>{regionContext.label}</span>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {canExport && (
@@ -229,8 +229,16 @@ export default function Pipeline() {
         </p>
       )}
       <div className="rounded-xl border border-border bg-card p-3 mb-4">
-        <FilterBar filters={filters} onFilter={onFilter} stageChipsVisible={view === "list"} />
+        <FilterBar filters={filters} onFilter={onFilter} stageChipsVisible={view === "list"}
+          showRegionControl={!hasRegionQuickFilter} />
       </div>
+
+      {hasRegionQuickFilter && (
+        <div className="mb-3">
+          <RegionQuickFilter regions={quickRegions} value={filters.region || ""}
+            onChange={(regionId) => onFilter("region", regionId)} />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
 
@@ -253,7 +261,7 @@ export default function Pipeline() {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Sort</span>
           <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="w-[210px] h-9 rounded-lg"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[234px] max-w-[65vw] h-9 rounded-lg"><SelectValue /></SelectTrigger>
             <SelectContent>
               {SORTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -270,7 +278,7 @@ export default function Pipeline() {
             className={!filters.stage
               ? "rounded-full px-3 py-1.5 border border-primary/40 bg-brand-tint text-brand text-[11px] font-medium"
               : "rounded-full px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground text-[11px]"}>
-            All Stages
+            All Stages <span className="ml-1 text-[10px] opacity-75 tabular-nums">{filteredWithoutStage.length}</span>
           </button>
           {activeStages.map((stage) => (
             <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
@@ -278,7 +286,7 @@ export default function Pipeline() {
               className={filters.stage === stage.id
                 ? "rounded-full px-3 py-1.5 border border-primary/40 bg-brand-tint text-brand text-[11px] font-medium"
                 : "rounded-full px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground text-[11px]"}>
-              {stage.name}
+              {stage.name} <span className="ml-1 text-[10px] opacity-75 tabular-nums">{stageCounts.get(stage.id) || 0}</span>
             </button>
           ))}
         </div>
@@ -289,9 +297,9 @@ export default function Pipeline() {
       ) : view === "board" ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="relative">
-            <div className="mb-2 text-right text-[11px] text-muted-foreground xl:hidden">
+            <p className="mb-2 text-right text-[11px] text-muted-foreground xl:hidden">
               Scroll horizontally to see all stages →
-            </div>
+            </p>
             <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Sales stages — scroll horizontally for more">
             {activeStages.map((stage) => {
               const stageOps = sorted.filter((o) => o.stage_id === stage.id);
@@ -313,7 +321,7 @@ export default function Pipeline() {
                           <Draggable key={op.id} draggableId={op.id} index={idx}>
                             {(p) => (
                               <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps}>
-                                <PipelineCard op={op} onOpen={openQuickView} />
+                                <PipelineCard op={op} onOpen={openQuickView} showRegion={regionContext.showColumn} />
                               </div>
                             )}
                           </Draggable>
@@ -334,13 +342,6 @@ export default function Pipeline() {
         </DragDropContext>
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          {sharedHandlerName && (
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-secondary/25 px-3 py-2 text-[11px] text-muted-foreground">
-              <span>All shown opportunities are with</span>
-              <span className="font-medium text-foreground">{sharedHandlerName}</span>
-              <span>· Current Handler</span>
-            </div>
-          )}
           <div className="divide-y divide-border/70 md:hidden" role="list" aria-label="Pipeline opportunities">
             {sorted.map((o) => {
               const age = agingDays(o.stage_entered_at);
@@ -358,6 +359,12 @@ export default function Pipeline() {
                     <span className="font-medium text-foreground">{maps.stage[o.stage_id]?.name || "—"}</span>
                     <span aria-hidden="true">·</span>
                     <span>{formatMonth(o.expected_close_month)}</span>
+                    {regionContext.showColumn && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="max-w-[12rem] truncate">{maps.region[o.region_id]?.name || o.region_id || "Unassigned"}</span>
+                      </>
+                    )}
                     <span aria-hidden="true">·</span>
                     <span className={overdue ? "font-semibold text-amber-700" : ""}>{age}d in stage</span>
                     {o.support_needed && <span className="inline-flex items-center gap-1 text-amber-700">
@@ -368,39 +375,45 @@ export default function Pipeline() {
               );
             })}
           </div>
-          <div className="hidden overflow-x-auto md:block" aria-label="Pipeline opportunities table">
-            <table className="w-full min-w-[1020px] table-fixed text-[12px]">
+          <div className="hidden overflow-x-auto md:block" aria-label="Pipeline opportunities table" tabIndex={0}>
+            <table className={`w-full table-fixed text-[12px] ${regionContext.showColumn ? "min-w-[1190px]" : "min-w-[1030px]"}`}>
               <colgroup>
-                <col className="w-[30%]" />
-                <col className="w-[9%]" />
-                <col className="w-[26%]" />
-                <col className="w-[12%]" />
-                <col className="w-[13%]" />
+                <col className={regionContext.showColumn ? "w-[25%]" : "w-[28%]"} />
                 <col className="w-[10%]" />
+                <col className={regionContext.showColumn ? "w-[25%]" : "w-[30%]"} />
+                {regionContext.showColumn && <col className="w-[10%]" />}
+                <col className={regionContext.showColumn ? "w-[11%]" : "w-[12%]"} />
+                <col className={regionContext.showColumn ? "w-[12%]" : "w-[12%]"} />
+                <col className={regionContext.showColumn ? "w-[7%]" : "w-[8%]"} />
               </colgroup>
               <thead className="bg-secondary/50 text-muted-foreground">
                 <tr>
-                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">Opportunity</th>
-                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">Stage</th>
-                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">
-                    {sharedHandlerName ? "AE Owner" : "Handler / AE Owner"}
-                  </th>
-                  <th scope="col" className="text-left font-medium px-3 py-2 text-[11px]">Close</th>
-                  <th scope="col" className="text-right font-medium px-3 py-2 text-[11px]">Net RC</th>
-                  <th scope="col" className="text-right font-medium px-3 py-2 text-[11px]">Age / Alerts</th>
+                  <th scope="col" className="sticky left-0 z-20 bg-secondary text-left font-medium px-3 py-3 text-[11px]">Opportunity</th>
+                  <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">Stage</th>
+                  <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">AE Owner / Handling</th>
+                  {regionContext.showColumn && <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">Region</th>}
+                  <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">Close Month</th>
+                  <th scope="col" className="text-right font-medium px-3 py-3 text-[11px]">Net RC</th>
+                  <th scope="col" className="text-right font-medium px-3 py-3 text-[11px]">Stage Age / Alerts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
                 {sorted.map((o) => {
                   const ownerName = maps.member[o.owner_id]?.name || "Unassigned";
-                  const handlerName = maps.member[o.current_handler_id]?.name || "Unassigned";
+                  const handler = maps.member[o.current_handler_id];
+                  const handlerName = handler?.name || "Unassigned";
                   const categoryName = maps.category[o.product_category_id]?.name || "";
                   const overdue = isStageSlaOverdue(o, maps.stage);
                   const age = agingDays(o.stage_entered_at);
-                  const differentOwner = o.owner_id !== o.current_handler_id;
+                  const differentOwner = Boolean(o.current_handler_id && o.owner_id !== o.current_handler_id);
+                  // Working With is a supporting-team indicator, not ownership.
+                  // Inline it beside an assigned SM only; other collaborators
+                  // remain visible in Pipeline Quick View without adding rows.
+                  const teamLabels = smWorkingWithTeamLabels(o, handler, master?.WorkingWithOption || []);
+                  const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
                   return (
                     <tr key={o.id}
-                      className="h-[54px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
+                      className="group h-[72px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
                       onClick={() => openQuickView(o.id)}
                       tabIndex={0}
                       onKeyDown={(event) => {
@@ -409,61 +422,63 @@ export default function Pipeline() {
                         }
                       }}
                       aria-label={"Open opportunity " + o.customer_name}>
-                      <td className="px-3 py-2">
+                      <td className="sticky left-0 z-10 bg-card group-hover:bg-secondary px-3 py-3">
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="min-w-0 truncate font-medium text-[12px]" title={o.customer_name}>
                             {o.customer_name}
                           </span>
-                          {categoryName && (
-                            <span title={[categoryName, o.product_details].filter(Boolean).join(" · ")}
-                              className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                              {categoryName}
-                            </span>
-                          )}
-                          {o.status !== "open" && (
-                            <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
-                              {STATUS_LABELS[o.status] || o.status}
-                            </span>
-                          )}
+                          {categoryName && <span title={[categoryName, o.product_details].filter(Boolean).join(" · ")}
+                            className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            {categoryName}
+                          </span>}
                         </div>
-                        <div className="sr-only">Product details: {o.product_details || "Not specified"}</div>
+                        {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
+                        <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
                       </td>
-                      <td className="px-3 py-2 text-[12px] whitespace-nowrap">
-                        {maps.stage[o.stage_id]?.name || "—"}
+                      <td className="px-3 py-3 text-[12px] whitespace-nowrap">
+                        <span className="inline-flex rounded-md bg-secondary/80 px-2 py-1 text-[11px] font-medium">
+                          {maps.stage[o.stage_id]?.name || "—"}
+                        </span>
                       </td>
                       <td className="px-3 py-2 min-w-0">
-                        {sharedHandlerName ? (
-                          <div className="truncate text-[12px]" title={"AE Owner: " + ownerName}>{ownerName}</div>
-                        ) : (
-                          <>
-                            <div className="truncate text-[12px]" title={"Current Handler: " + handlerName}>
-                              {handlerName}
-                            </div>
+                        {/* Fixed two-line owner/handler layout for every Pipeline.
+                            Working With stays inline with the SM, never a third row. */}
+                        <div className="flex h-[40px] min-w-0 flex-col justify-center gap-0.5">
+                          <div className="min-w-0 truncate font-medium leading-[18px]"
+                            title={"AE Owner: " + ownerName}>{ownerName}</div>
+                          <div className="flex h-[18px] min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
                             {differentOwner && (
-                              <div className="truncate text-[10px] text-muted-foreground mt-0.5"
-                                title={"AE Owner: " + ownerName}>Owner: {ownerName}</div>
+                              <span className="min-w-0 shrink truncate leading-[18px]"
+                                title={"Current Handler: " + handlerName}>
+                                <span aria-hidden="true" className="mr-0.5 text-brand">↳</span>
+                                {handler?.app_role === "sm" ? "SM: " : "Handler: "}{handlerName}
+                              </span>
                             )}
-                          </>
-                        )}
+                            {teamLabels.length > 0 && (
+                              <span className="inline-flex max-w-[116px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-sky-100 bg-sky-50 px-1.5 text-[10px] leading-[16px] text-sky-800"
+                                title={"Working With: " + teamLabels.join(", ")}>
+                                <span className="shrink-0 font-medium">With</span>
+                                <span className="min-w-0 truncate">{teamLabels[0]}</span>
+                                {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1}</span>}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                      {regionContext.showColumn && <td className="px-3 py-3 text-[11px] text-muted-foreground" title={regionName}>
+                        <span className="line-clamp-2">{regionName}</span>
+                      </td>}
+                      <td className="px-3 py-3 text-[11px] text-muted-foreground whitespace-nowrap">
                         {formatMonth(o.expected_close_month)}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums whitespace-nowrap">
                         {formatTHB(o.pipeline_value)}
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-                          <span className={overdue ? "font-semibold tabular-nums text-amber-700" : "tabular-nums text-muted-foreground"}
-                            title={overdue ? "Stage SLA overdue · " + age + " days in stage" : "Stage age · " + age + " days"}>
-                            {age}d
-                          </span>
-                          {o.support_needed && (
-                            <span role="img" aria-label="Needs Support" title="Needs Support">
-                              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
-                            </span>
-                          )}
-                        </div>
+                      <td className="px-3 py-3 text-right">
+                        <div className="font-medium tabular-nums text-[11px] whitespace-nowrap"
+                          title={"Days in current Stage: " + age}>{age}d</div>
+                        {overdue && <div className="text-[10px] text-amber-700 mt-0.5" title="Stage SLA overdue">SLA overdue</div>}
+                        {o.support_needed && <div className="text-[10px] text-orange-700 mt-0.5" title="Support needed">Support</div>}
                       </td>
                     </tr>
                   );

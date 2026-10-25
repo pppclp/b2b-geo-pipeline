@@ -33,7 +33,9 @@ test("Compact English quick filters retain access to all existing advanced field
 test("Pipeline board and list share one scoped filtered data set",()=>{
   assert.match(pipeline,/scopedOpportunities\.filter\(\(o\) =>/);
   assert.ok(!pipeline.includes("applyPipelineFilters"));
-  assert.match(pipeline,/const sorted = useMemo\(\(\) => applySort\(filtered, sort\)/);
+  assert.match(pipeline,/const sorted = useMemo\(\(\) => sortPipelineRows\(filtered, sort\)/);
+  assert.match(pipeline,/const filteredWithoutStage = useMemo/);
+  assert.match(pipeline,/const filtered = useMemo\(\(\) => filters\.stage/);
   assert.match(pipeline,/sorted\.filter\(\(o\) => o\.stage_id/);
   assert.match(pipeline,/sorted\.map\(\(o\) =>/);
   assert.match(pipeline,/error && \(/);
@@ -49,14 +51,21 @@ test("List is default while Sort and Stage quick filters share the canonical Pip
   assert.match(pipeline,/Quick filter by Stage/);
   assert.match(pipeline,/onClick=\{\(\) => onFilter\("stage", stage\.id\)\}/);
   assert.match(pipeline,/aria-pressed=\{filters\.stage === stage\.id\}/);
-  assert.match(pipeline,/min-w-\[1020px\]/);
+  assert.match(pipeline,/min-w-\[1190px\]/);
+  assert.match(pipeline,/stageCounts\.get\(stage\.id\)/);
 });
 
 
-test("Pipeline compact List minimizes repeated labels while keeping scope and detail access",()=>{
-  assert.match(pipeline,/sharedHandlerName/);
-  assert.match(pipeline,/All shown opportunities are with/);
-  assert.match(pipeline,/Handler \/ AE Owner/);
+test("Pipeline list uses owner-first identity, conditional Working With and contextual Region",()=>{
+  assert.match(pipeline,/AE Owner \/ Handling/);
+  assert.match(pipeline,/const ownerName = maps\.member\[o\.owner_id\]/);
+  assert.match(pipeline,/const handler = maps\.member\[o\.current_handler_id\]/);
+  assert.match(pipeline,/const handlerName = handler\?\.name/);
+  assert.match(pipeline,/differentOwner &&/);
+  assert.match(pipeline,/smWorkingWithTeamLabels\(o, handler, master\?\.WorkingWithOption/);
+  assert.match(pipeline,/teamLabels\.length > 0/);
+  assert.match(pipeline,/regionContext\.showColumn/);
+  assert.match(pipeline,/maps\.region\[o\.region_id\]/);
   assert.match(pipeline,/o\.status !== "open"/);
   assert.match(pipeline,/o\.support_needed/);
   assert.match(pipeline,/isStageSlaOverdue\(o, maps\.stage\)/);

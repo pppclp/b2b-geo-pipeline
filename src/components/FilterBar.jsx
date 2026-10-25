@@ -38,7 +38,7 @@ const MonthFilter = ({label, value, onChange}) => (
 );
 
 // Presentation only. Never change user scope or derive access from selected filters.
-export default function FilterBar({filters, onFilter, showCreatedMonth = true, stageChipsVisible = false}) {
+export default function FilterBar({filters, onFilter, showCreatedMonth = true, stageChipsVisible = false, showRegionControl = true}) {
   const {master, profile, scopedOpportunities} = useData();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const regionOptions = useMemo(() =>
@@ -107,7 +107,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
         <div className="w-[158px] max-w-full">
           <MonthFilter label={LABELS.close_month} value={filters.close_month} onChange={v=>onFilter("close_month",v)}/>
         </div>
-        {showRegion && <SelectWrap label={LABELS.region} value={filters.region} onChange={choice("region")}
+        {showRegion && showRegionControl && <SelectWrap label={LABELS.region} value={filters.region} onChange={choice("region")}
           className="w-[130px]">
           {regionOptions.filter(r=>profile?.app_role==="admin" ||
             (profile?.region_ids||[]).includes(r.id)).map(r=><SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
