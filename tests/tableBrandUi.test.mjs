@@ -6,7 +6,7 @@ const read = (path) => fs.readFileSync(new URL("../" + path, import.meta.url), "
 
 test("all roles share a compact, single-line Pipeline table header", () => {
   const src = read("src/pages/Pipeline.jsx");
-  const header = src.match(/<thead className="bg-secondary\/50[^]*?<\/thead>/)?.[0];
+  const header = src.match(/<thead className="border-b border-border\/70 bg-secondary[^]*?<\/thead>/)?.[0];
   assert.ok(header, "Pipeline table header exists");
   assert.ok(header.includes('<tr className="h-10">'), "40px table header");
   assert.ok(header.includes("py-1.5"), "compact header cell padding");
