@@ -1201,7 +1201,9 @@ export function createCore({ contract, store, now, uuid }) {
           return { status: 200, body: handle({ ...sub, method: "GET", userId: req.userId, demoAs: req.demoAs }) };
         } catch (e) {
           if (!e.status) throw e;
-          return { status: e.status, body: { message: e.message } };
+          return { status: e.status, body: e.status >= 500
+            ? { message: "Backend data source unavailable. Contact support.", code: e.publicCode || "BACKEND_ERROR" }
+            : { message: e.message } };
         }
       });
     }
