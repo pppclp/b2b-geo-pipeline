@@ -27,14 +27,15 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
-function validateLatestOpportunityFields(data, { requireRequired = false } = {}) {
+function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null } = {}) {
   const required = ["customer_name", "business_id", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
       throw new HttpError(400, key + " is required");
     }
   }
-  if ("business_id" in data && data.business_id) {
+  if ("business_id" in data && data.business_id &&
+      (previousBusinessId === null || String(data.business_id) !== String(previousBusinessId))) {
     const error = businessIdError(data.business_id);
     if (error) throw new HttpError(400, error);
   }
@@ -882,7 +883,7 @@ export function createCore({ contract, store, now, uuid }) {
       }
       // Validate latest editable fields on partial updates without breaking
       // workflow-only updates such as Stage / Handler / Support.
-      if (uiEntity === "Opportunity") validateLatestOpportunityFields(data);
+      if (uiEntity === "Opportunity") validateLatestOpportunityFields(data, { previousBusinessId: row.business_id });
 
       // Validate loss reason and close only an Open Pipeline. The real actor
       // and timestamp are taken from the backend, never from the browser.
