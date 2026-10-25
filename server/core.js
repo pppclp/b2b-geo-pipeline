@@ -766,7 +766,8 @@ export function createCore({ contract, store, now, uuid }) {
         if (actor.role === "ae" && String(data.owner_id || "") !== String(actor.id)) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
         }
-        validateLatestOpportunityFields(data, { requireRequired: "sales_channel" in data });
+        validateLatestOpportunityFields(data, { requireRequired: !!importMeta || "sales_channel" in data });
+        if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
@@ -883,7 +884,10 @@ export function createCore({ contract, store, now, uuid }) {
       }
       // Validate latest editable fields on partial updates without breaking
       // workflow-only updates such as Stage / Handler / Support.
-      if (uiEntity === "Opportunity") validateLatestOpportunityFields(data, { previousBusinessId: row.business_id });
+      if (uiEntity === "Opportunity") {
+        validateLatestOpportunityFields(data, { previousBusinessId: row.business_id });
+        if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
+      }
 
       // Validate loss reason and close only an Open Pipeline. The real actor
       // and timestamp are taken from the backend, never from the browser.
