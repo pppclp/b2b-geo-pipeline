@@ -4,6 +4,7 @@ import {readFileSync} from "node:fs";
 
 const filter = readFileSync(new URL("../src/components/FilterBar.jsx",import.meta.url),"utf8");
 const pipeline = readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
+const listFilters = readFileSync(new URL("../src/lib/pipelineListFilters.js",import.meta.url),"utf8");
 
 test("FilterBar keeps stable dropdown component identity and accessible labels",()=>{
   const selectorAt=filter.indexOf("const SelectWrap =");
@@ -41,7 +42,10 @@ test("Pipeline board and list share one scoped filtered data set",()=>{
   assert.match(pipeline,/if \(loading \|\| error\) return \(/);
   assert.match(pipeline,/error&&<Button[^>]*onClick=\{refresh\}/);
   assert.match(pipeline,/User_Region/);
-  assert.match(pipeline,/filters\.status/);
+  assert.match(pipeline,/matchesPipelineFilters\(o, filters, filterContext/);
+  assert.match(listFilters,/f\.status/);
+  assert.match(listFilters,/f\.region/);
+  assert.match(listFilters,/f\.product_category/);
 });
 
 

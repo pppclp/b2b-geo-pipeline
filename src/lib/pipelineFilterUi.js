@@ -24,10 +24,10 @@ export const PIPELINE_FILTER_LABELS = Object.freeze({
   lost_month: "Lost Month",
   lost_reason: "Lost Reason",
 });
-export const QUICK_FILTER_KEYS = ["search", "close_month", "region", "status"];
+export const QUICK_FILTER_KEYS = ["search", "close_month", "product_category", "region", "status"];
 export const ADVANCED_FILTER_KEYS = [
   "created_month", "owner", "handler", "working_with",
-  "stage", "product_category", "scenario", "sales_channel",
+  "stage", "scenario", "sales_channel",
   "ccp_check_result", "support",
 ];
 
@@ -45,10 +45,11 @@ export function visibleActiveFilters(filters) {
   );
 }
 
-export function advancedFilterCount(filters, profile) {
-  // Management/Admin have AE Owner in the primary bar; all others find it in More Filters.
+export function advancedFilterCount(filters) {
+  // Product Category is visible in the primary bar for every role.
+  // AE Owner is always advanced for roles authorized to filter by owner.
   return ADVANCED_FILTER_KEYS.filter((key) =>
-    !(key === "owner" && showQuickOwner(profile)) && isActiveFilter(key, filters?.[key])
+    isActiveFilter(key, filters?.[key])
   ).length;
 }
 
