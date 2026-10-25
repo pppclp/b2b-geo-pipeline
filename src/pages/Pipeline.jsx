@@ -243,7 +243,12 @@ export default function Pipeline() {
         <p className="mb-2 text-[11px] font-medium text-muted-foreground">Quick Views · Open Pipelines within your access scope</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {quickViews.map(item=><button key={item.id} type="button"
-            onClick={()=>navigate(item.url)} aria-pressed={activeQuickView===item.id}
+            onClick={()=>{
+              setFilters(item.id==="all" ? {status:"open"} :
+                {status:"open", ...(item.id==="assigned-to-me" ? {handler:profile?.id} : {support:"1"})});
+              setSort("close_month");
+              navigate(item.url);
+            }} aria-pressed={activeQuickView===item.id}
             className={`rounded-xl border px-4 py-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeQuickView===item.id?"border-primary/50 bg-brand-tint/40":"border-border bg-card"}`}>
               <span className="block text-[11px] text-muted-foreground">{item.title}</span>
               <span className="mt-1 block text-xl font-semibold tabular-nums">{item.count}</span>
