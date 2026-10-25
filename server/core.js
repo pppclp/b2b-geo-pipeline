@@ -443,9 +443,7 @@ export function createCore({ contract, store, now, uuid }) {
   // All notification/support APIs use the signed actor from the server.
   // Never expose these app-owned tables via generic entity or raw Sheet APIs.
   const notificationBinding = bindings.handoff_notifications;
-  const supportBinding = bindings.support_requests;
   const notificationRows = () => notificationBinding ? tableOf(notificationBinding).rows : [];
-  const supportRows = () => supportBinding ? tableOf(supportBinding).rows : [];
   const parseIds = (value) => String(value || "").split(",").map((id) => id.trim()).filter(Boolean);
   function validateCollaborators(changes, currentRegion) {
     if ("working_with_team_ids" in changes) {
@@ -571,99 +569,9 @@ export function createCore({ contract, store, now, uuid }) {
     if (!item.read_at) { item.read_at = now(); touch(notificationBinding); }
     return { ok:true };
   }
-  function supportVisible(actor, request) {
-    const b=binding("Opportunity");
-    const op=tableOf(b).rows.find((r) => r.opportunity_id === request.opportunity_id);
-    return !!op && scopedFilter(b,actor)(op);
-  }
-  function listSupport(actor) {
-    if (!supportBinding) throw new HttpError(503, "Support Requests need database setup");
-    return supportRows().filter((r) => supportVisible(actor,r))
-      .sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)))
-      .map((r) => ({ ...r }));
-  }
-  function openSupportRequest(actor, opportunityId, categoryId, note, stamp) {
-    if (!supportBinding) throw new HttpError(503, "Support Requests need database setup");
-    const b=binding("Opportunity"),op=findRow(b,actor,opportunityId);
-    if (!["open","won","lost"].includes(String(op.status).toLowerCase()))
-      throw new HttpError(400, "Archived Pipeline cannot request support");
-    if (!String(categoryId || "").trim() || !rows("support_types").some(
-      (t) => t.support_type_id === categoryId && isActive(t.active)))
-      throw new HttpError(400, "Select a valid Support Type");
-    if (!String(note || "").trim()) throw new HttpError(400, "Support Note is required");
-    const existing=supportRows().find((r) => r.opportunity_id===opportunityId &&
-      r.status !== "Resolved");
-    if (existing) return existing;
-    const request={
-      request_id:"SRQ-"+uuid(), opportunity_id:opportunityId, region_id:op.region_id,
-      request_type_id:categoryId, note:String(note).slice(0,1000),
-      status:"Open", requested_by_user_id:actor.real.id, assigned_to_user_id:"",
-      response_note:"", created_at:stamp,updated_at:stamp,resolved_at:"",source:"user"
-    };
-    tableOf(supportBinding).rows.push(request);touch(supportBinding);
-    return request;
-  }
-  function createSupport(actor,data) {
-    const b=binding("Opportunity");need(actor,b,"update");
-    const op=findRow(b,actor,String(data?.opportunity_id||""));
-    const result=openSupportRequest(actor,op.opportunity_id,
-      String(data?.request_type_id||""),data?.note,now());
-    // Reflect the request in existing Pipeline and dashboard widgets.
-    if(!bool.toUi(op.support_needed)){
-      const before={...op};
-      op.support_needed="Yes";op.support_type_id=result.request_type_id;
-      op.support_note=result.note;op.updated_at=now();touch(b);
-      appendAudit(op.opportunity_id,opportunityAuditEvents(before,op),actor,now());
-    }
-    return {...result};
-  }
-  function updateSupport(actor,id,data) {
-    if (!supportBinding) throw new HttpError(503,"Support Requests need database setup");
-    if (!["management","admin"].includes(actor.role))
-      throw new HttpError(403,"Only Management or Admin can process support requests");
-    const req=supportRows().find((r)=>r.request_id===id && supportVisible(actor,r));
-    if (!req) throw new HttpError(404,"Support request not found");
-    // Protect Management hand-offs from simultaneous stale edits.
-    if (typeof data?.expected_updated_at !== "string" || !data.expected_updated_at)
-      throw new HttpError(428,"Support Request revision is required. Refresh before saving.");
-    if (String(data.expected_updated_at) !== String(req.updated_at || ""))
-      throw new HttpError(409,"Support Request changed. Refresh before saving your changes.");
-    const desired=String(data?.status||req.status);
-    if (!["Open","In Progress","Resolved"].includes(desired))
-      throw new HttpError(400,"Invalid support status");
-    if (req.status === "Resolved" && desired !== "Resolved")
-      throw new HttpError(409,"Resolved request cannot be reopened; create a new request");
-    if (desired === "Resolved" && !String(data?.response_note||req.response_note||"").trim())
-      throw new HttpError(400,"Resolution note is required");
-    const assignee=String(data?.assigned_to_user_id ?? req.assigned_to_user_id ?? "");
-    if (desired !== "Open" && !assignee)
-      throw new HttpError(400,"Assign a Management owner before starting or resolving the request");
-    if (assignee) {
-      const user=findUser(assignee);
-      if (!user || !["management","admin"].includes(user.role) ||
-          (user.role==="management" && !user.region_ids.includes(req.region_id)))
-        throw new HttpError(400,"Select an active Management assignee for the Region");
-    }
-    req.status=desired;req.assigned_to_user_id=assignee;
-    req.response_note=String(data?.response_note ?? req.response_note ?? "").slice(0,1000);
-    const stamp=now();
-    const priorMs=Date.parse(req.updated_at||"");
-    const currentMs=Date.parse(stamp);
-    req.updated_at=Number.isFinite(priorMs) && Number.isFinite(currentMs) && currentMs<=priorMs
-      ? new Date(priorMs+1).toISOString() : stamp;
-    if (desired==="Resolved" && !req.resolved_at) {
-      req.resolved_at=now();
-      const b=binding("Opportunity"),op=tableOf(b).rows.find((o)=>o.opportunity_id===req.opportunity_id);
-      if (op && !supportRows().some((x)=>x!==req && x.opportunity_id===req.opportunity_id && x.status!=="Resolved")) {
-        const before={...op};
-        op.support_needed="No";op.support_type_id="";op.support_note="";
-        op.updated_at=now();touch(b);
-        appendAudit(op.opportunity_id,opportunityAuditEvents(before,op),actor,now());
-      }
-    }
-    touch(supportBinding);
-    return {...req};
-  }
+  // Support is a Pipeline flag, not a ticket queue. Historical Support_Requests
+  // rows are deliberately left untouched for audit/rollback; no API writes to
+  // that retired table. Pipeline support changes use regular update + Events.
 
   // ---- Entity API (used by the app screens) ----
   function matches(rec, query) {
@@ -883,8 +791,6 @@ export function createCore({ contract, store, now, uuid }) {
         ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
         : [];
       if (b.entity === "opportunities") addCreationNotifications(saved, actor, stamp);
-      if (b.entity === "opportunities" && bool.toUi(saved.support_needed))
-        openSupportRequest(actor,saved[b.primary_key],saved.support_type_id,saved.support_note,stamp);
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("CREATED", b, saved[b.primary_key], null, saved, actor);
       const created = decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
       return b.entity === "opportunities" ? { ...created, _audit_events: auditEvents } : created;
@@ -1011,14 +917,18 @@ export function createCore({ contract, store, now, uuid }) {
           changes.working_with_since = changes.working_with_id ? stamp : "";
         Object.assign(next, changes);
         validateOpportunityRefs(next, row, actor);
-        if (bool.toUi(next.support_needed) && !bool.toUi(row.support_needed)) {
-          // The request will be committed in the same database transaction.
-          openSupportRequest(actor,id,next.support_type_id,next.support_note,stamp);
+        // A simple Support Needed toggle is enough for Pipeline coordination.
+        // Type/note are required only when turning it on; turning it off clears
+        // the current values and remains fully audited in Pipeline_Events.
+        if ("support_needed" in changes && !bool.toUi(next.support_needed)) {
+          changes.support_type_id = "";
+          changes.support_note = "";
+          next.support_type_id = "";
+          next.support_note = "";
         }
-        if (!bool.toUi(next.support_needed) && bool.toUi(row.support_needed) &&
-            supportBinding && supportRows().some((req) =>
-              req.opportunity_id===id && req.status!=="Resolved"))
-          throw new HttpError(409,"Resolve the active Support Request before disabling Support Needed");
+        if (bool.toUi(next.support_needed) && !bool.toUi(row.support_needed) &&
+            (!String(next.support_type_id || "").trim() || !String(next.support_note || "").trim()))
+          throw new HttpError(400,"Select Support Type and enter Support Note");
         // Do not let Region changes move the row out of the editor's scope.
         if (String(next.region_id ?? "") !== String(row.region_id ?? "") &&
             !scopedFilter(b, actor)(next)) {
@@ -1232,10 +1142,8 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(405,"Notifications only support list and mark-read");
     }
     if (parts[0] === "support-requests") {
-      if (method === "GET" && parts.length === 1) return listSupport(actor);
-      if (method === "POST" && parts.length === 1) return createSupport(actor,req.body);
-      if (method === "PATCH" && parts.length === 2) return updateSupport(actor,parts[1],req.body);
-      throw new HttpError(405,"Unsupported Support Requests action");
+      // Stop old browser clients from writing ticket records after toggle-only cutover.
+      throw new HttpError(410,"Support Requests retired. Use Pipeline Needs Support.");
     }
 
     if (parts[0] === "imports" && parts[1] === "opportunities") {
