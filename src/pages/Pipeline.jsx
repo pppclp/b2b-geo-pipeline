@@ -369,7 +369,7 @@ export default function Pipeline() {
         </DragDropContext>
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="divide-y divide-border/70 md:hidden" role="list" aria-label="Pipeline opportunities">
+          <div className="divide-y divide-border/70 md:hidden" role="list" aria-label="Pipeline records">
             {sorted.map((o) => {
               const age = agingDays(o.stage_entered_at);
               const overdue = isStageSlaOverdue(o, maps.stage);
@@ -377,7 +377,7 @@ export default function Pipeline() {
                 <button key={o.id} type="button" role="listitem"
                   className="flex w-full flex-col gap-1.5 px-3 py-3 text-left hover:bg-secondary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => openQuickView(o.id)}
-                  aria-label={"Open opportunity " + o.customer_name}>
+                  aria-label={"Open Pipeline " + o.customer_name}>
                   <span className="flex min-w-0 items-start justify-between gap-3">
                     <span className="min-w-0 truncate text-[13px] font-semibold">{o.customer_name}</span>
                     <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatTHB(o.pipeline_value)}</span>
@@ -402,7 +402,7 @@ export default function Pipeline() {
               );
             })}
           </div>
-          <div className="hidden overflow-x-auto md:block" aria-label="Pipeline opportunities table" tabIndex={0}>
+          <div className="hidden overflow-x-auto md:block" aria-label="Pipeline records table" tabIndex={0}>
             <table className={`w-full table-fixed text-[12px] ${regionContext.showColumn ? "min-w-[1190px]" : "min-w-[1030px]"}`}>
               <colgroup>
                 <col className={regionContext.showColumn ? "w-[25%]" : "w-[28%]"} />
@@ -413,15 +413,15 @@ export default function Pipeline() {
                 <col className={regionContext.showColumn ? "w-[12%]" : "w-[12%]"} />
                 <col className={regionContext.showColumn ? "w-[7%]" : "w-[8%]"} />
               </colgroup>
-              <thead className="bg-secondary/50 text-muted-foreground">
-                <tr>
-                  <th scope="col" className="sticky left-0 z-20 bg-secondary text-left font-medium px-3 py-3 text-[11px]">Opportunity</th>
-                  <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">Stage</th>
-                  <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">AE Owner / Handling</th>
-                  {regionContext.showColumn && <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">Region</th>}
-                  <th scope="col" className="text-left font-medium px-3 py-3 text-[11px]">Close Month</th>
-                  <th scope="col" className="text-right font-medium px-3 py-3 text-[11px]">Net RC</th>
-                  <th scope="col" className="text-right font-medium px-3 py-3 text-[11px]">Stage Age / Alerts</th>
+              <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
+                <tr className="h-10">
+                  <th scope="col" className="sticky left-0 z-20 bg-secondary px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
+                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Stage</th>
+                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
+                  {regionContext.showColumn && <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Region</th>}
+                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
+                  <th scope="col" className="px-3 py-1.5 text-right align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Net RC</th>
+                  <th scope="col" className="px-3 py-1.5 text-right align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Stage Age / Alerts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -440,7 +440,7 @@ export default function Pipeline() {
                   const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
                   return (
                     <tr key={o.id}
-                      className="group h-[72px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
+                      className="group h-[64px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
                       onClick={() => openQuickView(o.id)}
                       tabIndex={0}
                       onKeyDown={(event) => {
@@ -449,7 +449,7 @@ export default function Pipeline() {
                         }
                       }}
                       aria-label={"Open opportunity " + o.customer_name}>
-                      <td className="sticky left-0 z-10 bg-card group-hover:bg-secondary px-3 py-3">
+                      <td className="sticky left-0 z-10 bg-card group-hover:bg-secondary px-3 py-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="min-w-0 truncate font-medium text-[12px]" title={o.customer_name}>
                             {o.customer_name}
