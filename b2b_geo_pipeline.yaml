@@ -32,7 +32,7 @@ uat_auth:
   rules:
     - "UAT only — this is not production authentication."
     - "Username is Users.employee_id."
-    - "Password is read directly from B2B_GEO_UAT_Credentials_Distribution.xlsx / UAT_Credentials."
+    - "UAT login prefers password_hash; plaintext temporary_password works only in a time-limited UAT recovery window."
     - "The credentials workbook is private runtime data and must not be committed to the public repository."
     - "A correct username/password unlocks the existing user-id based app session."
     - "Existing role, region and pipeline permissions remain unchanged."
@@ -60,7 +60,7 @@ source_04_uat_credentials:
         type: "string"
         required: true
 
-      employee_id_username:
+      "employee_id / username":
         source: "UAT_Credentials.employee_id / username"
         target: "uat_credentials.employee_id_username"
         type: "string"
@@ -70,12 +70,13 @@ source_04_uat_credentials:
         source: "UAT_Credentials.temporary_password"
         target: "uat_credentials.temporary_password"
         type: "string"
-        required: true
+        required: false  # empty after approved salted-hash migration
 
-      account_status:
-        source: "UAT_Credentials.account_status"
-        target: "uat_credentials.account_status"
+      password_hash:
+        source: "UAT_Credentials.password_hash"
+        target: "uat_credentials.password_hash"
         type: "string"
+        required: false  # populated after UAT hash migration
 
 # ============================================================
 # 0. HIGH-LEVEL DATA FLOW
