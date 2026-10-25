@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { useData } from "@/lib/dataContext";
 import { ROLE_LABELS } from "@/lib/pipeline";
-import { LayoutDashboard, KanbanSquare, AlertCircle, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
 import HandoffBell from "@/components/HandoffBell";
@@ -15,8 +15,6 @@ const navFor = (role) => {
     { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/pipeline", label: "Pipeline", icon: KanbanSquare, view: "all" },
     { to: "/pipeline?view=assigned-to-me", label: "Assigned to Me", icon: HandHelping, view: "assigned-to-me" },
-    { to: "/pipeline?view=support-needed", label: "Support Needed", icon: AlertCircle, view: "support-needed" },
-    { to: "/support-requests", label: "Support Requests", icon: HandHelping },
   ];
   if (role === "admin") {
     base.push({ to: "/admin", label: "Admin", icon: Settings });
@@ -32,7 +30,6 @@ const sectionTitle = (pathname) => {
   if (pathname === "/") return "Dashboard";
   if (pathname.startsWith("/pipeline")) return "Pipeline";
   if (pathname.startsWith("/opportunity")) return "Opportunity";
-  if (pathname.startsWith("/support-requests")) return "Support Requests";
   if (pathname.startsWith("/admin")) return "Admin";
   if (pathname.startsWith("/import")) return "Import";
   return "";
@@ -94,8 +91,6 @@ export default function AppLayout() {
     const sections = [
       { title: "WORKSPACE", links: items.filter((it) =>
         ["/", "/pipeline", "/pipeline?view=assigned-to-me"].includes(it.to)) },
-      { title: "SUPPORT", links: items.filter((it) =>
-        ["/pipeline?view=support-needed", "/support-requests"].includes(it.to)) },
       { title: "TOOLS", links: items.filter((it) =>
         ["/admin", "/import"].includes(it.to)) },
     ].filter((section) => section.links.length > 0);
@@ -116,7 +111,7 @@ export default function AppLayout() {
                     (active ? "bg-brand-tint text-brand" : "text-muted-foreground hover:text-foreground hover:bg-secondary/70")}>
                   {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-brand" />}
                   <Icon className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
-                  {it.label === "Support Needed" ? "Needs Support" : it.label}
+                  {it.label}
                 </Link>
               );
             })}
