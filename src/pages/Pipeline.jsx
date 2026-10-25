@@ -402,7 +402,17 @@ export default function Pipeline() {
               );
             })}
           </div>
-          <div className="hidden overflow-x-auto md:block" aria-label="Pipeline records table" tabIndex={0}>
+          <div
+            className="hidden overflow-x-auto md:block"
+            aria-label="Pipeline records table"
+            tabIndex={0}
+            style={{
+              // Thead's background covers only the intrinsic table width.
+              // Paint the remaining scroll-viewport gutter gray as well,
+              // without coloring the body rows or increasing header height.
+              background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 40px, hsl(var(--card)) 40px, hsl(var(--card)) 100%)",
+            }}
+          >
             <table className={`w-full table-fixed text-[12px] ${regionContext.showColumn ? "min-w-[1190px]" : "min-w-[1030px]"}`}>
               <colgroup>
                 <col className={regionContext.showColumn ? "w-[25%]" : "w-[28%]"} />
@@ -421,7 +431,7 @@ export default function Pipeline() {
                   {regionContext.showColumn && <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Region</th>}
                   <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
                   <th scope="col" className="px-3 py-1.5 text-right align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Net RC</th>
-                  <th scope="col" className="px-3 py-1.5 text-right align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Stage Age / Alerts</th>
+                  <th scope="col" className="bg-secondary px-3 py-1.5 text-right align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Stage Age / Alerts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
