@@ -52,6 +52,8 @@ export default function Pipeline() {
     if (params.get("view") === "assigned-to-me" || params.get("assigned") === "me") f.handler = profile?.id;
     if (params.get("view") === "support-needed" || params.get("support") === "1") f.support = "1";
     if (params.get("stuck") === "1") f.stuck = "1";
+    if (params.get("due_this_month") === "1" || params.get("view") === "due-this-month") f.due_this_month = "1";
+    if (params.get("view") === "stage-overdue") f.stuck = "1";
     if (params.get("internal_overdue") === "1") f.internal_overdue = "1";
     if (params.get("region")) f.region = params.get("region");
     if (params.get("owner")) f.owner = params.get("owner");
@@ -165,6 +167,8 @@ export default function Pipeline() {
     { id: "all", title: "All Open", count: workCounts.all },
     { id: "assigned-to-me", title: "With Me", count: workCounts["assigned-to-me"] },
     { id: "support-needed", title: "Needs Support", count: workCounts["support-needed"] },
+    { id: "stage-overdue", title: "Stage Overdue", count: workCounts["stage-overdue"] },
+    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", count: workCounts["due-this-month"] },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id);
   const selectQuickView = (viewId) => {
