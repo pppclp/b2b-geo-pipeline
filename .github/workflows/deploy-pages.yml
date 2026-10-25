@@ -1,12 +1,11 @@
-# Builds the web app and publishes it to GitHub Pages on every push to main.
-# Needs a repository variable VITE_GEO_API_URL (Settings → Secrets and variables →
-# Actions → Variables) holding the Apps Script web app URL ending in /exec.
+# UAT UI-only hotfix cut from the LAST successfully published GitHub Pages commit.
+# This temporary branch intentionally contains NONE of the unpublished backend/API changes.
+# Fail closed if ANY non-allowlisted file was modified relative to the published baseline.
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches: [release/ui-hotfix-pages57]
 
 permissions:
   contents: read
@@ -22,20 +21,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Check backend URL
+      - name: Verify backend-compatible release ancestry and frontend-only patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="56b1166686c2376cdabca259f17389b04b84a021"
+          git cat-file -e "$BASE^{commit}"
+          git merge-base --is-ancestor "$BASE" HEAD
+          mapfile -t changed < <(git diff --name-only "$BASE" HEAD)
+          if [[ "${#changed[@]}" -eq 0 ]]; then
+            echo "::error::No hotfix changes to deploy"; exit 1
+          fi
+          for file in "${changed[@]}"; do
+            case "$file" in
+              .github/workflows/deploy-pages.yml|index.html|tailwind.config.js|src/index.css|src/components/AuthLayout.jsx|src/pages/Dashboard.jsx|src/pages/Pipeline.jsx|src/lib/pipelineListFilters.js|src/lib/pipelineFilterUi.js|tests/pipelineCompactToolbar.test.mjs)
+                echo "Approved UI hotfix: $file";;
+              *)
+                echo "::error::Unexpected source changed in UI-only release: $file"; exit 1;;
+            esac
+          done
+          echo "Backend sources unchanged from successfully deployed Pages revision ${BASE:0:10}."
+      - name: Confirm Apps Script backend URL configured
         env:
           VITE_GEO_API_URL: ${{ vars.VITE_GEO_API_URL }}
         run: |
           case "$VITE_GEO_API_URL" in
-            */exec) echo "Backend: Apps Script" ;;
-            *) echo "::error::Set repository variable VITE_GEO_API_URL to the Apps Script /exec URL"; exit 1 ;;
+            */exec) echo "Existing Apps Script URL retained";;
+            *) echo "::error::VITE_GEO_API_URL must be the existing Apps Script /exec URL"; exit 1;;
           esac
       - run: npm ci
-      - name: Build
+      - name: Lint frontend
+        run: npm run lint
+      - name: Run existing UAT regression tests
+        run: node --test tests/*.test.mjs
+      - name: Build UI hotfix
         env:
           VITE_GEO_API_URL: ${{ vars.VITE_GEO_API_URL }}
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
@@ -46,6 +71,7 @@ jobs:
 
   deploy:
     needs: build
+    if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
