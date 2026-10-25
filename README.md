@@ -77,66 +77,15 @@ The guarded manual 14-day recovery is **UAT-only**, must be explicitly approved,
 and does not change Pipeline scopes or provision new user accounts. Production
 requires a separately reviewed corporate identity integration.
 
-## Hardened UAT rollout (2026-10-24)
+## Current UAT / Production release process
 
-This change requires a coordinated release. GitHub Pages deploys the frontend
-only; the authenticated Apps Script /exec URL uses a separately versioned
-deployment. Generate and push matching Main.js, GeoCore.js, Contract.js and
-SheetIds.js, then edit the existing Apps Script deployment to a new version.
-Never replace the current backend with an unrelated older Code.gs file.
+**Single source of release instructions:** [docs/RELEASE_RUNBOOK.md](docs/RELEASE_RUNBOOK.md).
 
-Before deploying:
-- Back up the restricted UAT credential workbook; use the existing
-  migrateUatCredentialsToSaltedHashes() helper with explicitly approved
-  GEO_UAT_HASH_MIGRATION_APPROVED=YES. Verify no plaintext credentials remain,
-  and GEO_UAT_REQUIRE_HASHED_PASSWORDS=true. Remove migration approval.
-- Passwords stored as salted/peppered HMAC are for UAT ONLY. Corporate SSO
-  and a privacy/security review remain prerequisites to real customer data.
-  Plaintext fallback now requires the exceptional Script Property
-  GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS=true, to be removed after migration.
-- Verify Pipelines has the client_request_id column. It records the Create
-  form's stable UUID for retry deduplication; existing Import uses separate
-  batch identity. Legacy API clients without a key can still create duplicates.
-- All Pipeline PUT calls must send expected_updated_at. Missing revisions
-  return 428 and stale revisions return 409. Closed deals allow notes and
-  separately audited status transitions, not arbitrary Stage/Handler edits.
-- API requests use POST (including logical reads); GET supports health only.
-  Internal backend errors return an error ID instead of implementation details.
-- Verify Admin/SM/AE Pipeline visibility and all Create/Edit/Handoff/Reopen
-  flows in UAT after backend deployment. A passing GitHub build does not
-  confirm the Apps Script runtime or workbook bindings.
+The frontend is deployed to GitHub Pages **manually** only after a matching Apps Script web-app deployment has been independently verified. The API contract handshake rejects incompatible backend deployments. The existing /exec URL must be preserved. Never create a second Apps Script project merely to publish a source change.
 
-## Use Google Sheets (Apps Script backend)
+For new imports, Contact Name/Phone are optional, 13-digit tax/juristic identifiers are validated as text, Customer Type includes Industrial, and an optional Reference Net RC is reconciled before import. **The Net RC business formula is NOT approved for production; see [financial sign-off](docs/FINANCIAL_FIELD_SIGNOFF.md).**
 
-The same backend logic (`server/core.js`) runs as an Apps Script web app that reads and
-writes the Google Sheets directly.
-
-1. Turn on the Apps Script API: https://script.google.com/home/usersettings
-2. `npx clasp login`, using the Google account that owns or can edit the sheets.
-3. `npx clasp create-script --type standalone --title "B2B GEO Pipeline API" --rootDir apps-script`
-4. `npm run gas:push` builds `apps-script/` from the YAML and `.env.local`, then pushes it.
-5. For the **existing** Apps Script project, preserve the deployed `/exec` URL.
-   Ensure its `GEO_SHEET_ID_B2B_GEO_Pipeline_DB` and
-   `GEO_SHEET_ID_B2B_GEO_Pipeline_Config` properties point to the intended
-   workbooks; the Config workbook must contain `Product_Categories`.
-   Before releasing this branch, run **`prepareAdminAuditSheet()`** once in the
-   Apps Script editor to create/verify `Admin_Audit` without modifying existing
-   Pipelines, Events or Snapshots. This preparation helper must be pushed to the
-   project before running it; do not update the public web app deployment yet.
-6. After verifying DB schema and Sheet IDs, choose **Deploy → Manage deployments →
-   Edit existing deployment → New version**. Do not create a new web app deployment.
-   The existing `/exec` URL remains unchanged.
-
-After any backend or YAML change, run `npm run gas:push` and update the deployment (Deploy →
-Manage deployments → Edit → New version) so the `/exec` URL serves the new code. Renaming or
-replacing the runtime DB with a different Google Sheet also requires the Script Property
-`GEO_SHEET_ID_B2B_GEO_Pipeline_DB` to point to that exact Sheet ID.
-
-Apps Script resolves Sheet IDs from **Script Properties first** and only falls back to the
-generated `SheetIds.js`. This prevents an older bundled Sheet ID from overriding a newly
-configured runtime DB. After changing the property, run `debugPipelineDbBinding()` in the
-Apps Script editor and confirm the output shows `Pipelines`, `Pipeline_Events`, and
-`Snapshots` and `Admin_Audit` with the expected row counts.
+Use approved test workbooks, not real customer data, until IT/Security and Business go/no-go approval. Do not run retired Support Request ticket backfills or use old Code.gs artifacts in release directories.
 
 ## Net RC calculation (new and repriced Pipelines)
 
@@ -219,4 +168,4 @@ Support: [https://app.base44.com/support](https://app.base44.com/support)
 
 This GitHub Pages app and its internet-reachable Apps Script endpoint are **UAT-only**, not production security-approved CRM infrastructure. Use synthetic/mock customer records only until authorized corporate identity, access controls, data protection and operational review are approved. A four-hour signed UAT session and credential hashing do **not** replace corporate SSO, MFA or security monitoring.
 
-Before deploying, verify backend/frontend release alignment and required Google Sheet schemas. See [UAT release gates](docs/UAT_RELEASE_GATES.md) and [security review](docs/UAT_SECURITY_REVIEW.md). Opening a PR or passing GitHub Actions **does not deploy** an Apps Script version.
+Before deploying, verify backend/frontend release alignment and required Google Sheet schemas. See the [authoritative release runbook](docs/RELEASE_RUNBOOK.md) and [security review](docs/UAT_SECURITY_REVIEW.md). Opening a PR or passing GitHub Actions **does not deploy** an Apps Script version.
