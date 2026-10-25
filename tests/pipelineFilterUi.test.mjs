@@ -60,11 +60,13 @@ test("owner options are scoped by authorized Pipelines and dependent on Region",
 });
 
 test("primary toolbar stays minimal and rarely-used filters remain available",()=>{
-  assert.deepEqual(QUICK_FILTER_KEYS,["search","close_month","region","status"]);
+  assert.deepEqual(QUICK_FILTER_KEYS,["search","close_month","product_category","region","status"]);
   for(const key of ["owner","stage","handler","working_with","scenario","ccp_check_result",
-    "product_category","support","sales_channel","created_month"])
+    "support","sales_channel","created_month"])
     assert.ok(ADVANCED_FILTER_KEYS.includes(key),key);
-  assert.equal(showQuickOwner({app_role:"management"}),true);
+  assert.ok(!ADVANCED_FILTER_KEYS.includes("product_category"));
+  assert.equal(advancedFilterCount({owner:"A1",product_category:"CAT1"}),1);
+  assert.equal(showQuickOwner({app_role:"management"}),true); // access capability, not visible toolbar
   assert.equal(showQuickOwner({app_role:"admin"}),true);
   assert.equal(showQuickOwner({app_role:"ae"}),false);
 });
