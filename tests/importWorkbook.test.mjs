@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
-import {parseImportXlsx, readImportFile} from "../src/lib/importWorkbook.js";
+import {parseImportXlsx, readImportFile, parseImportCreatedMonth} from "../src/lib/importWorkbook.js";
 
 async function makeWorkbook(rows) {
  const wb=new ExcelJS.Workbook();
@@ -42,4 +42,14 @@ test("CSV import continues to work while XLSX is supported",async()=>{
   const result=await readImportFile(csvFile,parser);
   assert.deepEqual(result.headers,["Customer Name","Business ID"]);
   assert.deepEqual(result.rows,[["Alpha","0012345"]]);
+});
+
+test("legacy Create Month preserves the source business month",()=>{
+ for(const [raw,expected] of [
+  ["1-Jul-26","2026-07"],["Jul-26","2026-07"],["2026-07-01","2026-07"],
+  ["2026-07","2026-07"],["Oct-26","2026-10"]
+ ]) assert.equal(parseImportCreatedMonth(raw),expected,raw);
+ for(const invalid of ["2026-13","31-Feb-26","unknown","", "2026-02-30"]) {
+  assert.equal(parseImportCreatedMonth(invalid),null,invalid);
+ }
 });
