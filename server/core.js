@@ -387,10 +387,13 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Stable import identity: indexed batch IDs prevent retry duplicates;
   // a second batch containing the same commercial signature is rejected.
-  const importFingerprint = (item) => JSON.stringify([
+  const importCommercialFingerprint = (item) => JSON.stringify([
     "business_id","product_category_id","expected_close_month","owner_id",
     "product_details","contact_phone","quantity","price_per_sub","oc"
   ].map((key) => String(item[key] ?? "").trim().toLowerCase()));
+  const importFingerprint = (item) => JSON.stringify([
+    importCommercialFingerprint(item), String(item.source_created_month ?? "").trim()
+  ]);
 
   function importOpportunities(actor, input) {
     const b = binding("Opportunity");
@@ -411,13 +414,14 @@ export function createCore({ contract, store, now, uuid }) {
           previous.some((r) => {
             const n = Number(r.import_row_number);
             return !Number.isInteger(n) || n < 1 || n > items.length ||
-              String(r.import_row_signature || "") !== importFingerprint(items[n - 1]);
+              (String(r.import_row_signature || "") !== importFingerprint(items[n - 1]) &&
+                String(r.import_row_signature || "") !== importCommercialFingerprint(items[n - 1]));
           })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
       return { imported: 0, already_imported: true, total: previous.length,
         opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
           .map((r) => r.opportunity_id) };
     }
-    const known = new Set(sheet.map((r) => r.import_row_signature || importFingerprint({
+    const known = new Set(sheet.map((r) => importCommercialFingerprint({
       business_id:r.business_id, product_category_id:r.product_category_id,
       expected_close_month:r.expected_close_month, owner_id:r.owner_user_id,
       product_details:r.product_details, contact_phone:r.contact_phone,
@@ -425,11 +429,11 @@ export function createCore({ contract, store, now, uuid }) {
     })));
     const currentBatch = new Set();
     const signatures = items.map((item) => {
-      const sign = importFingerprint(item);
-      if (currentBatch.has(sign)) throw new HttpError(409, "Duplicate Pipeline rows in import file");
-      if (known.has(sign)) throw new HttpError(409, "This Pipeline already exists. Review your import before retrying");
-      currentBatch.add(sign);
-      return sign;
+      const commercialSign = importCommercialFingerprint(item);
+      if (currentBatch.has(commercialSign)) throw new HttpError(409, "Duplicate Pipeline rows in import file");
+      if (known.has(commercialSign)) throw new HttpError(409, "This Pipeline already exists. Review your import before retrying");
+      currentBatch.add(commercialSign);
+      return importFingerprint(item);
     });
     // One core request: adapters commit Pipelines + Pipeline_Events together.
     // If any validation or sheet write fails, neither workbook change commits.
@@ -716,7 +720,13 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "Stage") validateStageSla(data);
       if (uiEntity === "TeamMember") validateTeamMemberInput(data);
       const stamp = now();
+      let importedCreatedMonth = "";
       if (uiEntity === "Opportunity") {
+        // Import may preserve the original source Create Month for reporting.
+        // created_at and event_at must remain actual server timestamps.
+        importedCreatedMonth = importMeta ? String(data.source_created_month ?? "").trim() : "";
+        if (importedCreatedMonth && !isMonthKey(importedCreatedMonth))
+          throw new HttpError(400, "source_created_month must be YYYY-MM");
         data = stripSystemFields(data);
         if (!importMeta && !String(data.client_request_id || "").trim()) {
           throw new HttpError(400, "Client request ID is required");
@@ -761,7 +771,7 @@ export function createCore({ contract, store, now, uuid }) {
         row.status = "Open";
         row.current_handler_user_id = row.current_handler_user_id || row.owner_user_id;
         row.original_owner_user_id = row.owner_user_id;
-        row.created_month = bangkokMonth(stamp);
+        row.created_month = importedCreatedMonth || bangkokMonth(stamp);
         row.stage_entered_at = stamp;
         row.handler_since = stamp;
         row.working_with_since = row.working_with_id ? stamp : "";
