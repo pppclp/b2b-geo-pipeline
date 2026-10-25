@@ -95,7 +95,7 @@ test("Phase 2/4 required Pipeline columns exist in the YAML contract",()=>{
 test("Phase 4 preparation appends only missing Pipeline headers and is idempotent",()=>{
  const context={
    console:{log(){},warn(){},error(){}},
-   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==="GEO_PHASE4_SCHEMA_APPROVED"?"YES":null})},
+   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==="GEO_PHASE4_SCHEMA_APPROVED"?"YES":k==="GEO_APPROVED_PIPELINE_DB_ID"?"TEST_APPROVED_WORKBOOK_ID":null})},
    LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
    GEO_CONTRACT:{columns:contract.columns}
  };
@@ -131,7 +131,7 @@ test("Phase 4 preparation appends only missing Pipeline headers and is idempoten
  const book={
    getName:()=> "B2B_GEO_Pipeline_DB",
    getSheetByName:name=>sheetMap.get(name)||null,
-   getId:()=> "1z2alvS2BSRCll-6CaQq2HetuVCjYW43cpdSuXTZNthc",
+   getId:()=> "TEST_APPROVED_WORKBOOK_ID",
    insertSheet:name=>{const obj=sheet(name,[]);sheetMap.set(name,obj);return obj;}
  };
  context.SpreadsheetApp={openById:()=>book,flush(){}};
