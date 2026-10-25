@@ -274,7 +274,7 @@ export function DataProvider({ children }) {
 
   // One persisted update for the three frequent Pipeline actions, with
   // independent timestamps and audit events for each changed field.
-  const updateQuickActions = useCallback(async (id, { stageId, handlerId, workingWith, workingTeamIds, workingUserIds }) => {
+  const updateQuickActions = useCallback(async (id, { stageId, handlerId, workingWith, workingTeamIds, workingUserIds, expectedUpdatedAt }) => {
     const op = opportunities.find((item) => item.id === id);
     const { changes } = buildQuickActionChanges(
       op, { stageId, handlerId, workingWith },
@@ -286,7 +286,9 @@ export function DataProvider({ children }) {
       changes.working_with_user_ids = workingUserIds;
     if (!Object.keys(changes).length) return op;
     // One record update; Stage and Handler aging remain independent.
-    return updateWithHistory(id, changes, null);
+    // The revision belongs to the user's draft, not an unrelated Context refresh.
+    // This prevents a stale Quick Update from silently overwriting another tab.
+    return updateWithHistory(id, changes, null, { expectedUpdatedAt });
   }, [opportunities, activeStages, maps, updateWithHistory]);
 
   const moveStage = useCallback(

@@ -257,3 +257,101 @@ test("Toggle rejects invalid inputs and enforces AE scope; old ticket API is ret
  for(const method of ["GET","POST","PATCH"])
    assert.throws(()=>h.call("M1",method,method==="PATCH"?"support-requests/SRQ-HIST":"support-requests",{}),e=>e.status===410);
 });
+
+
+test("UAT: team multi-select survives reload and preserves legacy Working With people",()=>{
+ const h=harness(),op=h.create(),id=op.id;
+ h.call("M1","PUT","entities/Opportunity/"+id,{working_with_user_ids:"SM1,AE1"});
+ const previousPersonEvents=db(h,"Pipeline_Events").filter(e=>e.field_name==="working_with_people").length;
+ const first=h.call("AE1","PUT","entities/Opportunity/"+id,{working_with_team_ids:"TEAM1,TEAM2"});
+ assert.equal(first.working_with_team_ids,"TEAM1,TEAM2");
+ assert.equal(first.working_with_user_ids,"SM1,AE1");
+ assert.equal(first.working_with,"Presales");
+ const afterReload=h.call("AE1","GET","entities/Opportunity/"+id);
+ assert.equal(afterReload.working_with_team_ids,"TEAM1,TEAM2");
+ assert.equal(afterReload.working_with_user_ids,"SM1,AE1");
+ assert.equal(afterReload.working_with,"Presales");
+ const second=h.call("SM1","PUT","entities/Opportunity/"+id,{working_with_team_ids:"TEAM2"});
+ assert.equal(second.working_with_team_ids,"TEAM2");
+ assert.equal(second.working_with_user_ids,"SM1,AE1");
+ assert.equal(second.working_with,"Pricing");
+ const afterSecondReload=h.call("AE1","GET","entities/Opportunity/"+id);
+ assert.equal(afterSecondReload.working_with_team_ids,"TEAM2");
+ assert.equal(afterSecondReload.working_with_user_ids,"SM1,AE1");
+ assert.equal(db(h,"Pipelines")[0].working_with_user_ids,"SM1,AE1");
+ assert.equal(db(h,"Pipeline_Events").filter(e=>e.field_name==="working_with_people").length,previousPersonEvents);
+ const teams=db(h,"Pipeline_Events").filter(e=>e.field_name==="working_with_teams");
+ assert.equal(teams.length,2);
+ assert.equal(teams[0].new_value,"TEAM1,TEAM2");
+ assert.equal(teams[1].new_value,"TEAM2");
+});
+
+test("UAT: two browser snapshots cannot overwrite changed teams; stale save has no audit side effects",()=>{
+ const h=harness(),op=h.create(),id=op.id;
+ const originalRevision=op.updated_date; // two browser tabs opened on the same revision
+ const first=h.call("SM1","PUT","entities/Opportunity/"+id,{
+   working_with_team_ids:"TEAM1,TEAM2",expected_updated_at:originalRevision
+ });
+ assert.notEqual(first.updated_date,originalRevision,"revision must advance even within the same millisecond");
+ const eventCount=db(h,"Pipeline_Events").length;
+ const touchedCount=h.touched.length;
+ assert.throws(()=>h.call("M1","PUT","entities/Opportunity/"+id,{
+   working_with_team_ids:"TEAM2",expected_updated_at:originalRevision
+ }),e=>e.status===409);
+ assert.equal(db(h,"Pipeline_Events").length,eventCount);
+ assert.equal(h.touched.length,touchedCount);
+ assert.equal(h.call("M1","GET","entities/Opportunity/"+id).working_with_team_ids,"TEAM1,TEAM2");
+ const refreshed=h.call("M1","GET","entities/Opportunity/"+id);
+ const retried=h.call("M1","PUT","entities/Opportunity/"+id,{
+   working_with_team_ids:"TEAM2",expected_updated_at:refreshed.updated_date
+ });
+ assert.equal(retried.working_with_team_ids,"TEAM2");
+ assert.notEqual(retried.updated_date,first.updated_date);
+ assert.equal(db(h,"Pipeline_Events").filter(e=>e.field_name==="working_with_teams").length,2);
+});
+
+test("UAT: Needs Support creates server-owned on/off history for all four roles, limited by scope",()=>{
+ const h=harness(),r1=h.create(),id=r1.id;
+ const r2=h.call("ADMIN","POST","entities/Opportunity",{
+   customer_name:"Region 2 test",business_id:"22222",customer_type:"SME",sales_channel:"AE Self",
+   contact_name:"Region 2",contact_phone:"0800000011",quantity:1,price_per_sub:100,
+   product_category_id:"CAT1",expected_close_month:"2026-12",region_id:"R2",
+   owner_id:"AE2",current_handler_id:"AE2",stage_id:"STG1"
+ });
+ const checks=[
+   ["AE1",true],["SM1",false],["M1",true],["ADMIN",false]
+ ];
+ for (const [user,needed] of checks) {
+   const updated=h.call(user,"PUT","entities/Opportunity/"+id,{
+      support_needed:needed,...(needed?{support_type:"Pricing",support_note:"Help requested by "+user}:{})
+   });
+   assert.equal(updated.support_needed,needed);
+   const flags=db(h,"Pipeline_Events").filter(e=>e.opportunity_id===id &&
+     e.field_name==="support_needed");
+   const event=flags.at(-1);
+   assert.equal(event.event_type,needed?"support_on":"support_off");
+   assert.equal(event.actor_user_id,user);
+   assert.equal(event.actor_name,user==="ADMIN"?"Admin":user==="AE1"?"AE One":user==="SM1"?"SM One":"Manager");
+   assert.ok(event.event_at);
+   assert.equal(event.previous_value,needed?(user==="AE1"?"":"No"):"Yes");
+   assert.equal(event.new_value,needed?"Yes":"No");
+   assert.equal(db(h,"Support_Requests").length,0);
+ }
+ for (const user of ["AE1","SM1","M1"]) {
+   const auditBefore=db(h,"Pipeline_Events").length;
+   assert.throws(()=>h.call(user,"PUT","entities/Opportunity/"+r2.id,{
+      support_needed:true,support_type:"Pricing",support_note:"Out-of-region"
+   }),e=>e.status===403, user+" must not alter R2");
+   assert.equal(db(h,"Pipeline_Events").length,auditBefore);
+ }
+ assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{
+   support_needed:true,support_type:"Pricing",support_note:"Not my deal"
+ }),e=>e.status===403);
+ const r2TurnedOn=h.call("AE2","PUT","entities/Opportunity/"+r2.id,{
+   support_needed:true,support_type:"Pricing",support_note:"AE2 request"
+ });
+ assert.equal(r2TurnedOn.support_needed,true);
+ assert.equal(h.call("ADMIN","PUT","entities/Opportunity/"+r2.id,{support_needed:false}).support_needed,false);
+ assert.equal(h.call("SM1","GET","entities/OpportunityHistory").some(e=>e.opportunity_id===r2.id),false);
+ assert.equal(h.call("AE2","GET","entities/OpportunityHistory").some(e=>e.opportunity_id===id),false);
+});

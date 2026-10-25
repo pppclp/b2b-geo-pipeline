@@ -39,3 +39,14 @@ test("Edit and History do not create duplicated support input or person editing"
   assert.ok(history.includes('revision'));
   assert.ok(file("src/components/AppLayout.jsx").includes('return "Pipeline";'));
 });
+
+test("Quick Update keeps the starting revision even if Context refreshes during editing",()=>{
+ const quick=file("src/components/PipelineQuickView.jsx");
+ const context=file("src/lib/dataContext.jsx");
+ assert.ok(quick.includes("const [baseline, setBaseline] = useState(() => snapshot(op))"));
+ assert.ok(quick.includes("if (baseline.id === next.id && changed) return"));
+ assert.ok(quick.includes("expectedUpdatedAt: baseline.revision"));
+ assert.ok(quick.includes("op.working_with_team_ids, baseline, changed"));
+ assert.ok(context.includes("return updateWithHistory(id, changes, null, { expectedUpdatedAt });"));
+ assert.ok(context.includes('error.status === 409'));
+});

@@ -21,20 +21,46 @@ const textOrDash = (value) => value || "—";
  */
 export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, onDirtyChange }) {
   const { master, maps, activeStages, profile, updateQuickActions } = useData();
+  const snapshot = (rec) => ({
+    id: rec.id,
+    revision: rec.updated_date,
+    stageId: rec.stage_id,
+    handlerId: rec.current_handler_id || "",
+    workingWith: rec.working_with || "",
+    workingTeamIds: rec.working_with_team_ids ||
+      (master?.WorkingWithOption || []).find(t => t.name === rec.working_with)?.id || "",
+  });
+  // Hold the revision from when editing began. Do not swap it for a newer
+  // Context revision while the user has unsaved Stage/Handler/Team changes.
+  const [baseline, setBaseline] = useState(() => snapshot(op));
   const [stageId, setStageId] = useState(initialStageId || op.stage_id);
   const [handlerId, setHandlerId] = useState(op.current_handler_id || "");
   const [workingWith, setWorkingWith] = useState(op.working_with || "");
-  const [workingTeamIds, setWorkingTeamIds] = useState(op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
+  const [workingTeamIds, setWorkingTeamIds] = useState(baseline.workingTeamIds);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const changed = stageId !== baseline.stageId ||
+    handlerId !== baseline.handlerId ||
+    workingWith !== baseline.workingWith ||
+    workingTeamIds !== baseline.workingTeamIds;
+
   useEffect(() => {
-    setStageId(initialStageId || op.stage_id);
-    setHandlerId(op.current_handler_id || "");
-    setWorkingWith(op.working_with || "");
-    setWorkingTeamIds(op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
+    const next = snapshot(op);
+    // New Pipeline always resets; same Pipeline only syncs when no draft exists.
+    if (baseline.id === next.id && changed) return;
+    if (baseline.id === next.id && baseline.revision === next.revision &&
+        baseline.stageId === next.stageId && baseline.handlerId === next.handlerId &&
+        baseline.workingWith === next.workingWith &&
+        baseline.workingTeamIds === next.workingTeamIds) return;
+    setBaseline(next);
+    setStageId(next.stageId);
+    setHandlerId(next.handlerId);
+    setWorkingWith(next.workingWith);
+    setWorkingTeamIds(next.workingTeamIds);
     setError("");
-  }, [op.id, initialStageId, op.stage_id, op.current_handler_id, op.working_with]);
+  }, [op.id, op.updated_date, op.stage_id, op.current_handler_id,
+      op.working_with, op.working_with_team_ids, baseline, changed, master?.WorkingWithOption]);
 
   const canEdit = op.status === "open" && (
     profile?.app_role === "admin" ||
@@ -63,10 +89,6 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
     return Array.from(new Set(items)).sort();
   }, [master, op.working_with]);
 
-  const changed = stageId !== op.stage_id ||
-    handlerId !== (op.current_handler_id || "") ||
-    workingWith !== (op.working_with || "") ||
-    workingTeamIds !== (op.working_with_team_ids || (master?.WorkingWithOption || []).find(t=>t.name===op.working_with)?.id || "");
   const hasPending = Boolean(initialStageId && initialStageId !== op.stage_id);
   useEffect(() => { onDirtyChange?.(changed); }, [changed, onDirtyChange]);
 
@@ -76,7 +98,16 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
     setSaving(true);
     setError("");
     try {
-      await updateQuickActions(op.id, { stageId, handlerId, workingWith, workingTeamIds });
+      const saved = await updateQuickActions(op.id, {
+        stageId, handlerId, workingWith, workingTeamIds,
+        expectedUpdatedAt: baseline.revision,
+      });
+      const next = snapshot(saved);
+      setBaseline(next);
+      setStageId(next.stageId);
+      setHandlerId(next.handlerId);
+      setWorkingWith(next.workingWith);
+      setWorkingTeamIds(next.workingTeamIds);
       onSaved?.();
     } catch (err) {
       setError(err?.message || "Unable to save Pipeline changes");
