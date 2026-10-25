@@ -23,8 +23,10 @@ export function unpackEntityBatch(entities, replies) {
       // mistaking them for zero Pipelines. Do not log request tokens.
       throw new Error(`Cannot load ${entity} (${status}). ${serverMessage ? serverMessage + ". " : ""}${hint}`);
     }
-    // Keep optional/read-restricted master sections non-blocking.
-    if (status !== 403) console.warn(`Optional ${entity} data unavailable (${status})`);
-    return [];
+    // A genuine permission denial may hide an optional master. Any other
+    // failure is NOT an empty dataset: block misleading dashboard figures.
+    if (status === 403) return [];
+    const reason = typeof reply?.body?.code === "string" ? reply.body.code : "DATA_SOURCE_ERROR";
+    throw new Error(`Cannot load ${entity} (${status}, ${reason}). Check Apps Script deployment and sheet schema.`);
   });
 }

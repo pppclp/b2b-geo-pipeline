@@ -8,6 +8,7 @@ import { dashboardCohort, dashboardMetrics, isStageSlaOverdue } from "@/lib/dash
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
+import {filterSupportRequests} from "@/lib/supportQueue";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
 
@@ -21,7 +22,7 @@ export default function Dashboard() {
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
-  const [queueTab, setQueueTab] = useState("with");
+  const [queueTab, setQueueTab] = useState("unassigned");
   const [supportRequests, setSupportRequests] = useState(null);
   const [supportError, setSupportError] = useState("");
 
@@ -75,11 +76,13 @@ export default function Dashboard() {
     return () => { active = false; };
   }, [isManagement, profile?.id]);
 
-  const myRequests = (supportRequests || []).filter((request) =>
-    String(request.assigned_to_user_id) === String(profile?.id) && request.status !== "Resolved" &&
-    (!region || request.region_id === region) &&
-    cohort.some((o) => o.id === request.opportunity_id)
+  // Triage is a task queue, not a sales-date metric. Month filters must
+  // never hide urgent unassigned requests; backend still enforces user scope.
+  const visibleRequests = (supportRequests || []).filter((request) =>
+    !region || request.region_id === region
   );
+  const myRequests = filterSupportRequests(visibleRequests, "mine", profile?.id);
+  const unassignedRequests = filterSupportRequests(visibleRequests, "unassigned", profile?.id);
   const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); };
   const hasFilters = Boolean(createdMonth || closeMonth || region);
   const params = (extra = {}) => ({
@@ -112,7 +115,7 @@ export default function Dashboard() {
     }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
 
   const tabs = isManagement
-    ? [["with", "With Me"], ["overdue", "Stage Overdue"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+    ? [["unassigned", "Unassigned (" + (supportRequests === null ? "…" : unassignedRequests.length) + ")"], ["with", "With Me"], ["overdue", "Stage Overdue"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
     : isSM
       ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
       : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]];
@@ -210,7 +213,7 @@ export default function Dashboard() {
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-4">
-        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={selectedTab === "with" && isManagement ? "Support Requests" : queue.length + " opportunities"}>
+        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={isManagement && (selectedTab === "with" || selectedTab === "unassigned") ? "Support Requests · all months" : queue.length + " opportunities"}>
           <div className="flex flex-wrap gap-1.5 mb-3" aria-label="Work queue filters">
             {tabs.map(([id, label]) =>
               <button key={id} type="button" onClick={() => setQueueTab(id)}
@@ -222,13 +225,13 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          {selectedTab === "with" && isManagement
+          {isManagement && (selectedTab === "with" || selectedTab === "unassigned")
             ? <div>
                 {supportError && <p role="alert" className="text-xs text-destructive mb-2">{supportError}</p>}
                 {supportRequests === null && !supportError && <p className="text-xs text-muted-foreground">Loading assigned requests…</p>}
-                {myRequests.slice(0, 8).map((request) =>
+                {(selectedTab === "unassigned" ? unassignedRequests : myRequests).slice(0, 8).map((request) =>
                   <button key={request.request_id} className="w-full text-left flex justify-between gap-2 border-b border-border py-3 hover:bg-secondary/50"
-                    onClick={() => navigate("/support-requests")}>
+                    onClick={() => navigate("/support-requests?view=" + (selectedTab === "unassigned" ? "unassigned" : "mine"))}>
                     <span className="min-w-0"><span className="block font-medium text-[12px]">{request.opportunity_id}</span>
                       <span className="block text-[11px] text-muted-foreground">{request.note || "Support request"}</span></span>
                     <span className="text-[10px] text-muted-foreground shrink-0 text-right">
@@ -237,12 +240,12 @@ export default function Dashboard() {
                     </span>
                   </button>
                 )}
-                {supportRequests !== null && !myRequests.length && <EmptyRow />}
+                {supportRequests !== null && !(selectedTab === "unassigned" ? unassignedRequests : myRequests).length && <EmptyRow />}
               </div>
             : <OpportunityTable rows={queueItems} maps={maps} showRegion={regionContext.showColumn} onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />}
           <div className="pt-3 flex justify-end">
             <Button size="sm" variant="outline" onClick={() =>
-              isManagement && selectedTab === "with" ? navigate("/support-requests") :
+              isManagement && (selectedTab === "with" || selectedTab === "unassigned") ? navigate("/support-requests?view=" + (selectedTab === "unassigned" ? "unassigned" : "mine")) :
                 toPipeline({
                   status: "open",
                   ...(selectedTab === "with" ? { handler: profile.id } : {}),

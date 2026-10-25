@@ -49,7 +49,12 @@ function harness(){
     const keyedBody = method === "POST" && path === "entities/Opportunity"
       ? { ...actualBody, client_request_id: actualBody?.client_request_id || "phase4_req_" + String(++n).padStart(8,"0") }
       : actualBody;
-    return core.handle({userId,method,path,body:keyedBody});
+    const revisionBody = method === "PATCH" && path.startsWith("support-requests/") &&
+    keyedBody?.expected_updated_at === undefined
+    ? {...keyedBody,expected_updated_at:table["B2B_GEO_Pipeline_DB.xlsx|Support_Requests"].rows
+        .find(r=>r.request_id===path.split("/")[1])?.updated_at||""}
+    : keyedBody;
+  return core.handle({userId,method,path,body:revisionBody});
   };
  const create=()=>call("ADMIN","POST","entities/Opportunity",{
   customer_name:"Test Account",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
@@ -211,4 +216,27 @@ test("Management creation alerts AE and regional SM but cannot override SM-only 
  assert.equal(h.call("M1","PUT","entities/Opportunity/"+op.id,{
   remark:"Shared customer update"
  }).remark,"Shared customer update");
+});
+
+test("Support Request cannot be progressed without a responsible Management owner", () => {
+ const h=harness(),op=h.create();
+ const req=h.call("AE1","POST","support-requests",{opportunity_id:op.id,request_type_id:"SUP1",note:"Review pricing"});
+ assert.equal(req.assigned_to_user_id,"");
+ assert.throws(()=>h.call("M1","PATCH","support-requests/"+req.request_id,
+   {status:"In Progress"}), e=>e.status===400);
+ const claimed=h.call("M1","PATCH","support-requests/"+req.request_id,
+   {assigned_to_user_id:"M1"});
+ assert.equal(claimed.assigned_to_user_id,"M1");
+ assert.equal(claimed.status,"Open");
+});
+
+test("Support Request rejects stale updates without changing assignee or status", () => {
+ const h=harness(),op=h.create();
+ const req=h.call("AE1","POST","support-requests",{opportunity_id:op.id,request_type_id:"SUP1",note:"Review"});
+ const claimed=h.call("M1","PATCH","support-requests/"+req.request_id,{assigned_to_user_id:"M1"});
+ assert.notEqual(claimed.updated_at,req.updated_at);
+ assert.throws(()=>h.call("M1","PATCH","support-requests/"+req.request_id,
+   {expected_updated_at:req.updated_at,status:"Resolved",response_note:"Done"}),e=>e.status===409);
+ assert.equal(db(h,"Support_Requests")[0].status,"Open");
+ assert.equal(db(h,"Support_Requests")[0].assigned_to_user_id,"M1");
 });
