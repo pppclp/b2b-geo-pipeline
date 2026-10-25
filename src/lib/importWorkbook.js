@@ -43,9 +43,9 @@ export function parseImportCreatedMonth(value) {
     }
     return String(year) + "-" + String(month).padStart(2, "0");
   };
-  const iso = /^(\\d{4})-(\\d{1,2})(?:-(\\d{1,2}))?$/.exec(text);
+  const iso = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/.exec(text);
   if (iso) return valid(Number(iso[1]), Number(iso[2]), iso[3] == null ? null : Number(iso[3]));
-  const named = /^(?:(\\d{1,2})[-/\\s]+)?([A-Za-z]{3,9})[-/\\s]+(\\d{2}|\\d{4})$/.exec(text);
+  const named = /^(?:(\d{1,2})[-\/\s]+)?([A-Za-z]{3,9})[-\/\s]+(\d{2}|\d{4})$/.exec(text);
   if (named) {
     const names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
     const month = names.indexOf(named[2].slice(0,3).toLowerCase()) + 1;
