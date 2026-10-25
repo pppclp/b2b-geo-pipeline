@@ -186,13 +186,33 @@ export default function Pipeline() {
   const selectedPipeline = quickView ? scopedOpportunities.find((item) => item.id === quickView.id) : null;
 
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
+  const openScope = scopedOpportunities.filter((o) => o.status === "open");
+  const quickViews = [
+    {id:"all",title:"All Open",count:openScope.length,url:"/pipeline"},
+    {id:"assigned-to-me",title:"Assigned to Me",count:openScope.filter(o=>o.current_handler_id===profile?.id).length,url:"/pipeline?view=assigned-to-me"},
+    {id:"support-needed",title:"Needs Support",count:openScope.filter(o=>o.support_needed).length,url:"/pipeline?view=support-needed"}
+  ];
+  const activeQuickView = ["assigned-to-me","support-needed"].includes(params.get("view"))
+    ? params.get("view") : "all";
+
+  // Never present stale totals after a failed batch read as current data.
+  if (loading || error) return (
+    <div className="p-5 md:p-7 max-w-[1400px] mx-auto">
+      <h1 className="text-xl font-semibold mb-4">Pipeline</h1>
+      <div role={error?"alert":"status"} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
+        <AlertTriangle className="w-4 h-4 text-muted-foreground" aria-hidden="true"/>
+        <span className="flex-1 text-sm">{error?"Unable to load Pipeline data: "+error.message:"Loading Pipeline data…"}</span>
+        {error&&<Button variant="outline" size="sm" onClick={refresh}>Retry</Button>}
+      </div>
+    </div>
+  );
 
 
   return (
     <div className="p-4 md:p-5 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{params.get("view") === "assigned-to-me" ? "Assigned to Me" : params.get("view") === "support-needed" ? "Needs Support" : "All Opportunities"}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{params.get("view") === "assigned-to-me" ? "Assigned to Me" : params.get("view") === "support-needed" ? "Needs Support" : "Pipeline"}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {sorted.length} opportunities · {formatTHB(totalValue)}
             <span className="mx-2 text-border" aria-hidden="true">·</span>
@@ -212,15 +232,6 @@ export default function Pipeline() {
       </div>
 
       {exportError && <p role="alert" className="text-sm text-red-600 mb-3">{exportError}</p>}
-      {loading && <p role="status" className="text-sm text-muted-foreground mb-3">Loading Pipeline and access permissions…</p>}
-      {error && (
-        <div role="alert" className="flex flex-wrap gap-3 items-center justify-between rounded-xl border border-red-200 bg-red-50/70 p-3 mb-4 text-sm text-red-800">
-          <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> Unable to load data: {error.message}</span>
-          <Button type="button" size="sm" variant="outline" onClick={refresh} disabled={loading}>
-            <RefreshCw className="w-4 h-4 mr-1.5" /> Retry
-          </Button>
-        </div>
-      )}
       {!loading && !error && scopedOpportunities.length === 0 && (
         <p role="status" className="text-sm text-muted-foreground mb-3">
           {opportunities.length > 0
@@ -228,7 +239,18 @@ export default function Pipeline() {
             : "No Pipelines are available for this account. If you expect records, check the deployment and access settings."}
         </p>
       )}
-      <div className="rounded-xl border border-border bg-card p-3 mb-4">
+      <section aria-label="Pipeline quick views" className="mb-4">
+        <p className="mb-2 text-[11px] font-medium text-muted-foreground">Quick Views · Open Pipelines within your access scope</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {quickViews.map(item=><button key={item.id} type="button"
+            onClick={()=>navigate(item.url)} aria-pressed={activeQuickView===item.id}
+            className={`rounded-xl border px-4 py-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeQuickView===item.id?"border-primary/50 bg-brand-tint/40":"border-border bg-card"}`}>
+              <span className="block text-[11px] text-muted-foreground">{item.title}</span>
+              <span className="mt-1 block text-xl font-semibold tabular-nums">{item.count}</span>
+            </button>)}
+        </div>
+      </section>
+      <div className="border-y border-border/70 py-3 mb-4">
         <FilterBar filters={filters} onFilter={onFilter} stageChipsVisible={view === "list"}
           showRegionControl={!hasRegionQuickFilter} />
       </div>
