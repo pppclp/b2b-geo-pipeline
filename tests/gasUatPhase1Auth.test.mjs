@@ -53,6 +53,8 @@ test("plaintext login fails closed unless migration window is explicitly enabled
   const {ctx,store,properties}=fixture([{"employee_id / username":"90001",temporary_password:"good"}]);
   assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
   properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+  properties.set("GEO_ENVIRONMENT","UAT");
   assert.equal(ctx.uatLogin_(store,{username:"90001",password:"good"}).user_id,"U0001");
   assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"wrong"}),e=>e.status===401);
 });
@@ -96,7 +98,7 @@ test("UAT plaintext window blocks production environment and expires on schedule
   properties.set("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT",new Date(Date.now()+60_000).toISOString());
   assert.equal(ctx.uatLogin_(store,{username:"90001",password:"good"}).user_id,"U0001");
   properties.set("GEO_ENVIRONMENT","PRODUCTION");
-  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===503);
 });
 
 test("manual temporary-login recovery needs UAT and explicit approval and clears it",()=>{
