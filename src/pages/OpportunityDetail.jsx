@@ -15,7 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, Wrench } from "lucide-react";
+import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, MoreHorizontal, Copy } from "lucide-react";
+import SupportToggleAction from "@/components/SupportToggleAction";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const statusColor = {
   open: "bg-blue-100 text-blue-700 border border-blue-200",
@@ -37,7 +39,7 @@ export default function OpportunityDetail() {
   const [actionError, setActionError] = useState("");
 
   if (!op) {
-    return <EmptyState title="Opportunity not found" description="It may be outside your permission scope or has been removed." icon={ArrowLeft} action={<Button onClick={() => navigate("/pipeline")}>Back to Pipeline</Button>} />;
+    return <EmptyState title="Pipeline not found" description="It may be outside your permission scope or has been removed." icon={ArrowLeft} action={<Button onClick={() => navigate("/pipeline")}>Back to Pipeline</Button>} />;
   }
 
   const owner = maps.member[op.owner_id];
@@ -53,11 +55,8 @@ export default function OpportunityDetail() {
   const members = (master?.TeamMember || []).filter((m) => m.active);
   const stageAging = agingDays(op.stage_entered_at);
   const handlerAging = agingDays(op.handler_since);
-  const wwAging = op.working_with ? agingDays(op.working_with_since) : 0;
   const workingTeams = String(op.working_with_team_ids || "").split(",").filter(Boolean)
     .map(x => (master?.WorkingWithOption || []).find(t=>t.id===x)?.name || x);
-  const workingPeople = String(op.working_with_user_ids || "").split(",").filter(Boolean)
-    .map(x => maps.member?.[x]?.name || x);
 
   const closeAction = () => {
     if (saving) return;
@@ -98,127 +97,129 @@ export default function OpportunityDetail() {
   const canChangeArchiveState = canReassignOwner;
 
   return (
-    <div className="p-5 md:p-7 max-w-[1200px] mx-auto">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4 px-2.5 py-1 rounded-lg hover:bg-secondary transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back
+    <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:p-8">
+      <button type="button" onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Back to Pipeline
       </button>
-
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-semibold tracking-tight">{op.customer_name}</h1>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight md:text-[28px]">{op.customer_name}</h1>
             <Badge className={statusColor[op.status]}>{STATUS_LABELS[op.status]}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            {category?.name}{op.product_details ? ` · ${op.product_details}` : ""} · {stage?.name} · {formatTHB(op.pipeline_value)} · Close {formatMonth(op.expected_close_month)}
-          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">{region?.name || "Not assigned"} · AE: {owner?.name || "Not assigned"}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{category?.name || "—"}{op.product_details ? ` · ${op.product_details}` : ""}</p>
         </div>
-        {(canEdit || canChangeArchiveState) && (
-          <div className="flex flex-wrap gap-2">
-            {canEdit && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setEditOpen(true)}><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>}
-            {canEdit && canReassignOwner && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reassign" })}><Users className="w-4 h-4 mr-1.5" /> Reassign</Button>}
-            {canEdit && <PipelineCloseActions op={op} compact/>}
-            {canChangeArchiveState && op.status !== "archived" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "archive" })}><Archive className="w-4 h-4 mr-1.5" /> Archive</Button>}
-            {canChangeArchiveState && op.status !== "open" && <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setAction({ type: "reopen" })}><RefreshCw className="w-4 h-4 mr-1.5" /> Reopen</Button>}
-          </div>
-        )}
+        {(canEdit || canChangeArchiveState) && <div className="flex flex-wrap items-center gap-2">
+          {canEdit && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>}
+          {canEdit && canReassignOwner && <Button size="sm" variant="outline" onClick={() => setAction({ type: "reassign" })}><Users className="mr-1.5 h-4 w-4" />Reassign</Button>}
+          {canEdit && <PipelineCloseActions op={op} compact />}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button size="sm" variant="outline"><MoreHorizontal className="mr-1.5 h-4 w-4" />More</Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canEdit && <DropdownMenuItem onSelect={() => setAction({ type: "closemonth" })}><CalendarClock className="mr-2 h-4 w-4" />Change Close Month</DropdownMenuItem>}
+              {canChangeArchiveState && op.status !== "archived" && <DropdownMenuItem onSelect={() => setAction({ type: "archive" })}><Archive className="mr-2 h-4 w-4" />Archive Pipeline</DropdownMenuItem>}
+              {canChangeArchiveState && op.status !== "open" && <DropdownMenuItem onSelect={() => setAction({ type: "reopen" })}><RefreshCw className="mr-2 h-4 w-4" />Reopen Pipeline</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4">
-          <Section title="Overview">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.85fr)_minmax(290px,1fr)]">
+        <div className="min-w-0 rounded-2xl border bg-card px-5 md:px-7">
+          <DetailSection number="01" title="Customer Information">
+            <Field label="AE Owner" value={owner?.name || op.owner_id} />
             <Field label="Customer Name" value={op.customer_name} />
-            <Field label="Business ID" value={op.business_id} />
+            <Field label="Business ID" value={<span className="inline-flex flex-wrap items-center gap-2"><span className="tabular-nums">{op.business_id}</span>{op.business_id && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Copy Business ID" title="Copy Business ID" onClick={() => navigator.clipboard?.writeText(String(op.business_id))}><Copy className="h-3.5 w-3.5"/></button>}</span>} />
             <Field label="Customer Type" value={op.customer_type} />
             <Field label="Sales Channel" value={op.sales_channel} />
             {op.partner_name && <Field label="Partner Name" value={op.partner_name} />}
             <Field label="Contact Name" value={op.contact_name} />
-            <Field label="Contact Phone" value={op.contact_phone} />
-            <Field label="Remark" value={op.remark} />
-            <Field label="Scenario" value={scenario?.name} />
+            <Field label="Contact Phone" value={op.contact_phone ? <a className="hover:underline" href={`tel:${String(op.contact_phone).replace(/[^+0-9]/g,"")}`}>{op.contact_phone}</a> : "Not provided"} />
+            <Field wide label="Remark" value={op.remark || "No remark"} />
+          </DetailSection>
+
+          <DetailSection number="02" title="Product & Value">
+            <Field label="Product Category" value={category?.name} />
+            <Field label="Product Description" value={op.product_details} />
+            <Field label="Number of Subs" value={op.quantity} />
+            <Field label="Price per Sub (THB/Month)" value={op.price_per_sub != null ? formatTHB(op.price_per_sub) : "Legacy value"} />
+            <Field label="OC (THB)" value={op.oc != null ? formatTHB(op.oc) : "—"} />
+            <Field label="Contract Period" value={op.contract_period ? `${op.contract_period} months` : "—"} />
+            <div className="col-span-full rounded-r-lg border-l-[3px] border-red-600 bg-secondary/35 px-4 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{op.price_per_sub == null ? "Pipeline Value (Legacy)" : "Net RC / Month"}</div>
+              <div className="mt-1 text-xl font-semibold tabular-nums">{formatTHB(op.pipeline_value)}</div>
+              {op.price_per_sub != null && <p className="mt-1 text-xs text-muted-foreground">Number of Subs × Price per Sub + OC ÷ 12</p>}
+            </div>
+          </DetailSection>
+
+          <DetailSection number="03" title="Pipeline Information">
+            <Field label="Current Stage" value={stage?.name} />
+            <Field label="Expected Close Month" value={formatMonth(op.expected_close_month)} />
+            <Field label="Stage Entered" value={`${formatDate(op.stage_entered_at)} · ${stageAging} days`} />
+            <Field label="Created" value={`${formatDate(op.created_date)} · ${maps.member[op.created_by_user_id]?.name || "—"}`} />
+            <Field label="Scenario" value={scenario?.name || "Pending SM Review"} />
             <Field label="CCP+ Check" value={{
               not_in_base: "Not in Base (New Customer)",
               enterprise_base: "Enterprise Existing Base",
               pending: "Pending Review",
             }[op.ccp_check_result] || op.ccp_check_result || "Pending SM Review"} />
-          </Section>
+          </DetailSection>
 
-          <Section title="Ownership & Assignment">
-            <Field label="AE Owner" value={owner?.name || op.owner_id} />
-            {originalOwner && originalOwner.id !== op.owner_id && <Field label="Original Owner" value={originalOwner?.name} />}
-            <Field label="Current Handler" value={handler?.name || op.current_handler_id} />
+          <DetailSection number="04" title="Ownership & Support">
+            <Field label="Current Handler" value={handler ? `${handler.name} · ${(handler.app_role || "").toUpperCase()}` : op.current_handler_id} />
+            <Field label="Handler Since" value={`${formatDate(op.handler_since)} · ${handlerAging} days`} />
             <Field label="Region" value={region?.name} />
-            <Field label="Territory" value={territory?.name} />
-            <Field label="Handler Since" value={`${formatDate(op.handler_since)} (${handlerAging} days)`} />
-          </Section>
-
-          <Section title="Product">
-            <Field label="Product Category" value={category?.name} />
-            <Field label="Product Details" value={op.product_details} />
-          </Section>
-
-          <Section title="Commercial">
-            <Field label={op.price_per_sub == null ? "Pipeline Value (legacy)" : "Net RC (THB/Month)"} value={formatTHB(op.pipeline_value)} />
-            <Field label="Number of Subs" value={op.quantity} />
-            <Field label="Price per Sub (THB/Month)" value={op.price_per_sub != null ? formatTHB(op.price_per_sub) : "—"} />
-            <Field label="OC (one-time)" value={op.oc != null ? formatTHB(op.oc) : ""} />
-            <Field label="Contract Period (months)" value={op.contract_period} />
-            <p className="text-xs text-muted-foreground col-span-2 mt-1">Net RC = Number of Subs × Price per Sub + OC ÷ 12.</p>
-          </Section>
-
-          <Section title="Pipeline">
-            <Field label="Stage" value={stage?.name} />
-            <Field label="Stage Entered" value={`${formatDate(op.stage_entered_at)} (${stageAging} days)`} />
-            <Field label="Expected Close Month" value={formatMonth(op.expected_close_month)} />
-            <Field label="Created" value={`${formatDate(op.created_date)} (${op.created_month || "—"})`} />
-            <Field label="Created By" value={maps.member[op.created_by_user_id]?.name || "—"} />
-          </Section>
-
-          <Section title="Support / Internal Coordination">
-            <Field label="Working With" value={op.working_with ? `${op.working_with} (${wwAging} days)` : "—"} />
-            <Field label="Support Needed" value={op.support_needed ? "Yes" : "No"} />
-            {op.support_needed && <Field label="Support Type" value={op.support_type} />}
-            {workingTeams.length > 0 && <Field label="Working With Teams" value={workingTeams.join(", ")} />}
-            {workingPeople.length > 0 && <Field label="Working With People" value={workingPeople.join(", ")} />}
-            {op.support_needed && <Field label="Support Note" value={op.support_note} />}
-          </Section>
-
-          {op.status !== "open" && (
-            <Section title="Closure">
-              {op.status === "won" && <Field label="Won At" value={formatDate(op.won_at)} />}
-              {op.status === "won" && <Field label="Won By" value={maps.member[op.won_by]?.name} />}
-              {op.status === "lost" && <Field label="Lost At" value={formatDate(op.lost_at)} />}
-              {op.status === "lost" && <Field label="Lost By" value={maps.member[op.lost_by]?.name} />}
-              {op.status === "lost" && <Field label="Lost Reason" value={lostReason?.name} />}
-              {op.status === "lost" && <Field label="Lost Note" value={op.lost_note} />}
-              {op.status === "archived" && <Field label="Archived At" value={formatDate(op.archived_at)} />}
-            </Section>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <Section title="Quick Actions" stacked>
-            <PipelineQuickActions op={op} />
-          </Section>
-
-          {canEdit && <Section title="Other Actions" stacked>
-            <div className="grid grid-cols-1 gap-2">
-              <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "closemonth" })}><CalendarClock className="w-4 h-4 mr-2" /> Change Close Month</Button>
-              {op.support_needed
-                ? <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: false })}>
-                    <Wrench className="w-4 h-4 mr-2" /> Remove Needs Support
-                  </Button>
-                : <Button variant="outline" size="sm" className="rounded-lg justify-start" onClick={() => setAction({ type: "support", needed: true })}>
-                    <Wrench className="w-4 h-4 mr-2" /> Mark Needs Support
-                  </Button>}
+            <Field label="Territory" value={territory?.name || "Not assigned"} />
+            {originalOwner && originalOwner.id !== op.owner_id && <Field label="Original Owner" value={originalOwner.name} />}
+            <div className="col-span-full border-t pt-4">
+              <h3 className="mb-2 text-sm font-semibold">Working With</h3>
+              <div className="flex flex-wrap gap-2">
+                {workingTeams.length ? workingTeams.map((team) => <span key={team} className="rounded-md border bg-secondary/50 px-2.5 py-1 text-xs font-medium">{team}</span>)
+                : <span className="text-sm text-muted-foreground">{op.working_with || "Not assigned"}</span>}
+              </div>
             </div>
-          </Section>}
+            <div className="col-span-full border-t pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold">Needs Support</h3>
+                  <Badge variant="outline" className={op.support_needed ? "border-amber-200 bg-amber-50 text-amber-800" : "text-muted-foreground"}>{op.support_needed ? "Yes" : "No"}</Badge>
+                </div>
+                <SupportToggleAction op={op} canEdit={canEdit} />
+              </div>
+              {op.support_needed && <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Support Type" value={op.support_type} />
+                <Field wide label="Support Note" value={op.support_note} />
+              </div>}
+              {!op.support_needed && <p className="mt-2 text-xs text-muted-foreground">No support requested</p>}
+            </div>
+          </DetailSection>
 
-          <Section title="History" stacked>
-            <HistoryTimeline opportunityId={op.id} />
-          </Section>
+          {op.status !== "open" && <DetailSection number="—" title="Closure">
+            {op.status === "won" && <Field label="Won At" value={formatDate(op.won_at)} />}
+            {op.status === "won" && <Field label="Won By" value={maps.member[op.won_by]?.name} />}
+            {op.status === "lost" && <Field label="Lost At" value={formatDate(op.lost_at)} />}
+            {op.status === "lost" && <Field label="Lost By" value={maps.member[op.lost_by]?.name} />}
+            {op.status === "lost" && <Field label="Lost Reason" value={lostReason?.name} />}
+            {op.status === "lost" && <Field wide label="Lost Note" value={op.lost_note} />}
+            {op.status === "archived" && <Field label="Archived At" value={formatDate(op.archived_at)} />}
+          </DetailSection>}
         </div>
+        <aside className="min-w-0 xl:sticky xl:top-5">
+          <div className="rounded-2xl border bg-card p-4 shadow-soft md:p-5">
+            <h2 className="mb-4 text-base font-semibold">Quick Update</h2>
+            <PipelineQuickActions op={op} />
+          </div>
+        </aside>
       </div>
+
+      <section className="mt-6 rounded-2xl border bg-card p-5 md:p-7" aria-label="Activity History">
+        <div className="mb-5 flex items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-sm font-bold text-red-600">05</span>
+          <h2 className="text-base font-semibold">Activity History</h2>
+        </div>
+        <HistoryTimeline opportunityId={op.id} revision={op.updated_date} />
+      </section>
 
       <OpportunityForm open={editOpen} onClose={() => setEditOpen(false)} opportunity={op} />
 
@@ -295,7 +296,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
   if (t === "reassign")
     return (
       <div className="space-y-2">
-        <Label>Opportunity Owner</Label>
+        <Label>AE Owner</Label>
         <Select value={action.ownerId || ""} onValueChange={(v) => setAction({ ...action, ownerId: v })}>
           <SelectTrigger><SelectValue placeholder="Keep current" /></SelectTrigger>
           <SelectContent>{ownerOpts.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
@@ -367,20 +368,23 @@ function RemarkField({ remark, setRemark }) {
   );
 }
 
-function Section({ title, children, stacked }) {
+function DetailSection({ number, title, children }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-      <h3 className="text-[13px] font-semibold mb-4 text-foreground/80">{title}</h3>
-      {stacked ? children : <div className="grid grid-cols-2 gap-x-5 gap-y-4">{children}</div>}
-    </div>
+    <section className="border-b py-6 last:border-b-0">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-sm font-bold text-red-600">{number}</span>
+        <h2 className="text-base font-semibold">{title}</h2>
+      </div>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">{children}</div>
+    </section>
   );
 }
 
-function Field({ label, value }) {
+function Field({ label, value, wide = false }) {
   return (
-    <div>
-      <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</div>
-      <div className="text-[13px] mt-1 text-foreground/90">{value || value === 0 ? value : "—"}</div>
+    <div className={wide ? "min-w-0 sm:col-span-2" : "min-w-0"}>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="break-words text-sm leading-relaxed text-foreground">{value || value === 0 ? value : "—"}</div>
     </div>
   );
 }

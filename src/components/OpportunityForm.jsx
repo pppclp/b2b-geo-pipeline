@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES, formatMonth } from "@/lib/pipeline";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
@@ -58,7 +57,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
       setForm({ ...empty, ...opportunity,
         working_with_team_ids: opportunity.working_with_team_ids ||
           (master?.WorkingWithOption || []).find(t=>t.name===opportunity.working_with)?.id || "",
-        working_with_user_ids: opportunity.working_with_user_ids || "",
       });
     } else {
       const first = activeStages[0];
@@ -138,8 +136,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     requiredProblem("stage_id", !!form.stage_id, "Stage"),
     requiredProblem("expected_close_month", !!form.expected_close_month, "Expected Close Month"),
     String(form.remark || "").length > 500 && "Remark (max 500 characters)",
-    form.support_needed && !String(form.support_type || "").trim() && "Support Type",
-    form.support_needed && !String(form.support_note || "").trim() && "Support Note",
     (pricingChanged || !opportunity) && !(legacyEdit && !hasUnitPrice) && calculatedNetRc === null &&
       "Number of Subs / Price per Sub",
   ].filter(Boolean);
@@ -175,10 +171,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         contract_period: form.contract_period ? Number(form.contract_period) : null,
         working_with: form.working_with || "",
         working_with_team_ids: form.working_with_team_ids || "",
-        working_with_user_ids: form.working_with_user_ids || "",
-        support_needed: !!form.support_needed,
-        support_type: form.support_needed ? (form.support_type || "") : "",
-        support_note: form.support_needed ? String(form.support_note || "").trim() : "",
         pipeline_value: calculatedNetRc,
       };
       if (legacyEdit && !hasUnitPrice) {
@@ -275,7 +267,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
 
           <div>
-            <Label>Opportunity Owner *</Label>
+            <Label>AE Owner *</Label>
             <Select value={form.owner_id} onValueChange={(v) => set("owner_id", v)} disabled={!canChangeOwner}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
@@ -372,45 +364,23 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Label>Working With</Label>
             <WorkingWithMultiSelect
               teams={master?.WorkingWithOption || []}
-              people={master?.TeamMember || []}
-              regionId={form.region_id}
               disabled={closedAe}
               teamIds={form.working_with_team_ids}
-              userIds={form.working_with_user_ids}
               onTeams={v=>set("working_with_team_ids",v)}
-              onUsers={v=>set("working_with_user_ids",v)}
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-2 border-t">
-          <Switch checked={form.support_needed} onCheckedChange={(v) => set("support_needed", v)} />
-          <Label className="cursor-pointer">Needs Support</Label>
-        </div>
-        {form.support_needed && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Support Type</Label>
-              <Select value={form.support_type} onValueChange={(v) => set("support_type", v)}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {supportTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="sm:col-span-2">
-              <Label>Support Note</Label>
-              <Textarea maxLength={1000} value={form.support_note} onChange={(e) => set("support_note", e.target.value)} rows={2} />
-            </div>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground">
+          Needs Support is managed from Pipeline Detail or Quick View.
+        </p>
 
         {!valid && <p role="alert" className="text-xs text-amber-700">Check: {problems.join(", ")}</p>}
         {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={submit} disabled={!valid || saving}>
-            {saving ? "Saving…" : opportunity ? "Save Changes" : "Create Opportunity"}
+            {saving ? "Saving…" : opportunity ? "Save Changes" : "Create Pipeline"}
           </Button>
         </DialogFooter>
       </DialogContent>
