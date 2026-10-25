@@ -66,6 +66,22 @@ function harness(){
 }
 const db=(h,s)=>h.table["B2B_GEO_Pipeline_DB.xlsx|"+s].rows;
 
+test("imports accept omitted contacts and Industrial, but reject a truncated Business ID",()=>{
+ const h=harness(),base={
+  customer_name:"De-identified factory",business_id:"0000000000123",customer_type:"Industrial",
+  sales_channel:"AE Self",quantity:2,price_per_sub:300,
+  product_category_id:"CAT1",expected_close_month:"2026-11",region_id:"R1",
+  owner_id:"AE1",current_handler_id:"AE1",stage_id:"STG1",status:"open"
+ };
+ const created=h.call("ADMIN","POST","entities/Opportunity",base);
+ assert.equal(created.customer_type,"Industrial");
+ assert.equal(created.contact_name || "","");
+ assert.equal(created.contact_phone || "","");
+ const prior=h.table["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length;
+ assert.throws(()=>h.call("ADMIN","POST","entities/Opportunity",{...base,business_id:"123456789012"}),
+   e=>e.status===400&&/13 digits/.test(e.message));
+ assert.equal(h.table["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,prior);
+});
 test("successful handoff creates recipient-only unread notification; repeat read idempotent",()=>{
  const h=harness(),op=h.create();
  assert.equal(h.call("SM1","GET","notifications").unread_count,0);
