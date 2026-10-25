@@ -57,7 +57,7 @@ function harness(){
   return core.handle({userId,method,path,body:revisionBody});
   };
  const create=()=>call("ADMIN","POST","entities/Opportunity",{
-  customer_name:"Test Account",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
+  customer_name:"Test Account",business_id:"0000000000123",customer_type:"SME",sales_channel:"AE Self",
   contact_name:"Tester",contact_phone:"0812345678",quantity:1,price_per_sub:100,
   product_category_id:"CAT1",expected_close_month:"2026-11",region_id:"R1",
   owner_id:"AE1",current_handler_id:"AE1",stage_id:"STG1",status:"open"
@@ -313,7 +313,7 @@ test("UAT: two browser snapshots cannot overwrite changed teams; stale save has 
 test("UAT: Needs Support creates server-owned on/off history for all four roles, limited by scope",()=>{
  const h=harness(),r1=h.create(),id=r1.id;
  const r2=h.call("ADMIN","POST","entities/Opportunity",{
-   customer_name:"Region 2 test",business_id:"22222",customer_type:"SME",sales_channel:"AE Self",
+   customer_name:"Region 2 test",business_id:"0000000022222",customer_type:"SME",sales_channel:"AE Self",
    contact_name:"Region 2",contact_phone:"0800000011",quantity:1,price_per_sub:100,
    product_category_id:"CAT1",expected_close_month:"2026-12",region_id:"R2",
    owner_id:"AE2",current_handler_id:"AE2",stage_id:"STG1"
