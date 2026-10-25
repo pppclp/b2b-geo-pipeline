@@ -86,6 +86,10 @@ function handle_(req) {
 }
 
 function uatLogin_(store, body) {
+  // This endpoint is never a valid Production identity provider.
+  var environment = String(PropertiesService.getScriptProperties().getProperty("GEO_ENVIRONMENT") || "").toUpperCase();
+  if (environment === "PRODUCTION" || environment === "PROD")
+    throwUatError_(503, "UAT password login is disabled in Production");
   var username = normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
@@ -198,7 +202,7 @@ function geoUatTemporaryPasswordWindowOpen_() {
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS") !== "true") return false;
   var environment = String(props.getProperty("GEO_ENVIRONMENT") || "").toUpperCase();
-  if (environment === "PRODUCTION" || environment === "PROD") return false;
+  if (environment !== "UAT") return false;
   var expiresAt = props.getProperty("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT");
   if (expiresAt) {
     var timestamp = Date.parse(expiresAt);
