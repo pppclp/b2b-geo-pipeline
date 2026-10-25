@@ -220,6 +220,24 @@ test("Needs Support toggle works for AE, SM, Management and Admin without creati
  assert.ok(events.some(x=>x.field_name==="support_type_id"));
 });
 
+test("Creating with Needs Support requires Type/Note but does not create a ticket",()=>{
+ const h=harness();
+ const payload={
+   customer_name:"Flagged account",business_id:"989",customer_type:"SME",
+   sales_channel:"AE Self",contact_name:"Contact",contact_phone:"0800000000",
+   quantity:1,price_per_sub:100,product_category_id:"CAT1",
+   expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",
+   stage_id:"STG1",support_needed:true,client_request_id:"support_test_create_001"
+ };
+ assert.throws(()=>h.call("AE1","POST","entities/Opportunity",payload),e=>e.status===400);
+ const op=h.call("AE1","POST","entities/Opportunity",{
+   ...payload,support_type:"Pricing",support_note:"Please review"
+ });
+ assert.equal(op.support_needed,true);
+ assert.equal(db(h,"Support_Requests").length,0);
+ assert.equal(db(h,"Pipelines").find(x=>x.opportunity_id===op.id).support_note,"Please review");
+});
+
 test("Toggle rejects invalid inputs and enforces AE scope; old ticket API is retired",()=>{
  const h=harness(),op=h.create(),id=op.id;
  assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{support_needed:true}),e=>e.status===403);
