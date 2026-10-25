@@ -6,11 +6,12 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { agingDays, formatMonth, STATUS_LABELS , monthOf } from "@/lib/pipeline";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
-import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
+import { isStageSlaOverdue } from "@/lib/dashboardMetrics";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
-import {shouldClearOwnerOnRegionChange, matchesPipelineSearch} from "@/lib/pipelineFilterUi";
+import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
+import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipelineView } from "@/lib/pipelineListFilters";
 import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
@@ -100,44 +101,18 @@ export default function Pipeline() {
     });
   };
 
-  const filteredWithoutStage = useMemo(() => {
-    return scopedOpportunities.filter((o) => {
-      if (!matchesPipelineSearch(o, filters.search)) return false;
-      if (filters.created_month && o.created_month !== filters.created_month) return false;
-      if (filters.close_month && o.expected_close_month !== filters.close_month) return false;
-      if (filters.region && o.region_id !== filters.region) return false;
-      if (filters.owner && o.owner_id !== filters.owner) return false;
-      if (filters.handler && o.current_handler_id !== filters.handler) return false;
-      if (filters.status && filters.status !== "all" && o.status !== filters.status) return false;
-      if (filters.sm_info === "missing" &&
-          (o.status !== "open" ||
-            (o.scenario_id && o.ccp_check_result && o.ccp_check_result !== "pending"))) return false;
-      if (filters.product_category && o.product_category_id !== filters.product_category) return false;
-      if (filters.sales_channel && o.sales_channel !== filters.sales_channel) return false;
-      if (filters.ccp_check_result && o.ccp_check_result !== filters.ccp_check_result) return false;
-      if (filters.scenario && o.scenario_id !== filters.scenario) return false;
-      if (filters.working_with) {
-        const teamId = (master?.WorkingWithOption || [])
-          .find(t => t.name === filters.working_with)?.id;
-        const teamIds = String(o.working_with_team_ids || "")
-          .split(",").map(id => id.trim()).filter(Boolean);
-        if (o.working_with !== filters.working_with &&
-            (!teamId || !teamIds.includes(teamId))) return false;
-      }
-      if (filters.support === "1" && !o.support_needed) return false;
-      if (filters.support === "0" && o.support_needed) return false;
-      if (filters.stuck === "1" && !isStageSlaOverdue(o, maps.stage)) return false;
-      if (filters.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
-      if (filters.won_month && monthOf(o.won_at) !== filters.won_month) return false;
-      if (filters.lost_month && monthOf(o.lost_at) !== filters.lost_month) return false;
-      if (filters.lost_reason && o.lost_reason_id !== filters.lost_reason) return false;
-      return true;
-    });
-  }, [scopedOpportunities, filters, config, maps.stage, master?.WorkingWithOption]);
-
+  const filterContext = useMemo(() => ({ master, maps, config }), [master, maps, config]);
+  const filteredWithoutStage = useMemo(() =>
+    scopedOpportunities.filter((o) => matchesPipelineFilters(o, filters, filterContext, { ignoreStage: true })),
+    [scopedOpportunities, filters, filterContext]
+  );
   const filtered = useMemo(() => filters.stage
     ? filteredWithoutStage.filter((o) => o.stage_id === filters.stage)
     : filteredWithoutStage, [filteredWithoutStage, filters.stage]);
+  const workCounts = useMemo(() =>
+    quickViewCounts(scopedOpportunities, filters, profile?.id, filterContext),
+    [scopedOpportunities, filters, profile?.id, filterContext]
+  );
   const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
   // This is a presentation-only selector, never a replacement for server RBAC.
   // Match the Dashboard's region choices: Admin sees active Regions; all other
@@ -186,14 +161,24 @@ export default function Pipeline() {
   const selectedPipeline = quickView ? scopedOpportunities.find((item) => item.id === quickView.id) : null;
 
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
-  const openScope = scopedOpportunities.filter((o) => o.status === "open");
   const quickViews = [
-    {id:"all",title:"All Open",count:openScope.length,url:"/pipeline"},
-    {id:"assigned-to-me",title:"Assigned to Me",count:openScope.filter(o=>o.current_handler_id===profile?.id).length,url:"/pipeline?view=assigned-to-me"},
-    {id:"support-needed",title:"Needs Support",count:openScope.filter(o=>o.support_needed).length,url:"/pipeline?view=support-needed"}
+    { id: "all", title: "All Open", count: workCounts.all },
+    { id: "assigned-to-me", title: "With Me", count: workCounts["assigned-to-me"] },
+    { id: "support-needed", title: "Needs Support", count: workCounts["support-needed"] },
   ];
-  const activeQuickView = ["assigned-to-me","support-needed"].includes(params.get("view"))
-    ? params.get("view") : "all";
+  const activeQuickView = activePipelineView(filters, profile?.id);
+  const selectQuickView = (viewId) => {
+    const next = switchPipelineView(filters, viewId, profile?.id);
+    setFilters(next);
+    // Mirror the view and active filters into the URL so refreshing or
+    // opening a saved link will keep the same scope. Do not reset sort.
+    const nextParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(next)) {
+      if (value && !(key === "status" && value === "open")) nextParams.set(key, value);
+    }
+    if (viewId !== "all") nextParams.set("view", viewId);
+    setParams(nextParams, { replace: true });
+  };
 
   // Never present stale totals after a failed batch read as current data.
   if (loading || error) return (
@@ -212,9 +197,9 @@ export default function Pipeline() {
     <div className="p-4 md:p-5 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{params.get("view") === "assigned-to-me" ? "Assigned to Me" : params.get("view") === "support-needed" ? "Needs Support" : "Pipeline"}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Pipeline</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {sorted.length} opportunities · {formatTHB(totalValue)}
+            {sorted.length} Pipelines · {formatTHB(totalValue)} Net RC
             <span className="mx-2 text-border" aria-hidden="true">·</span>
             <span aria-label={"Region scope: " + regionContext.label}>{regionContext.label}</span>
           </p>
@@ -239,25 +224,24 @@ export default function Pipeline() {
             : "No Pipelines are available for this account. If you expect records, check the deployment and access settings."}
         </p>
       )}
-      <section aria-label="Pipeline quick views" className="mb-4">
-        <p className="mb-2 text-[11px] font-medium text-muted-foreground">Quick Views · Open Pipelines within your access scope</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {quickViews.map(item=><button key={item.id} type="button"
-            onClick={()=>{
-              setFilters(item.id==="all" ? {status:"open"} :
-                {status:"open", ...(item.id==="assigned-to-me" ? {handler:profile?.id} : {support:"1"})});
-              setSort("close_month");
-              navigate(item.url);
-            }} aria-pressed={activeQuickView===item.id}
-            className={`rounded-xl border px-4 py-3 text-left transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeQuickView===item.id?"border-primary/50 bg-brand-tint/40":"border-border bg-card"}`}>
-              <span className="block text-[11px] text-muted-foreground">{item.title}</span>
-              <span className="mt-1 block text-xl font-semibold tabular-nums">{item.count}</span>
-            </button>)}
+      <nav aria-label="Pipeline work views" className="mb-3 border-b border-border/70 pb-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {quickViews.map((item) => (
+            <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
+              aria-current={activeQuickView === item.id ? "page" : undefined}
+              aria-pressed={activeQuickView === item.id}
+              className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeQuickView === item.id
+                ? "bg-brand-tint text-brand"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
+              {item.title}
+              <span className="text-[12px] font-semibold tabular-nums">{item.count}</span>
+            </button>
+          ))}
         </div>
-      </section>
-      <div className="border-y border-border/70 py-3 mb-4">
+      </nav>
+      <div className="mb-3">
         <FilterBar filters={filters} onFilter={onFilter} stageChipsVisible={view === "list"}
-          showRegionControl={!hasRegionQuickFilter} />
+          showRegionControl={false} />
       </div>
 
       {hasRegionQuickFilter && (
@@ -267,57 +251,53 @@ export default function Pipeline() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-
-        <div className="inline-flex rounded-xl bg-secondary p-1" role="group" aria-label="Pipeline view">
-          <button type="button" aria-pressed={view === "list"}
-            onClick={() => setView("list")}
-            className={view === "list"
-              ? "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg bg-card text-foreground shadow-soft font-medium"
-              : "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg text-muted-foreground hover:text-foreground"}>
-            <List className="w-4 h-4" /> List
-          </button>
-          <button type="button" aria-pressed={view === "board"}
-            onClick={() => setView("board")}
-            className={view === "board"
-              ? "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg bg-card text-foreground shadow-soft font-medium"
-              : "flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] rounded-lg text-muted-foreground hover:text-foreground"}>
-            <KanbanSquare className="w-4 h-4" /> Board
-          </button>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {view === "list" && (
+            <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Quick filter by Stage">
+              <span className="shrink-0 text-[11px] font-medium text-muted-foreground">Stage</span>
+              <button type="button" onClick={() => onFilter("stage", "")}
+                aria-pressed={!filters.stage}
+                className={!filters.stage
+                  ? "shrink-0 whitespace-nowrap rounded-lg border border-primary/40 bg-brand-tint px-2.5 py-1.5 text-[11px] font-medium text-brand"
+                  : "shrink-0 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground"}>
+                All <span className="ml-1 tabular-nums">{filteredWithoutStage.length}</span>
+              </button>
+              {activeStages.map((stage) => (
+                <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
+                  aria-pressed={filters.stage === stage.id}
+                  className={filters.stage === stage.id
+                    ? "shrink-0 whitespace-nowrap rounded-lg border border-primary/40 bg-brand-tint px-2.5 py-1.5 text-[11px] font-medium text-brand"
+                    : "shrink-0 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground"}>
+                  {stage.name} <span className="ml-1 tabular-nums">{stageCounts.get(stage.id) || 0}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Sort</span>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg bg-secondary p-1" role="group" aria-label="Pipeline view">
+            <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}
+              className={view === "list"
+                ? "flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground shadow-soft"
+                : "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"}>
+              <List className="h-3.5 w-3.5" /> List
+            </button>
+            <button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}
+              className={view === "board"
+                ? "flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground shadow-soft"
+                : "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"}>
+              <KanbanSquare className="h-3.5 w-3.5" /> Board
+            </button>
+          </div>
           <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="w-[234px] max-w-[65vw] h-9 rounded-lg"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Sort Pipelines" className="h-9 w-[205px] max-w-[58vw] rounded-lg text-[12px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {SORTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              {SORTS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       </div>
-
-
-      {view === "list" && (
-        <div className="flex items-center gap-2 flex-wrap mb-3" role="group" aria-label="Quick filter by Stage">
-          <span className="text-[11px] font-medium text-muted-foreground mr-1">Stage</span>
-          <button type="button" onClick={() => onFilter("stage", "")}
-            aria-pressed={!filters.stage}
-            className={!filters.stage
-              ? "rounded-full px-3 py-1.5 border border-primary/40 bg-brand-tint text-brand text-[11px] font-medium"
-              : "rounded-full px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground text-[11px]"}>
-            All Stages <span className="ml-1 text-[10px] opacity-75 tabular-nums">{filteredWithoutStage.length}</span>
-          </button>
-          {activeStages.map((stage) => (
-            <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
-              aria-pressed={filters.stage === stage.id}
-              className={filters.stage === stage.id
-                ? "rounded-full px-3 py-1.5 border border-primary/40 bg-brand-tint text-brand text-[11px] font-medium"
-                : "rounded-full px-3 py-1.5 border border-border text-muted-foreground hover:text-foreground text-[11px]"}>
-              {stage.name} <span className="ml-1 text-[10px] opacity-75 tabular-nums">{stageCounts.get(stage.id) || 0}</span>
-            </button>
-          ))}
-        </div>
-      )}
 
       {sorted.length === 0 ? (
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
