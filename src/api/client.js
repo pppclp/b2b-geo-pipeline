@@ -98,6 +98,8 @@ async function request(method, path, { query, body } = {}) {
     }
     const err = new Error(data?.message || `${method} ${path} failed (${status})`);
     err.status = status;
+    err.code = typeof data?.code === "string" ? data.code : "API_ERROR";
+    err.errorId = typeof data?.error_id === "string" ? data.error_id : "";
     throw err;
   }
   return data;
