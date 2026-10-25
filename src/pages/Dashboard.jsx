@@ -7,6 +7,7 @@ import { dashboardCohort, dashboardMetrics, isStageSlaOverdue } from "@/lib/dash
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
+import { withMePipelines } from "@/lib/dashboardQueue";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
 
@@ -45,7 +46,7 @@ export default function Dashboard() {
   const { open, won, supportNeeded, stageOverdue } = dashboardMetrics(sales, {
     stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
-  const assigned = cohort.filter((o) => isOpen(o) && o.current_handler_id === profile?.id);
+  const assigned = withMePipelines(cohort, profile?.id);
   const assignedOverdue = assigned.filter((o) => isStageSlaOverdue(o, maps.stage));
 
   const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); };
