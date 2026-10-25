@@ -1,19 +1,29 @@
-# Controlled UAT deployment. GitHub Pages is deployed only after the matching Apps Script release is verified.
-# Needs a repository variable VITE_GEO_API_URL (Settings → Secrets and variables →
-# Actions → Variables) holding the Apps Script web app URL ending in /exec.
+# Controlled Pages release:
+# - UI-only changes after the LAST SUCCESSFULLY DEPLOYED revision publish on push.
+# - Backend/API/import/auth/data changes require one coordinated UAT verification.
+# - The gate compares against the last published Pages SHA, not simply the prior
+#   commit, so pending backend changes can never slip in with a later CSS edit.
 name: Deploy to GitHub Pages
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'tailwind.config.js'
   workflow_dispatch:
     inputs:
       backend_verified:
-        description: "I verified the matching Apps Script deployment and API contract in UAT"
+        description: "Confirm matching Apps Script deployment and API contract were verified in UAT (needed for backend-changing releases)"
         type: boolean
         required: true
         default: false
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -22,7 +32,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      release_allowed: ${{ steps.gate.outputs.release_allowed }}
+      release_mode: ${{ steps.gate.outputs.release_mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Assess changes since the last published Pages version
+        id: gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BACKEND_VERIFIED: ${{ inputs.backend_verified }}
+        run: node scripts/pages-release-gate.mjs
+
   build:
+    needs: preflight
+    if: needs.preflight.outputs.release_allowed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,21 +61,20 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Require backend compatibility verification
-        env:
-          VERIFIED: ${{ inputs.backend_verified }}
-        run: |
-          if [ "$VERIFIED" != "true" ]; then echo "::error::Verify compatible Apps Script deployment before Pages release"; exit 1; fi
-      - name: Check backend URL
+      - name: Check backend URL is set
         env:
           VITE_GEO_API_URL: ${{ vars.VITE_GEO_API_URL }}
         run: |
           case "$VITE_GEO_API_URL" in
             */exec) echo "Backend: Apps Script" ;;
-            *) echo "::error::Set repository variable VITE_GEO_API_URL to the Apps Script /exec URL"; exit 1 ;;
+            *) echo "::error::Set repository variable VITE_GEO_API_URL to the verified Apps Script /exec URL"; exit 1 ;;
           esac
       - run: npm ci
-      - name: Build
+      - name: Lint
+        run: npm run lint
+      - name: Run automated regression tests
+        run: node --test tests/*.test.mjs
+      - name: Build Frontend
         env:
           VITE_GEO_API_URL: ${{ vars.VITE_GEO_API_URL }}
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
@@ -55,6 +85,7 @@ jobs:
 
   deploy:
     needs: build
+    if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
