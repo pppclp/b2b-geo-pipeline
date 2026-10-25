@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { ROLE_LABELS, currentMonthKey } from "@/lib/pipeline";
+import { currentMonthKey } from "@/lib/pipeline";
 import { dashboardCohort, dashboardMetrics, isStageSlaOverdue } from "@/lib/dashboardMetrics";
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
@@ -116,8 +116,7 @@ export default function Dashboard() {
   if (isAdmin) {
     return (
       <div className="p-5 md:p-7 max-w-[1400px] mx-auto space-y-4">
-        <div><h1 className="text-[22px] font-semibold">Data & Access</h1>
-          <p className="text-sm text-muted-foreground mt-1">Admin workspace · {regionContext.label}</p></div>
+        <h1 className="text-[22px] font-semibold">Data & Access</h1>
         {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Panel title="User & Organization"><p className="text-xs text-muted-foreground mb-3">Manage users and authorized Region mappings.</p>
@@ -144,11 +143,6 @@ export default function Dashboard() {
           <h1 className="text-[22px] font-semibold tracking-tight">
             {isAE ? "My Dashboard" : isSM ? "Regional Dashboard" : "Management Dashboard"}
           </h1>
-          <p className="text-[12px] text-muted-foreground mt-0.5">
-            {ROLE_LABELS[role]} · {isAE ? "Owned sales and assigned work" : "Authorized regions only"}
-            <span className="mx-2" aria-hidden="true">·</span>
-            <span aria-label={"Region scope: " + regionContext.label}>{regionContext.label}</span>
-          </p>
         </div>
         <div className="flex flex-wrap gap-3 items-end">
           <div className="w-[150px]">
@@ -208,6 +202,7 @@ export default function Dashboard() {
                 ...(selectedTab === "with" ? { handler: profile.id } : {}),
                 ...(selectedTab === "overdue" ? { stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) } : {}),
                 ...(selectedTab === "support" ? { support: "1" } : {}),
+                ...(selectedTab === "due" ? { due_this_month: "1" } : {}),
               })
             }>View All</Button>
           </div>
