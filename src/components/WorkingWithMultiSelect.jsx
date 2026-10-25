@@ -1,37 +1,75 @@
-import React from "react";
-import {Checkbox} from "@/components/ui/checkbox";
+import React, { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown } from "lucide-react";
 
-// Uses comma-separated stable master IDs in the Pipeline row. Original legacy
-// working_with_id remains untouched unless the user changes the selection.
-export const splitWorkingIds=(value)=>String(value||"").split(",").map(x=>x.trim()).filter(Boolean);
-export default function WorkingWithMultiSelect({teams=[],people=[],regionId,teamIds="",userIds="",disabled=false,onTeams,onUsers}){
-  const activeTeams=teams.filter(t=>t.active||splitWorkingIds(teamIds).includes(t.id));
-  const activePeople=people.filter(p=>p.active&&(p.region_ids||[]).includes(regionId) || splitWorkingIds(userIds).includes(p.id));
-  const toggle=(value,id,callback)=>{
-    const current=new Set(splitWorkingIds(value));
-    current.has(id)?current.delete(id):current.add(id);
-    callback([...current].join(","));
+// The legacy person IDs remain stored in Sheets but are not editable in the UI.
+// Team IDs are the only input to the Working With experience.
+export const splitWorkingIds = (value) => String(value || "").split(",").map((id) => id.trim()).filter(Boolean);
+
+export function sortedWorkingWithTeams(teams = [], teamIds = "") {
+  const selected = new Set(splitWorkingIds(teamIds));
+  return teams
+    .filter((team) => team.active || selected.has(team.id))
+    .slice()
+    .sort((a, b) => {
+      const otherA = /^other$/i.test(String(a.name || "").trim());
+      const otherB = /^other$/i.test(String(b.name || "").trim());
+      if (otherA !== otherB) return otherA ? 1 : -1;
+      const an = Number(a.order), bn = Number(b.order);
+      const hasOrder = Number.isFinite(an) && String(a.order ?? "").trim() !== "" && Number.isFinite(bn) && String(b.order ?? "").trim() !== "";
+      if (hasOrder && an !== bn) return an - bn;
+      if (/^management$/i.test(String(a.name || "")) && otherB) return -1;
+      if (/^management$/i.test(String(b.name || "")) && otherA) return 1;
+      return 0; // preserve master ordering otherwise
+    });
+}
+
+export default function WorkingWithMultiSelect({ teams = [], teamIds = "", disabled = false, onTeams }) {
+  const [open, setOpen] = useState(false);
+  const ids = splitWorkingIds(teamIds);
+  const options = sortedWorkingWithTeams(teams, teamIds);
+  const selection = new Set(ids);
+  const selected = options.filter((team) => selection.has(team.id));
+  const update = (id) => {
+    const next = new Set(ids);
+    if (next.has(id)) next.delete(id);
+    else if (next.size < 8) next.add(id);
+    onTeams?.([...next].join(","));
   };
-  return <div className="min-w-0 space-y-3 rounded-xl border border-border p-3 bg-secondary/20">
-    <div>
-      <p className="text-xs font-semibold mb-2">Teams · เลือกได้หลายทีม</p>
-      <div className="grid grid-cols-1 gap-2">
-        {activeTeams.map(t=><label key={t.id} className="flex min-w-0 gap-2 items-start text-xs cursor-pointer">
-          <Checkbox className="h-4 w-4 shrink-0 rounded-sm" disabled={disabled} checked={splitWorkingIds(teamIds).includes(t.id)} onCheckedChange={()=>toggle(teamIds,t.id,onTeams)}/>
-          <span className="min-w-0 break-words">{t.name}</span>
-        </label>)}
-        {!activeTeams.length&&<span className="text-xs text-muted-foreground">No team options</span>}
-      </div>
-    </div>
-    <div className="border-t pt-3">
-      <p className="text-xs font-semibold mb-2">People · เลือกได้หลายคนใน Region</p>
-      <div className="grid grid-cols-1 gap-2 max-h-44 overflow-auto">
-        {activePeople.map(p=><label key={p.id} className="flex gap-2 items-center text-xs cursor-pointer">
-          <Checkbox disabled={disabled} checked={splitWorkingIds(userIds).includes(p.id)} onCheckedChange={()=>toggle(userIds,p.id,onUsers)}/>
-          <span className="min-w-0 break-words">{p.name} ({p.app_role?.toUpperCase()})</span>
-        </label>)}
-        {!activePeople.length&&<span className="text-xs text-muted-foreground">No people for this Region</span>}
-      </div>
-    </div>
-  </div>;
+
+  return (
+    <Popover open={open && !disabled} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" disabled={disabled}
+          aria-label="Choose Working With teams"
+          className="min-h-10 h-auto w-full justify-between gap-2 rounded-lg px-3 py-2 text-left font-normal">
+          <span className="min-w-0 flex flex-wrap items-center gap-1.5">
+            {selected.length ? selected.map((team) =>
+              <span key={team.id} className="rounded-md bg-secondary px-2 py-1 text-xs font-medium">{team.name}</span>
+            ) : <span className="text-muted-foreground">Add team</span>}
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(340px,calc(100vw-40px))] p-2" sideOffset={4}>
+        <p className="px-2 pb-2 text-xs font-semibold text-muted-foreground">Working With · Teams only</p>
+        <div className="max-h-60 space-y-0.5 overflow-y-auto" role="group" aria-label="Working With teams">
+          {options.map((team) =>
+            <label key={team.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-secondary/70">
+              <Checkbox checked={selection.has(team.id)} onCheckedChange={() => update(team.id)}
+                disabled={!selection.has(team.id) && selection.size >= 8} />
+              <span>{team.name}</span>
+            </label>
+          )}
+          {options.length === 0 && <p className="px-2 py-3 text-sm text-muted-foreground">No team options available</p>}
+        </div>
+        <div className="mt-2 flex items-center justify-between border-t px-2 pt-2">
+          <span className="text-xs text-muted-foreground">{selection.size} of 8 selected</span>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>Done</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
