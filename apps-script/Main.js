@@ -38,7 +38,7 @@ function serve_(raw) {
     }
     var status = err.status || 500;
     out = { status: status, body: status >= 500
-      ? { message: "Backend request failed. Contact support with error ID " + errorId, error_id: errorId }
+      ? { message: "Backend request failed. Contact support with error ID " + errorId, error_id: errorId, code: err.publicCode || "BACKEND_ERROR" }
       : { message: String((err && err.message) || "Request failed") } };
   }
   return json_(out);
@@ -481,10 +481,46 @@ SheetStore_.prototype.book_ = function (file) {
   return this.books[file];
 };
 
+// All configured runtime sheets must exist and retain their identity columns.
+ // A missing workbook tab must never look like an empty Pipeline (zero records).
+var GEO_REQUIRED_RUNTIME_HEADERS_ = {
+  Pipelines: ["opportunity_id","business_id","customer_name","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"],
+  Pipeline_Events: ["event_id","opportunity_id","event_type","actor_user_id","event_at"],
+  Support_Requests: ["request_id","opportunity_id","region_id","status","assigned_to_user_id","updated_at"],
+  Handoff_Notifications: ["notification_id","recipient_user_id","opportunity_id","read_at"],
+  Users: ["user_id","employee_id","role","status"],
+  User_Region: ["user_region_id","user_id","region_id"],
+  UAT_Credentials: ["employee_id / username"],
+  Lost_Reasons: ["reason_id"]
+};
+function geoSchemaError_(code, detail) {
+  var err = new Error(code + ": " + detail);
+  err.status = 503;
+  err.publicCode = code;
+  return err;
+}
+function geoAssertSheetSchema_(file, sheet, headers) {
+  if (!headers.length || headers.some(function (h) { return !h; }) ||
+      new Set(headers).size !== headers.length) {
+    throw geoSchemaError_("SCHEMA_MISMATCH", file + " / " + sheet + " has blank or duplicate header names");
+  }
+  var rule = GEO_CONTRACT.access.files[file] && GEO_CONTRACT.access.files[file].sheets &&
+    GEO_CONTRACT.access.files[file].sheets[sheet];
+  var required = (GEO_REQUIRED_RUNTIME_HEADERS_[sheet] || []).slice();
+  if (rule && rule.primary_key && required.indexOf(rule.primary_key) < 0) required.push(rule.primary_key);
+  var missing = required.filter(function (h) { return headers.indexOf(h) < 0; });
+  if (missing.length) {
+    throw geoSchemaError_("SCHEMA_MISMATCH", file + " / " + sheet + " missing columns: " + missing.join(", "));
+  }
+}
 SheetStore_.prototype.table = function (file, sheet) {
   var key = file + "|" + sheet;
   if (this.tables[key]) return this.tables[key];
   var ws = this.book_(file).getSheetByName(sheet);
+  if (!ws) throw geoSchemaError_("REQUIRED_SHEET_MISSING", file + " / " + sheet);
+  if (ws.getLastRow() < 1 || ws.getLastColumn() < 1) {
+    throw geoSchemaError_("SCHEMA_MISMATCH", file + " / " + sheet + " has no header row");
+  }
   var headers = [];
   var rows = [];
   if (ws && ws.getLastRow() > 0) {
@@ -502,7 +538,8 @@ SheetStore_.prototype.table = function (file, sheet) {
       if (has) rows.push(rec);
     }
   }
-  this.tables[key] = { headers: headers.filter(function (h) { return h; }), rows: rows };
+  geoAssertSheetSchema_(file, sheet, headers);
+  this.tables[key] = { headers: headers, rows: rows };
   this.loaded[key] = {
     headers: this.tables[key].headers.slice(),
     rows: rows.slice(),
