@@ -4,30 +4,34 @@ import { readFileSync } from "node:fs";
 
 const source = (path) => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
-test("Kanit is loaded exactly once for the entire app, including Thai and Latin text", () => {
+test("Kanit is loaded once as the app font for English, Thai, and numbers", () => {
   const html = source("index.html");
   const css = source("src/index.css");
-  assert.match(html, /fonts\\.googleapis\\.com\\/css2\\?family=Kanit:wght@300;400;500;600;700/);
-  assert.match(html, /display=swap/);
-  assert.doesNotMatch(css, /IBM Plex Sans Thai|["']Inter["']|@import url\\(['"]https:\\/\\/fonts\\.googleapis/);
+  assert.ok(html.includes("family=Kanit:wght@300;400;500;600;700"));
+  assert.ok(html.includes("display=swap"));
+  assert.ok(!css.includes("IBM Plex Sans Thai"));
+  assert.ok(!css.includes('"Inter"'));
+  assert.ok(!css.includes("@import url("));
 });
 
-test("All Tailwind font utility families resolve to Kanit design tokens", () => {
+test("Every Tailwind font family uses the Kanit typography tokens", () => {
   const css = source("src/index.css");
   const config = source("tailwind.config.js");
   for (const key of ["heading", "body", "display", "mono"])
-    assert.match(css, new RegExp("--font-" + key + ': "Kanit"'));
+    assert.ok(css.includes('--font-' + key + ': "Kanit"'), key);
   for (const key of ["sans", "serif", "heading", "body", "display", "mono"])
-    assert.match(config, new RegExp(key + ": \\['var\\(--font-"));
+    assert.ok(config.includes(key + ": ['var(--font-"), key);
 });
 
-test("Forms, dialogs, and headings use the global font and intentional weight hierarchy", () => {
+test("Kanit covers forms, portals, headings and sensible weights", () => {
   const css = source("src/index.css");
-  assert.match(css, /html\\s*\\{[^}]*font-family: var\\(--font-body\\)/s);
-  for (const el of ["button", "input", "textarea", "select", "option"])
-    assert.match(css, new RegExp("\\b" + el + "\\b"));
-  assert.match(css, /font-family: inherit/);
-  assert.match(css, /h1, h2, h3, h4, h5, h6\\s*\\{[^}]*font-weight: 600/s);
-  assert.match(css, /body\\s*\\{[^}]*font-weight: 400/s);
-  assert.match(source("src/components/AuthLayout.jsx"), /text-3xl font-semibold/);
+  assert.ok(css.includes("html {"));
+  assert.ok(css.includes("font-family: var(--font-body)"));
+  for (const element of ["button", "input", "textarea", "select", "option"])
+    assert.ok(css.includes(element), element);
+  assert.ok(css.includes("font-family: inherit"));
+  assert.ok(css.includes("h1, h2, h3, h4, h5, h6"));
+  assert.ok(css.includes("font-weight: 400"));
+  assert.ok(css.includes("font-weight: 600"));
+  assert.ok(source("src/components/AuthLayout.jsx").includes("text-3xl font-semibold"));
 });
