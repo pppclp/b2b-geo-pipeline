@@ -17,6 +17,7 @@ export default function SheetEditor() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState("");
+  const [cellStatus, setCellStatus] = useState({});
 
   // Source sheets only — app-maintained sheets (Opportunities, events, snapshots) are edited elsewhere.
   useEffect(() => {
@@ -61,10 +62,28 @@ export default function SheetEditor() {
   const can = (a) => data?.actions?.includes(a);
   const pk = data?.primary_key;
 
-  const saveCell = (row, col, value) => {
-    if (String(row[col] ?? "") === value) return;
-    run(() => db.sheets.update(current.file, current.sheet, row[pk], { [col]: value }));
+  const saveCell = async (row, col, value) => {
+    if (String(row[col] ?? "") === value || busy) return;
+    const cellKey = String(row[pk]) + ":" + col;
+    setCellStatus((old) => ({ ...old, [cellKey]: "Saving…" }));
+    setBusy(true);
+    setError("");
+    try {
+      await db.sheets.update(current.file, current.sheet, row[pk], { [col]: value });
+      await load();
+      await refresh();
+      setCellStatus((old) => ({ ...old, [cellKey]: "Saved" }));
+    } catch (error) {
+      setCellStatus((old) => ({ ...old, [cellKey]: "Save failed: " + error.message }));
+      setError(error.message);
+    } finally {
+      setBusy(false);
+    }
   };
+  const isUserChoice = (column) => current?.sheet === "Users" &&
+    (column === "role" || column === "status");
+  const columnOptions = (column) => column === "role"
+    ? ["AE", "SM", "Management", "Admin"] : ["Active", "Inactive"];
 
   const addRow = () => run(() => db.sheets.create(current.file, current.sheet, draft));
 
@@ -128,6 +147,22 @@ export default function SheetEditor() {
                     <td key={h} className="py-1 pr-2 min-w-[120px]">
                       {h === pk || !can("update") ? (
                         <span className="px-2 font-mono text-xs">{String(row[h] ?? "")}</span>
+                      ) : isUserChoice(h) ? (
+                        <div className="space-y-1">
+                          <Select value={String(row[h] || "")} disabled={busy}
+                            onValueChange={(value) => saveCell(row, h, value)}>
+                            <SelectTrigger aria-label={h + " for " + row[pk]} className="h-8">
+                              <SelectValue placeholder={"Select " + h}/>
+                            </SelectTrigger>
+                            <SelectContent>{columnOptions(h).map((value) =>
+                              <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
+                          </Select>
+                          {cellStatus[String(row[pk]) + ":" + h] && (
+                            <span role="status" className="block text-[10px] text-muted-foreground">
+                              {cellStatus[String(row[pk]) + ":" + h]}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <Input
                           key={String(row[h] ?? "")}
@@ -159,12 +194,20 @@ export default function SheetEditor() {
                 <tr>
                   {data.headers.map((h) => (
                     <td key={h} className="pt-3 pr-2">
-                      <Input
-                        className="h-8"
-                        placeholder={h === pk ? "auto" : h}
-                        value={draft[h] ?? ""}
-                        onChange={(e) => setDraft({ ...draft, [h]: e.target.value })}
-                      />
+                      {isUserChoice(h) ? (
+                        <Select value={draft[h] || ""} onValueChange={(value) =>
+                          setDraft((old) => ({ ...old, [h]: value }))}>
+                          <SelectTrigger aria-label={"New user " + h} className="h-8">
+                            <SelectValue placeholder={"Select " + h}/>
+                          </SelectTrigger>
+                          <SelectContent>{columnOptions(h).map((value) =>
+                            <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <Input className="h-8" placeholder={h === pk ? "auto" : h}
+                          value={draft[h] ?? ""}
+                          onChange={(e) => setDraft({ ...draft, [h]: e.target.value })}/>
+                      )}
                     </td>
                   ))}
                   <td className="pt-3">

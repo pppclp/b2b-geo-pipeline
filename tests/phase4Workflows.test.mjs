@@ -46,7 +46,10 @@ function harness(){
       body.expected_updated_at === undefined
       ? { ...body, expected_updated_at: String(table["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.find((r)=>String(r.opportunity_id)===decodeURIComponent(path.slice("entities/Opportunity/".length)))?.updated_at || "") }
       : body;
-    return core.handle({userId,method,path,body:actualBody});
+    const keyedBody = method === "POST" && path === "entities/Opportunity"
+      ? { ...actualBody, client_request_id: actualBody?.client_request_id || "phase4_req_" + String(++n).padStart(8,"0") }
+      : actualBody;
+    return core.handle({userId,method,path,body:keyedBody});
   };
  const create=()=>call("ADMIN","POST","entities/Opportunity",{
   customer_name:"Test Account",business_id:"123",customer_type:"SME",sales_channel:"AE Self",
@@ -144,6 +147,10 @@ test("AE creation alerts regional SM for missing Scenario / CCP+ without changin
  assert.equal(sm1.items[0].type,"sm_input_needed");
  assert.equal(sm1.items[0].needs_sm_input,true);
  assert.equal(sm1.items[0].customer_name,"Regional New Account");
+ assert.deepEqual(Object.keys(sm1.items[0]).sort(),[
+   "actor_name","created_at","customer_name","id","needs_sm_input",
+   "opportunity_id","read_at","type",
+ ].sort());
  assert.equal(h.call("M1","GET","notifications").unread_count,0);
  assert.equal(h.call("AE2","GET","notifications").unread_count,0);
  assert.equal(db(h,"Handoff_Notifications").length,2);

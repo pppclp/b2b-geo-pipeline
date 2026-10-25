@@ -296,7 +296,11 @@ export default function Pipeline() {
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
       ) : view === "board" ? (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-3 overflow-x-auto pb-4">
+          <div className="relative">
+            <p className="mb-2 text-right text-[11px] text-muted-foreground xl:hidden">
+              Scroll horizontally to see all stages →
+            </p>
+            <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Sales stages — scroll horizontally for more">
             {activeStages.map((stage) => {
               const stageOps = sorted.filter((o) => o.stage_id === stage.id);
               const stageValue = stageOps.reduce((a, o) => a + (o.pipeline_value || 0), 0);
@@ -332,11 +336,46 @@ export default function Pipeline() {
                 </div>
               );
             })}
+            </div>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background to-transparent" />
           </div>
         </DragDropContext>
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="overflow-x-auto" aria-label="Pipeline opportunities table" tabIndex={0}>
+          <div className="divide-y divide-border/70 md:hidden" role="list" aria-label="Pipeline opportunities">
+            {sorted.map((o) => {
+              const age = agingDays(o.stage_entered_at);
+              const overdue = isStageSlaOverdue(o, maps.stage);
+              return (
+                <button key={o.id} type="button" role="listitem"
+                  className="flex w-full flex-col gap-1.5 px-3 py-3 text-left hover:bg-secondary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => openQuickView(o.id)}
+                  aria-label={"Open opportunity " + o.customer_name}>
+                  <span className="flex min-w-0 items-start justify-between gap-3">
+                    <span className="min-w-0 truncate text-[13px] font-semibold">{o.customer_name}</span>
+                    <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatTHB(o.pipeline_value)}</span>
+                  </span>
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground">{maps.stage[o.stage_id]?.name || "—"}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{formatMonth(o.expected_close_month)}</span>
+                    {regionContext.showColumn && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="max-w-[12rem] truncate">{maps.region[o.region_id]?.name || o.region_id || "Unassigned"}</span>
+                      </>
+                    )}
+                    <span aria-hidden="true">·</span>
+                    <span className={overdue ? "font-semibold text-amber-700" : ""}>{age}d in stage</span>
+                    {o.support_needed && <span className="inline-flex items-center gap-1 text-amber-700">
+                      <AlertTriangle className="h-3 w-3" aria-hidden="true"/>Needs Support
+                    </span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block" aria-label="Pipeline opportunities table" tabIndex={0}>
             <table className={`w-full table-fixed text-[12px] ${regionContext.showColumn ? "min-w-[1190px]" : "min-w-[1030px]"}`}>
               <colgroup>
                 <col className={regionContext.showColumn ? "w-[25%]" : "w-[28%]"} />

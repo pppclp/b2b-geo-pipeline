@@ -47,7 +47,7 @@ function fixture() {
   return {call,all,touched};
 }
 const newPipeline={customer_name:"Shop",business_id:"123",customer_type:"SME",contact_name:"Jane",contact_phone:"111",sales_channel:"AE Self",
-  product_category_id:"CAT1",expected_close_month:"2026-11",owner_id:"AE1",current_handler_id:"AE1",region_id:"R1",status:"open",quantity:1,price_per_sub:100};
+  product_category_id:"CAT1",expected_close_month:"2026-11",owner_id:"AE1",current_handler_id:"AE1",region_id:"R1",status:"open",quantity:1,price_per_sub:100,client_request_id:"integrity_req_000001"};
 
 test("Management can create a Pipeline with a single authoritative audit entry",()=>{
   const x=fixture();const result=x.call("M1","POST","entities/Opportunity",newPipeline);

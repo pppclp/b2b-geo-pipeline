@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, Inbox, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { db } from "@/api/client";
@@ -11,8 +11,13 @@ export default function HandoffBell({ userId }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const lastRefreshAt = useRef(0);
+  const pendingRefresh = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
+    if (pendingRefresh.current || (!force && Date.now() - lastRefreshAt.current < 30000)) return;
+    pendingRefresh.current = true;
+    lastRefreshAt.current = Date.now();
     setLoading(true);
     try {
       const result = await db.notifications.list();
@@ -24,6 +29,7 @@ export default function HandoffBell({ userId }) {
     } catch {
       setError("Unable to load notifications. Please retry.");
     } finally {
+      pendingRefresh.current = false;
       setLoading(false);
     }
   }, []);
@@ -37,7 +43,7 @@ export default function HandoffBell({ userId }) {
     refresh();
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
-    }, 60000);
+    }, 300000);
     const onFocus = () => refresh();
     window.addEventListener("focus", onFocus);
     return () => { clearInterval(interval); window.removeEventListener("focus", onFocus); };
@@ -75,7 +81,7 @@ export default function HandoffBell({ userId }) {
           <div className="flex items-center justify-between mb-2">
             <strong className="text-sm font-semibold">Notifications</strong>
             <button type="button" aria-label="Refresh notifications" title="Refresh notifications" disabled={loading}
-              className="p-1 rounded hover:bg-secondary disabled:opacity-50" onClick={refresh}>
+              className="p-1 rounded hover:bg-secondary disabled:opacity-50" onClick={() => refresh(true)}>
               <RefreshCw className={"h-4 w-4" + (loading ? " animate-spin" : "")} />
             </button>
           </div>

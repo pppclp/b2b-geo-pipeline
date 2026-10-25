@@ -196,6 +196,12 @@ test("security: keyed create retries return the same Pipeline without duplicate 
     customer_type:"SME",sales_channel:"AE Self",contact_name:"Test",
     contact_phone:"0812345678",product_category_id:"CAT",expected_close_month:"2026-11",
     quantity:1,price_per_sub:100,owner_id:"AE1",region_id:"R1",stage_id:"S1"};
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",{
+    ...data,client_request_id:""
+  }),denied(400));
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",{
+    ...data,client_request_id:undefined
+  }),denied(400));
   const created=x.call("AE1","POST","entities/Opportunity",data);
   const count=x.allRows().length,events=x.events().length;
   const replay=x.call("AE1","POST","entities/Opportunity",data);

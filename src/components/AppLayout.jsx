@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
 import HandoffBell from "@/components/HandoffBell";
 
-const LOGO_URL = "https://media.base44.com/images/public/6ac51b65ecc4f77b629b8848/b36c70394_image.png";
+const LOGO_URL = `${import.meta.env.BASE_URL}true-logo.svg`;
 
 const navFor = (role) => {
   const base = [
