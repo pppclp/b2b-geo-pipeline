@@ -1026,7 +1026,9 @@ function prepareGeoPhase4Sheets() {
     throw Error("Set GEO_PHASE4_SCHEMA_APPROVED=YES only after a restricted DB backup");
   var lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
-    var expectedId="1z2alvS2BSRCll-6CaQq2HetuVCjYW43cpdSuXTZNthc";
+    // Approved binding is stored privately in Script Properties; never in public source.
+    var expectedId=String(props.getProperty("GEO_APPROVED_PIPELINE_DB_ID") || "");
+    if(!expectedId)throw Error("Set private GEO_APPROVED_PIPELINE_DB_ID after workbook identity verification");
     var actualId=sheetIdFor_("B2B_GEO_Pipeline_DB.xlsx");
     if(actualId !== expectedId)throw Error("Pipeline DB binding differs from verified UAT workbook");
     var book=SpreadsheetApp.openById(actualId);
