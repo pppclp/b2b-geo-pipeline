@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 const EVENT_META = {
-  create: { label: "Opportunity created", icon: Plus },
+  create: { label: "Pipeline created", icon: Plus },
   stage_change: { label: "Stage changed", icon: GitBranch },
   handler_change: { label: "Handoff", icon: ArrowRightLeft },
   reassign: { label: "Reassignment", icon: Users },
@@ -32,14 +32,14 @@ const EVENT_META = {
 
 // Multi-select collaborators are stored by stable IDs; show names in History.
 function auditValue(field, value, maps) {
-  if (!["working_with_teams", "working_with_people"].includes(field)) return value;
+  if (!["working_with_teams", "working_with_people", "working_with"].includes(field)) return value;
   if (!value) return "None";
-  const dictionary = field === "working_with_teams" ? maps.workingWith : maps.member;
+  const dictionary = field === "working_with_people" ? maps.member : maps.workingWith;
   return String(value).split(",").filter(Boolean)
     .map((id) => dictionary?.[id]?.name || id).join(", ");
 }
 
-export default function HistoryTimeline({ opportunityId }) {
+export default function HistoryTimeline({ opportunityId, revision }) {
   const { profile, maps } = useData();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,7 @@ export default function HistoryTimeline({ opportunityId }) {
     } finally {
       setLoading(false);
     }
-  }, [opportunityId, profile?.id]);
+  }, [opportunityId, profile?.id, revision]);
   useEffect(() => {
     let active = true;
     setItems([]);
@@ -70,7 +70,7 @@ export default function HistoryTimeline({ opportunityId }) {
       .catch((e) => { if (active) setError(e.message || "Unable to load history"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [opportunityId, profile?.id]);
+  }, [opportunityId, profile?.id, revision]);
 
   if (loading) return <p role="status" className="text-sm text-muted-foreground">Loading this Pipeline's history…</p>;
   if (error) return (
