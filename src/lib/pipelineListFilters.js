@@ -1,6 +1,6 @@
-import { isStageSlaOverdue, isInternalSlaOverdue } from "@/lib/dashboardMetrics";
-import { monthOf } from "@/lib/pipeline";
-import { matchesPipelineSearch } from "@/lib/pipelineFilterUi";
+import { isStageSlaOverdue, isInternalSlaOverdue } from "./dashboardMetrics.js";
+import { monthOf } from "./pipeline.js";
+import { matchesPipelineSearch } from "./pipelineFilterUi.js";
 
 // Filtering is presentation-only and always runs on backend-authorized records.
 // A single predicate keeps Quick View counts in sync with the list.
