@@ -374,7 +374,7 @@ export function createCore({ contract, store, now, uuid }) {
     });
   }
 
-  function captureSnapshot(actor, snapshotPeriod) {
+  function captureSnapshot(actor, snapshotPeriod, { scheduled = false } = {}) {
     const b = binding("MonthlySnapshot");
     need(actor, b, "create");
     if (!snapshotPeriodValid(snapshotPeriod)) throw new HttpError(400, "Snapshot period must be YYYY-MM");
@@ -388,7 +388,14 @@ export function createCore({ contract, store, now, uuid }) {
     // Validate and build the entire new state before touching the underlying sheet.
     table.rows = replacement;
     touch(b);
+    if (scheduled) outputs.logScheduledSnapshot(snapshotPeriod, snapshots.length);
     return { captured: snapshots.length, snapshot_period: snapshotPeriod };
+  }
+
+  // Server-internal method only; never expose a request flag that could forge system identity.
+  function captureScheduledSnapshot(snapshotPeriod) {
+    const scheduledPrincipal = {role:"admin", id:"SYSTEM_MONTH_END", real:{id:"SYSTEM_MONTH_END", name:"Scheduled Snapshot", role:"system"}};
+    return captureSnapshot(scheduledPrincipal, snapshotPeriod, {scheduled:true});
   }
 
   // Stable import identity: indexed batch IDs prevent retry duplicates;
@@ -1209,5 +1216,5 @@ export function createCore({ contract, store, now, uuid }) {
     throw new HttpError(404, `No route for ${method} /${parts.join("/")}`);
   }
 
-  return { handle, bindings };
+  return { handle, bindings, captureScheduledSnapshot };
 }
