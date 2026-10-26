@@ -428,7 +428,6 @@ export default function Pipeline() {
                   const handler = maps.member[o.current_handler_id];
                   const handlerName = handler?.name || "Unassigned";
                   const categoryName = maps.category[o.product_category_id]?.name || "";
-                  const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any;
                   const age = agingDays(o.stage_entered_at);
                   const differentOwner = Boolean(o.current_handler_id && o.owner_id !== o.current_handler_id);
                   // Working With is a supporting-team indicator, not ownership.
