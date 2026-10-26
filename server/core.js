@@ -597,7 +597,7 @@ export function createCore({ contract, store, now, uuid }) {
     for (const template of templates.filter(t => /^(yes|true|1)$/i.test(String(t.active || "")))) {
       if (!["calendar","business"].includes(String(template.day_type)) ||
           !["stage_entry","manual","after_previous"].includes(String(template.start_policy)) ||
-          (template.sla_days !== "" && validDays(template.sla_days) === null) ||
+          (template.sla_days !== "" && template.sla_days != null && validDays(template.sla_days) === null) ||
           !String(template.task_id || "").trim() || !String(template.task_name || "").trim()) {
         throw new HttpError(503, "Active Scenario Task Config is invalid. Ask Admin to check Scenario_Tasks.");
       }
