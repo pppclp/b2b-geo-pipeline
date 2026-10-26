@@ -430,9 +430,6 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Import-only owner lookup. Search by the authoritative employee code,
   // never by an approximate spelling of the person's display name.
-  const normalizeSaleName = (value) => String(value || "").normalize("NFKC")
-    .trim().replace(/\s+/g, " ").toLowerCase();
-
   function legacyImportOwner(code, actor) {
     const value = String(code ?? "").trim();
     if (!/^\d{1,40}$/.test(value)) throw new HttpError(400, "Sales Code must contain 1-40 digits");
