@@ -1048,7 +1048,8 @@ export function createCore({ contract, store, now, uuid }) {
         row.status = importMeta ? importMeta.status : "Open";
         row.current_handler_user_id = row.current_handler_user_id || row.owner_user_id;
         row.original_owner_user_id = row.owner_user_id;
-        row.created_month = importedCreatedMonth || bangkokMonth(stamp);
+        // Import-only: an unknown source creation month must remain unknown, not become the import month.
+        row.created_month = importMeta ? importedCreatedMonth : bangkokMonth(stamp);
         // Unknown legacy stage-entry date stays unknown, never impersonates real Stage Aging.
         row.stage_entered_at = importMeta ? (importMeta.sourceStageEnteredAt || "") : stamp;
         row.handler_since = stamp;
@@ -1088,7 +1089,8 @@ export function createCore({ contract, store, now, uuid }) {
         row.updated_at = stamp;
       }
       if (b.entity === "opportunities") {
-        if (importMeta?.sourceCreatedAt) row.created_at = importMeta.sourceCreatedAt;
+        // An import audit event uses today; the historical Opportunity creation date does not.
+        if (importMeta) row.created_at = importMeta.sourceCreatedAt || "";
         row.created_by_user_id = actor.real.id;
         validateCollaborators(row, row.region_id);
       }
