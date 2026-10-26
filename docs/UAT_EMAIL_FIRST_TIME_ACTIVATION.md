@@ -59,3 +59,11 @@ Use the **existing Apps Script project and existing deployment**. Keep the previ
 Run `npm run lint`, `npm run build`, `node --test tests/*.test.mjs`, `npm run gas:build` and `node scripts/gas-singlefile.mjs`. Test synthetic AE/SM/Management/Admin, existing login unchanged, invalid/expired/used code, mismatched user IDs, duplicate emails, wrong domain, inactive account, wrong password, session expiry, and forbidden Region access.
 
 Do not attempt live email activation for any employee without a verified email. Employee-ID login remains available to all existing authorized UAT users.
+
+## Optional interim onboarding: new users only (no email needed)
+
+For a newly approved employee who has an active, unique Employee ID and user_id in User Master but **no** Credentials row, use the editor-only `provisionOneNewUatEmployeePassword()` helper. It generates a new random `XXXX-XXXX-XXXX` password, stores **only** its salted/peppered hash in Credentials, and returns the password exactly once to the authorized operator for secure private delivery.
+
+Required Script Properties: `GEO_ENVIRONMENT=UAT`, `GEO_UAT_NEW_CREDENTIAL_APPROVED=YES`, `GEO_UAT_NEW_EMPLOYEE_ID` = the exact approved new employee ID. The helper refuses any existing employee credential, including a blank one, and does not alter the existing users' passwords. No email is required for this interim **Employee ID + Password** login mode.
+
+Do not enable `GEO_UAT_EMAIL_LOGIN_ENABLED` for this flow. Continue Employee ID login. This temporary-password onboarding is UAT-only; permanent corporate SSO/MFA is still recommended. If the organization uses the stricter activation-only email mode later, these new UAT users must complete the approved activation process first.
