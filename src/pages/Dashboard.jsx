@@ -45,7 +45,7 @@ export default function Dashboard() {
   const regionContext = regionDisplayContext(cohort, maps.region, region, regions.map(r => r.id));
   // Assigned work may belong to a different AE; never credit it to this AE's sales.
   const sales = isAE ? cohort.filter((o) => o.owner_id === profile?.id) : cohort;
-  const { open, won, supportNeeded, stageOverdue } = dashboardMetrics(sales, {
+  const { open, won, supportNeeded } = dashboardMetrics(sales, {
     stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
   const overdue = open.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
