@@ -11,6 +11,7 @@ import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,7 +84,7 @@ export default function OpportunityDetail() {
       setAction(null);
       setRemark("");
     } catch (error) {
-      setActionError(error?.message || "Unable to save this change. Please try again.");
+      setActionError(actionableErrorMessage(error));
     } finally {
       setSaving(false);
     }
