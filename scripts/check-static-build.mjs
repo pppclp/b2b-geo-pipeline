@@ -12,9 +12,10 @@ export async function checkStaticBuild({ base, directory }) {
   const fallback = join(root, rootBased ? "index.html" : "404.html");
   const redirectFile = join(root, "_redirects");
   if (!existsSync(fallback)) throw Error("Missing SPA fallback: " + fallback);
-  if (rootBased && (existsSync(join(root,"404.html")) ||
-      readFileSync(redirectFile,"utf8").trim() !== "/* /index.html 200")) {
-    throw Error("Root build must use SPA 200 rewrite, not a GitHub Pages 404");
+  // Cloudflare root hosts use native SPA fallback; PR #95 intentionally
+  // removed _redirects, so the smoke test must reject rather than require it.
+  if (rootBased && (existsSync(join(root,"404.html")) || existsSync(redirectFile))) {
+    throw Error("Root build must use native SPA routing, without 404.html or _redirects");
   }
   if (!rootBased && existsSync(redirectFile)) throw Error("Project Pages build must not include root redirects");
   const assets = [...index.matchAll(/(?:src|href)="([^"]+\.(?:js|css)(?:\?[^"]*)?)"/g)].map(m=>m[1]);
@@ -59,7 +60,7 @@ export async function checkStaticBuild({ base, directory }) {
       if(response.status!==200)throw Error("Missing static asset: "+asset);
     }
   } finally { await new Promise(ok=>server.close(ok)); }
-  return {base,assetCount:assets.length,routes:4,fallback:rootBased?"200-rewrite":"404-html"};
+  return {base,assetCount:assets.length,routes:4,fallback:rootBased?"native-spa":"404-html"};
 }
 if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) {
   const arg = process.argv.indexOf("--base");
