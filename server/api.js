@@ -6,6 +6,7 @@ import { ExcelStore } from "./store.js";
 import { loadContract } from "./contract.js";
 import { createCore, HttpError } from "./core.js";
 import { createSessionManager } from "./authSession.js";
+import { createUatEmailAuth } from "./uatEmailActivation.js";
 import { seedData } from "./seed.js";
 
 const MASTER_FILES = ["B2B_GEO_User_Org_Master.xlsx", "B2B_Product_Master.xlsx", "B2B_GEO_Pipeline_Config.xlsx"];
@@ -14,6 +15,7 @@ export function createApi({ yamlPath, dataDir }) {
   const store = new ExcelStore(dataDir);
   // Ephemeral key by default for local UAT; use GEO_SESSION_SECRET for stable sessions.
   const sessions = createSessionManager(process.env.GEO_SESSION_SECRET || crypto.randomBytes(32).toString("hex"));
+  const emailAuth = createUatEmailAuth();
   let cached = { mtime: 0, contract: null };
 
   function contract() {
@@ -74,10 +76,18 @@ export function createApi({ yamlPath, dataDir }) {
         try {
           const path = url.pathname.replace(/^\/api\/?/, "");
           const loggingIn = req.method === "POST" && path === "session/login";
+          const verifyingActivation = req.method === "POST" && path === "auth/activation/verify";
+          const completingActivation = req.method === "POST" && path === "auth/activation/complete";
+          const publicUatRequest = loggingIn || verifyingActivation || completingActivation;
           const token = /^Bearer (.+)$/i.exec(String(req.headers.authorization || ""))?.[1];
-          const authenticatedUser = loggingIn ? null : sessions.verify(token);
-          if (!loggingIn && !authenticatedUser) throw new HttpError(401, "Your session is invalid or has expired. Please sign in again.");
-          const out = core.handle({
+          const authenticatedUser = publicUatRequest ? null : sessions.verify(token);
+          if (!publicUatRequest && !authenticatedUser) throw new HttpError(401, "Your session is invalid or has expired. Please sign in again.");
+          let out;
+          if (verifyingActivation) out = emailAuth.verify(store, payload?.email, payload?.code);
+          else if (completingActivation) out = emailAuth.complete(store, payload?.activation_ticket, payload?.new_password, payload?.confirm_password);
+          else if (loggingIn && process.env.GEO_UAT_EMAIL_LOGIN_ENABLED === "true")
+            out = emailAuth.login(store, payload?.username, payload?.password);
+          else out = core.handle({
             method: req.method,
             path,
             query: Object.fromEntries(url.searchParams),

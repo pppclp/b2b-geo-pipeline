@@ -78,6 +78,48 @@ source_04_uat_credentials:
         type: "string"
         required: false  # populated after UAT hash migration
 
+      credential_status:
+        source: "UAT_Credentials.credential_status"
+        target: "uat_credentials.credential_status"
+        type: "string"
+        required: false  # blank = legacy UAT; never bulk-activate old rows
+
+      activation_code_hash:
+        source: "UAT_Credentials.activation_code_hash"
+        target: "uat_credentials.activation_code_hash"
+        type: "string"
+        required: false
+
+      activation_expires_at:
+        source: "UAT_Credentials.activation_expires_at"
+        target: "uat_credentials.activation_expires_at"
+        type: "string"
+        required: false
+
+      activation_used_at:
+        source: "UAT_Credentials.activation_used_at"
+        target: "uat_credentials.activation_used_at"
+        type: "string"
+        required: false
+
+      password_set_at:
+        source: "UAT_Credentials.password_set_at"
+        target: "uat_credentials.password_set_at"
+        type: "string"
+        required: false
+
+      password_changed_at:
+        source: "UAT_Credentials.password_changed_at"
+        target: "uat_credentials.password_changed_at"
+        type: "string"
+        required: false
+
+      password_hash_version:
+        source: "UAT_Credentials.password_hash_version"
+        target: "uat_credentials.password_hash_version"
+        type: "string"
+        required: false
+
 # ============================================================
 # 0. HIGH-LEVEL DATA FLOW
 # ============================================================

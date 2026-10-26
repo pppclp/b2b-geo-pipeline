@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { db, session, onSessionExpired } from '@/api/client';
 import { validateApiContract } from '@/lib/apiContract';
+const EMAIL_AUTH_ENABLED = import.meta.env.VITE_GEO_EMAIL_AUTH_ENABLED === "true";
 
 // UAT password gate: validate credentials and store a signed short-lived session.
 // The backend derives identity from that session, not a browser-supplied user ID.
@@ -84,7 +85,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setSessionExpired(true);
       setReauthError(error.status === 401
-        ? "Employee ID or password is incorrect"
+        ? (EMAIL_AUTH_ENABLED ? "Email or password is incorrect" : "Employee ID or password is incorrect")
         : error.message || "Unable to sign in again");
     } finally {
       setReauthBusy(false);
@@ -123,8 +124,8 @@ export const AuthProvider = ({ children }) => {
               After signing in, review and click Save again.
             </p>
             <form onSubmit={reauthenticate} className="mt-4 space-y-3">
-              <label htmlFor="reauth-user" className="block text-xs font-medium">Employee ID</label>
-              <input id="reauth-user" autoComplete="username" autoFocus required
+              <label htmlFor="reauth-user" className="block text-xs font-medium">{EMAIL_AUTH_ENABLED ? "Corporate Email" : "Employee ID"}</label>
+              <input id="reauth-user" autoComplete="username" type={EMAIL_AUTH_ENABLED ? "email" : "text"} autoFocus required
                 value={reauthUser} onChange={(e)=>setReauthUser(e.target.value)}
                 className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"/>
               <label htmlFor="reauth-password" className="block text-xs font-medium">Password</label>
