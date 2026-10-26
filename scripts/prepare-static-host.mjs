@@ -1,7 +1,8 @@
 // Configure SPA deep-link fallback for the selected static-host base path.
-// GitHub Pages needs 404.html; root-based Pages hosts use SPA fallback instead.
+// GitHub Pages needs 404.html; root-based Cloudflare hosts use native SPA fallback.
+// Workers Assets use wrangler.jsonc assets.not_found_handling; no _redirects rule is needed.
 // This changes only the generated dist/ files, never runtime app behavior.
-import { copyFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 export function prepareStaticHost({ basePath, outputDir }) {
@@ -15,14 +16,14 @@ export function prepareStaticHost({ basePath, outputDir }) {
   rmSync(notFound, { force: true });
   rmSync(redirects, { force: true });
   if (base === "/") {
-    // Cloudflare Pages supports its default SPA fallback when 404.html is absent.
-    // Netlify/Cloudflare Pages additionally understand this explicit 200 rewrite.
-    writeFileSync(redirects, "/* /index.html 200\n");
+    // Cloudflare Workers uses assets.not_found_handling: single-page-application.
+    // Cloudflare Pages also serves index.html as SPA fallback when 404.html is absent.
+    // Do not generate /* /index.html 200: Workers rejects it as an infinite loop.
   } else {
     // Project GitHub Pages uses 404.html for fresh URL/deep-link requests.
     copyFileSync(index, notFound);
   }
-  return { base, fallback: base === "/" ? "rewrite" : "404" };
+  return { base, fallback: base === "/" ? "native-spa" : "404" };
 }
 if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) {
   const result = prepareStaticHost({
