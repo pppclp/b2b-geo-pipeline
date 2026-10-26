@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setSessionExpired(true);
       setReauthError(error.status === 401
-        ? (EMAIL_AUTH_ENABLED ? "Email or password is incorrect" : "Employee ID or password is incorrect")
+        ? (EMAIL_AUTH_ENABLED ? "Employee ID, email or password is incorrect" : "Employee ID or password is incorrect")
         : error.message || "Unable to sign in again");
     } finally {
       setReauthBusy(false);
@@ -124,8 +124,8 @@ export const AuthProvider = ({ children }) => {
               After signing in, review and click Save again.
             </p>
             <form onSubmit={reauthenticate} className="mt-4 space-y-3">
-              <label htmlFor="reauth-user" className="block text-xs font-medium">{EMAIL_AUTH_ENABLED ? "Corporate Email" : "Employee ID"}</label>
-              <input id="reauth-user" autoComplete="username" type={EMAIL_AUTH_ENABLED ? "email" : "text"} autoFocus required
+              <label htmlFor="reauth-user" className="block text-xs font-medium">{EMAIL_AUTH_ENABLED ? "Employee ID or Corporate Email" : "Employee ID"}</label>
+              <input id="reauth-user" autoComplete="username" type="text" autoFocus required
                 value={reauthUser} onChange={(e)=>setReauthUser(e.target.value)}
                 className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"/>
               <label htmlFor="reauth-password" className="block text-xs font-medium">Password</label>

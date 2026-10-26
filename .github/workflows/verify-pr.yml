@@ -3,6 +3,9 @@ name: Verify Pull Request
 on:
   pull_request:
     branches: [main]
+  # Keep auditing follow-up commits on the existing post-merge UAT branch.
+  push:
+    branches: [feat/uat-email-activation-20261027]
 
 permissions:
   contents: read
@@ -23,6 +26,10 @@ jobs:
         run: npm run build
       - name: Net RC and Quick Action tests
         run: node --test tests/*.test.mjs
+      - name: Build Apps Script
+        run: npm run gas:build
+      - name: Verify standalone Apps Script Code.gs
+        run: node scripts/gas-singlefile.mjs
       - name: Verify project-path GitHub Pages build and deep links
         env:
           VITE_BASE_PATH: /b2b-geo-pipeline/

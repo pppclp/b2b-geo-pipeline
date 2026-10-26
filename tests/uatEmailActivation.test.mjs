@@ -113,3 +113,15 @@ test("Apps Script requires editor provisioning, one-time code and no Login Sessi
   assert.match(gas,/c\.activation_code_hash = ""/);
   assert.match(gas,/return \{ activated: true \}/);
 });
+
+test("GAS keeps Employee ID login as the default even when email login is enabled",()=>{
+  const gas=readFileSync(new URL("../apps-script/Main.js",import.meta.url),"utf8");
+  assert.match(gas,/var usingEmail = emailMode && String\(body\.username \|\| ""\)\.indexOf\("@"\) >= 0/);
+  assert.match(gas,/var username = usingEmail \? normalizeUatCorporateEmail_\(body\.username\) : normalizeEmployeeId_\(body\.username\)/);
+  assert.match(gas,/return usingEmail \? \(username && normalizeUatCorporateEmail_\(row\.email\) === username\)/);
+  assert.match(gas,/\(usingEmail && \(!uatCorporateDomainAllowed_\(username\)/);
+});
+test("Node backend only invokes email authentication for identifiers containing @",()=>{
+  const api=readFileSync(new URL("../server/api.js",import.meta.url),"utf8");
+  assert.match(api,/GEO_UAT_EMAIL_LOGIN_ENABLED === "true" && String\(payload\?\.username \|\| ""\)\.includes\("@"\)/);
+});

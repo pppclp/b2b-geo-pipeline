@@ -105,8 +105,11 @@ function uatLogin_(store, body) {
   var environment = String(PropertiesService.getScriptProperties().getProperty("GEO_ENVIRONMENT") || "").toUpperCase();
   if (environment === "PRODUCTION" || environment === "PROD")
     throwUatError_(503, "UAT password login is disabled in Production");
-  var emailMode = PropertiesService.getScriptProperties().getProperty("GEO_UAT_EMAIL_LOGIN_ENABLED") === "true";
-  var username = emailMode ? normalizeUatCorporateEmail_(body.username) : normalizeEmployeeId_(body.username);
+  // Email authentication is UAT-only, even if an email flag is accidentally enabled elsewhere.
+  var emailMode = environment === "UAT" &&
+    PropertiesService.getScriptProperties().getProperty("GEO_UAT_EMAIL_LOGIN_ENABLED") === "true";
+  var usingEmail = emailMode && String(body.username || "").indexOf("@") >= 0;
+  var username = usingEmail ? normalizeUatCorporateEmail_(body.username) : normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
   var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
@@ -122,7 +125,7 @@ function uatLogin_(store, body) {
 
   var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
   var matchingUsers = users.filter(function (row) {
-    return emailMode ? normalizeUatCorporateEmail_(row.email) === username :
+    return usingEmail ? (username && normalizeUatCorporateEmail_(row.email) === username) :
       normalizeEmployeeId_(row.employee_id) === username;
   });
 
@@ -139,7 +142,7 @@ function uatLogin_(store, body) {
     .rows;
 
   var matchingCredentials = credentials.filter(function (row) {
-    return emailMode ? String(row.user_id || "").trim() === String(user.user_id || "").trim() :
+    return usingEmail ? String(row.user_id || "").trim() === String(user.user_id || "").trim() :
       normalizeEmployeeId_(row["employee_id / username"]) === username;
   });
 
@@ -149,7 +152,7 @@ function uatLogin_(store, body) {
   if (matchingCredentials.length !== 1 ||
       (String(matchingCredentials[0].user_id || "").trim() &&
        String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
-      (emailMode && (!uatCorporateDomainAllowed_(username) ||
+      (usingEmail && (!uatCorporateDomainAllowed_(username) ||
         !normalizeEmployeeId_(user.employee_id) ||
         normalizeEmployeeId_(matchingCredentials[0]["employee_id / username"]) !== normalizeEmployeeId_(user.employee_id) ||
         String(matchingCredentials[0].credential_status || "") !== "active" ||
@@ -521,6 +524,67 @@ function issueUatActivationForApprovedTarget() {
   } finally {
     p.deleteProperty("GEO_UAT_ACTIVATION_TARGET_EMAIL");
   }
+}
+
+// UAT ONLY — create a credential for one NEW approved User Master employee.
+// Never changes an existing credential, password, role, region, or user row.
+// Generated password format: XXXX-XXXX-XXXX (uppercase A-Z and digits 2-9).
+// The authorized editor receives the password ONCE to deliver privately.
+// Prerequisites: Script Properties GEO_ENVIRONMENT=UAT,
+// GEO_UAT_NEW_CREDENTIAL_APPROVED=YES, GEO_UAT_NEW_EMPLOYEE_ID=<approved ID>.
+// Do not run for an existing account, even when it has a blank password.
+function provisionOneNewUatEmployeePassword() {
+  var p = PropertiesService.getScriptProperties();
+  if (p.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
+      p.getProperty("GEO_UAT_NEW_CREDENTIAL_APPROVED") !== "YES")
+    throw Error("New UAT credential provisioning is not approved");
+  var employeeId = normalizeEmployeeId_(p.getProperty("GEO_UAT_NEW_EMPLOYEE_ID"));
+  if (!employeeId) throw Error("Set a valid GEO_UAT_NEW_EMPLOYEE_ID");
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
+      return normalizeEmployeeId_(u.employee_id) === employeeId &&
+        String(u.status || "Active").toLowerCase() === "active";
+    });
+    if (users.length !== 1 || !String(users[0].user_id || "").trim())
+      throw Error("Employee ID must map to exactly one active approved User Master record");
+    var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
+    if (creds.some(function (c) {
+      return normalizeEmployeeId_(c["employee_id / username"]) === employeeId ||
+        String(c.user_id || "") === String(users[0].user_id);
+    })) throw Error("Existing credential found; no password changed");
+    var pepper = uatPasswordPepper_(false);
+    if (!pepper) throw Error("UAT password pepper is missing; initialize via approved readiness procedure");
+    var alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    var raw = (Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, "");
+    var groups = [], group = "";
+    for (var i = 0; i < 12; i++) {
+      group += alphabet.charAt(parseInt(raw.charAt(i * 2), 16) * 2 + parseInt(raw.charAt(i * 2 + 1), 16) % 2);
+      if (group.length === 4) { groups.push(group); group = ""; }
+    }
+    var password = groups.join("-");
+    var salt = Utilities.getUuid().replace(/-/g, "");
+    var hash = GEO_UAT_PASSWORD_HASH_SCHEME_ + "$" + salt + "$" + uatPasswordDigest_(salt, password);
+    creds.push({
+      user_id: String(users[0].user_id),
+      "employee_id / username": employeeId,
+      temporary_password: "",
+      password_hash: hash,
+      credential_status: "",
+      activation_code_hash: "",
+      activation_expires_at: "",
+      activation_used_at: "",
+      password_set_at: "",
+      password_changed_at: "",
+      password_hash_version: GEO_UAT_PASSWORD_HASH_SCHEME_
+    });
+    store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
+    store.flush();
+    p.deleteProperty("GEO_UAT_NEW_CREDENTIAL_APPROVED");
+    p.deleteProperty("GEO_UAT_NEW_EMPLOYEE_ID");
+    return { created: true, one_time_password: password };
+  } finally { lock.releaseLock(); }
 }
 
 // MANUAL, READ-ONLY health check in Apps Script editor. Never returns or logs

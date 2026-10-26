@@ -1,9 +1,8 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogIn, Loader2 } from "lucide-react";
-import { Link } from "react-router-dom";
 
 const EMAIL_AUTH_ENABLED = import.meta.env.VITE_GEO_EMAIL_AUTH_ENABLED === "true";
 const ACTIVATION_UI_ENABLED = import.meta.env.VITE_GEO_EMAIL_ACTIVATION_ENABLED === "true";
@@ -25,7 +24,7 @@ export default function Login() {
       await login(username.trim(), password);
       navigate("/", { replace: true });
     } catch (e) {
-      setError(e.status === 401 ? EMAIL_AUTH_ENABLED ? "Email or password is incorrect" : "Employee ID or password is incorrect" : e.message);
+      setError(e.status === 401 ? "Employee ID, email or password is incorrect" : e.message);
     } finally {
       setPending(false);
     }
@@ -35,23 +34,23 @@ export default function Login() {
     <AuthLayout
       icon={LogIn}
       title="B2B GEO Pipeline"
-      subtitle={EMAIL_AUTH_ENABLED ? "Sign in with your approved corporate email and password" : "UAT sign in with your Employee ID and temporary password"}
+      subtitle={EMAIL_AUTH_ENABLED ? "Sign in with your Employee ID or registered corporate email" : "UAT sign in with your Employee ID and password"}
       footer={EMAIL_AUTH_ENABLED ? "For account activation, use the code delivered by your authorized UAT coordinator" : "Use the UAT credentials provided to you individually"}
     >
       {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
 
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <label htmlFor="employee-id" className="text-sm font-medium">{EMAIL_AUTH_ENABLED ? "Corporate Email" : "Employee ID"}</label>
+          <label htmlFor="employee-id" className="text-sm font-medium">{EMAIL_AUTH_ENABLED ? "Employee ID or Corporate Email" : "Employee ID"}</label>
           <input
             id="employee-id"
             name="username"
-            inputMode={EMAIL_AUTH_ENABLED ? "email" : "numeric"}
-            type={EMAIL_AUTH_ENABLED ? "email" : "text"}
+            inputMode="text"
+            type="text"
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder={EMAIL_AUTH_ENABLED ? "name@company-domain" : "e.g. 90009592"}
+            placeholder={EMAIL_AUTH_ENABLED ? "Employee ID or name@company-domain" : "e.g. 90009592"}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             required
           />
