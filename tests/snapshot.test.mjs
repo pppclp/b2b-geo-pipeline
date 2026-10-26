@@ -6,11 +6,12 @@ test("reject invalid month and malformed source before changing stored month", (
   assert.throws(()=>buildSnapshotRows([], "bad", "", ()=>"SNP1"));
   assert.throws(()=>buildSnapshotRows([{ opportunity_id:"O", status:"open" }, { opportunity_id:"O", status:"won" }],"2026-10","today",()=> "SNP"),/Duplicate/);
 });
-test("replacement preserves all other months and does not duplicate recaptured Pipeline",()=>{
+test("published month is immutable; new months append without rewriting history",()=>{
  const old = [{snapshot_id:"OLD1",snapshot_period:"2026-09",opportunity_id:"O1"},{snapshot_id:"OLD2",snapshot_period:"2026-10",opportunity_id:"O2"}];
- const replacement=[{snapshot_id:"NEW",snapshot_period:"2026-10",opportunity_id:"O3"}];
- assert.deepEqual(replaceSnapshotPeriod(old,"2026-10",replacement),[old[0],replacement[0]]);
- assert.deepEqual(old[1],{snapshot_id:"OLD2",snapshot_period:"2026-10",opportunity_id:"O2"});
+ const incoming=[{snapshot_id:"NEW",snapshot_period:"2026-10",opportunity_id:"O3"}];
+ assert.throws(()=>replaceSnapshotPeriod(old,"2026-10",incoming),/already captured/);
+ const november=[{snapshot_id:"NOV",snapshot_period:"2026-11",opportunity_id:"O3"}];
+ assert.deepEqual(replaceSnapshotPeriod(old,"2026-11",november),[...old,...november]);
 });
 test("snapshot rows are built from server columns (not browser data)",()=>{
  const rows=buildSnapshotRows([{opportunity_id:"O",owner_user_id:"AE",current_handler_user_id:"SM",handler_since:"since",status:"open",pipeline_value:100,contract_period_months:12,stage_id:"S1"}],"2026-10","captured",()=> "SN1");
