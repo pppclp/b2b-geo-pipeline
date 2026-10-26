@@ -69,18 +69,18 @@ test("one Pipeline update generates stage/handler events in the same request",()
   assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,3);
   assert.equal("audit_remark" in x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows[0],false);
 });
-test("Admin snapshot recapture replaces a month without touching other months",()=>{
+test("Admin monthly snapshot is immutable and preserves other months",()=>{
   const x=fixture(),o=x.call("M1","POST","entities/Opportunity",newPipeline);
   assert.throws(()=>x.call("AE1","POST","snapshots/capture",{snapshot_period:"2026-10"}),e=>e.status===403);
   assert.equal(x.call("ADMIN","POST","snapshots/capture",{snapshot_period:"2026-09"}).captured,1);
   x.call("ADMIN","POST","snapshots/capture",{snapshot_period:"2026-10"});
   const updated=x.call("M1","PUT","entities/Opportunity/"+o.id,{price_per_sub:200});
   assert.equal(updated.pipeline_value,200);
-  x.call("ADMIN","POST","snapshots/capture",{snapshot_period:"2026-10"});
+  assert.throws(()=>x.call("ADMIN","POST","snapshots/capture",{snapshot_period:"2026-10"}),/already captured/);
   const snaps=x.all["B2B_GEO_Pipeline_DB.xlsx|Snapshots"].rows;
   assert.equal(snaps.length,2);
   assert.equal(snaps.find(s=>s.snapshot_period==="2026-09").pipeline_value,100);
-  assert.equal(snaps.find(s=>s.snapshot_period==="2026-10").pipeline_value,200);
+  assert.equal(snaps.find(s=>s.snapshot_period==="2026-10").pipeline_value,100);
   assert.equal(new Set(snaps.map(s=>s.snapshot_id)).size,2);
   assert.throws(()=>x.call("ADMIN","POST","entities/MonthlySnapshot/bulk",[]),e=>e.status===403);
   assert.throws(()=>x.call("ADMIN","DELETE","entities/MonthlySnapshot",null),e=>e.status===403);
