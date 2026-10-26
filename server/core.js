@@ -457,7 +457,8 @@ export function createCore({ contract, store, now, uuid }) {
     } else if (dates.source_closed_at) {
       throw new HttpError(400, "Open Pipelines cannot contain a historical Closed Date");
     }
-    if (item.customer_type && !allowedTypes.includes(String(item.customer_type).trim()))
+    const normalizedCustomerType = allowedTypes.find((type) => type.toLowerCase() === String(item.customer_type || "").trim().toLowerCase());
+    if (item.customer_type && !normalizedCustomerType)
       throw new HttpError(400, "Unknown Customer Type. Use an existing legacy type or active Field_Options value");
     for (const key of ["source_record_id", "source_system", "source_product_id", "source_rc",
                        "source_discount_pct", "source_monthly_sale_plan"]) {
@@ -473,6 +474,7 @@ export function createCore({ contract, store, now, uuid }) {
       sourceNetRc = String(item.reference_net_rc).trim();
     }
     return {
+      normalizedCustomerType,
       status: status.charAt(0).toUpperCase() + status.slice(1),
       sourceCreatedAt: dates.source_created_at,
       sourceStageEnteredAt: dates.source_stage_entered_at,
@@ -882,7 +884,8 @@ export function createCore({ contract, store, now, uuid }) {
           }
         }
         if (importMeta) data = {
-          ...data, import_batch_id:importMeta.batchId,
+          ...data, customer_type: importMeta.normalizedCustomerType || data.customer_type,
+          import_batch_id:importMeta.batchId,
           import_row_number:importMeta.rowNumber,
           import_row_signature:importMeta.signature,
         };
