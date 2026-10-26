@@ -88,21 +88,21 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   const choice = (key) => (v) => onFilter(key,v==="all" ? "" : v);
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-x-2.5 gap-y-2.5">
-        <div className="w-full min-w-[190px] sm:w-[250px] sm:flex-1 sm:max-w-[340px] space-y-1">
+      <div className="grid min-w-0 grid-cols-2 items-end gap-x-2.5 gap-y-3 md:flex md:flex-wrap md:gap-y-2.5">
+        <div className="col-span-2 min-w-0 space-y-1 md:w-[250px] md:flex-1 md:max-w-[340px]">
           <label htmlFor="pipeline-search" className="block text-[11px] font-medium text-muted-foreground">Search</label>
           <div className="relative">
             <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"/>
             <Input id="pipeline-search" aria-label="Search customer, Business ID or Pipeline ID"
               value={filters.search || ""} onChange={e=>onFilter("search",e.target.value)}
               placeholder="Customer, Business ID or Pipeline ID"
-              className="h-9 rounded-lg pl-9 pr-8 text-[13px]"/>
+              className="h-10 rounded-xl pl-9 pr-8 text-[13px] md:h-9 md:rounded-lg"/>
             {filters.search && <button type="button" aria-label="Clear search"
               className="absolute right-2 top-2 rounded-md p-1 hover:bg-secondary"
               onClick={()=>onFilter("search","")}><X className="h-3.5 w-3.5"/></button>}
           </div>
         </div>
-        <div className="w-[158px] max-w-full">
+        <div className="min-w-0 md:w-[158px]">
           <MonthFilter label={LABELS.close_month} value={filters.close_month} onChange={v=>onFilter("close_month",v)}/>
         </div>
         {showRegion && showRegionControl && <SelectWrap label={LABELS.region} value={filters.region} onChange={choice("region")}
@@ -112,29 +112,21 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
         </SelectWrap>}
         <SelectWrap label={LABELS.product_category}
           value={filters.product_category} onChange={choice("product_category")}
-          className="w-[160px] min-w-0 sm:w-[185px]" allText="All Categories">
+          className="min-w-0 md:w-[185px]" allText="All Categories">
           {categories.map((category) =>
             <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
           )}
         </SelectWrap>
         <SelectWrap label={LABELS.status} value={filters.status || "all"}
-          onChange={v=>onFilter("status",v)} className="w-[120px] sm:w-[132px]" allText="All Statuses">
+          onChange={v=>onFilter("status",v)} className="min-w-0 md:w-[132px]" allText="All Statuses">
           {["open","won","lost","archived"].map(v=><SelectItem key={v} value={v}>
             {v.charAt(0).toUpperCase()+v.slice(1)}
           </SelectItem>)}
         </SelectWrap>
-        {profile?.app_role === "sm" && (
-          <Button type="button" variant={filters.sm_info === "missing" ? "secondary" : "outline"}
-            size="sm" aria-pressed={filters.sm_info === "missing"}
-            onClick={()=>onFilter("sm_info",filters.sm_info === "missing" ? "" : "missing")}
-            className={`h-9 rounded-lg text-xs ${filters.sm_info === "missing" ? "border border-primary/50 text-brand bg-brand-tint" : ""}`}>
-            Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}
-          </Button>
-        )}
         <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" aria-label="More Filters"
-              aria-expanded={advancedOpen} className="h-9 rounded-lg gap-2">
+              aria-expanded={advancedOpen} className="h-10 w-full min-w-0 justify-center gap-2 rounded-xl text-xs md:h-9 md:w-auto md:rounded-lg">
               <SlidersHorizontal className="h-4 w-4"/> More Filters
               {advancedCount>0&&<span className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] tabular-nums">{advancedCount}</span>}
             </Button>
@@ -203,18 +195,28 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
             </div>
           </PopoverContent>
         </Popover>
+        {profile?.app_role === "sm" && (
+          <Button type="button" variant={filters.sm_info === "missing" ? "secondary" : "outline"}
+            size="sm" aria-pressed={filters.sm_info === "missing"}
+            onClick={()=>onFilter("sm_info",filters.sm_info === "missing" ? "" : "missing")}
+            className={`col-span-2 h-10 w-full rounded-xl text-xs md:col-span-1 md:h-9 md:w-auto md:rounded-lg ${filters.sm_info === "missing" ? "border border-primary/50 text-brand bg-brand-tint" : ""}`}>
+            Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}
+          </Button>
+        )}
       </div>
-      {chipEntries.length>0&&<div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
-        <span className="mr-1 text-[11px] text-muted-foreground">Active Filters</span>
-        {chipEntries.map(([key,value])=><button key={key} type="button"
-          onClick={()=>onFilter(key,key==="status"?"open":"")}
-          aria-label={`Remove ${LABELS[key]} filter`}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-secondary/60 px-2 py-1 text-[11px] text-foreground hover:bg-secondary">
-          <span>{LABELS[key]}: {display(key,value)}</span><X className="h-3 w-3"/>
-        </button>)}
-        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={()=>onFilter("clear","")}>
-          Clear all
-        </Button>
+      {chipEntries.length>0&&<div className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-x-2 gap-y-2 md:flex md:flex-wrap md:gap-1.5" aria-label="Active filters">
+        <span className="text-xs font-medium text-muted-foreground md:mr-1 md:text-[11px]">Active Filters</span>
+        <Button type="button" size="sm" variant="ghost"
+          className="col-start-2 row-start-1 h-7 px-2 text-xs text-brand md:order-last"
+          onClick={()=>onFilter("clear","")}>Clear all</Button>
+        <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 md:contents">
+          {chipEntries.map(([key,value])=><button key={key} type="button"
+            onClick={()=>onFilter(key,key==="status"?"open":"")}
+            aria-label={`Remove ${LABELS[key]} filter`}
+            className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-border bg-secondary/60 px-2.5 py-1.5 text-[11px] text-foreground hover:bg-secondary">
+            <span className="truncate">{LABELS[key]}: {display(key,value)}</span><X className="h-3 w-3 shrink-0"/>
+          </button>)}
+        </div>
       </div>}
     </div>
   );

@@ -19,7 +19,7 @@ import PipelineQuickView from "@/components/PipelineQuickView";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KanbanSquare, List, Plus, Download, AlertTriangle } from "lucide-react";
+import { KanbanSquare, List, Plus, Download, AlertTriangle, Layers3, UserRound, LifeBuoy, Clock3, CalendarDays, ChevronRight } from "lucide-react";
 
 const SORTS = [
   { value: "close_month", label: "Close Month ↑ · Net RC ↓" },
@@ -165,11 +165,11 @@ export default function Pipeline() {
 
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
   const quickViews = [
-    { id: "all", title: "All Open", count: workCounts.all },
-    { id: "assigned-to-me", title: "With Me", count: workCounts["assigned-to-me"] },
-    { id: "support-needed", title: "Needs Support", count: workCounts["support-needed"] },
-    { id: "stage-overdue", title: "Stage Overdue", count: workCounts["stage-overdue"] },
-    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", count: workCounts["due-this-month"] },
+    { id: "all", title: "All Open", count: workCounts.all, icon: Layers3 },
+    { id: "assigned-to-me", title: "With Me", count: workCounts["assigned-to-me"], icon: UserRound },
+    { id: "support-needed", title: "Needs Support", count: workCounts["support-needed"], icon: LifeBuoy },
+    { id: "stage-overdue", title: "Stage Overdue", count: workCounts["stage-overdue"], icon: Clock3 },
+    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", count: workCounts["due-this-month"], icon: CalendarDays },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id);
   const selectQuickView = (viewId) => {
@@ -199,21 +199,21 @@ export default function Pipeline() {
 
 
   return (
-    <div className="w-full min-w-0 p-4 md:p-5">
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+    <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">
+      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Pipeline</h1>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-xl">Pipeline</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {sorted.length} Pipelines · {formatTHB(totalValue)} Net RC
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
           {canExport && (
-            <Button variant="outline" size="sm" className="rounded-lg" disabled={exporting} onClick={exportExcel}>
+            <Button variant="outline" size="sm" className="h-10 min-w-0 flex-1 rounded-xl px-2 text-xs sm:h-9 sm:flex-none sm:px-3 sm:text-sm" disabled={exporting} onClick={exportExcel}>
               <Download className="w-4 h-4 mr-1.5" /> {exporting ? "Generating Excel…" : "Export Excel"}
             </Button>
           )}
-          <Button size="sm" className="rounded-lg" onClick={() => setFormOpen(true)}>
+          <Button size="sm" className="h-10 min-w-0 flex-1 rounded-xl bg-primary px-2 text-xs text-primary-foreground sm:h-9 sm:flex-none sm:px-3 sm:text-sm" onClick={() => setFormOpen(true)}>
             <Plus className="w-4 h-4 mr-1.5" /> New Pipeline
           </Button>
         </div>
@@ -227,7 +227,23 @@ export default function Pipeline() {
             : "No Pipelines are available for this account. If you expect records, check the deployment and access settings."}
         </p>
       )}
-      <nav aria-label="Pipeline work views" className="mb-3 border-b border-border/70 pb-2">
+      {/* Compact work-view cards on phones; same filters/counts as desktop tabs. */}
+      <nav aria-label="Pipeline work views" className="mb-4 grid grid-cols-6 gap-2 rounded-2xl border border-border/70 bg-card p-2.5 shadow-soft md:hidden">
+        {quickViews.map((item, index) => {
+          const Icon = item.icon;
+          const active = activeQuickView === item.id;
+          return (
+            <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
+              aria-current={active ? "page" : undefined} aria-pressed={active}
+              className={`${index < 3 ? "col-span-2" : "col-span-3"} relative flex min-h-[76px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
+              <span className="max-w-[calc(100%-20px)] text-[11px] font-medium leading-4 text-current">{item.title}</span>
+              <span className="text-xl font-semibold leading-none tabular-nums">{item.count}</span>
+              <Icon className={`absolute right-2.5 top-2.5 h-4 w-4 ${active ? "text-brand" : "text-muted-foreground"}`} aria-hidden="true" />
+            </button>
+          );
+        })}
+      </nav>
+      <nav aria-label="Pipeline work views" className="mb-3 hidden border-b border-border/70 pb-2 md:block">
         <div className="flex flex-wrap items-center gap-1.5">
           {quickViews.map((item) => (
             <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
@@ -254,10 +270,10 @@ export default function Pipeline() {
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="mb-3 flex min-w-0 flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-3 md:gap-y-2.5">
+        <div className="w-full min-w-0 md:w-auto md:flex-1">
           {view === "list" && (
-            <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Quick filter by Stage">
+            <div className="flex w-full min-w-0 items-center gap-2 overflow-x-auto border-t border-border/70 pt-3 pb-1 md:max-w-full md:gap-1.5 md:border-t-0 md:pt-0" role="group" aria-label="Quick filter by Stage">
               <span className="shrink-0 text-[11px] font-medium text-muted-foreground">Stage</span>
               <button type="button" onClick={() => onFilter("stage", "")}
                 aria-pressed={!filters.stage}
@@ -278,8 +294,8 @@ export default function Pipeline() {
             </div>
           )}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg bg-secondary p-1" role="group" aria-label="Pipeline view">
+        <div className="grid w-full min-w-0 grid-cols-2 items-center gap-2 md:flex md:w-auto md:shrink-0">
+          <div className="inline-flex min-w-0 justify-center rounded-xl bg-secondary p-1" role="group" aria-label="Pipeline view">
             <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}
               className={view === "list"
                 ? "flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground shadow-soft"
@@ -294,7 +310,7 @@ export default function Pipeline() {
             </button>
           </div>
           <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger aria-label="Sort Pipelines" className="h-9 w-[205px] max-w-[58vw] rounded-lg text-[12px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Sort Pipelines" className="h-9 w-full min-w-0 rounded-xl px-2 text-[11px] md:w-[205px] md:text-[12px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {SORTS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
             </SelectContent>
@@ -354,22 +370,22 @@ export default function Pipeline() {
           </div>
         </DragDropContext>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="divide-y divide-border/70 md:hidden" role="list" aria-label="Pipeline records">
+        <div className="min-w-0 md:overflow-hidden md:rounded-xl md:border md:border-border md:bg-card">
+          <div className="space-y-2.5 md:hidden" role="list" aria-label="Pipeline records">
             {sorted.map((o) => {
               const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
               const overdue = isStageSlaOverdue(o, maps.stage);
               return (
                 <button key={o.id} type="button" role="listitem"
-                  className="flex w-full flex-col gap-1.5 px-3 py-3 text-left hover:bg-secondary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="relative flex w-full min-w-0 flex-col gap-2 rounded-2xl border border-border bg-card px-3.5 py-4 text-left shadow-soft transition-colors hover:border-foreground/20 hover:bg-secondary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => openQuickView(o.id)}
                   aria-label={"Open Pipeline " + o.customer_name}>
                   <span className="flex min-w-0 items-start justify-between gap-3">
-                    <span className="min-w-0 truncate text-[13px] font-semibold">{o.customer_name}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold" title={o.customer_name}>{o.customer_name}</span>
                     <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatTHB(o.pipeline_value)}</span>
                   </span>
-                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-                    <span className="font-medium text-foreground">{maps.stage[o.stage_id]?.name || "—"}</span>
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1.5 pr-4 text-[11px] text-muted-foreground">
+                    <span className={`inline-flex rounded-md px-2 py-1 font-medium ${overdue ? "bg-brand-tint text-brand" : "bg-secondary text-foreground"}`}>{maps.stage[o.stage_id]?.name || "—"}</span>
                     <span aria-hidden="true">·</span>
                     <span>{formatMonth(o.expected_close_month)}</span>
                     {regionContext.showColumn && (
@@ -381,9 +397,10 @@ export default function Pipeline() {
                     <span aria-hidden="true">·</span>
                     <span className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "Stage age unknown" : `${age}d in stage`}</span>
                     {o.support_needed && <span className="inline-flex items-center gap-1 text-amber-700">
-                      <AlertTriangle className="h-3 w-3" aria-hidden="true"/>Needs Support
+                      <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true"/>Needs Support
                     </span>}
                   </span>
+                  <ChevronRight className="pointer-events-none absolute right-2.5 bottom-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </button>
               );
             })}
