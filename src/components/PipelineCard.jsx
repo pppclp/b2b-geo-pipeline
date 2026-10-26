@@ -1,7 +1,7 @@
 import React from "react";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { formatMonth, agingDays } from "@/lib/pipeline";
+import { formatMonth } from "@/lib/pipeline";
 import { overdueReasons } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import { smWorkingWithTeamLabels } from "@/lib/pipelineListPresentation";
@@ -17,7 +17,6 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
   const category = maps.category[op.product_category_id];
   const overdue = overdueReasons(op, maps.stage, config?.stage_watch_days, taskEntries).any;
   const differentHandler = op.current_handler_id !== op.owner_id && Boolean(op.current_handler_id);
-  const age = agingDays(op.stage_entered_at);
   const teams = smWorkingWithTeamLabels(op, handler, master?.WorkingWithOption || []);
 
   return (
