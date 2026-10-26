@@ -103,8 +103,6 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   if (!/^\d+$/.test(form.business_id)) errors.business_id = "Enter digits only";
   if (!form.customer_type) errors.customer_type = "Required";
   if (!form.sales_channel) errors.sales_channel = "Required";
-  if (!form.contact_name.trim()) errors.contact_name = "Required";
-  if (!form.contact_phone.trim()) errors.contact_phone = "Required";
   if (!form.product_category_id) errors.product_category_id = "Required";
   if (form.quantity === "" || !Number.isSafeInteger(Number(form.quantity)) || Number(form.quantity) <= 0) errors.quantity = "Enter a positive whole number";
   if (form.price_per_sub === "" || !Number.isFinite(Number(form.price_per_sub)) || Number(form.price_per_sub) < 0) errors.price_per_sub = "Enter a valid price";
@@ -220,11 +218,11 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                     <SelectContent>{SALES_CHANNELS.map((channel) => <SelectItem key={channel} value={channel}>{channel}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
-                <Field label="Contact Name" required error={submitted && errors.contact_name}>
-                  <Input maxLength={120} value={form.contact_name} onChange={(e) => set("contact_name", e.target.value)} placeholder="Enter contact name" aria-invalid={submitted && !!errors.contact_name}/>
+                <Field label="Contact Name">
+                  <Input maxLength={120} value={form.contact_name} onChange={(e) => set("contact_name", e.target.value)} placeholder="Enter contact name"/>
                 </Field>
-                <Field label="Contact Phone" required error={submitted && errors.contact_phone}>
-                  <Input type="tel" maxLength={40} value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} placeholder="e.g. 08x-xxx-xxxx" aria-invalid={submitted && !!errors.contact_phone}/>
+                <Field label="Contact Phone">
+                  <Input type="tel" maxLength={40} value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} placeholder="e.g. 08x-xxx-xxxx"/>
                 </Field>
                 <Field label="Remark" className="sm:col-span-2">
                   <Textarea rows={2} maxLength={500} value={form.remark} onChange={(e) => set("remark", e.target.value)} placeholder="Customer needs, next steps, details" className="resize-none" />
