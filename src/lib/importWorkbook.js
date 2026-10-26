@@ -105,6 +105,16 @@ export async function parseImportXlsx(arrayBuffer) {
     if (excelCellText(cell).trim()) lastHeaderColumn = Math.max(lastHeaderColumn, col);
   });
   if (!lastHeaderColumn) throw new Error("The first row must contain column names");
+  // Historical GEO exports have 19 source columns but only 17 named headers.
+  // Keep the two unnamed trailing cells so Stage/Contract/Remark cannot shift
+  // or disappear when parsing an otherwise valid 239-row workbook.
+  if (lastHeaderColumn === 17 &&
+      excelCellText(sheet.getRow(1).getCell(1)).trim().toLowerCase() === "create month" &&
+      excelCellText(sheet.getRow(1).getCell(2)).trim().toLowerCase() === "business id" &&
+      excelCellText(sheet.getRow(1).getCell(16)).trim().toLowerCase() === "monthly sale plan" &&
+      excelCellText(sheet.getRow(1).getCell(17)).trim().toLowerCase() === "stage (current)") {
+    lastHeaderColumn = 19;
+  }
   if (lastHeaderColumn > MAX_COLUMNS) throw new Error("Import exceeds 80 columns");
   const headers = Array.from({length:lastHeaderColumn},(_,i)=>excelCellText(sheet.getRow(1).getCell(i+1)).trim());
   const rows = [], rowNumbers = [];
