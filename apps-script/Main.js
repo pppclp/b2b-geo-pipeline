@@ -526,11 +526,11 @@ function verifyUatActivation_(store, body) {
 }
 function uatCheckNewPassword_(value, email) {
   var password = String(value || "");
-  if (password.length < 15 || password.length > 128 ||
+  if (password.length < 10 || password.length > 128 ||
       /[\x00-\x1f\x7f]/.test(password) ||
       (email && password.toLowerCase().includes(String(email).split("@")[0].toLowerCase())) ||
       /^(password|123456|qwerty|letmein)/i.test(password)) {
-    throwUatError_(400, "Use a unique password of 15–128 characters without your email name");
+    throwUatError_(400, "Use a unique password of 10–128 characters without your email name");
   }
   return password;
 }
