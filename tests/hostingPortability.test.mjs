@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { prepareStaticHost } from "../scripts/prepare-static-host.mjs";
 import { latestVerifiedPagesSource } from "../scripts/pages-release-gate.mjs";
 
-test("GitHub project path retains matching 404 fallback; root host gets SPA 200 rewrite only",()=>{
+test("GitHub project path retains 404 fallback; root Cloudflare host uses native SPA routing",()=>{
   const dir=mkdtempSync(join(tmpdir(),"geo-static-"));
   try {
     writeFileSync(join(dir,"index.html"),"<html><div id='root'></div></html>");
@@ -15,9 +15,9 @@ test("GitHub project path retains matching 404 fallback; root host gets SPA 200 
     assert.equal(readFileSync(join(dir,"404.html"),"utf8"),readFileSync(join(dir,"index.html"),"utf8"));
     assert.equal(existsSync(join(dir,"_redirects")),false);
     const root=prepareStaticHost({basePath:"/",outputDir:dir});
-    assert.equal(root.fallback,"rewrite");
+    assert.equal(root.fallback,"native-spa");
     assert.equal(existsSync(join(dir,"404.html")),false);
-    assert.equal(readFileSync(join(dir,"_redirects"),"utf8"),"/* /index.html 200\n");
+    assert.equal(existsSync(join(dir,"_redirects")),false);
     assert.throws(()=>prepareStaticHost({basePath:"relative/path",outputDir:dir}),/VITE_BASE_PATH/);
   } finally { rmSync(dir,{recursive:true,force:true}); }
 });
