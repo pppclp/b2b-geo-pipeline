@@ -1146,9 +1146,13 @@ export function createCore({ contract, store, now, uuid }) {
       }
       const row = findRow(b, actor, id);
       if (uiEntity === "Opportunity") {
-        if (typeof expectedUpdatedAt !== "string") {
+        if (typeof expectedUpdatedAt !== "string" ||
+            (expectedUpdatedAt === "" && !String(row.import_batch_id || "").trim())) {
           throw new HttpError(428, "Pipeline revision is required. Refresh before saving.");
         }
+        // A known historical import can carry a blank first revision.
+        // The explicit empty token is compared to the current blank cell;
+        // after the first successful edit it becomes a server timestamp.
         if (String(expectedUpdatedAt) !== String(row.updated_at || "")) {
           throw new HttpError(409, "This Pipeline was updated by someone else. Refresh it before saving.");
         }
