@@ -123,9 +123,16 @@ export async function readImportFile(file, parseCsv) {
   const name = String(file.name || "").toLowerCase();
   if (name.endsWith(".xlsx")) return parseImportXlsx(await file.arrayBuffer());
   if (name.endsWith(".csv")) {
-    const parsed = parseCsv(await file.text());
+    const text = await file.text();
+    // Replacement characters mean the CSV was decoded with the wrong
+    // character set; never silently import corrupted Thai customer names.
+    if (text.includes("\\uFFFD") || text.includes("\\u0000"))
+      throw new Error("CSV text encoding is invalid or unsupported. Open the original Excel file and save as CSV UTF-8, or upload .xlsx.");
+    const parsed = parseCsv(text.replace(/^\\uFEFF/, ""));
     if (!parsed.length) throw new Error("CSV has no rows");
     if (parsed.length - 1 > MAX_IMPORT_ROWS) throw new Error("Import supports up to 200 rows per file");
+    if (!parsed[0].length || parsed[0].every(h => !String(h).trim()))
+      throw new Error("CSV header row is empty");
     return {headers:parsed[0].map((h)=>h.trim()),rows:parsed.slice(1)};
   }
   throw new Error("Choose a .xlsx or .csv file");
