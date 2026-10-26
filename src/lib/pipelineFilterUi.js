@@ -18,7 +18,7 @@ export const PIPELINE_FILTER_LABELS = Object.freeze({
   sales_channel: "Sales Channel",
   ccp_check_result: "CCP+ Check",
   sm_info: "Missing SM Info",
-  stuck: "Stage SLA Overdue",
+  stuck: "Overdue",
   due_this_month: "Due This Month",
   internal_overdue: "Internal SLA Overdue",
   won_month: "Won Month",
