@@ -548,6 +548,9 @@ export function createCore({ contract, store, now, uuid }) {
       return evidence;
     });
     const signatures = items.map(importFingerprint);
+    if (new Set(signatures).size !== signatures.length) {
+      throw new HttpError(409, "Identical source rows in one batch need distinct Source Opportunity IDs");
+    }
     // In-memory rollback for validation errors on later rows. Google Sheets
     // persists only after the full request succeeds; local adapters stay clean.
     const transactionSheets = ["Pipelines", "Pipeline_Events", "Handoff_Notifications"];
