@@ -38,6 +38,8 @@ test("strict transformations retain true sales semantics",()=>{
   assert.equal(legacyCustomerType("Others"),"Other");
   assert.equal(legacyProductCategory("Broadband"),"TOL");
   assert.equal(legacySourceMonth("Oct-26"),"2026-10");
+  assert.equal(legacySourceMonth("ต.ค.-26"),"2026-10");
+  assert.equal(legacySourceMonth("Sep_26"),"2026-09");
   assert.equal(legacySourceMonth("2026-10"),"2026-10");
   assert.equal(legacySourceMonth("Oct-99"),"1999-10");
   assert.equal(legacySourceMonth("12,000"),null);
