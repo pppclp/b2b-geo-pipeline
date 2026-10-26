@@ -1,11 +1,12 @@
 // Bump this only for intentional breaking changes to the API contract.
 // The frontend refuses an absent/older contract rather than displaying empty Pipeline data.
-export const API_CONTRACT_VERSION = 2;
+export const API_CONTRACT_VERSION = 3;
 export const REQUIRED_CAPABILITIES = Object.freeze([
   "pipeline_revision",
   "needs_support_toggle",
   "schema_fail_closed",
   "import_batch_dedupe",
+  "scenario_task_overdue",
 ]);
 export function validateApiContract(me) {
   if (me?.api_contract_version !== API_CONTRACT_VERSION ||
