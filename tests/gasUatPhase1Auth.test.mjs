@@ -183,3 +183,23 @@ test("inactive user login is blocked even if password matches", () => {
   properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
   assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
 });
+
+test("read-only login readiness reports identity ambiguity without exposing credentials", () => {
+  const users=[
+    {employee_id:"90001",user_id:"U0001",status:"Active",role:"AE"},
+    {employee_id:"90001",user_id:"ADMIN1",status:"Active",role:"Admin"},
+    {employee_id:"90002",user_id:"U0002",status:"Active",role:"SM"}
+  ];
+  const credentials=[
+    {user_id:"U0001","employee_id / username":"90001",temporary_password:"secret-1"},
+    {user_id:"NOT-U0002","employee_id / username":"90002",password_hash:"hmac-sha256-v1$synthetic"}
+  ];
+  const {ctx,store}=fixture(credentials,users);
+  ctx.SheetStore_ = function () { return store; };
+  const summary=ctx.debugUatLoginReadiness();
+  assert.equal(summary.duplicate_user_employee_ids,1);
+  assert.equal(summary.credential_user_id_mismatch,3);
+  assert.equal(summary.credential_ready,0);
+  assert.equal(JSON.stringify(summary).includes("secret-1"),false);
+  assert.equal(JSON.stringify(summary).includes("NOT-U0002"),false);
+});
