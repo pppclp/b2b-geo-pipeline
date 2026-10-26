@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { useData } from "@/lib/dataContext";
@@ -7,6 +7,7 @@ import { LayoutDashboard, KanbanSquare, Settings, Upload, LogOut, Menu, X, HandH
 import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
 import HandoffBell from "@/components/HandoffBell";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 
 const LOGO_URL = `${import.meta.env.BASE_URL}true-logo.svg?v=20261025`;
 
@@ -45,11 +46,55 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const mobilePanelRef = useRef(null);
+  const mobileCloseRef = useRef(null);
   const [clock, setClock] = useState(Date.now());
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 60000);
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement;
+    const panel = mobilePanelRef.current;
+    mobileCloseRef.current?.focus();
+
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !panel) return;
+      const focusable = Array.from(panel.querySelectorAll(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) {
+        event.preventDefault();
+        panel.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const onResize = () => { if (window.innerWidth >= 768) setOpen(false); };
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onResize);
+      if (previouslyFocused?.isConnected && typeof previouslyFocused.focus === "function") {
+        previouslyFocused.focus();
+      }
+    };
+  }, [open]);
+
   const minutesSinceLoad = lastLoadedAt ? Math.max(0, Math.floor((clock - Date.parse(lastLoadedAt)) / 60000)) : null;
   const freshnessText = error ? "Refresh failed" : loading ? "Loading data…" : !lastLoadedAt ? "Not yet refreshed" : minutesSinceLoad === 0 ? "Updated just now" : `Updated ${minutesSinceLoad} min ago`;
 
@@ -165,9 +210,9 @@ export default function AppLayout() {
       {/* Mobile drawer */}
       {open && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <aside className="relative w-[232px] bg-sidebar h-full rounded-r-2xl shadow-lift">
-            <button className="absolute top-4 right-3 text-muted-foreground hover:text-foreground" onClick={() => setOpen(false)}>
+          <button type="button" tabIndex={-1} aria-label="Close navigation" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <aside id="mobile-navigation" ref={mobilePanelRef} role="dialog" aria-modal="true" aria-label="Mobile navigation" tabIndex={-1} className="relative w-[232px] bg-sidebar h-full rounded-r-2xl shadow-lift">
+            <button ref={mobileCloseRef} type="button" aria-label="Close navigation" className="absolute top-4 right-3 text-muted-foreground hover:text-foreground" onClick={() => setOpen(false)}>
               <X className="w-5 h-5" />
             </button>
             <SidebarContent />
@@ -175,11 +220,11 @@ export default function AppLayout() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 gap-3">
+      <div className="flex-1 flex flex-col min-w-0 gap-3" inert={open ? "" : undefined}>
         {/* Header */}
         <header className="shrink-0 rounded-2xl bg-card border border-border shadow-soft h-16 px-4 md:px-5 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <button className="md:hidden text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>
+            <button type="button" aria-label="Open navigation" aria-expanded={open} aria-controls="mobile-navigation" className="md:hidden text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>
               <Menu className="w-5 h-5" />
             </button>
             <div className="md:hidden flex items-center gap-2">
@@ -213,7 +258,10 @@ export default function AppLayout() {
             // First load from Google Sheets can take ~10 s; don't show empty numbers meanwhile.
             <div className="h-full min-h-[320px] flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
               {error ? (
-                <span className="text-destructive">Could not load data: {error.message}</span>
+                <>
+                  <span role="alert" className="text-destructive">{actionableErrorMessage(error, "load")}</span>
+                  <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={loading}>Retry</Button>
+                </>
               ) : (
                 <>
                   <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
