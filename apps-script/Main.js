@@ -847,7 +847,11 @@ var GEO_PLAIN_TEXT_HEADERS_ = {
   opportunity_id: true, event_id: true, snapshot_id: true,
   previous_value: true, new_value: true, lost_note: true, support_note: true,
   remark: true, notes: true, customer_name: true, contact_name: true,
-  partner_name: true, product_details: true,
+  owner_sales_code: true, owner_sale_name: true,
+  partner_name: true, product_details: true, customer_location_text: true,
+  import_source_system: true, import_source_record_id: true, import_source_product_id: true,
+  import_source_rc: true, import_source_discount_pct: true, import_source_monthly_sale_plan: true,
+  import_source_net_rc: true, import_source_customer_type: true,
 };
 
 function geoSafeSheetValue_(value) {
