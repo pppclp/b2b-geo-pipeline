@@ -87,3 +87,30 @@ This also applies to employees who previously logged in with a temporary passwor
 6. After migration, close the legacy plaintext login recovery window (`GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS=false`) if no approved older flows still need it, and plan company SSO/MFA before Production.
 
 **Caution:** The UAT password hash uses salted/peppered HMAC-SHA256 for backward compatibility, not Argon2id or an enterprise identity provider. This is not approved for Production authentication. The initial temporary password's ownership is only as trustworthy as its private distribution: do not email/show it publicly or grant access to inactive identities.
+
+## Re-authentication while editing an unsaved Pipeline
+
+The in-page "Session expired" dialog supports first-time UAT password migration without leaving the Pipeline form:
+- Employee ID + valid temporary password yields a short-lived password setup ticket, not an app session.
+- The modal requests New Personal Password and Confirm Password; after success it asks for a fresh sign-in with that new password.
+- The page with the unsaved draft stays mounted; the signed-in user must be the **same user_id** as the draft owner before the blocking modal closes.
+- The ticket exists only in temporary React state, never a URL or storage, and expires after 10 minutes.
+- Do not refresh/close the tab while the form is unsaved. This protects only the mounted form, not a durable browser draft.
+- Admin, Management, SM and AE follow the same first-time setup rules.
+
+### Diagnose a live 5xx response safely
+
+1. Use the **existing** Google Apps Script project > Executions; locate the failure by timestamp and the displayed error ID. The underlying exception and stack are visible only to an authorized operator. Do not post private error logs publicly.
+2. Deploy this reviewed Code.gs, then run **debugUatPasswordSetupReadiness()** from the Apps Script editor. This **read-only, editor-only** diagnostic reports only aggregate counts and readiness booleans; it does not reveal credentials, staff IDs, workbook IDs, or secrets.
+3. Confirm environment_is_uat, temporary_password_setup_enabled, activation_signing_secret_present, password_pepper_present, both binding flags, and sheet_read_ok. If a flag is false, address that condition before more login attempts.
+4. If a required secret is missing, **never replace the old pepper while password hashes exist**. The preexisting editor-only prepareUatEmailActivation() provisions missing secrets only when it has verified that doing so is safe. It does not enable corporate email login.
+5. If sheet_read_ok is false, verify the authoritative Script Properties sheet IDs and the expected Users and UAT_Credentials schema. Do not switch to a backup workbook or overwrite pipeline data.
+6. Deploy the matching reviewed Apps Script backend to the original /exec URL and matching frontend through the guarded GitHub Pages workflow (preflight, build and deploy must all run).
+7. Test an approved Active UAT account separately before trying an unsaved **synthetic** Pipeline form. Verify that password setup and return-to-form work and that wrong password, expired ticket and unrelated user account fail safely.
+
+No GitHub success indicator can prove which Apps Script /exec version was deployed or that private Script Properties are correctly configured.
+
+### Master data integrity
+- Users and User_Region in B2B_GEO_User_Org_Master define role, status and authorized regions. UAT_Credentials stores verification state; its role text is not the permission source.
+- Only use unique, verified Employee IDs in both worksheets, mapped by the same stable user_id. Do not invent Employee IDs for people whose IDs remain blank.
+- The Management role does not grant all-region access by itself. Add only explicitly approved active User_Region rows.
