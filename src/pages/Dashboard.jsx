@@ -18,7 +18,7 @@ const isOpen = (item) => item.status === "open";
 const compactDate = (month) => month || "All Months";
 
 export default function Dashboard() {
-  const { scopedOpportunities, maps, activeStages, profile, config, taskEntries, loading, error, refresh } = useData();
+  const { scopedOpportunities, maps, master, activeStages, profile, config, taskEntries, loading, error, refresh } = useData();
   const navigate = useNavigate();
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState("");
@@ -49,8 +49,11 @@ export default function Dashboard() {
     stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
   const overdue = open.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
-  const assigned = withMePipelines(cohort, profile?.id);
+  const assigned = withMePipelines(cohort, profile?.id, {
+    role, teams: master?.WorkingWithOption,
+  });
   const assignedOverdue = assigned.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
+  const withMeQuery = isManagement ? { with_me: "1" } : { handler: profile?.id };
 
   const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); };
   const hasFilters = Boolean(createdMonth || closeMonth || region);
@@ -168,8 +171,8 @@ export default function Dashboard() {
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
         <Metric title="With Me"
           value={String(assigned.length)}
-          note={isManagement ? "Assigned to your management account" : "Current Handler"}
-          onClick={() => toPipeline({ status: "open", handler: profile.id })} />
+          note={isManagement ? "Current Handler or Working With: Management" : "Current Handler"}
+          onClick={() => toPipeline({ status: "open", ...withMeQuery })} />
         <Metric title={isManagement ? "Overdue" : "Overdue With Me"}
           value={String(isManagement ? overdue.length : assignedOverdue.length)} note="Stage Aging · Stage SLA · Task"
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
@@ -192,7 +195,7 @@ export default function Dashboard() {
           </div>
           {isManagement && selectedTab === "with" && (
             <p className="mb-2 text-[11px] text-muted-foreground">
-              Assigned to you as Current Handler. Pending approvals appear here when handed off to your account.
+              Current Handler assignments and Pipelines involving the Management team in your authorized Regions.
             </p>
           )}
           <OpportunityTable rows={queueItems} maps={maps}
@@ -203,7 +206,7 @@ export default function Dashboard() {
             <Button size="sm" variant="outline" onClick={() =>
               toPipeline({
                 status: "open",
-                ...(selectedTab === "with" ? { handler: profile.id } : {}),
+                ...(selectedTab === "with" ? withMeQuery : {}),
                 ...(selectedTab === "overdue" ? { stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) } : {}),
                 ...(selectedTab === "support" ? { support: "1" } : {}),
                 ...(selectedTab === "due" ? { due_this_month: "1" } : {}),
