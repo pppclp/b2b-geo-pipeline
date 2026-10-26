@@ -123,14 +123,6 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
             {v.charAt(0).toUpperCase()+v.slice(1)}
           </SelectItem>)}
         </SelectWrap>
-        {profile?.app_role === "sm" && (
-          <Button type="button" variant={filters.sm_info === "missing" ? "secondary" : "outline"}
-            size="sm" aria-pressed={filters.sm_info === "missing"}
-            onClick={()=>onFilter("sm_info",filters.sm_info === "missing" ? "" : "missing")}
-            className={`col-span-2 h-10 w-full rounded-xl text-xs md:col-span-1 md:h-9 md:w-auto md:rounded-lg ${filters.sm_info === "missing" ? "border border-primary/50 text-brand bg-brand-tint" : ""}`}>
-            Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}
-          </Button>
-        )}
         <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" aria-label="More Filters"
@@ -203,6 +195,14 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
             </div>
           </PopoverContent>
         </Popover>
+        {profile?.app_role === "sm" && (
+          <Button type="button" variant={filters.sm_info === "missing" ? "secondary" : "outline"}
+            size="sm" aria-pressed={filters.sm_info === "missing"}
+            onClick={()=>onFilter("sm_info",filters.sm_info === "missing" ? "" : "missing")}
+            className={`col-span-2 h-10 w-full rounded-xl text-xs md:col-span-1 md:h-9 md:w-auto md:rounded-lg ${filters.sm_info === "missing" ? "border border-primary/50 text-brand bg-brand-tint" : ""}`}>
+            Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}
+          </Button>
+        )}
       </div>
       {chipEntries.length>0&&<div className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-x-2 gap-y-2 md:flex md:flex-wrap md:gap-1.5" aria-label="Active filters">
         <span className="text-xs font-medium text-muted-foreground md:mr-1 md:text-[11px]">Active Filters</span>
