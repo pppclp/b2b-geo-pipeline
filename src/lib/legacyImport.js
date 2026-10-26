@@ -33,6 +33,8 @@ export function legacyProductCategory(value) {
   return /^broadband$/i.test(text) ? "TOL" : text;
 }
 
+const THAI_MONTHS = {"ม.ค.":1,"ก.พ.":2,"มี.ค.":3,"เม.ย.":4,"พ.ค.":5,"มิ.ย.":6,"ก.ค.":7,"ส.ค.":8,"ก.ย.":9,"ต.ค.":10,"พ.ย.":11,"ธ.ค.":12};
+
 export function legacySourceMonth(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
@@ -41,10 +43,10 @@ export function legacySourceMonth(value) {
     const year = Number(iso[1]),month=Number(iso[2]);
     return year>=1900&&year<=2100&&month>=1&&month<=12 ? raw : null;
   }
-  const named = /^([A-Za-z]{3,9})[-\/\s]+(\d{2}|\d{4})$/.exec(raw);
+  const named = /^((?:[A-Za-z]{3,9}|[ก-๙.]+))[-_\/\s]+(\d{2}|\d{4})$/.exec(raw);
   if (!named) return null;
   const names=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-  const mon=names.indexOf(named[1].slice(0,3).toLowerCase())+1;
+  const mon=THAI_MONTHS[named[1]] || names.indexOf(named[1].slice(0,3).toLowerCase())+1;
   const n=Number(named[2]),y=named[2].length===2?(n<=69?2000+n:1900+n):n;
   return mon&&y>=1900&&y<=2100?String(y)+"-"+String(mon).padStart(2,"0"):null;
 }
