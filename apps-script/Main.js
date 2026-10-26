@@ -1291,6 +1291,89 @@ function debugGeoPipelineDataIntegrity() {
   }
 }
 
+// An approved, narrow UAT correction for imported Pipelines whose updated_at
+// was omitted by the legacy Sheet import. The ONE authoritative create event
+// supplies the import transaction timestamp. Customer created_at and unknown
+// stage/handler clocks are NEVER replaced or inferred.
+function geoRevisionRepairPlan_(pipelines, events) {
+  var byPipeline = Object.create(null);
+  events.forEach(function (e) {
+    var id = String(e.opportunity_id || "");
+    (byPipeline[id] || (byPipeline[id] = [])).push(e);
+  });
+  var eligible = [];
+  var skipped = 0;
+  pipelines.forEach(function (p) {
+    if (String(p.updated_at || "").trim()) return;
+    var id = String(p.opportunity_id || "").trim();
+    var history = byPipeline[id] || [];
+    var created = history.length === 1 && String(history[0].event_type || "").toLowerCase() === "create";
+    var stamp = created ? String(history[0].event_at || "").trim() : "";
+    if (!id || !String(p.import_batch_id || "").trim() || !created ||
+        !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$/.test(stamp) ||
+        !Number.isFinite(Date.parse(stamp))) {
+      skipped++;
+      return;
+    }
+    eligible.push({ row: p, at: stamp });
+  });
+  return { eligible: eligible, skipped: skipped };
+}
+// Editor-only preview. No mutation, private identities, workbook IDs or values.
+function debugGeoImportedRevisionRepair() {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var ps = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines").rows;
+    var es = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipeline_Events").rows;
+    var plan = geoRevisionRepairPlan_(ps, es);
+    var summary = { total_pipelines: ps.length, missing_revisions: plan.eligible.length + plan.skipped,
+      eligible: plan.eligible.length, unsafe_skipped: plan.skipped };
+    console.log(JSON.stringify(summary));
+    return summary;
+  } finally { lock.releaseLock(); }
+}
+// Editor-only opt-in. Require exact approved candidate count, so a concurrent
+// import cannot silently expand the repair. Never expose a public HTTP route.
+function repairGeoImportedRevisionsApproved() {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
+        props.getProperty("GEO_UAT_REVISION_REPAIR_APPROVED") !== "YES") {
+      throw Error("UAT data revision repair requires explicit editor approval");
+    }
+    var expectedText = String(props.getProperty("GEO_UAT_REVISION_REPAIR_EXPECTED_COUNT") || "");
+    if (!/^[1-9]\\d*$/.test(expectedText)) throw Error("Expected count must be a positive integer");
+    var store = new SheetStore_();
+    var ps = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines").rows;
+    var es = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipeline_Events").rows;
+    var plan = geoRevisionRepairPlan_(ps, es);
+    if (plan.skipped || plan.eligible.length !== Number(expectedText))
+      throw Error("Live import changed or unsafe missing revisions found; no rows were modified");
+    var audit = store.table("B2B_GEO_Pipeline_DB.xlsx", "Admin_Audit");
+    var nowAt = new Date().toISOString();
+    plan.eligible.forEach(function (item) {
+      item.row.updated_at = item.at;
+      audit.rows.push({
+        audit_id: "AUD-" + Utilities.getUuid(),
+        event_type: "IMPORT_REVISION_REPAIRED",
+        source_file: "B2B_GEO_Pipeline_DB.xlsx", source_sheet: "Pipelines",
+        source_record_id: String(item.row.opportunity_id),
+        field_name: "updated_at", previous_value: "", new_value: item.at,
+        actor_user_id: "SYSTEM_APPROVED_UAT_REPAIR", actor_name: "Editor-approved UAT data repair",
+        actor_role: "system", event_at: nowAt
+      });
+    });
+    store.touch("B2B_GEO_Pipeline_DB.xlsx", "Pipelines");
+    store.touch("B2B_GEO_Pipeline_DB.xlsx", "Admin_Audit");
+    store.flush();
+    props.deleteProperty("GEO_UAT_REVISION_REPAIR_APPROVED");
+    props.deleteProperty("GEO_UAT_REVISION_REPAIR_EXPECTED_COUNT");
+    return { repaired: plan.eligible.length, audit_entries: plan.eligible.length };
+  } finally { lock.releaseLock(); }
+}
+
 // ---- Table store over Google Sheets (same interface as server/store.js) ----
 function SheetStore_() {
   this.books = {};
