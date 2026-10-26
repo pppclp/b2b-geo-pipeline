@@ -130,11 +130,11 @@ export function createUatTemporaryPasswordSetup({ env = process.env, clock = () 
     if (!pending(c) || !same(fingerprint(uid,c),claims.fp))
       throw failure(401, "Password setup expired. Sign in again.");
     const pw = String(password || ""), emailPart = String(selected[0].email || "").split("@")[0].toLowerCase();
-    if (pw.length < 15 || pw.length > 128 || /[\x00-\x1f\x7f]/.test(pw) ||
+    if (pw.length < 10 || pw.length > 128 || /[\x00-\x1f\x7f]/.test(pw) ||
       (emailPart && pw.toLowerCase().includes(emailPart)) ||
       pw.includes(employeeKey(selected[0].employee_id)) ||
       /^(password|123456|qwerty|letmein)/i.test(pw))
-      throw failure(400, "Use a unique password of 15–128 characters without your Employee ID");
+      throw failure(400, "Use a unique password of 10–128 characters without your Employee ID");
     if (pw !== String(confirm || "")) throw failure(400, "Passwords do not match");
     if (passwordMatches(c,pw)) throw failure(400, "New password must differ from the temporary password");
     const salt = crypto.randomBytes(16).toString("hex");
