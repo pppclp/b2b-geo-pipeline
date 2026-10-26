@@ -1146,8 +1146,10 @@ export function createCore({ contract, store, now, uuid }) {
       }
       const row = findRow(b, actor, id);
       if (uiEntity === "Opportunity") {
-        if (typeof expectedUpdatedAt !== "string" ||
-            (expectedUpdatedAt === "" && !String(row.import_batch_id || "").trim())) {
+        // The empty string is still an explicit revision token for a legacy
+        // row whose stored updated_at was blank. Compare-and-set below blocks
+        // stale callers; null/omitted revisions remain forbidden.
+        if (typeof expectedUpdatedAt !== "string") {
           throw new HttpError(428, "Pipeline revision is required. Refresh before saving.");
         }
         // A known historical import can carry a blank first revision.
