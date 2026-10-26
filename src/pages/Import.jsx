@@ -187,15 +187,17 @@ export default function Import() {
         }
         if (f.resolve) {
           const ent = resolve[f.resolve][val.toLowerCase()];
-          if (!ent) errors.push(`${f.label} "${val}" not found or ambiguous`);
-          else rec[f.key + (f.resolve === "member" ? (f.key === "owner" ? "_id" : "_id") : "_id")] = ent.id;
-          // map resolve keys to id fields
+          if (!ent) {
+            errors.push(`${f.label} "${val}" not found or ambiguous`);
+            return;
+          }
           if (f.resolve === "region") rec.region_id = ent.id;
           else if (f.resolve === "territory") rec.territory_id = ent.id;
           else if (f.resolve === "member") rec[f.key === "owner" ? "owner_id" : "current_handler_id"] = ent.id;
           else if (f.resolve === "category") rec.product_category_id = ent.id;
           else if (f.resolve === "scenario") rec.scenario_id = ent.id;
           else if (f.resolve === "stage") rec.stage_id = ent.id;
+          else if (f.resolve === "reason") rec.lost_reason_id = ent.id;
         } else if (f.key === "customer_type") {
           const canonical = normalizeCustomerType(val) || customerTypes.find((type) => type.toLowerCase() === val.toLowerCase());
           if (!canonical) errors.push(`Customer Type "${val}" is not an active or recognized legacy value`);
