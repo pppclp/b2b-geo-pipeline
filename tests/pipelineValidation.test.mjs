@@ -1,11 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { businessIdError, normalizeCustomerType, netRcReconciliation } from "../src/lib/pipelineValidation.js";
-test("13-digit business IDs stay text; truncated values cannot silently pass", () => {
+test("Business ID is optional and accepts up to 40 digits without losing leading zeros", () => {
+  assert.equal(businessIdError(""), "");
   assert.equal(businessIdError("0012345678901"), "");
-  assert.match(businessIdError("123456789012"), /13 digits/);
-  assert.match(businessIdError("000123"), /13 digits/);
+  assert.equal(businessIdError("123456789012"), "");
+  assert.equal(businessIdError("000123"), "");
+  assert.equal(businessIdError("1".repeat(40)), "");
+  assert.match(businessIdError("1".repeat(41)), /40 digits/);
   assert.match(businessIdError("ABC123"), /digits only/);
+  assert.match(businessIdError("2.05565E+11"), /digits only/);
 });
 test("Industrial is an explicit supported customer type", () => {
   assert.equal(normalizeCustomerType("industrial"), "Industrial");
