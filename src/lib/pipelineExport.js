@@ -54,7 +54,7 @@ export function pipelineExportRows(ops, maps) {
     dict("member", o.owner_id), dict("member", o.current_handler_id),
     dict("stage", o.stage_id), STATUS_LABELS[o.status] || o.status,
     toBangkokExcelDate(o.created_date), o.created_month || "", monthKeyToExcelDate(o.expected_close_month),
-    agingDays(o.stage_entered_at), maps?.stage?.[o.stage_id]?.sla_days ?? null, agingDays(o.handler_since),
+    o.stage_entered_at ? agingDays(o.stage_entered_at) : null, maps?.stage?.[o.stage_id]?.sla_days ?? null, o.handler_since ? agingDays(o.handler_since) : null,
     o.working_with || "", o.working_with ? agingDays(o.working_with_since) : null,
     o.support_needed ? "Yes" : "No", o.support_type || "", o.support_note || "",
     toBangkokExcelDate(o.won_at), toBangkokExcelDate(o.lost_at), dict("lostReason", o.lost_reason_id), o.lost_note || "",
