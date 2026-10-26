@@ -188,6 +188,12 @@ function uatLogin_(store, body) {
         verifyUatPassword_(credential, password))) {
     denyUatLogin_(limiter, key);
   }
+  if (!usingEmail && uatTemporarySetupEnabled_() && !needsSetup &&
+      (String(credential.credential_status || "") !== "active" ||
+       !String(credential.password_set_at || "").trim() ||
+       !String(credential.password_hash || "").trim())) {
+    denyUatLogin_(limiter, key);
+  }
   if (key) limiter.remove(key);
   // Correct temporary credentials confer no app session or Pipeline access.
   if (needsSetup) {
