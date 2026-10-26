@@ -72,6 +72,24 @@ test("aggregate password spraying is alerted, not a global account lockout",()=>
   assert.equal(ctx.uatLogin_(store,{username:"90001",password:"good"}).user_id,"U0001");
 });
 
+test("a correct personal password succeeds after six failed attempts without waiting",()=>{
+  const credential={user_id:"U0001","employee_id / username":"90001",
+    credential_status:"active",password_set_at:"2026-10-27T00:00:00.000Z"};
+  const {ctx,store,properties}=fixture([credential]);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_PASSWORD_PEPPER","uat-test-only-pepper-32-characters-long");
+  properties.set("GEO_UAT_LEGACY_PASSWORD_SETUP_ENABLED","true");
+  const salt="a".repeat(32);
+  credential.password_hash="hmac-sha256-v1$"+salt+"$"+ctx.uatPasswordDigest_(salt,"correct-long-password");
+  for(let i=0;i<6;i++){
+    assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"wrong-"+i}),
+      e=>e.status===401 || e.status===429);
+  }
+  assert.equal(ctx.uatLogin_(store,{username:"90001",password:"correct-long-password"}).user_id,"U0001");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"wrong-again"}),e=>e.status===401);
+  assert.doesNotMatch(source,/Try again in 10 minutes/);
+});
+
 test("hashed credentials win over plaintext and compare against the protected pepper",()=>{
   const cred={"employee_id / username":"90001",temporary_password:"insecure-old-value"};
   const {ctx,properties,store}=fixture([cred]);
