@@ -3,7 +3,7 @@ export function snapshotPeriodValid(period) {
   if (typeof period !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return false;
   return true;
 }
-export function buildSnapshotRows(opportunities, snapshotPeriod, capturedAt, newId) {
+export function buildSnapshotRows(opportunities, snapshotPeriod, capturedAt, newId, usersById = new Map()) {
   if (!snapshotPeriodValid(snapshotPeriod)) throw new Error("Snapshot period must be YYYY-MM");
   const ids = new Set();
   return opportunities.filter((o) => ["open", "won", "lost"].includes(String(o.status || "").toLowerCase()))
@@ -11,6 +11,9 @@ export function buildSnapshotRows(opportunities, snapshotPeriod, capturedAt, new
       if (!o.opportunity_id || ids.has(String(o.opportunity_id))) throw new Error("Duplicate or missing Pipeline ID in snapshot source");
       ids.add(String(o.opportunity_id));
       const months = o.contract_period_months === "" || o.contract_period_months == null ? null : Number(o.contract_period_months);
+      // Freeze the identity label visible to business users at capture time.
+      // Historical spreadsheet spellings are advisory; Users Master owns AE identity.
+      const owner = usersById.get(String(o.owner_user_id || "")) || null;
       const netRc = Number(o.pipeline_value || 0);
       if (!Number.isFinite(netRc) || (months !== null && !Number.isFinite(months))) throw new Error("Invalid Pipeline financial data for snapshot");
       return {
@@ -52,6 +55,18 @@ export function buildSnapshotRows(opportunities, snapshotPeriod, capturedAt, new
         won_at: o.won_at || "",
         lost_at: o.lost_at || "",
         lost_reason_id: o.lost_reason_id || "",
+        // Import-friendly evidence. Append fields; never shift historical columns.
+        created_month: o.created_month || "",
+        owner_sales_code: owner?.employee_id == null ? "" : String(owner.employee_id),
+        owner_sale_name: owner?.display_name || "",
+        customer_location_text: o.customer_location_text || "",
+        import_source_customer_type: o.import_source_customer_type || "",
+        import_source_rc: o.import_source_rc ?? "",
+        import_source_net_rc: o.import_source_net_rc ?? "",
+        import_source_monthly_sale_plan: o.import_source_monthly_sale_plan || "",
+        import_source_system: o.import_source_system || "",
+        import_source_record_id: o.import_source_record_id || "",
+        import_batch_id: o.import_batch_id || "",
       };
     });
 }

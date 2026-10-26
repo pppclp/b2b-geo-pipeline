@@ -399,7 +399,10 @@ export function createCore({ contract, store, now, uuid }) {
     // Capture source from backend; NEVER trust a browser-supplied Pipeline list.
     const source = rows("opportunities");
     const stamp = now();
-    const snapshots = buildSnapshotRows(source, snapshotPeriod, stamp, () => "SNP-" + uuid());
+    // Resolve AE employee code/name on the server and freeze them in the capture.
+    // Never let a browser-supplied lookup or current export alter prior snapshots.
+    const snapshotUsers = new Map(rows("users").map((user) => [String(user.user_id), user]));
+    const snapshots = buildSnapshotRows(source, snapshotPeriod, stamp, () => "SNP-" + uuid(), snapshotUsers);
     if (!snapshots.length) throw new HttpError(409, "No eligible Pipelines; existing snapshot period was preserved");
     const table = tableOf(b);
     const replacement = replaceSnapshotPeriod(table.rows, snapshotPeriod, snapshots);
