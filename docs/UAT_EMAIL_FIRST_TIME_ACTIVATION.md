@@ -60,10 +60,12 @@ Run `npm run lint`, `npm run build`, `node --test tests/*.test.mjs`, `npm run ga
 
 Do not attempt live email activation for any employee without a verified email. Employee-ID login remains available to all existing authorized UAT users.
 
-## Optional interim onboarding: new users only (no email needed)
+## Optional interim onboarding: new or untouched blank UAT credentials (no email needed)
 
-For a newly approved employee who has an active, unique Employee ID and user_id in User Master but **no** Credentials row, use the editor-only `provisionOneNewUatEmployeePassword()` helper. It generates a new random `XXXX-XXXX-XXXX` password, stores **only** its salted/peppered hash in Credentials, and returns the password exactly once to the authorized operator for secure private delivery.
+For an individually approved **Active** User Master employee with a unique Employee ID and user_id, use editor-only `provisionOneNewUatEmployeePassword()`. It now supports (a) no existing Credentials row, or (b) one correctly mapped existing Credentials row with **both temporary_password and password_hash blank**, empty credential status, and no activation state. It **never** resets an existing password, changes an Active/Inactive user, or enables a Disabled credential.
 
-Required Script Properties: `GEO_ENVIRONMENT=UAT`, `GEO_UAT_NEW_CREDENTIAL_APPROVED=YES`, `GEO_UAT_NEW_EMPLOYEE_ID` = the exact approved new employee ID. The helper refuses any existing employee credential, including a blank one, and does not alter the existing users' passwords. No email is required for this interim **Employee ID + Password** login mode.
+Each approved invocation generates an independent random `XXXX-XXXX-XXXX` temporary password, persists **only** a salted and peppered hash into Credentials, calls `store.flush()`, and returns the password only once to the authorized Apps Script editor. The `temporary_password` Sheet cell remains blank on purpose. **Do not write the returned password into Sheets, GitHub, logs, or a shared chat.** Use an approved private delivery mechanism.
 
-Do not enable `GEO_UAT_EMAIL_LOGIN_ENABLED` for this flow. Continue Employee ID login. This temporary-password onboarding is UAT-only; permanent corporate SSO/MFA is still recommended. If the organization uses the stricter activation-only email mode later, these new UAT users must complete the approved activation process first.
+Required Script Properties: `GEO_ENVIRONMENT=UAT`, `GEO_UAT_NEW_CREDENTIAL_APPROVED=YES`, `GEO_UAT_NEW_EMPLOYEE_ID` = the exact verified target Employee ID. Review and approve each individual account before provisioning. The helper deletes the approval and target on success. It rejects ambiguous/mismatched identities, nonblank passwords or hashes, any nonblank credential status, and pending activation. Existing Admin credentials and other users remain unchanged.
+
+Do not enable `GEO_UAT_EMAIL_LOGIN_ENABLED` for this flow. Continue Employee ID login. This temporary-password onboarding is UAT-only; it does **not** substitute for first-time corporate email verification or the separate email-activation flow. Permanent corporate SSO/MFA is still recommended.
