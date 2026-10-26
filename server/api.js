@@ -7,6 +7,7 @@ import { loadContract } from "./contract.js";
 import { createCore, HttpError } from "./core.js";
 import { createSessionManager } from "./authSession.js";
 import { createUatEmailAuth } from "./uatEmailActivation.js";
+import { createUatTemporaryPasswordSetup } from "./uatTemporaryPasswordSetup.js";
 import { seedData } from "./seed.js";
 
 const MASTER_FILES = ["B2B_GEO_User_Org_Master.xlsx", "B2B_Product_Master.xlsx", "B2B_GEO_Pipeline_Config.xlsx"];
@@ -16,6 +17,7 @@ export function createApi({ yamlPath, dataDir }) {
   // Ephemeral key by default for local UAT; use GEO_SESSION_SECRET for stable sessions.
   const sessions = createSessionManager(process.env.GEO_SESSION_SECRET || crypto.randomBytes(32).toString("hex"));
   const emailAuth = createUatEmailAuth();
+  const tempSetup = createUatTemporaryPasswordSetup();
   let cached = { mtime: 0, contract: null };
 
   function contract() {
@@ -78,15 +80,22 @@ export function createApi({ yamlPath, dataDir }) {
           const loggingIn = req.method === "POST" && path === "session/login";
           const verifyingActivation = req.method === "POST" && path === "auth/activation/verify";
           const completingActivation = req.method === "POST" && path === "auth/activation/complete";
-          const publicUatRequest = loggingIn || verifyingActivation || completingActivation;
+          const completingTempSetup = req.method === "POST" && path === "auth/temporary-password/complete";
+          const publicUatRequest = loggingIn || verifyingActivation || completingActivation || completingTempSetup;
           const token = /^Bearer (.+)$/i.exec(String(req.headers.authorization || ""))?.[1];
           const authenticatedUser = publicUatRequest ? null : sessions.verify(token);
           if (!publicUatRequest && !authenticatedUser) throw new HttpError(401, "Your session is invalid or has expired. Please sign in again.");
           let out;
           if (verifyingActivation) out = emailAuth.verify(store, payload?.email, payload?.code);
           else if (completingActivation) out = emailAuth.complete(store, payload?.activation_ticket, payload?.new_password, payload?.confirm_password);
+          else if (completingTempSetup)
+            out = tempSetup.complete(store, payload?.password_setup_ticket, payload?.new_password, payload?.confirm_password);
           else if (loggingIn && process.env.GEO_UAT_EMAIL_LOGIN_ENABLED === "true" && String(payload?.username || "").includes("@"))
             out = emailAuth.login(store, payload?.username, payload?.password);
+          else if (loggingIn && process.env.GEO_ENVIRONMENT === "UAT" &&
+                   process.env.GEO_UAT_LEGACY_PASSWORD_SETUP_ENABLED === "true" &&
+                   !String(payload?.username || "").includes("@"))
+            out = tempSetup.login(store, payload?.username, payload?.password);
           else out = core.handle({
             method: req.method,
             path,
@@ -96,7 +105,9 @@ export function createApi({ yamlPath, dataDir }) {
             userId: authenticatedUser,
             demoAs: req.headers["x-demo-as"],
           });
-          const result = loggingIn ? { ...out, session_token: sessions.issue(out.user_id) } : out;
+          // Purpose-limited setup tickets are not application sessions.
+          const result = loggingIn && !out.password_setup_required
+            ? { ...out, session_token: sessions.issue(out.user_id) } : out;
           await store.flush();
           return result;
         } catch (e) {
