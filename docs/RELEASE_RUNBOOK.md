@@ -17,7 +17,7 @@
 
 ## Business data gate — REQUIRED before customer data
 - Business Owner signs off `docs/FINANCIAL_FIELD_SIGNOFF.md` including precise definitions for Net RC, RC, OC, Monthly Sale Plan and Pipeline Value; do not alter the calculation by guessing.
-- Confirm imported Business IDs are 13-digit Thai tax/juristic IDs. If other ID types are in scope, formally approve a new typed identifier schema before import. Preserve source text including leading zeroes; never fabricate zeroes.
+- For **new** Pipelines, keep the existing 13-digit Thai tax/juristic Business ID requirement. For **approved historical bulk imports only**, the Business ID may be blank or a numeric source identifier of 1–40 digits; retain its original text and never fabricate leading zeroes. This legacy exception does not change normal Create/Edit validation. Any nonnumeric identifier type requires separate business approval and a typed schema.
 - Confirm `Industrial` classification in the approved Customer Type taxonomy. Contact Name / Phone may be absent in legacy imports; they must not be auto-filled with fake values.
 - Run import dry-run with authorized de-identified representative source files (realistic headers, mixed types, styled blank rows, missing contacts and damaged IDs). No raw customer XLSX in public CI, GitHub issues, logs or PRs.
 - Reject entire batches if any row invalid or source Net RC reference differs from the current formula. If no reference exists, reconcile per Region, AE, Category, Status and month in a controlled external report and record sign-off. Preserve import batch identity for safe retries.
