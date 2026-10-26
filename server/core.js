@@ -182,7 +182,7 @@ export function createCore({ contract, store, now, uuid }) {
     // Nationwide Management scope is derived from the authorized Users.role,
     // not a mutable collection of per-Region grants. Keep the raw User_Region
     // rows unchanged for audit and admin master-data maintenance.
-    const effectiveRegions = role === "management"
+    const effectiveRegions = role === "management" && scopeForRole(role) === "all"
       ? rows("regions").filter((r) => isActive(r.active)).map((r) => r.region_id)
       : regionIdsFor(u.user_id);
     return { id: u.user_id, name: u.display_name, email: u.email, role, region_ids: effectiveRegions };
