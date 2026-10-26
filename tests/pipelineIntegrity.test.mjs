@@ -113,8 +113,8 @@ test("stale Pipeline revisions return 409 without mutation or audit",()=>{
 test("server-side import writes once and a retry is idempotent",()=>{
   const x=fixture();
   const payload={batch_id:"uat-import-batch-00000001",items:[
-    {...newPipeline,business_id:"0000000100001"},
-    {...newPipeline,business_id:"0000000100002"}
+    {...newPipeline,business_id:"0000000100001",source_system:"Legacy CRM",source_record_id:"LEG-1"},
+    {...newPipeline,business_id:"0000000100002",source_system:"Legacy CRM",source_record_id:"LEG-2"}
   ]};
   const first=x.call("ADMIN","POST","imports/opportunities",payload);
   assert.equal(first.imported,2);

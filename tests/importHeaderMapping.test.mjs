@@ -40,3 +40,23 @@ test("recognized but unmapped source-created month is blocked until manually sel
   assert.equal(needsExplicitCreatedMonthMapping(["Customer Name","Expected Close Month"],{}),false);
   assert.equal(needsExplicitCreatedMonthMapping(["เดือนที่สร้าง","Customer Name"],{}),true);
 });
+
+test("legacy product / finance columns are not silently mistaken for live pricing",()=>{
+  const fields=[
+    {key:"product_details",label:"Product Details"},
+    {key:"product_category",label:"Product Category"},
+    {key:"source_product_id",label:"Legacy Product ID"},
+    {key:"source_rc",label:"Source RC"},
+    {key:"source_discount_pct",label:"Source Discount %"},
+    {key:"source_monthly_sale_plan",label:"Source Monthly Sale Plan"},
+    {key:"reference_net_rc",label:"Reference Net RC"},
+    {key:"owner",label:"Opportunity Owner"},
+  ];
+  assert.deepEqual(mapImportHeaders([
+    "Product Name","Product Category","Product ID","RC","Discount %","Monthly Sale Plan","Net RC","AE Name"
+  ],fields),{product_details:0,product_category:1,source_product_id:2,
+    source_rc:3,source_discount_pct:4,source_monthly_sale_plan:5,reference_net_rc:6,owner:7});
+  assert.deepEqual(mapImportHeaders(["Owner User ID","Region ID"],
+    [{key:"owner",label:"Opportunity Owner"},{key:"region",label:"Region"}]),
+    {owner:0,region:1});
+});

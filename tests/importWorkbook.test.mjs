@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
-import {parseImportXlsx, readImportFile, parseImportCreatedMonth} from "../src/lib/importWorkbook.js";
+import {parseImportXlsx, readImportFile, parseImportCreatedMonth,parseImportSourceDate} from "../src/lib/importWorkbook.js";
 
 async function makeWorkbook(rows) {
  const wb=new ExcelJS.Workbook();
@@ -94,4 +94,14 @@ test("Ambiguous Excel raw numeric serial cannot silently become imported histori
   const parsed=await parseImportXlsx(await workbook.xlsx.writeBuffer());
   assert.equal(parsed.rows[0][0],"46204");
   assert.equal(parseImportCreatedMonth(parsed.rows[0][0]),null);
+});
+
+test("historical calendar dates require an unambiguous real day",()=>{
+  assert.equal(parseImportSourceDate("2026-07-01"),"2026-07-01");
+  assert.equal(parseImportSourceDate("1-Jul-26"),"2026-07-01");
+  assert.equal(parseImportSourceDate("31-Dec-99"),"1999-12-31");
+  for(const bad of ["01/07/2026","2026-02-30","2026-00-10","46204","2026-07",
+    "2026-07-01T00:00:00Z","29-Feb-25"]){
+    assert.equal(parseImportSourceDate(bad),null,bad);
+  }
 });

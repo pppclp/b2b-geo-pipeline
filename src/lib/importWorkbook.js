@@ -64,6 +64,30 @@ export function parseImportCreatedMonth(value) {
   return null;
 }
 
+// Import-only historical dates: never infer ambiguous day/month order or Excel serials.
+export function parseImportSourceDate(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  let iso = raw;
+  const english = /^(\d{1,2})[-\/\s]+([A-Za-z]{3,9})[-\/\s]+(\d{2}|\d{4})$/.exec(raw);
+  if (english) {
+    const month = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+      .indexOf(english[2].slice(0, 3).toLowerCase()) + 1;
+    if (!month) return null;
+    const yearNumber = Number(english[3]);
+    const year = english[3].length === 2
+      ? (yearNumber <= 69 ? 2000 + yearNumber : 1900 + yearNumber) : yearNumber;
+    iso = String(year).padStart(4, "0") + "-" + String(month).padStart(2, "0")
+      + "-" + english[1].padStart(2, "0");
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return null;
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return year >= 1900 && year <= 2100 && date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? iso : null;
+}
+
 export async function parseImportXlsx(arrayBuffer) {
   const imported = await import("exceljs");
   const ExcelJS = imported.default || imported;
