@@ -447,6 +447,20 @@ function issueUatActivationCode(email) {
   } finally { lock.releaseLock(); }
 }
 
+// Editor-only wrapper: UAT coordinator specifies a verified mailbox as the
+// GEO_UAT_ACTIVATION_TARGET_EMAIL Script Property, then runs this function.
+// Code is returned only to the authorized caller. No password or token logging.
+function issueUatActivationForApprovedTarget() {
+  var p = PropertiesService.getScriptProperties();
+  var email = normalizeUatCorporateEmail_(p.getProperty("GEO_UAT_ACTIVATION_TARGET_EMAIL"));
+  if (!email) throw Error("Missing approved activation target email");
+  try {
+    return issueUatActivationCode(email);
+  } finally {
+    p.deleteProperty("GEO_UAT_ACTIVATION_TARGET_EMAIL");
+  }
+}
+
 // MANUAL, READ-ONLY health check in Apps Script editor. Never returns or logs
 // names, employee IDs, temporary passwords, password hashes, or sheet contents.
 function debugUatLoginReadiness() {
