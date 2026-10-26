@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { currentMonthKey } from "@/lib/pipeline";
-import { dashboardCohort, dashboardMetrics, isStageSlaOverdue } from "@/lib/dashboardMetrics";
+import { dashboardCohort, dashboardMetrics } from "@/lib/dashboardMetrics";
+import { overdueReasons } from "@/lib/overdueSummary.js";
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
@@ -17,7 +18,7 @@ const isOpen = (item) => item.status === "open";
 const compactDate = (month) => month || "All Months";
 
 export default function Dashboard() {
-  const { scopedOpportunities, maps, activeStages, profile, config, loading, error, refresh } = useData();
+  const { scopedOpportunities, maps, activeStages, profile, config, taskEntries, loading, error, refresh } = useData();
   const navigate = useNavigate();
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState("");
@@ -47,8 +48,9 @@ export default function Dashboard() {
   const { open, won, supportNeeded, stageOverdue } = dashboardMetrics(sales, {
     stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
+  const overdue = open.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
   const assigned = withMePipelines(cohort, profile?.id);
-  const assignedOverdue = assigned.filter((o) => isStageSlaOverdue(o, maps.stage));
+  const assignedOverdue = assigned.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
 
   const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); };
   const hasFilters = Boolean(createdMonth || closeMonth || region);
@@ -82,13 +84,13 @@ export default function Dashboard() {
     }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
 
   const tabs = isManagement
-    ? [["with", "With Me"], ["support", "Needs Support"], ["overdue", "Stage Overdue"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+    ? [["with", "With Me"], ["support", "Needs Support"], ["overdue", "Overdue"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
     : isSM
       ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
       : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]];
   const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : "with";
   const queue = selectedTab === "with" ? assigned
-    : selectedTab === "overdue" ? (isManagement ? stageOverdue : assignedOverdue)
+    : selectedTab === "overdue" ? (isManagement ? overdue : assignedOverdue)
     : selectedTab === "support" ? supportNeeded
     : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
   const queueItems = queue.slice().sort((a, b) => {
@@ -168,8 +170,8 @@ export default function Dashboard() {
           value={String(assigned.length)}
           note={isManagement ? "Assigned to your management account" : "Current Handler"}
           onClick={() => toPipeline({ status: "open", handler: profile.id })} />
-        <Metric title={isManagement ? "Stage Overdue" : "Overdue With Me"}
-          value={String(isManagement ? stageOverdue.length : assignedOverdue.length)} note="Beyond configured Stage SLA"
+        <Metric title={isManagement ? "Overdue" : "Overdue With Me"}
+          value={String(isManagement ? overdue.length : assignedOverdue.length)} note="Stage Aging · Stage SLA · Task"
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
       </div>
       <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
