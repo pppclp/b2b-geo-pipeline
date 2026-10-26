@@ -150,6 +150,8 @@ function uatLogin_(store, body) {
       (String(matchingCredentials[0].user_id || "").trim() &&
        String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
       (emailMode && (!uatCorporateDomainAllowed_(username) ||
+        !normalizeEmployeeId_(user.employee_id) ||
+        normalizeEmployeeId_(matchingCredentials[0]["employee_id / username"]) !== normalizeEmployeeId_(user.employee_id) ||
         String(matchingCredentials[0].credential_status || "") !== "active" ||
         !String(matchingCredentials[0].password_set_at || "").trim() ||
         !String(matchingCredentials[0].password_hash || "").trim())) ||
@@ -281,15 +283,20 @@ function uatActivationDigest_(code) {
 function uatActivationFind_(store, email) {
   var normalized = normalizeUatCorporateEmail_(email);
   if (!normalized || !uatCorporateDomainAllowed_(normalized)) throwUatError_(401, "Invalid activation credentials");
+  // Duplicate email across inactive and active accounts must fail closed:
+  // an inactive duplicate must not make the active identity ambiguous.
   var matches = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
-    return normalizeUatCorporateEmail_(u.email) === normalized &&
-      String(u.status || "Active").toLowerCase() === "active";
+    return normalizeUatCorporateEmail_(u.email) === normalized;
   });
-  if (matches.length !== 1) throwUatError_(401, "Invalid activation credentials");
-  var uid = String(matches[0].user_id || "");
+  if (matches.length !== 1 || String(matches[0].status || "").toLowerCase() !== "active" ||
+      !normalizeEmployeeId_(matches[0].employee_id))
+    throwUatError_(401, "Invalid activation credentials");
+  var uid = String(matches[0].user_id || "").trim();
   var credentials = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows
-    .filter(function (c) { return String(c.user_id || "") === uid; });
-  if (credentials.length !== 1) throwUatError_(401, "Invalid activation credentials");
+    .filter(function (c) { return String(c.user_id || "").trim() === uid; });
+  if (!uid || credentials.length !== 1 ||
+      normalizeEmployeeId_(credentials[0]["employee_id / username"]) !== normalizeEmployeeId_(matches[0].employee_id))
+    throwUatError_(401, "Invalid activation credentials");
   return { user: matches[0], credential: credentials[0] };
 }
 function uatActivationRate_(email, success) {
@@ -365,15 +372,20 @@ function uatCheckNewPassword_(value, email) {
 function completeUatActivation_(store, body) {
   if (!uatActivationEnabled_()) throwUatError_(503, "Account activation is not enabled");
   var ticket = uatReadActivationTicket_(body.activation_ticket);
-  var matches = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
-    return String(u.user_id || "") === ticket.sub &&
-      String(u.status || "Active").toLowerCase() === "active";
-  });
-  if (matches.length !== 1 || !uatCorporateDomainAllowed_(normalizeUatCorporateEmail_(matches[0].email)))
+  var allUsers = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
+  var matches = allUsers.filter(function (u) { return String(u.user_id || "") === ticket.sub; });
+  if (matches.length !== 1 || String(matches[0].status || "").toLowerCase() !== "active" ||
+      !normalizeEmployeeId_(matches[0].employee_id) ||
+      !uatCorporateDomainAllowed_(normalizeUatCorporateEmail_(matches[0].email)) ||
+      allUsers.filter(function (u) {
+        return normalizeUatCorporateEmail_(u.email) === normalizeUatCorporateEmail_(matches[0].email);
+      }).length !== 1)
     throwUatError_(401, "Activation expired. Verify your code again.");
   var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows
     .filter(function (c) { return String(c.user_id || "") === ticket.sub; });
-  if (creds.length !== 1) throwUatError_(401, "Activation expired. Verify your code again.");
+  if (creds.length !== 1 ||
+      normalizeEmployeeId_(creds[0]["employee_id / username"]) !== normalizeEmployeeId_(matches[0].employee_id))
+    throwUatError_(401, "Activation expired. Verify your code again.");
   var c = creds[0];
   if (String(c.credential_status || "") !== "pending_activation" ||
       !c.activation_code_hash || c.activation_used_at ||
@@ -401,6 +413,51 @@ function completeUatActivation_(store, body) {
   // No login token here; employee signs in separately with the new password.
   return { activated: true };
 }
+// Read-only UAT setup audit. Returns aggregate counts ONLY; no staff PII,
+// credential values, email addresses, hashes, or keys are exposed.
+function debugUatEmailActivationReadiness() {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
+    var credentials = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
+    var seen = Object.create(null), counts = {
+      active_users: 0, active_missing_email: 0, active_invalid_domain: 0,
+      duplicate_corporate_emails: 0, active_missing_employee_id: 0,
+      missing_or_ambiguous_credentials: 0, credential_employee_id_mismatch: 0,
+      ready_for_activation: 0
+    };
+    users.forEach(function (user) {
+      var email = normalizeUatCorporateEmail_(user.email);
+      if (email) seen[email] = (seen[email] || 0) + 1;
+    });
+    Object.keys(seen).forEach(function (key) {
+      if (seen[key] > 1) counts.duplicate_corporate_emails++;
+    });
+    users.forEach(function (user) {
+      if (String(user.status || "").toLowerCase() !== "active") return;
+      counts.active_users++;
+      var email = normalizeUatCorporateEmail_(user.email);
+      var employee = normalizeEmployeeId_(user.employee_id);
+      if (!email) counts.active_missing_email++;
+      else if (!uatCorporateDomainAllowed_(email)) counts.active_invalid_domain++;
+      if (!employee) counts.active_missing_employee_id++;
+      var found = credentials.filter(function (c) {
+        return String(c.user_id || "").trim() === String(user.user_id || "").trim();
+      });
+      if (found.length !== 1) counts.missing_or_ambiguous_credentials++;
+      else if (!employee || normalizeEmployeeId_(found[0]["employee_id / username"]) !== employee)
+        counts.credential_employee_id_mismatch++;
+      if (email && seen[email] === 1 && uatCorporateDomainAllowed_(email) &&
+          employee && found.length === 1 &&
+          normalizeEmployeeId_(found[0]["employee_id / username"]) === employee) {
+        counts.ready_for_activation++;
+      }
+    });
+    return counts;
+  } finally { lock.releaseLock(); }
+}
+
 // Editor-only: safely initialize secrets after checking for existing hashes.
 // Do not log or return the secret/pepper values.
 function prepareUatEmailActivation() {
