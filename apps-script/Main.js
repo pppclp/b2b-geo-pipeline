@@ -746,8 +746,19 @@ function geoBackups_(book, sheets) {
       var name = GEO_DB_BACKUP_PREFIX_ + sheet;
       if (book.getSheetByName(name)) throw new Error("Unresolved database backup: " + name);
       var copy = live.copyTo(book);
-      copy.setName(name);
-      copy.hideSheet();
+      try {
+        copy.setName(name);
+        copy.hideSheet();
+      } catch (copyError) {
+        // copyTo already created a new sheet. Clean it up even if naming or
+        // hiding failed, before a transaction marker or live write exists.
+        // Otherwise an orphan copy can retain sensitive Pipeline data.
+        try { book.deleteSheet(copy); }
+        catch (cleanupError) {
+          console.error("Unfinished DB backup copy requires manual cleanup: " + cleanupError.message);
+        }
+        throw copyError;
+      }
       backups.push(name);
     });
     SpreadsheetApp.flush();
