@@ -114,3 +114,12 @@ No GitHub success indicator can prove which Apps Script /exec version was deploy
 - Users and User_Region in B2B_GEO_User_Org_Master define role, status and authorized regions. UAT_Credentials stores verification state; its role text is not the permission source.
 - Only use unique, verified Employee IDs in both worksheets, mapped by the same stable user_id. Do not invent Employee IDs for people whose IDs remain blank.
 - **Updated Management policy:** Any Active User Master account with authorized role Management can view Pipeline records in all Regions, without any User_Region mapping. Backend RBAC, Dashboard and Pipeline Region filters use the same nationwide scope. This intentionally differs from SM/AE. An Inactive account still cannot sign in, and Admin remains the only role that may approve privileged User Master changes.
+
+### Shared login 5xx after deploying Code.gs (UAT first login)
+
+For an **Active** mapped UAT employee presenting a valid existing Temporary Password while `GEO_UAT_LEGACY_PASSWORD_SETUP_ENABLED=true`, the Apps Script login path now initializes **missing** first-use UAT signing/pepper secrets under the existing script lock and only after the credential has been verified. Both values are generated at most once. It does **not** reset any existing secret, cannot enable an Inactive account, and never grants an app session before personal password setup.
+
+**Safety constraint:** If any credential already contains a `password_hash`, a missing pepper is a serious configuration/backup problem. The server **refuses to generate a replacement pepper** and leaves all hashes untouched. Restore the original pepper using the custodian's secure backup. This path is allowed only for `GEO_ENVIRONMENT=UAT` with the migration flag enabled. Production auth still requires an approved SSO/IdP.
+
+A multi-user 5xx does not prove that either Google Sheet has bad data. Verify User Master `Users` and Credentials `UAT_Credentials` by stable user_id and Employee ID, but do not reset temp passwords or alter roles in response to a server error. If 5xx continues after the new backend is deployed and the migration flag is enabled, run `debugUatPasswordSetupReadiness()`, then inspect Apps Script **Executions** for the **new** error ID; incorrect source spreadsheet Script Properties, permissions or a schema mismatch can also fail every login. GitHub Pages/Cloudflare deployments do not update the existing Apps Script `/exec` automatically.
+
