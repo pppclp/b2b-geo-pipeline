@@ -9,6 +9,21 @@ async function makeWorkbook(rows) {
  for(const row of rows) ws.addRow(row);
  return wb.xlsx.writeBuffer();
 }
+test("historical 17 named headers retain 19 physical columns and source remarks", async()=>{
+ const header=["Create Month","Business ID","Customer Type","Customer Name","Sales Code",
+  "Sale Name","Channel","Region","Province","Product Category","รายละเอียดสินค้า",
+  "Sub","RC","Net RC","OC","Monthly Sale Plan","Stage (Current)","",""];
+ const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet("All Regions");
+ ws.addRow(header);
+ ws.addRow(["4-มิ.ย.-26","","Industrial","Synthetic Corp","SYNTH-1","Synthetic Seller",
+  "AE B2B GEO","East","Synthetic Area","Broadband","FTTH","1","499","499","",
+  "12 month","ต.ค.-26","Stage 1. Offer","Remark remains"]);
+ const parsed=await parseImportXlsx(await wb.xlsx.writeBuffer());
+ assert.equal(parsed.headers.length,19);
+ assert.equal(parsed.rows[0].length,19);
+ assert.equal(parsed.rows[0][18],"Remark remains");
+});
+
 test("xlsx import reads bilingual headers and preserves formatted ID zeroes",async()=>{
  const wb=new ExcelJS.Workbook();
  const ws=wb.addWorksheet("Opportunities");
@@ -38,9 +53,11 @@ test("xlsx import rejects formulas instead of silently importing formula code",a
  const data=await makeWorkbook([["Customer Name"],[{formula:'1+1',result:2}]]);
  await assert.rejects(()=>parseImportXlsx(data),/formulas are not supported/i);
 });
-test("xlsx import enforces 200-row API limit before preview",async()=>{
- const data=await makeWorkbook([["Customer Name"],...Array.from({length:201},(_,i)=>["Acme "+i])]);
- await assert.rejects(()=>parseImportXlsx(data),/200 data rows/);
+test("xlsx preview accepts 239 rows and enforces a 400-row safety ceiling",async()=>{
+ const okay=await makeWorkbook([["Customer Name"],...Array.from({length:239},(_,i)=>["Synthetic Account "+i])]);
+ assert.equal((await parseImportXlsx(okay)).rows.length,239);
+ const data=await makeWorkbook([["Customer Name"],...Array.from({length:401},(_,i)=>["Synthetic Account "+i])]);
+ await assert.rejects(()=>parseImportXlsx(data),/400 data rows/);
 });
 test("safe input handling rejects unknown and oversized files",async()=>{
  await assert.rejects(()=>readImportFile({name:"file.xls",size:22}),/Choose a/);
@@ -61,7 +78,8 @@ test("legacy source Create Month and Created Month parse only explicit unambiguo
     ["1-Jul-26","2026-07"],["Jul-26","2026-07"],
     ["2026-07","2026-07"],["2026-07-01","2026-07"],
     ["31-Dec-99","1999-12"],["1-Jan-00","2000-01"],
-    ["2024-02-29","2024-02"],["  Oct-26  ","2026-10"]
+    ["2024-02-29","2024-02"],["  Oct-26  ","2026-10"],
+    ["4-มิ.ย.-26","2026-06"],["25-Sep_26","2026-09"]
   ])assert.equal(parseImportCreatedMonth(value),expected,value);
   for(const value of [
     "","2026-13","2026-00","31-Feb-26","2026-02-30","2025-02-29",
@@ -99,6 +117,8 @@ test("Ambiguous Excel raw numeric serial cannot silently become imported histori
 test("historical calendar dates require an unambiguous real day",()=>{
   assert.equal(parseImportSourceDate("2026-07-01"),"2026-07-01");
   assert.equal(parseImportSourceDate("1-Jul-26"),"2026-07-01");
+  assert.equal(parseImportSourceDate("4-มิ.ย.-26"),"2026-06-04");
+  assert.equal(parseImportSourceDate("25-Sep_26"),"2026-09-25");
   assert.equal(parseImportSourceDate("31-Dec-99"),"1999-12-31");
   for(const bad of ["01/07/2026","2026-02-30","2026-00-10","46204","2026-07",
     "2026-07-01T00:00:00Z","29-Feb-25"]){
