@@ -139,8 +139,8 @@ export const AuthProvider = ({ children }) => {
       setReauthSetup(null);
       return;
     }
-    if (reauthNewPassword.length < 15 || reauthNewPassword.length > 128) {
-      setReauthError("Use a unique password of 15–128 characters.");
+    if (reauthNewPassword.length < 10 || reauthNewPassword.length > 128) {
+      setReauthError("Use a unique password of 10–128 characters.");
       return;
     }
     if (reauthNewPassword !== reauthConfirmPassword) {
@@ -210,12 +210,12 @@ export const AuthProvider = ({ children }) => {
               <form onSubmit={completeReauthPasswordSetup} className="mt-4 space-y-3">
                 <label htmlFor="reauth-new-password" className="block text-xs font-medium">New Personal Password</label>
                 <input id="reauth-new-password" type="password" autoComplete="new-password" required
-                  minLength={15} maxLength={128} value={reauthNewPassword}
+                  minLength={10} maxLength={128} value={reauthNewPassword}
                   onChange={(e) => setReauthNewPassword(e.target.value)}
                   className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"/>
                 <label htmlFor="reauth-confirm-password" className="block text-xs font-medium">Confirm Password</label>
                 <input id="reauth-confirm-password" type="password" autoComplete="new-password" required
-                  minLength={15} maxLength={128} value={reauthConfirmPassword}
+                  minLength={10} maxLength={128} value={reauthConfirmPassword}
                   onChange={(e) => setReauthConfirmPassword(e.target.value)}
                   className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"/>
                 {reauthError && <p role="alert" className="text-xs text-destructive">{reauthError}</p>}
