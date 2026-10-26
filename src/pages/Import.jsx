@@ -19,6 +19,7 @@ const FIELDS = [
   { key: "source_system", label: "Source System" },
   { key: "source_record_id", label: "Source Opportunity ID" },
   { key: "source_sales_code", label: "Sales Code" },
+  { key: "source_sale_name", label: "Sale Name" },
   { key: "customer_name", label: "Customer Name", required: true },
   { key: "business_id", label: "Business ID" },
   { key: "customer_type", label: "Customer Type", required: true },
@@ -30,7 +31,7 @@ const FIELDS = [
   { key: "customer_location_text", label: "Customer Location / Province" },
   { key: "region", label: "Region", required: true, resolve: "region" },
   { key: "territory", label: "Territory", resolve: "territory" },
-  { key: "owner", label: "Opportunity Owner", required: true, resolve: "member" },
+  { key: "owner", label: "Opportunity Owner", resolve: "member" },
   { key: "handler", label: "Current Handler", resolve: "member" },
   { key: "product_category", label: "Product Category", required: true, resolve: "category" },
   { key: "product_details", label: "Product Details" },
@@ -88,6 +89,30 @@ export default function Import() {
   const [importBatchId, setImportBatchId] = useState("");
   const [documentId, setDocumentId] = useState("");
   const [rcInterpretation, setRcInterpretation] = useState("unknown");
+  const [salesCodeLookup, setSalesCodeLookup] = useState({ byCode: {}, loading: false, error: "" });
+
+  useEffect(() => {
+    if (!["admin", "sm"].includes(profile?.app_role) || mapping.source_sales_code == null || !rows.length) {
+      setSalesCodeLookup({ byCode: {}, loading: false, error: "" });
+      return;
+    }
+    const codes = [...new Set(rows.map(row => String(row[mapping.source_sales_code] || "").trim()).filter(Boolean))];
+    if (!codes.length) {
+      setSalesCodeLookup({ byCode: {}, loading: false, error: "" });
+      return;
+    }
+    let disposed = false;
+    setSalesCodeLookup({ byCode: {}, loading: true, error: "" });
+    db.imports.resolveOwners(codes).then(result => {
+      if (disposed) return;
+      const byCode = Object.fromEntries((result.owners || []).map(entry => [entry.code, entry]));
+      setSalesCodeLookup({ byCode, loading: false, error: "" });
+    }).catch(() => {
+      if (!disposed) setSalesCodeLookup({ byCode: {}, loading: false,
+        error: "Cannot validate Sales Codes against Users Master" });
+    });
+    return () => { disposed = true; };
+  }, [rows, mapping.source_sales_code, profile?.app_role]);
   const fileRef = useRef();
   const [customerTypes, setCustomerTypes] = useState([...CUSTOMER_TYPES]);
   const [customerTypesError, setCustomerTypesError] = useState("");
@@ -164,6 +189,8 @@ export default function Import() {
       if (unresolvedSourceMonth) errors.push("Create Month column detected; select the correct source column in Map Columns");
       if (duplicateColumn) errors.push("A source column cannot be mapped to multiple fields");
       if (customerTypesError) errors.push(customerTypesError);
+      if (salesCodeLookup.error) errors.push(salesCodeLookup.error);
+      if (salesCodeLookup.loading) errors.push("Validating Sales Codes");
       const rec = { status: "open" };
       FIELDS.forEach((f) => {
         const idx = mapping[f.key];
@@ -269,6 +296,23 @@ export default function Import() {
         errors.push("Closed Date precedes Created Date");
       if (rec.source_closed_at && rec.source_stage_entered_at && rec.source_closed_at < rec.source_stage_entered_at)
         errors.push("Closed Date precedes Stage Entered Date");
+      const salesCode = String(rec.source_sales_code || "").trim();
+      if (salesCode) {
+        const owner = salesCodeLookup.byCode[salesCode];
+        if (!owner?.found) errors.push('Sales Code "' + salesCode + '" is unknown or outside your scope');
+        else {
+          if (rec.owner_id && rec.owner_id !== owner.id)
+            errors.push("Sales Code conflicts with manually mapped Owner");
+          if (rec.source_sale_name &&
+            rec.source_sale_name.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase() !==
+            String(owner.name).normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase())
+            errors.push("Sale Name does not match Sales Code in Users Master");
+          if (rec.region_id && !owner.region_ids?.includes(rec.region_id))
+            errors.push("Sales Code AE is not assigned to the source Region");
+          rec.owner_id = owner.id;
+        }
+      }
+      if (!rec.owner_id) errors.push("Sales Code or Opportunity Owner is required");
       if (!rec.source_system) rec.source_system = "Legacy Spreadsheet";
       if (!rec.source_record_id && documentId) rec.source_record_id = legacyRowSourceId(documentId, rowNumbers[i] || i + 2);
       if (!rec.source_record_id) errors.push("Source row identity missing");
@@ -300,7 +344,7 @@ export default function Import() {
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation, salesCodeLookup]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
@@ -427,13 +471,14 @@ export default function Import() {
             <div className="rounded-2xl border border-border bg-card p-5 shadow-soft max-h-64 overflow-auto">
               <h3 className="font-semibold text-sm mb-3">Valid Rows Preview</h3>
               <table className="w-full text-xs">
-                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Created Month</th><th className="text-left">Region</th><th className="text-left">Stage</th><th className="text-right">Net RC</th></tr></thead>
+                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Created Month</th><th className="text-left">Region</th><th className="text-left">AE Owner</th><th className="text-left">Stage</th><th className="text-right">Net RC</th></tr></thead>
                 <tbody>
                   {validRows.slice(0, 50).map((v) => (
                     <tr key={v.row} className="border-t border-border">
                       <td className="py-1">{v.rec.customer_name}</td>
                       <td>{v.rec.source_created_month || "Server import month"}</td>
                       <td>{master?.Region?.find((r) => r.id === v.rec.region_id)?.name}</td>
+                      <td>{master?.TeamMember?.find((m) => m.id === v.rec.owner_id)?.name || v.rec.owner_id || "—"}</td>
                       <td>{master?.Stage?.find((s) => s.id === v.rec.stage_id)?.name}</td>
                       <td className="text-right tabular-nums">{calculateNetRc({ quantity: v.rec.quantity, pricePerSub: v.rec.price_per_sub, oc: v.rec.oc })}</td>
                     </tr>
