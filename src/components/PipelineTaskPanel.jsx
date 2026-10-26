@@ -11,7 +11,9 @@ export default function PipelineTaskPanel({ op }) {
   const [error, setError] = useState("");
   const tasks = currentPipelineTasks(op, taskEntries).slice().sort((a,b) => a.sort_order - b.sort_order);
   if (!tasks.length) return null;
-  const canEdit = op.status === "open" && !!profile;
+  const canEdit = op.status === "open" && !!profile && (
+    ["sm","management","admin"].includes(profile.app_role) ||
+    op.owner_id === profile.id || op.current_handler_id === profile.id);
   async function act(task, status) {
     setBusy(task.task_id);
     setError("");
@@ -36,7 +38,7 @@ export default function PipelineTaskPanel({ op }) {
             </p>
           </div>
           {canEdit && task.status !== "done" && (
-            <Button type="button" variant="outline" size="sm" disabled={!!busy}
+            <Button type="button" variant="outline" size="sm" disabled={!!busy || (task.start_policy === "after_previous" && task.status === "not_started" && !task.started_at)}
               onClick={() => act(task, task.status === "not_started" ? "in_progress" : "done")}>
               {busy === task.task_id ? "Saving…" : task.status === "not_started" ? "Start" : "Done"}
             </Button>
