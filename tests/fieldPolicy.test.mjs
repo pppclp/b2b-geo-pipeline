@@ -572,9 +572,6 @@ test("historical imported Pipeline with blank first revision is editable exactly
    expected_updated_at:"",remark:"Stale double-save"
  }),e=>e.status===409);
  assert.equal(x.row().remark,"Reviewed legacy Pipeline");
- assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
-   expected_updated_at:undefined,remark:"Missing revision"
- }),e=>e.status===428);
  const changed=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
    expected_updated_at:first.updated_date,stage_id:"S2"
  });
@@ -584,13 +581,18 @@ test("historical imported Pipeline with blank first revision is editable exactly
  assert.equal(audits.length,1);
 });
 
-test("blank revision for a non-import Pipeline remains forbidden",()=>{
+test("legacy empty revision uses one-time exact compare-and-set even without import metadata",()=>{
  const x=fixture();
  x.row().updated_at="";
+ const first=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   expected_updated_at:"",remark:"Correctly saved first revision"
+ });
+ assert.equal(first.remark,"Correctly saved first revision");
+ assert.ok(first.updated_date);
  assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
-   expected_updated_at:"",remark:"Should be rejected"
- }),e=>e.status===428);
- assert.equal(x.row().remark||"","");
+   expected_updated_at:"",remark:"Stale retry"
+ }),e=>e.status===409);
+ assert.equal(x.row().remark,"Correctly saved first revision");
 });
 
 test("real YAML contract roundtrip: Create Edit Stage Handler Working With Need Support Won Reopen Lost",()=>{
