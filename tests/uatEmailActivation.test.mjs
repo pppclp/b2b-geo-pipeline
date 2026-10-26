@@ -62,6 +62,23 @@ test("activation rejects invalid code, wrong domain, duplicate email and inactiv
   a.records[0].status="Inactive";
   assert.throws(()=>a.auth.verify(a.store,"synthetic@truecorp.co.th","one-time-synthetic-code"),{status:401});
 });
+test("credential Employee ID must match its User Master identity even if user_id matches",()=>{
+ const a=make();
+ a.cred["employee_id / username"]="90000002";
+ assert.throws(()=>a.auth.verify(a.store,"synthetic@truecorp.co.th","one-time-synthetic-code"),{status:401});
+});
+test("duplicate email on inactive account must also fail closed",()=>{
+ const a=make();
+ a.records.push({...a.records[0],user_id:"INACTIVE2",status:"Inactive"});
+ assert.throws(()=>a.auth.verify(a.store,"synthetic@truecorp.co.th","one-time-synthetic-code"),{status:401});
+});
+test("changes to employee binding or mailbox after verification invalidate the ticket",()=>{
+ const a=make();
+ const ticket=a.auth.verify(a.store,"synthetic@truecorp.co.th","one-time-synthetic-code").activation_ticket;
+ a.cred["employee_id / username"]="WRONG";
+ assert.throws(()=>a.auth.complete(a.store,ticket,password,password),{status:401});
+ assert.equal(a.cred.credential_status,"pending_activation");
+});
 test("no activation after expiry; short-lived ticket cannot be replayed or tampered",()=>{
   const a=make();
   const ticket=a.auth.verify(a.store,"synthetic@truecorp.co.th","one-time-synthetic-code").activation_ticket;
