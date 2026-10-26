@@ -21,7 +21,15 @@ export default function Login() {
     setError("");
     setPending(true);
     try {
-      await login(username.trim(), password);
+      const result = await login(username.trim(), password);
+      if (result?.password_setup_required && result.password_setup_ticket) {
+        setPassword("");
+        navigate("/setup-password", { replace: true, state: {
+          passwordSetupTicket: result.password_setup_ticket,
+          expiresAt: Date.now() + Number(result.expires_in_seconds || 600) * 1000,
+        } });
+        return;
+      }
       navigate("/", { replace: true });
     } catch (e) {
       setError(e.status === 401 ? "Employee ID, email or password is incorrect" : e.message);
