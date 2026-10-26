@@ -106,7 +106,8 @@ function uatLogin_(store, body) {
   if (environment === "PRODUCTION" || environment === "PROD")
     throwUatError_(503, "UAT password login is disabled in Production");
   var emailMode = PropertiesService.getScriptProperties().getProperty("GEO_UAT_EMAIL_LOGIN_ENABLED") === "true";
-  var username = emailMode ? normalizeUatCorporateEmail_(body.username) : normalizeEmployeeId_(body.username);
+  var usingEmail = emailMode && String(body.username || "").indexOf("@") >= 0;
+  var username = usingEmail ? normalizeUatCorporateEmail_(body.username) : normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
   var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
@@ -122,7 +123,7 @@ function uatLogin_(store, body) {
 
   var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
   var matchingUsers = users.filter(function (row) {
-    return emailMode ? normalizeUatCorporateEmail_(row.email) === username :
+    return usingEmail ? (username && normalizeUatCorporateEmail_(row.email) === username) :
       normalizeEmployeeId_(row.employee_id) === username;
   });
 
@@ -139,7 +140,7 @@ function uatLogin_(store, body) {
     .rows;
 
   var matchingCredentials = credentials.filter(function (row) {
-    return emailMode ? String(row.user_id || "").trim() === String(user.user_id || "").trim() :
+    return usingEmail ? String(row.user_id || "").trim() === String(user.user_id || "").trim() :
       normalizeEmployeeId_(row["employee_id / username"]) === username;
   });
 
@@ -149,7 +150,7 @@ function uatLogin_(store, body) {
   if (matchingCredentials.length !== 1 ||
       (String(matchingCredentials[0].user_id || "").trim() &&
        String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
-      (emailMode && (!uatCorporateDomainAllowed_(username) ||
+      (usingEmail && (!uatCorporateDomainAllowed_(username) ||
         !normalizeEmployeeId_(user.employee_id) ||
         normalizeEmployeeId_(matchingCredentials[0]["employee_id / username"]) !== normalizeEmployeeId_(user.employee_id) ||
         String(matchingCredentials[0].credential_status || "") !== "active" ||
