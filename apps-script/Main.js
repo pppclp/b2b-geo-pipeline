@@ -1310,7 +1310,7 @@ function geoRevisionRepairPlan_(pipelines, events) {
     var created = history.length === 1 && String(history[0].event_type || "").toLowerCase() === "create";
     var stamp = created ? String(history[0].event_at || "").trim() : "";
     if (!id || !String(p.import_batch_id || "").trim() || !created ||
-        !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$/.test(stamp) ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(stamp) ||
         !Number.isFinite(Date.parse(stamp))) {
       skipped++;
       return;
@@ -1344,7 +1344,7 @@ function repairGeoImportedRevisionsApproved() {
       throw Error("UAT data revision repair requires explicit editor approval");
     }
     var expectedText = String(props.getProperty("GEO_UAT_REVISION_REPAIR_EXPECTED_COUNT") || "");
-    if (!/^[1-9]\\d*$/.test(expectedText)) throw Error("Expected count must be a positive integer");
+    if (!/^[1-9]\d*$/.test(expectedText)) throw Error("Expected count must be a positive integer");
     var store = new SheetStore_();
     var ps = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines").rows;
     var es = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipeline_Events").rows;
