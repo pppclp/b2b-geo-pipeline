@@ -9,7 +9,7 @@
 import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
-import { businessIdError, normalizeCustomerType } from "../src/lib/pipelineValidation.js";
+import { businessIdError, normalizeCustomerType, netRcReconciliation } from "../src/lib/pipelineValidation.js";
 import { API_CONTRACT_VERSION, REQUIRED_CAPABILITIES } from "../src/lib/apiContract.js";
 import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
@@ -27,7 +27,7 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
-function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null } = {}) {
+function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null, additionalCustomerTypes = [] } = {}) {
   const required = ["customer_name", "business_id", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
@@ -39,7 +39,8 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
     const error = businessIdError(data.business_id);
     if (error) throw new HttpError(400, error);
   }
-  if ("customer_type" in data && data.customer_type && !normalizeCustomerType(data.customer_type)) {
+  if ("customer_type" in data && data.customer_type && !normalizeCustomerType(data.customer_type) &&
+      !additionalCustomerTypes.includes(String(data.customer_type).trim())) {
     throw new HttpError(400, "Invalid Customer Type. Choose a supported value.");
   }
   if ("sales_channel" in data && data.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
@@ -94,6 +95,18 @@ function normalizeOpportunityPricing(data, existing = null) {
   } catch (error) {
     throw new HttpError(400, error.message);
   }
+}
+
+// Import-only source dates must be genuine calendar days, never guessed from locale strings.
+function validImportDate(value) {
+  if (!value) return "";
+  const v = String(value).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return null;
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return year >= 1900 && year <= 2100 && date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? v : null;
 }
 
 export function createCore({ contract, store, now, uuid }) {
@@ -399,18 +412,100 @@ export function createCore({ contract, store, now, uuid }) {
     return captureSnapshot(scheduledPrincipal, snapshotPeriod, {scheduled:true});
   }
 
-  // Stable import identity: indexed batch IDs prevent retry duplicates;
-  // a second batch containing the same commercial signature is rejected.
-  // Preserve legacy batch signatures, but include the source month in NEW
-  // batch identities so retrying with a changed historical month is rejected.
-  // Commercial duplicate detection must remain month-independent.
+  // The Config Sheet is authoritative for active import Customer Types.
+  // Preserve old legacy types as distinct values: do not silently reclassify them.
+  // This is read-only and is never exposed through the general Source Sheets editor.
+  function importCustomerTypes() {
+    const legacy = ["Government", "Enterprise", "Industrial", "SME", "Education", "Telco", "Other"];
+    const config = store.table("B2B_GEO_Pipeline_Config.xlsx", "Field_Options");
+    const active = (config?.rows || [])
+      .filter((r) => String(r.field_key || "").trim() === "customer_type" && isActive(r.active))
+      .map((r) => String(r.option_value || "").trim()).filter(Boolean);
+    return [...new Set([...legacy, ...active])];
+  }
+
+  function validateImportEvidence(item, allowedTypes) {
+    const status = String(item.status || "open").trim().toLowerCase();
+    if (!["open", "won", "lost"].includes(status)) throw new HttpError(400, "Import Status must be Open, Won or Lost");
+    const fields = ["source_created_at", "source_stage_entered_at", "source_closed_at"];
+    const dates = {};
+    for (const key of fields) {
+      const value = item[key] == null ? "" : String(item[key]).trim();
+      const valid = validImportDate(value);
+      if (valid === null) throw new HttpError(400, key + " must be a real YYYY-MM-DD date (no guessed locale dates)");
+      dates[key] = valid;
+    }
+    const historicalMonth = String(item.source_created_month || "").trim();
+    if (historicalMonth && (!isMonthKey(historicalMonth) || Number(historicalMonth.slice(0, 4)) < 1900 ||
+        Number(historicalMonth.slice(0, 4)) > 2100)) throw new HttpError(400, "Invalid source_created_month");
+    if (historicalMonth && dates.source_created_at && historicalMonth !== dates.source_created_at.slice(0, 7))
+      throw new HttpError(400, "Source Created Date does not match Create Month");
+    if (dates.source_created_at && dates.source_stage_entered_at &&
+        dates.source_stage_entered_at < dates.source_created_at)
+      throw new HttpError(400, "Stage Entered Date cannot precede Created Date");
+    if (status !== "open") {
+      if (!dates.source_closed_at) throw new HttpError(400, "Historical Won/Lost requires an original Closed Date");
+      if (dates.source_created_at && dates.source_closed_at < dates.source_created_at)
+        throw new HttpError(400, "Closed Date cannot precede Created Date");
+      if (dates.source_stage_entered_at && dates.source_closed_at < dates.source_stage_entered_at)
+        throw new HttpError(400, "Closed Date cannot precede Stage Entered Date");
+      if (status === "lost") {
+        const id = String(item.lost_reason_id || "").trim();
+        if (!id || !rows("lost_reasons").some((r) => r.reason_id === id && isActive(r.active)))
+          throw new HttpError(400, "Historical Lost requires an active Lost Reason");
+      }
+    } else if (dates.source_closed_at) {
+      throw new HttpError(400, "Open Pipelines cannot contain a historical Closed Date");
+    }
+    if (item.customer_type && !allowedTypes.includes(String(item.customer_type).trim()))
+      throw new HttpError(400, "Unknown Customer Type. Use an existing legacy type or active Field_Options value");
+    for (const key of ["source_record_id", "source_system", "source_product_id", "source_rc",
+                       "source_discount_pct", "source_monthly_sale_plan"]) {
+      if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
+    }
+    let sourceNetRc = "";
+    if (item.reference_net_rc !== undefined && String(item.reference_net_rc).trim() !== "") {
+      let computed;
+      try { computed = calculateNetRc({ quantity:item.quantity, pricePerSub:item.price_per_sub, oc:item.oc }); }
+      catch (error) { throw new HttpError(400, error.message); }
+      const check = netRcReconciliation({ expected:item.reference_net_rc, calculated:computed });
+      if (!check.matches) throw new HttpError(400, check.error || "Reference Net RC mismatch");
+      sourceNetRc = String(item.reference_net_rc).trim();
+    }
+    return {
+      status: status.charAt(0).toUpperCase() + status.slice(1),
+      sourceCreatedAt: dates.source_created_at,
+      sourceStageEnteredAt: dates.source_stage_entered_at,
+      sourceClosedAt: dates.source_closed_at,
+      createdMonth: historicalMonth || (dates.source_created_at ? dates.source_created_at.slice(0, 7) : ""),
+      sourceRecordId: String(item.source_record_id || "").trim(),
+      sourceSystem: String(item.source_system || "").trim(),
+      sourceProductId: String(item.source_product_id || "").trim(),
+      sourceRc: String(item.source_rc ?? "").trim(),
+      sourceDiscountPct: String(item.source_discount_pct ?? "").trim(),
+      sourceMonthlySalePlan: String(item.source_monthly_sale_plan ?? "").trim(),
+      sourceNetRc,
+      lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
+    };
+  }
+
+  // Preserve fingerprints from earlier deployments ONLY for replaying old batches.
   const importCommercialFingerprint = (item) => JSON.stringify([
     "business_id","product_category_id","expected_close_month","owner_id",
     "product_details","contact_phone","quantity","price_per_sub","oc"
   ].map((key) => String(item[key] ?? "").trim().toLowerCase()));
-  const importFingerprint = (item) => JSON.stringify([
+  const oldImportFingerprint = (item) => JSON.stringify([
     importCommercialFingerprint(item), String(item.source_created_month ?? "").trim()
   ]);
+  // v2 includes ALL mapped source fields, not commercial similarity. A stable
+  // source-system + source-record ID is the only cross-batch duplicate key.
+  const importFingerprint = (item) => "v2:" + JSON.stringify(
+    Object.keys(item).filter((key) => key !== "client_request_id").sort()
+      .map((key) => [key, String(item[key] ?? "").trim()])
+  );
+  const sourceKey = (system, id) => String(id || "").trim()
+    ? JSON.stringify([String(system || "").trim().toLowerCase(), String(id).trim().toLowerCase()])
+    : "";
 
   function importOpportunities(actor, input) {
     const b = binding("Opportunity");
@@ -431,36 +526,52 @@ export function createCore({ contract, store, now, uuid }) {
           previous.some((r) => {
             const n = Number(r.import_row_number);
             return !Number.isInteger(n) || n < 1 || n > items.length ||
-              (String(r.import_row_signature || "") !== importFingerprint(items[n - 1]) &&
-               // Previously imported batches stored only the commercial
-               // fingerprint. They must remain replay-safe after this release.
-               String(r.import_row_signature || "") !== importCommercialFingerprint(items[n - 1]));
+              ![importFingerprint(items[n - 1]), oldImportFingerprint(items[n - 1]),
+                importCommercialFingerprint(items[n - 1])].includes(String(r.import_row_signature || ""));
           })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
       return { imported: 0, already_imported: true, total: previous.length,
         opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
           .map((r) => r.opportunity_id) };
     }
-    const known = new Set(sheet.map((r) => importCommercialFingerprint({
-      business_id:r.business_id, product_category_id:r.product_category_id,
-      expected_close_month:r.expected_close_month, owner_id:r.owner_user_id,
-      product_details:r.product_details, contact_phone:r.contact_phone,
-      quantity:r.quantity, price_per_sub:r.price_per_sub, oc:r.oc,
-    })));
-    const currentBatch = new Set();
-    const signatures = items.map((item) => {
-      const commercial = importCommercialFingerprint(item);
-      if (currentBatch.has(commercial)) throw new HttpError(409, "Duplicate Pipeline rows in import file");
-      if (known.has(commercial)) throw new HttpError(409, "This Pipeline already exists. Review your import before retrying");
-      currentBatch.add(commercial);
-      return importFingerprint(item);
+
+    const allowedTypes = importCustomerTypes();
+    const known = new Set(sheet.map((r) => sourceKey(r.import_source_system, r.import_source_record_id)).filter(Boolean));
+    const seen = new Set();
+    // Validate the complete batch and reconcile finance BEFORE any mutation.
+    const validated = items.map((item) => {
+      const evidence = validateImportEvidence(item, allowedTypes);
+      const key = sourceKey(evidence.sourceSystem, evidence.sourceRecordId);
+      if (key && (known.has(key) || seen.has(key))) {
+        throw new HttpError(409, "Source System + Source Opportunity ID already imported");
+      }
+      if (key) seen.add(key);
+      return evidence;
     });
-    // One core request: adapters commit Pipelines + Pipeline_Events together.
-    // If any validation or sheet write fails, neither workbook change commits.
-    const results = items.map((item, index) => entityApi.create("Opportunity", actor, item, {
-      batchId, rowNumber:index + 1, signature:signatures[index]
-    }));
-    return { imported: results.length, already_imported: false, total: results.length,
-      opportunity_ids: results.map((r) => r.id) };
+    const signatures = items.map(importFingerprint);
+    // In-memory rollback for validation errors on later rows. Google Sheets
+    // persists only after the full request succeeds; local adapters stay clean.
+    const transactionSheets = ["Pipelines", "Pipeline_Events", "Handoff_Notifications"];
+    const backups = transactionSheets.filter((name) => {
+      const rule = contract.access.files["B2B_GEO_Pipeline_DB.xlsx"]?.sheets?.[name];
+      return !!rule;
+    }).map((name) => {
+      const t = store.table("B2B_GEO_Pipeline_DB.xlsx", name);
+      return { name, t, rows: t.rows.slice(), headers: t.headers.slice() };
+    });
+    try {
+      const results = items.map((item, index) => entityApi.create("Opportunity", actor, item, {
+        batchId, rowNumber:index + 1, signature:signatures[index], ...validated[index], allowedTypes,
+      }));
+      return { imported: results.length, already_imported: false, total: results.length,
+        opportunity_ids: results.map((r) => r.id) };
+    } catch (error) {
+      for (const backup of backups) {
+        backup.t.rows = backup.rows;
+        backup.t.headers = backup.headers;
+        store.touch("B2B_GEO_Pipeline_DB.xlsx", backup.name);
+      }
+      throw error;
+    }
   }
 
   // All notification/support APIs use the signed actor from the server.
@@ -743,7 +854,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "Opportunity") {
         // Only the trusted imports/opportunities handler supplies importMeta.
         // Normal Create/Edit cannot set the source-created reporting month.
-        importedCreatedMonth = importMeta ? String(data.source_created_month ?? "").trim() : "";
+        importedCreatedMonth = importMeta ? importMeta.createdMonth : "";
         if (importedCreatedMonth &&
             (!isMonthKey(importedCreatedMonth) ||
              Number(importedCreatedMonth.slice(0, 4)) < 1900 ||
@@ -774,7 +885,7 @@ export function createCore({ contract, store, now, uuid }) {
         };
         // New Pipelines always start Open. Close them via the audited
         // Won/Lost update flow, which requires a Lost Reason when applicable.
-        if (String(data.status || "open").toLowerCase() !== "open") {
+        if (!importMeta && String(data.status || "open").toLowerCase() !== "open") {
           throw new HttpError(400, "Create Pipeline as Open, then use Mark Won or Mark Lost");
         }
         // New AE modal fields must be validated server-side as well.
@@ -785,19 +896,37 @@ export function createCore({ contract, store, now, uuid }) {
         if (actor.role === "ae" && String(data.owner_id || "") !== String(actor.id)) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
         }
-        validateLatestOpportunityFields(data, { requireRequired: !!importMeta || "sales_channel" in data });
+        validateLatestOpportunityFields(data, { requireRequired: !!importMeta || "sales_channel" in data,
+          additionalCustomerTypes: importMeta?.allowedTypes || [] });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       if (b.entity === "opportunities") {
         row = keepOpportunityColumns(row);
-        row.status = "Open";
+        row.status = importMeta ? importMeta.status : "Open";
         row.current_handler_user_id = row.current_handler_user_id || row.owner_user_id;
         row.original_owner_user_id = row.owner_user_id;
         row.created_month = importedCreatedMonth || bangkokMonth(stamp);
-        row.stage_entered_at = stamp;
+        row.stage_entered_at = importMeta?.sourceStageEnteredAt || stamp;
         row.handler_since = stamp;
+        if (importMeta) {
+          const provenance = {
+            import_source_record_id: importMeta.sourceRecordId,
+            import_source_system: importMeta.sourceSystem,
+            import_source_product_id: importMeta.sourceProductId,
+            import_source_rc: importMeta.sourceRc,
+            import_source_discount_pct: importMeta.sourceDiscountPct,
+            import_source_monthly_sale_plan: importMeta.sourceMonthlySalePlan,
+            import_source_net_rc: importMeta.sourceNetRc,
+          };
+          for (const [key, value] of Object.entries(provenance)) if (value !== "") row[key] = value;
+          if (importMeta.status === "Won") row.won_at = importMeta.sourceClosedAt;
+          if (importMeta.status === "Lost") {
+            row.lost_at = importMeta.sourceClosedAt;
+            row.lost_reason_id = importMeta.lostReasonId;
+          }
+        }
         row.working_with_since = row.working_with_id ? stamp : "";
         if (bool.toUi(row.support_needed) &&
             (!String(row.support_type_id || "").trim() || !String(row.support_note || "").trim()))
@@ -816,6 +945,7 @@ export function createCore({ contract, store, now, uuid }) {
         row.updated_at = stamp;
       }
       if (b.entity === "opportunities") {
+        if (importMeta?.sourceCreatedAt) row.created_at = importMeta.sourceCreatedAt;
         row.created_by_user_id = actor.real.id;
         validateCollaborators(row, row.region_id);
       }
@@ -827,7 +957,11 @@ export function createCore({ contract, store, now, uuid }) {
       const auditEvents = b.entity === "opportunities"
         ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
         : [];
-      if (b.entity === "opportunities") addCreationNotifications(saved, actor, stamp);
+      if (b.entity === "opportunities" && String(saved.status).toLowerCase() === "open") addCreationNotifications(saved, actor, stamp);
+      if (b.entity === "opportunities" && importMeta && importMeta.status !== "Open") {
+        appendAudit(saved[b.primary_key], [{ event_type:"historical_import_status", field:"status",
+          previous_value:"", new_value:importMeta.status, remark:"Imported historical status; event_at is the import time" }], actor, stamp);
+      }
       if (b.entity !== "opportunities" && !b.scoped) outputs.logMaster("CREATED", b, saved[b.primary_key], null, saved, actor);
       const created = decorate(uiEntity, toUi(uiEntity, b.primary_key, row));
       return b.entity === "opportunities" ? { ...created, _audit_events: auditEvents } : created;
@@ -1187,6 +1321,10 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(410,"Support Requests retired. Use Pipeline Needs Support.");
     }
 
+    if (parts[0] === "imports" && parts[1] === "customer-types" && method === "GET") {
+      if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Import options require SM or Admin");
+      return { values: importCustomerTypes() };
+    }
     if (parts[0] === "imports" && parts[1] === "opportunities") {
       if (method !== "POST") throw new HttpError(405, "Import requires POST");
       return importOpportunities(actor, req.body);
