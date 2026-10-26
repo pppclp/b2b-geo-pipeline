@@ -90,7 +90,6 @@ export default function Import() {
   const [result, setResult] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
-  const [importBatchId, setImportBatchId] = useState("");
   const [documentId, setDocumentId] = useState("");
   const [rcInterpretation, setRcInterpretation] = useState("unknown");
   const [salesCodeLookup, setSalesCodeLookup] = useState({ byCode: {}, loading: false, error: "" });
@@ -151,7 +150,6 @@ export default function Import() {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportError("");
-    setImportBatchId(crypto.randomUUID().replace(/-/g, ""));
     let parsed;
     try {
       parsed = await readImportFile(file, parseCSV);
@@ -395,7 +393,7 @@ export default function Import() {
     }
   };
 
-  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setRowNumbers([]); setLayoutErrors([]); setImportProgress({ completed: 0, total: 0, imported: 0, existing: 0 }); setMapping({}); setResult(null); setImportBatchId(""); setDocumentId(""); setRcInterpretation("unknown"); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
+  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setRowNumbers([]); setLayoutErrors([]); setImportProgress({ completed: 0, total: 0, imported: 0, existing: 0 }); setMapping({}); setResult(null); setDocumentId(""); setRcInterpretation("unknown"); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
 
   return (
     <div className="p-5 md:p-7 max-w-[1000px] mx-auto">
