@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useData } from "@/lib/dataContext";
 import { db } from "@/api/client";
-import { mapImportHeaders } from "@/lib/importHeaderMapping";
+import { mapImportHeaders, needsExplicitCreatedMonthMapping } from "@/lib/importHeaderMapping";
 import { readImportFile, parseImportCreatedMonth } from "@/lib/importWorkbook";
 import { calculateNetRc } from "@/lib/netRc";
 import { businessIdError, normalizeCustomerType, netRcReconciliation } from "@/lib/pipelineValidation";
@@ -111,8 +111,10 @@ export default function Import() {
 
   const validated = useMemo(() => {
     if (step !== "preview" && step !== "map") return [];
+    const unresolvedSourceMonth = needsExplicitCreatedMonthMapping(headers, mapping);
     return rows.map((row, i) => {
       const errors = [];
+      if (unresolvedSourceMonth) errors.push("Create Month column detected; select the correct source column in Map Columns");
       const rec = { status: "open" };
       FIELDS.forEach((f) => {
         const idx = mapping[f.key];
@@ -178,7 +180,7 @@ export default function Import() {
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, mapping, resolve, step, activeStages]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, activeStages]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
