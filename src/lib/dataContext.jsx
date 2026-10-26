@@ -3,7 +3,7 @@ import { db } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { currentMonthKey } from "@/lib/pipeline";
 import { buildQuickActionChanges } from "@/lib/quickActionChanges";
-import { unpackEntityBatch } from "@/lib/entityBatch";
+import { fetchStartupData } from "@/lib/entityBatch";
 
 const DataContext = createContext(null);
 
@@ -28,12 +28,6 @@ const MASTER_ENTITIES = [
   "MonthlySnapshot",
 ];
 
-// One round trip for everything the app needs; an entity the user may not read comes back empty.
-async function fetchAllEntities(entities) {
-  const results = await db.batch(entities.map((e) => ({ path: `entities/${e}`, query: { sort: "-created_date" } })));
-  return unpackEntityBatch(entities, results);
-}
-
 export function DataProvider({ children }) {
   const { user, isAuthenticated } = useAuth();
   const [master, setMaster] = useState(null);
@@ -53,15 +47,15 @@ export function DataProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const [results, tasksResponse] = await Promise.all([
-        fetchAllEntities([...MASTER_ENTITIES, "Opportunity"]), db.tasks.list(),
-      ]);
+      const { records: results, taskEntries } = await fetchStartupData(
+        [...MASTER_ENTITIES, "Opportunity"], db.batch
+      );
       if (requestId !== dataRequestSequence.current) return;
       const masterObj = {};
       MASTER_ENTITIES.forEach((e, i) => (masterObj[e] = results[i]));
       setMaster(masterObj);
       setOpportunities(results[MASTER_ENTITIES.length] || []);
-      setTaskEntries(tasksResponse.items || []);
+      setTaskEntries(taskEntries);
       setLastLoadedAt(new Date().toISOString());
     } catch (e) {
       if (requestId === dataRequestSequence.current) {
