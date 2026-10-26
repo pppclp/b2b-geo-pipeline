@@ -10,7 +10,7 @@ test("source file's 19-column headers map to explicit approved legacy fields",()
     "Contract Period","Monthly Sale Plan","Stage (Current)","หมายเหตุ"];
   const fields=[
     ["created_month","Create Month"],["business_id","Business ID"],["customer_type","Customer Type"],
-    ["customer_name","Customer Name"],["source_sales_code","Sales Code"],["owner","Opportunity Owner"],
+    ["customer_name","Customer Name"],["source_sales_code","Sales Code"],["source_sale_name","Sale Name"],
     ["sales_channel","Sales Channel"],["region","Region"],["customer_location_text","Customer Location / Province"],
     ["product_category","Product Category"],["product_details","Product Details"],["quantity","Number of Subs"],
     ["source_rc","Source RC"],["reference_net_rc","Reference Net RC"],["oc","OC"],
@@ -21,7 +21,7 @@ test("source file's 19-column headers map to explicit approved legacy fields",()
   assert.equal(Object.keys(mapping).length,19);
   for(let i=0;i<headers.length;i++)assert.ok(Object.values(mapping).includes(i),headers[i]);
   assert.equal(mapping.source_monthly_sale_plan,16);
-  assert.equal(mapping.owner,5);
+  assert.equal(mapping.source_sale_name,5);
   assert.equal(mapping.source_sales_code,4);
 });
 test("strict transformations retain true sales semantics",()=>{

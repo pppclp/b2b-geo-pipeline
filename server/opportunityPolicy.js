@@ -30,7 +30,7 @@ export const SYSTEM_OPPORTUNITY_FIELDS = new Set([
   "won_at", "won_by", "won_by_user_id",
   "lost_at", "lost_by", "lost_by_user_id", "archived_at",
   "source_created_month", "source_created_at", "source_stage_entered_at", "source_closed_at",
-  "source_system", "source_record_id", "source_sales_code", "source_customer_type", "source_product_id", "source_rc", "source_discount_pct",
+  "source_system", "source_record_id", "source_sales_code", "source_sale_name", "source_customer_type", "source_product_id", "source_rc", "source_discount_pct",
   "source_monthly_sale_plan", "reference_net_rc",
   "import_source_system", "import_source_record_id", "import_source_product_id", "import_source_rc",
   "import_source_discount_pct", "import_source_monthly_sale_plan", "import_source_net_rc",

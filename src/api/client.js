@@ -132,6 +132,7 @@ export const db = {
   },
   imports: {
     customerTypes: () => request("GET", "/imports/customer-types"),
+    resolveOwners: (codes) => request("POST", "/imports/resolve-owners", { codes }),
     opportunities: (batch_id, items) =>
       request("POST", "/imports/opportunities", { body: { batch_id, items } }),
   },

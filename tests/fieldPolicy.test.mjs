@@ -451,6 +451,35 @@ test("legacy Sales Code must match authoritative owner even when source name loo
     source_record_id:"SAL-1",source_sales_code:"1002"});
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_bad_salescode_2026",items:[base],
-  }),rejected(400));
+  }),rejected(403));
   assert.equal(x.store.table(DB,"Pipelines").rows.length,1);
+});
+
+test("Sales Code alone resolves owner, name variations are advisory, and events remain truthful",()=>{
+  const x=fixture("2026-10-26T14:00:00.000Z");
+  const payload=input({
+    business_id:"",client_request_id:undefined,
+    source_sales_code:"1001",source_sale_name:"AE ONE (legacy spelling)",
+    source_system:"Legacy Spreadsheet",source_record_id:"SALES-CODE-ONLY-1",
+    owner_id:undefined,current_handler_id:undefined,
+    source_created_at:"2026-07-08",source_created_month:"2026-07",
+    source_rc:"12000",reference_net_rc:"12000",quantity:1,price_per_sub:12000,oc:0,
+    expected_close_month:undefined,stage_id:"S1",
+  });
+  const result=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_source_salescode_only_1",items:[payload],
+  });
+  const row=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===result.opportunity_ids[0]);
+  assert.equal(row.owner_user_id,"AE1");
+  assert.equal(row.current_handler_user_id,"AE1");
+  assert.equal(row.business_id,"");
+  assert.equal(row.stage_entered_at,"");
+  assert.equal(row.created_at,"2026-07-08");
+  assert.equal(x.events().filter(e=>e.opportunity_id===row.opportunity_id&&e.event_type==="create").length,1);
+  const resolved=x.call("SM1","POST","imports/resolve-owners",{codes:["1001","1002","9999"]});
+  assert.deepEqual(resolved.owners.map(v=>[v.code,v.found]),[["1001",true],["1002",false],["9999",false]]);
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_source_salescode_conflict_2",
+    items:[{...payload,source_record_id:"SALES-CODE-ONLY-2",owner_id:"AE2"}],
+  }),rejected(400));
 });

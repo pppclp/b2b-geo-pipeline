@@ -428,6 +428,51 @@ export function createCore({ contract, store, now, uuid }) {
     return [...new Set([...legacy, ...active])];
   }
 
+  // Import-only owner lookup. Search by the authoritative employee code,
+  // never by an approximate spelling of the person's display name.
+  function legacyImportOwner(code, actor) {
+    const value = String(code ?? "").trim();
+    if (!/^\d{1,40}$/.test(value)) throw new HttpError(400, "Sales Code must contain 1-40 digits");
+    const matches = rows("users").filter((r) => String(r.employee_id ?? "").trim() === value &&
+      normalizeRole(r.role) === "ae" && String(r.status || "Active").toLowerCase() === "active");
+    if (matches.length !== 1) throw new HttpError(400, "Sales Code has no unique active AE match in Users Master: " + value);
+    const ae = findUser(matches[0].user_id);
+    if (!ae || (actor.role !== "admin" && !ae.region_ids.some((id) => actor.region_ids.includes(id)))) {
+      // Do not expose identities or regions outside the importer's authorized scope.
+      throw new HttpError(403, "Sales Code is outside your authorized import scope or unavailable");
+    }
+    return ae;
+  }
+
+  function resolveLegacyImportOwner(item, actor) {
+    const code = String(item.source_sales_code ?? "").trim();
+    if (!code) return item;
+    const ae = legacyImportOwner(code, actor);
+    if (item.owner_id && String(item.owner_id) !== ae.id)
+      throw new HttpError(400, "Sales Code conflicts with the selected Opportunity Owner");
+    // Historical name spellings are advisory. The unique active Sales Code is authoritative.
+    return { ...item, owner_id:ae.id,
+      current_handler_id:item.current_handler_id || ae.id };
+  }
+
+  function resolveLegacyImportOwners(actor, input) {
+    if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Only SM or Admin may resolve source Sales Codes");
+    const codes=input?.codes;
+    if (!Array.isArray(codes) || codes.length > 200 || codes.some(c => typeof c !== "string"))
+      throw new HttpError(400, "Provide up to 200 Sales Codes");
+    const unique=[...new Set(codes.map(v => v.trim()).filter(Boolean))];
+    // Return no user details for out-of-scope or invalid identifiers.
+    return { owners:unique.map(code => {
+      try {
+        const owner=legacyImportOwner(code, actor);
+        return { code, found:true, id:owner.id, name:owner.name,
+          region_ids:owner.region_ids };
+      } catch {
+        return { code, found:false };
+      }
+    }) };
+  }
+
   function validateImportEvidence(item, allowedTypes) {
     const status = String(item.status || "open").trim().toLowerCase();
     if (!["open", "won", "lost"].includes(status)) throw new HttpError(400, "Import Status must be Open, Won or Lost");
@@ -473,7 +518,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
         throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
     }
-    for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_product_id", "source_rc",
+    for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_sale_name", "source_product_id", "source_rc",
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
     }
@@ -551,10 +596,11 @@ export function createCore({ contract, store, now, uuid }) {
     }
 
     const allowedTypes = importCustomerTypes();
+    const preparedItems = items.map(item => resolveLegacyImportOwner(item, actor));
     const known = new Set(sheet.map((r) => sourceKey(r.import_source_system, r.import_source_record_id)).filter(Boolean));
     const seen = new Set();
     // Validate the complete batch and reconcile finance BEFORE any mutation.
-    const validated = items.map((item) => {
+    const validated = preparedItems.map((item) => {
       const evidence = validateImportEvidence(item, allowedTypes);
       const key = sourceKey(evidence.sourceSystem, evidence.sourceRecordId);
       if (key && (known.has(key) || seen.has(key))) {
@@ -578,7 +624,7 @@ export function createCore({ contract, store, now, uuid }) {
       return { name, t, rows: t.rows.slice(), headers: t.headers.slice() };
     });
     try {
-      const results = items.map((item, index) => entityApi.create("Opportunity", actor, item, {
+      const results = preparedItems.map((item, index) => entityApi.create("Opportunity", actor, item, {
         batchId, rowNumber:index + 1, signature:signatures[index], ...validated[index], allowedTypes,
       }));
       return { imported: results.length, already_imported: false, total: results.length,
@@ -1345,6 +1391,9 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(410,"Support Requests retired. Use Pipeline Needs Support.");
     }
 
+    if (parts[0] === "imports" && parts[1] === "resolve-owners" && method === "POST") {
+      return resolveLegacyImportOwners(actor, req.body);
+    }
     if (parts[0] === "imports" && parts[1] === "customer-types" && method === "GET") {
       if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Import options require SM or Admin");
       return { values: importCustomerTypes() };
