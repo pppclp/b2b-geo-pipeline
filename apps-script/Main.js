@@ -69,7 +69,7 @@ function handle_(req) {
 
     // Activation is a purpose-limited UAT flow, never an authenticated app session.
     // Each request runs under the same script lock as ordinary writes.
-    var authPath = String(req.path || "").replace(/^\\/+/, "");
+    var authPath = String(req.path || "").split("/").filter(Boolean).join("/");
     if (req.method === "POST" && authPath === "auth/activation/verify") {
       return verifyUatActivation_(store, req.body || {});
     }
