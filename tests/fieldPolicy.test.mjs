@@ -684,3 +684,73 @@ test("real YAML contract roundtrip: Create Edit Stage Handler Working With Need 
  assert.ok(ev().every(e=>e.actor_user_id));
  assert.ok(ev().every(e=>e.event_at));
 });
+
+
+test("historical imported Pipeline with blank Region can Edit Stage Support and Close without inventing Region",()=>{
+ const x=fixture();
+ const row=x.row();
+ row.import_batch_id="APPROVED_HISTORICAL_IMPORT";
+ row.region_id="";
+ row.updated_at="";
+ row.stage_entered_at="";
+ row.expected_close_month="";
+ const stage=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   expected_updated_at:"",stage_id:"S2",remark:"Stage evidence reviewed"
+ });
+ assert.equal(stage.region_id,"","Preserve historical unknown Region");
+ assert.equal(stage.stage_id,"S2");
+ assert.ok(stage.updated_date);
+ assert.ok(stage.stage_entered_at);
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   current_handler_id:"SM1"
+ }),e=>e.status===400);
+ assert.equal(x.row().current_handler_user_id,"AE1");
+ const updated=x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Following up"});
+ assert.equal(updated.remark,"Following up");
+ assert.equal(updated.region_id,"");
+ x.store.table(CONFIG,"Support_Types").rows.push({
+   support_type_id:"SUP1",support_type_name:"Pricing",active:"Yes"
+ });
+ const supported=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   support_needed:true,support_type:"Pricing",support_note:"Need quotation help"
+ });
+ assert.equal(supported.support_needed,true);
+ assert.equal(supported.support_type,"Pricing");
+ assert.equal(supported.region_id,"");
+ assert.ok(x.events().some(e=>e.event_type==="support_on"));
+ const won=x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"won"});
+ assert.equal(won.status,"won");
+ assert.equal(won.region_id,"");
+ assert.equal(x.row().region_id,"");
+ const reopened=x.call("ADMIN","PUT","entities/Opportunity/OPP-1",{
+   status:"open",audit_remark:"Verified Lost after Won"
+ });
+ assert.equal(reopened.status,"open");
+ const lost=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   status:"lost",lost_reason_id:"LR1",lost_note:"Cancelled after review"
+ });
+ assert.equal(lost.status,"lost");
+ assert.equal(lost.lost_reason_id,"LR1");
+ assert.equal(lost.region_id,"");
+ const actualEvents=x.events();
+ assert.ok(actualEvents.some(e=>e.event_type==="stage_change"));
+ assert.ok(actualEvents.some(e=>e.event_type==="won"));
+ assert.ok(actualEvents.some(e=>e.event_type==="lost"));
+ assert.equal(actualEvents.filter(e=>e.event_type==="handler_change").length,0);
+});
+
+test("legacy blank Region cannot bypass Owner or Handler validation before a verified Region is set",()=>{
+ const x=fixture();
+ x.row().import_batch_id="APPROVED_HISTORICAL_IMPORT";
+ x.row().region_id="";
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   owner_id:"AE2"
+ }),e=>e.status===403);
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   current_handler_id:"SM1"
+ }),e=>e.status===400);
+ const repaired=x.call("AE1","PUT","entities/Opportunity/OPP-1",{region_id:"R1"});
+ assert.equal(repaired.region_id,"R1");
+ const handed=x.call("AE1","PUT","entities/Opportunity/OPP-1",{current_handler_id:"SM1"});
+ assert.equal(handed.current_handler_id,"SM1");
+});
