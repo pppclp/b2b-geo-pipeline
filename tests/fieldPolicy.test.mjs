@@ -184,7 +184,7 @@ test("A2: archiving stores server time, never a spoofed client archived_at", () 
   assert.equal(x.row().remark,"Archived note");
 });
 
-test("authorized legacy import preserves source business month, never timestamps",()=>{
+test("historical import preserves source month and never invents a missing creation day",()=>{
   const stamp="2026-10-25T10:00:00.000Z";
   const x=fixture(stamp);
   const item=input({
@@ -198,7 +198,7 @@ test("authorized legacy import preserves source business month, never timestamps
   assert.equal(response.total,1);
   const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===response.opportunity_ids[0]);
   assert.equal(row.created_month,"2026-07");
-  assert.equal(row.created_at,stamp);
+  assert.equal(row.created_at,""); // source supplied month but no original creation day
   assert.equal(row.updated_at,stamp);
   assert.equal("source_created_month" in row,false);
   assert.ok(x.events().some(e=>e.opportunity_id===row.opportunity_id && e.event_at===stamp));
@@ -223,13 +223,14 @@ test("import batch retry rejects changed source month; explicit source ID preven
   assert.equal(x.events().length,events);
 });
 
-test("legacy commercial-only row signature remains replay-compatible; import without month uses server month",()=>{
+test("legacy commercial-only signature remains replay-compatible; unknown historical month stays blank",()=>{
   const x=fixture("2026-10-25T10:00:00.000Z");
   const item=input({customer_name:"Old format",business_id:"0000000000789",client_request_id:undefined});
   const batch={batch_id:"part4_legacy_import_00004",items:[item]};
   const saved=x.call("SM1","POST","imports/opportunities",batch);
   const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===saved.opportunity_ids[0]);
-  assert.equal(row.created_month,"2026-10");
+  assert.equal(row.created_month,"");
+  assert.equal(row.created_at,"");
   const legacyFingerprint=JSON.stringify([
     "business_id","product_category_id","expected_close_month","owner_id",
     "product_details","contact_phone","quantity","price_per_sub","oc"
@@ -237,6 +238,17 @@ test("legacy commercial-only row signature remains replay-compatible; import wit
   row.import_row_signature=legacyFingerprint; // synthetic pre-upgrade import row
   assert.equal(x.call("SM1","POST","imports/opportunities",batch).already_imported,true);
   assert.equal(x.store.table(DB,"Pipelines").rows.length,2);
+});
+
+test("historical import with verified created day uses source date, not import timestamp",()=> {
+  const x=fixture("2026-10-25T10:00:00.000Z");
+  const item=input({customer_name:"Synthetic original date",business_id:"",
+    source_created_at:"2026-06-04",source_created_month:"2026-06",client_request_id:undefined});
+  const response=x.call("SM1","POST","imports/opportunities",{batch_id:"historical_date_confirmed_0001",items:[item]});
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===response.opportunity_ids[0]);
+  assert.equal(row.created_at,"2026-06-04");
+  assert.equal(row.created_month,"2026-06");
+  assert.equal(row.updated_at,"2026-10-25T10:00:00.000Z");
 });
 
 test("normal Create/Edit cannot set source month or system-owned dates",()=>{
