@@ -6,6 +6,7 @@ export const IMPORT_HEADER_ALIASES = {
   source_stage_entered_at: ["Original Stage Entered Date", "Stage Entered Date", "Stage Updated Date"],
   source_closed_at: ["Original Closed Date", "Actual Close Date", "Won Date", "Lost Date", "Closed Date"],
   source_record_id: ["Legacy Opportunity ID", "Source Opportunity ID", "Original Opportunity ID", "CRM Opportunity ID"],
+  source_system: ["Source System", "Source System Name", "ระบบต้นทาง"],
   customer_name: ["ชื่อลูกค้า", "ชื่อบริษัท", "ชื่อนิติบุคคล", "ลูกค้า"],
   business_id: ["เลขทะเบียนนิติบุคคล", "เลขประจำตัวผู้เสียภาษี", "เลขผู้เสียภาษี", "เลขทะเบียนบริษัท", "เลขประจำตัวผู้เสียภาษี13หลัก"],
   customer_type: ["ประเภทลูกค้า", "Customer Segment", "กลุ่มลูกค้า"],
