@@ -239,7 +239,9 @@ function TeamMemberManager() {
             <SelectTrigger className="col-span-2 h-8"><SelectValue /></SelectTrigger>
             <SelectContent>{Object.entries(ROLE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
           </Select>
-          <span className="col-span-2 text-xs text-muted-foreground truncate">{(m.region_ids || []).map((id) => regions.find((r) => r.id === id)?.name).filter(Boolean).join(", ") || "—"}</span>
+          <span className="col-span-2 text-xs text-muted-foreground truncate">{["management", "admin"].includes(m.app_role)
+            ? "All Regions (by role)"
+            : (m.region_ids || []).map((id) => regions.find((r) => r.id === id)?.name).filter(Boolean).join(", ") || "—"}</span>
           <Toggle active={m.active} onToggle={(v) => updateMaster("TeamMember", m.id, { active: v })} />
         </Row>
       ))}
@@ -250,17 +252,21 @@ function TeamMemberManager() {
           <Input placeholder="Email (matches login)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           <Input placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </div>
-        <Select value={form.app_role} onValueChange={(v) => setForm({ ...form, app_role: v })}>
+        <Select value={form.app_role} onValueChange={(v) => setForm({ ...form, app_role: v, region_ids: ["management","admin"].includes(v) ? [] : form.region_ids })}>
           <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
           <SelectContent>{Object.entries(ROLE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
         </Select>
-        <div className="flex flex-wrap gap-3">
-          {regions.map((r) => (
-            <label key={r.id} className="flex items-center gap-2 text-sm">
-              <Checkbox checked={form.region_ids.includes(r.id)} onCheckedChange={() => toggleRegion(r.id)} /> {r.name}
-            </label>
-          ))}
-        </div>
+        {["management","admin"].includes(form.app_role) ? (
+          <p className="text-xs text-muted-foreground">All Regions are available by role. No manual Region mapping is required.</p>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {regions.map((r) => (
+              <label key={r.id} className="flex items-center gap-2 text-sm">
+                <Checkbox checked={form.region_ids.includes(r.id)} onCheckedChange={() => toggleRegion(r.id)} /> {r.name}
+              </label>
+            ))}
+          </div>
+        )}
         <Button size="sm" onClick={() => { if (form.name) { createMaster("TeamMember", { ...form, active: true }); setForm({ name: "", email: "", title: "", app_role: "ae", region_ids: [] }); } }}>
           <Plus className="w-4 h-4 mr-1" /> Add Member
         </Button>
