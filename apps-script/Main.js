@@ -234,13 +234,18 @@ function debugUatLoginReadiness() {
     var store = new SheetStore_();
     var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
     var credentials = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
-    var credentialIndex = {};
+    var credentialIndex = Object.create(null);
+    var userEmployeeCounts = Object.create(null);
     var duplicates = 0;
     credentials.forEach(function (row) {
       var id = normalizeEmployeeId_(row["employee_id / username"]);
       if (!id) return;
       if (Object.prototype.hasOwnProperty.call(credentialIndex, id)) duplicates++;
       credentialIndex[id] = row;
+    });
+    users.forEach(function (user) {
+      var id = normalizeEmployeeId_(user.employee_id);
+      if (id) userEmployeeCounts[id] = (userEmployeeCounts[id] || 0) + 1;
     });
     var result = {
       active_users: 0,
@@ -249,6 +254,10 @@ function debugUatLoginReadiness() {
       missing_credential_record: 0,
       missing_password: 0,
       duplicate_credential_ids: duplicates,
+      duplicate_user_employee_ids: Object.keys(userEmployeeCounts).filter(function (id) {
+        return userEmployeeCounts[id] > 1;
+      }).length,
+      credential_user_id_mismatch: 0,
       by_role: {}
     };
     users.forEach(function (user) {
@@ -268,6 +277,13 @@ function debugUatLoginReadiness() {
       var credential = credentialIndex[id];
       if (!credential) {
         result.missing_credential_record++;
+        item.blocked++;
+        return;
+      }
+      if (userEmployeeCounts[id] !== 1 ||
+          (String(credential.user_id || "").trim() &&
+           String(credential.user_id).trim() !== String(user.user_id || "").trim())) {
+        result.credential_user_id_mismatch++;
         item.blocked++;
         return;
       }
