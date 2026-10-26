@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createCore } from "../server/core.js";
 import { loadContract } from "../server/contract.js";
 import { bangkokMonth, OPPORTUNITY_COLUMNS } from "../server/opportunityPolicy.js";
@@ -482,4 +483,54 @@ test("Sales Code alone resolves owner, name variations are advisory, and events 
     batch_id:"legacy_source_salescode_conflict_2",
     items:[{...payload,source_record_id:"SALES-CODE-ONLY-2",owner_id:"AE2"}],
   }),rejected(400));
+});
+
+test("Part 2: create accepts empty or omitted optional contacts without changing required fields",()=>{
+  const x=fixture();
+  const payload=input({
+    contact_name:undefined,contact_phone:undefined,
+    client_request_id:"optional_contacts_20261027_0001",
+  });
+  const created=x.call("AE1","POST","entities/Opportunity",payload);
+  assert.ok(created.id);
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===created.id);
+  assert.equal(row.contact_name || "","");
+  assert.equal(row.contact_phone || "","");
+  assert.equal(created.customer_name,"Shop");
+  assert.equal(created.pipeline_value,100);
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",input({
+    client_request_id:"optional_contacts_20261027_0002",customer_name:"",
+    contact_name:"",contact_phone:"",
+  })),e=>e.status===400 && /customer_name/.test(e.message));
+});
+
+test("Part 2: optional contact values can be cleared without affecting other Pipeline values",()=>{
+  const x=fixture();
+  x.row().contact_name="Previous contact";
+  x.row().contact_phone="0800000000";
+  const updated=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+    contact_name:"",contact_phone:"",
+  });
+  assert.equal(updated.contact_name,"");
+  assert.equal(updated.contact_phone,"");
+  assert.equal(x.row().contact_name,"");
+  assert.equal(x.row().contact_phone,"");
+  assert.equal(x.row().pipeline_value,100);
+});
+
+test("Part 2: create UI, edit UI, import, and contract agree contacts are optional",()=>{
+  const create=fs.readFileSync(new URL("../src/components/CreatePipelineModal.jsx",import.meta.url),"utf8");
+  const edit=fs.readFileSync(new URL("../src/components/OpportunityForm.jsx",import.meta.url),"utf8");
+  const importer=fs.readFileSync(new URL("../src/pages/Import.jsx",import.meta.url),"utf8");
+  const yaml=fs.readFileSync(new URL("../b2b_geo_pipeline.yaml",import.meta.url),"utf8");
+  for(const field of ["contact_name","contact_phone"]) {
+    assert.ok(!create.includes('errors.'+field+' = "Required"'),field);
+    assert.ok(edit.includes('form.'+field),field);
+    assert.match(importer,new RegExp('key: "'+field+'", label: "Contact [^"]+" \\}'));
+    assert.match(yaml,new RegExp('    '+field+':\\n      source: "AE / SM input"\\n      optional: true'));
+  }
+  assert.ok(create.includes('<Field label="Contact Name">'));
+  assert.ok(create.includes('<Field label="Contact Phone">'));
+  assert.ok(!create.includes('<Field label="Contact Name" required'));
+  assert.ok(!create.includes('<Field label="Contact Phone" required'));
 });
