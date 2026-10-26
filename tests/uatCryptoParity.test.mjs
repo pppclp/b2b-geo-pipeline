@@ -16,7 +16,7 @@ function gasFunction(name, env) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = gas.match(new RegExp("function " + escaped + "\\([^)]*\\)\\s*\\{[\\s\\S]*?^\\}", "m"));
   assert.ok(match, "Missing Apps Script function " + name);
-  return vm.runInNewContext(match[0] + "\\n" + name, env);
+  return vm.runInNewContext(match[0] + "\n" + name, env);
 }
 const Utilities = {
   computeHmacSha256Signature: (message, key) => Array.from(
