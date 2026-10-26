@@ -708,13 +708,34 @@ test("historical imported Pipeline with blank Region can Edit Stage Support and 
  const updated=x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Following up"});
  assert.equal(updated.remark,"Following up");
  assert.equal(updated.region_id,"");
+ x.store.table(CONFIG,"Support_Types").rows.push({
+   support_type_id:"SUP1",support_type_name:"Pricing",active:"Yes"
+ });
+ const supported=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   support_needed:true,support_type:"Pricing",support_note:"Need quotation help"
+ });
+ assert.equal(supported.support_needed,true);
+ assert.equal(supported.support_type,"Pricing");
+ assert.equal(supported.region_id,"");
+ assert.ok(x.events().some(e=>e.event_type==="support_on"));
  const won=x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"won"});
  assert.equal(won.status,"won");
  assert.equal(won.region_id,"");
  assert.equal(x.row().region_id,"");
+ const reopened=x.call("ADMIN","PUT","entities/Opportunity/OPP-1",{
+   status:"open",audit_remark:"Verified Lost after Won"
+ });
+ assert.equal(reopened.status,"open");
+ const lost=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   status:"lost",lost_reason_id:"LR1",lost_note:"Cancelled after review"
+ });
+ assert.equal(lost.status,"lost");
+ assert.equal(lost.lost_reason_id,"LR1");
+ assert.equal(lost.region_id,"");
  const actualEvents=x.events();
  assert.ok(actualEvents.some(e=>e.event_type==="stage_change"));
  assert.ok(actualEvents.some(e=>e.event_type==="won"));
+ assert.ok(actualEvents.some(e=>e.event_type==="lost"));
  assert.equal(actualEvents.filter(e=>e.event_type==="handler_change").length,0);
 });
 
