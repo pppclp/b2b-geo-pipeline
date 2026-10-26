@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Maximize2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import SupportToggleAction from "@/components/SupportToggleAction";
@@ -110,7 +111,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
       setWorkingTeamIds(next.workingTeamIds);
       onSaved?.();
     } catch (err) {
-      setError(err?.message || "Unable to save Pipeline changes");
+      setError(actionableErrorMessage(err));
     } finally {
       setSaving(false);
     }
