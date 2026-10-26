@@ -15,7 +15,8 @@ test("Management has nationwide contract scope while AE and SM remain restricted
 
 test("Backend derives Management Region list from active Region Master, not User_Region", () => {
   const core = read("../server/core.js");
-  assert.match(core, /role === "management"\s*\? rows\("regions"\)\.filter\(\(r\) => isActive\(r\.active\)\)/);
+  assert.match(core, /role === "management" && scopeForRole\(role\) === "all"/);
+  assert.match(core, /rows\("regions"\)\.filter\(\(r\) => isActive\(r\.active\)\)/);
   assert.match(core, /if \(scope === "all"\) return \(\) => true;/);
   assert.match(core, /if \(\["admin", "management"\]\.includes\(actor\.role\)/);
   assert.match(core, /if \(actor\?\.role === "ae"\) throw new HttpError\(403/);
