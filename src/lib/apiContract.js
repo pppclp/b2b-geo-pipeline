@@ -1,6 +1,6 @@
-// Bump this only for intentional breaking changes to the API contract.
+// Keep v2 for backwards-compatible backend-first rollout; newer UI requires the scenario_task_overdue capability.
 // The frontend refuses an absent/older contract rather than displaying empty Pipeline data.
-export const API_CONTRACT_VERSION = 3;
+export const API_CONTRACT_VERSION = 2;
 export const REQUIRED_CAPABILITIES = Object.freeze([
   "pipeline_revision",
   "needs_support_toggle",
