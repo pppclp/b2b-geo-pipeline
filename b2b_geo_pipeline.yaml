@@ -2031,11 +2031,40 @@ monthly_snapshots:
       snapshot_of:
         "opportunities.lost_reason_id"
 
+    # Import-friendly evidence is appended to the existing 38-column schema.
+    # Original month and source amounts are copied, not recomputed from present state.
+    created_month:
+      snapshot_of: "opportunities.created_month"
+    owner_sales_code:
+      source: "Users.employee_id for opportunities.owner_user_id, frozen at capture"
+    owner_sale_name:
+      source: "Users.display_name for opportunities.owner_user_id, frozen at capture"
+    customer_location_text:
+      snapshot_of: "opportunities.customer_location_text"
+    import_source_customer_type:
+      snapshot_of: "opportunities.import_source_customer_type"
+    import_source_rc:
+      snapshot_of: "opportunities.import_source_rc"
+      description: "Original legacy RC. Blank for non-imported Pipelines."
+    import_source_net_rc:
+      snapshot_of: "opportunities.import_source_net_rc"
+      description: "Original source Net RC; may differ from calculated pipeline_value at capture."
+    import_source_monthly_sale_plan:
+      snapshot_of: "opportunities.import_source_monthly_sale_plan"
+      description: "Original Monthly Sale Plan, distinct from expected_close_month."
+    import_source_system:
+      snapshot_of: "opportunities.import_source_system"
+    import_source_record_id:
+      snapshot_of: "opportunities.import_source_record_id"
+    import_batch_id:
+      snapshot_of: "opportunities.import_batch_id"
+
   capture_rules:
     - "Only one persisted row per opportunity_id + snapshot_period."
     - "Re-capturing the same snapshot_period replaces that period instead of appending duplicates."
     - "Stage history is NOT duplicated here; Pipeline_Events is the audit trail."
     - "Historical snapshot rows must not automatically change when current Pipeline changes later."
+    - "Do not backfill past snapshot periods using current Pipeline values; additional columns stay blank in historical captures."
 
 
 # ============================================================
