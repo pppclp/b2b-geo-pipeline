@@ -6,6 +6,7 @@ export const REQUIRED_CAPABILITIES = Object.freeze([
   "needs_support_toggle",
   "schema_fail_closed",
   "import_batch_dedupe",
+  "legacy_import_owner_resolution",
 ]);
 export function validateApiContract(me) {
   if (me?.api_contract_version !== API_CONTRACT_VERSION ||
