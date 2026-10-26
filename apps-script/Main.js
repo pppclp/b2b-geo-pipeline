@@ -1220,6 +1220,77 @@ function prepareAdminAuditSheet() {
   }
 }
 
+// Editor-only, read-only UAT integrity preflight. All tables are read under
+// one ScriptLock; no customer names, employee IDs, spreadsheet IDs or passwords
+// are written to logs. Do not expose this through doGet/doPost.
+function debugGeoPipelineDataIntegrity() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var pipelines = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines").rows;
+    var events = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipeline_Events").rows;
+    var snapshots = store.table("B2B_GEO_Pipeline_DB.xlsx", "Snapshots").rows;
+    var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
+    var stages = store.table("B2B_GEO_Pipeline_Config.xlsx", "Stages").rows;
+    var categories = store.table("B2B_GEO_Pipeline_Config.xlsx", "Product_Categories").rows;
+    var regions = store.table("B2B_GEO_User_Org_Master.xlsx", "Regions").rows;
+    var idSet = function (records, field) {
+      var set = new Set();
+      records.forEach(function (r) { if (String(r[field] || "").trim()) set.add(String(r[field]).trim()); });
+      return set;
+    };
+    var opportunityIds = idSet(pipelines, "opportunity_id");
+    var knownOwners = idSet(users, "user_id");
+    var knownStages = idSet(stages, "stage_id");
+    var knownCategories = idSet(categories, "category_id");
+    var knownRegions = idSet(regions, "region_id");
+    var counts = {
+      pipelines: pipelines.length, events: events.length, snapshots: snapshots.length,
+      missing_updated_at: 0, missing_stage_entered_at: 0,
+      missing_expected_close_month: 0, missing_region: 0, missing_stage: 0,
+      invalid_owner: 0, invalid_handler: 0, invalid_stage: 0,
+      invalid_region: 0, invalid_product_category: 0,
+      orphan_events: 0, no_create_event: 0, duplicate_create_events: 0,
+      snapshot_duplicate_period_pipeline: 0, snapshot_orphans: 0
+    };
+    var createCounts = Object.create(null);
+    events.forEach(function (e) {
+      var oid = String(e.opportunity_id || "").trim();
+      if (!opportunityIds.has(oid)) counts.orphan_events++;
+      if (String(e.event_type || "").toLowerCase() === "create") createCounts[oid] = (createCounts[oid] || 0) + 1;
+    });
+    pipelines.forEach(function (p) {
+      if (!String(p.updated_at || "").trim()) counts.missing_updated_at++;
+      if (!String(p.stage_entered_at || "").trim()) counts.missing_stage_entered_at++;
+      if (!String(p.expected_close_month || "").trim()) counts.missing_expected_close_month++;
+      if (!String(p.region_id || "").trim()) counts.missing_region++;
+      if (!String(p.stage_id || "").trim()) counts.missing_stage++;
+      if (p.owner_user_id && !knownOwners.has(String(p.owner_user_id))) counts.invalid_owner++;
+      if (p.current_handler_user_id && !knownOwners.has(String(p.current_handler_user_id))) counts.invalid_handler++;
+      if (p.stage_id && !knownStages.has(String(p.stage_id))) counts.invalid_stage++;
+      if (p.region_id && !knownRegions.has(String(p.region_id))) counts.invalid_region++;
+      if (p.product_category_id && !knownCategories.has(String(p.product_category_id))) counts.invalid_product_category++;
+      var n = createCounts[String(p.opportunity_id)] || 0;
+      if (!n) counts.no_create_event++;
+      if (n > 1) counts.duplicate_create_events++;
+    });
+    var seenSnapshots = new Set();
+    snapshots.forEach(function (r) {
+      var key = String(r.snapshot_period || "") + "|" + String(r.opportunity_id || "");
+      if (seenSnapshots.has(key)) counts.snapshot_duplicate_period_pipeline++;
+      seenSnapshots.add(key);
+      // A historical snapshot may refer to a Pipeline later archived or
+      // removed. Report this count without silently deleting the history.
+      if (!opportunityIds.has(String(r.opportunity_id || ""))) counts.snapshot_orphans++;
+    });
+    console.log(JSON.stringify(counts));
+    return counts;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ---- Table store over Google Sheets (same interface as server/store.js) ----
 function SheetStore_() {
   this.books = {};
