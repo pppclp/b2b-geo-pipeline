@@ -34,11 +34,14 @@ export function createUatEmailAuth({ env = process.env, clock = () => Date.now()
   function account(store, value) {
     const email = emailKey(value);
     if (!validDomain(email)) throw http(401, "Invalid activation credentials");
-    const matchingUsers = users(store).filter(u => emailKey(u.email) === email &&
-      String(u.status || "Active").toLowerCase() === "active");
-    if (matchingUsers.length !== 1) throw http(401, "Invalid activation credentials");
-    const matches = credentials(store).filter(c => String(c.user_id || "") === String(matchingUsers[0].user_id || ""));
-    if (matches.length !== 1) throw http(401, "Invalid activation credentials");
+    const matchingUsers = users(store).filter(u => emailKey(u.email) === email);
+    if (matchingUsers.length !== 1 || String(matchingUsers[0].status || "").toLowerCase() !== "active" ||
+      !String(matchingUsers[0].employee_id || "").trim())
+      throw http(401, "Invalid activation credentials");
+    const matches = credentials(store).filter(c => String(c.user_id || "").trim() === String(matchingUsers[0].user_id || "").trim());
+    if (matches.length !== 1 ||
+      String(matches[0]["employee_id / username"] || "").trim() !== String(matchingUsers[0].employee_id || "").trim())
+      throw http(401, "Invalid activation credentials");
     return { email, user: matchingUsers[0], credential: matches[0] };
   }
   const validPassword = (pass, email) => {
@@ -79,12 +82,17 @@ export function createUatEmailAuth({ env = process.env, clock = () => Date.now()
   function complete(store, ticket, newPassword, confirm) {
     if (!live("GEO_UAT_EMAIL_ACTIVATION_ENABLED")) throw http(503, "Account activation is not enabled");
     const data = ticketVerify(ticket);
-    const matching = users(store).filter(u => String(u.user_id) === data.sub &&
-      String(u.status || "Active").toLowerCase() === "active");
-    if (matching.length !== 1 || !validDomain(emailKey(matching[0].email)))
+    const allUsers = users(store);
+    const matching = allUsers.filter(u => String(u.user_id) === data.sub);
+    if (matching.length !== 1 || String(matching[0].status || "").toLowerCase() !== "active" ||
+      !String(matching[0].employee_id || "").trim() ||
+      !validDomain(emailKey(matching[0].email)) ||
+      allUsers.filter(u => emailKey(u.email) === emailKey(matching[0].email)).length !== 1)
       throw http(401, "Activation expired. Verify your code again.");
     const sameCredentials = credentials(store).filter(c => String(c.user_id || "") === data.sub);
-    if (sameCredentials.length !== 1) throw http(401, "Activation expired. Verify your code again.");
+    if (sameCredentials.length !== 1 ||
+      String(sameCredentials[0]["employee_id / username"] || "").trim() !== String(matching[0].employee_id || "").trim())
+      throw http(401, "Activation expired. Verify your code again.");
     const c = sameCredentials[0];
     if (c.credential_status !== "pending_activation" || !c.activation_code_hash ||
       c.activation_used_at || !same(c.activation_code_hash, data.fp) ||
