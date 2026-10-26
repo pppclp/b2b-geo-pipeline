@@ -292,7 +292,7 @@ test("import accepts active Config Customer Types but preserves old taxonomy on 
   assert.ok(options.values.includes("SME"));
   assert.ok(!options.values.includes("INACTIVE CLASS"));
   const r=x.call("SM1","POST","imports/opportunities",{batch_id:"import_customer_types_01",
-    items:[input({business_id:"0000000060001",customer_type:"SERVICE AND RETAIL",client_request_id:undefined})]});
+    items:[input({business_id:"0000000060001",customer_type:"service and retail",client_request_id:undefined})]});
   const row=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===r.opportunity_ids[0]);
   assert.equal(row.customer_type,"SERVICE AND RETAIL");
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{batch_id:"import_customer_types_02",
