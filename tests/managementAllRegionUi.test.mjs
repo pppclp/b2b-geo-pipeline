@@ -46,3 +46,9 @@ test("Management may select an AE from any Region while SM remains Region-limite
   assert.match(admin, /All Regions \(by role\)/);
   assert.match(admin, /No manual Region mapping is required/);
 });
+
+test("Management handoff validation follows all-region scope and does not require User_Region", () => {
+  const core = read("../server/core.js");
+  assert.match(core, /handler\.role === "management" && scopeForRole\(handler\.role\) !== "all"/);
+  assert.match(core, /actor\?\.role === "ae"\) throw new HttpError\(403/);
+});
