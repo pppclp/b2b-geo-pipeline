@@ -177,3 +177,105 @@ test("A2: archiving stores server time, never a spoofed client archived_at", () 
   assert.equal(x.row().archived_at,stamp);
   assert.equal(x.row().remark,"Archived note");
 });
+
+test("authorized legacy import preserves source business month, never timestamps",()=>{
+  const stamp="2026-10-25T10:00:00.000Z";
+  const x=fixture(stamp);
+  const item=input({
+    customer_name:"Synthetic historical lead",business_id:"0000000000123",
+    source_created_month:"2026-07",client_request_id:undefined,
+    created_at:"1999-01-01T00:00:00Z",event_at:"1999-01-01T00:00:00Z",
+  });
+  const response=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"part4_legacy_import_00001",items:[item]
+  });
+  assert.equal(response.total,1);
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===response.opportunity_ids[0]);
+  assert.equal(row.created_month,"2026-07");
+  assert.equal(row.created_at,stamp);
+  assert.equal(row.updated_at,stamp);
+  assert.equal("source_created_month" in row,false);
+  assert.ok(x.events().some(e=>e.opportunity_id===row.opportunity_id && e.event_at===stamp));
+});
+
+test("new import batch retry rejects changed source month; cross-batch commercial duplicate remains rejected",()=>{
+  const x=fixture("2026-10-25T10:00:00.000Z");
+  const item=input({customer_name:"Synthetic",business_id:"0000000000456",
+    source_created_month:"2026-07",client_request_id:undefined});
+  const batch={batch_id:"part4_legacy_import_00002",items:[item]};
+  assert.equal(x.call("SM1","POST","imports/opportunities",batch).imported,1);
+  const count=x.store.table(DB,"Pipelines").rows.length;
+  const events=x.events().length;
+  assert.equal(x.call("SM1","POST","imports/opportunities",batch).already_imported,true);
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    ...batch,items:[{...item,source_created_month:"2026-08"}]
+  }),rejected(409));
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    batch_id:"part4_legacy_import_00003",items:[{...item,source_created_month:"2026-09"}]
+  }),rejected(409));
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,count);
+  assert.equal(x.events().length,events);
+});
+
+test("legacy commercial-only row signature remains replay-compatible; import without month uses server month",()=>{
+  const x=fixture("2026-10-25T10:00:00.000Z");
+  const item=input({customer_name:"Old format",business_id:"0000000000789",client_request_id:undefined});
+  const batch={batch_id:"part4_legacy_import_00004",items:[item]};
+  const saved=x.call("SM1","POST","imports/opportunities",batch);
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===saved.opportunity_ids[0]);
+  assert.equal(row.created_month,"2026-10");
+  const legacyFingerprint=JSON.stringify([
+    "business_id","product_category_id","expected_close_month","owner_id",
+    "product_details","contact_phone","quantity","price_per_sub","oc"
+  ].map(k=>String(item[k]??"").trim().toLowerCase()));
+  row.import_row_signature=legacyFingerprint; // synthetic pre-upgrade import row
+  assert.equal(x.call("SM1","POST","imports/opportunities",batch).already_imported,true);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,2);
+});
+
+test("normal Create/Edit cannot set source month or system-owned dates",()=>{
+  const x=fixture("2026-10-25T10:00:00.000Z");
+  const created=x.call("AE1","POST","entities/Opportunity",input({
+    business_id:"0000000000999",source_created_month:"2000-01",
+    created_month:"2000-01",created_at:"2000-01-01"
+  }));
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===created.id);
+  assert.equal(row.created_month,"2026-10");
+  assert.equal(row.created_at,"2026-10-25T10:00:00.000Z");
+  x.call("AE1","PUT","entities/Opportunity/"+created.id,{
+    source_created_month:"1900-01",created_month:"1900-01",created_at:"1900-01-01",remark:"Note only"
+  });
+  assert.equal(row.created_month,"2026-10");
+  assert.equal(row.remark,"Note only");
+  assert.equal("source_created_month" in row,false);
+});
+
+test("invalid source month and unauthorized import fail before any Pipeline or event write",()=>{
+  const x=fixture();
+  const beforeRows=x.store.table(DB,"Pipelines").rows.length;
+  const beforeEvents=x.events().length;
+  const item=input({business_id:"0000000000222",client_request_id:undefined});
+  for(const invalid of ["2026-13","2026-00","0000-01","2101-01","2026/07","2026-07-01","01/07/2026"]){
+    assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+      batch_id:"part4_invalid_"+invalid.replace(/[^a-zA-Z0-9]/g,"_")+"0000",
+      items:[{...item,source_created_month:invalid}]
+    }),rejected(400),invalid);
+  }
+  assert.throws(()=>x.call("AE1","POST","imports/opportunities",{
+    batch_id:"part4_unauthorized_00001",items:[{...item,source_created_month:"2026-07"}]
+  }),rejected(403));
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,beforeRows);
+  assert.equal(x.events().length,beforeEvents);
+});
+
+test("modern import and legacy month import keep source Business ID zeroes and Net RC calculation unchanged",()=>{
+  const x=fixture();
+  const item=input({business_id:"0000000000123",quantity:2,price_per_sub:350,oc:120,
+    client_request_id:undefined,source_created_month:"2025-12"});
+  const result=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"part4_zero_business_id",items:[item]
+  });
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===result.opportunity_ids[0]);
+  assert.equal(row.business_id,"0000000000123");
+  assert.equal(row.pipeline_value,710);
+});

@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useData } from "@/lib/dataContext";
-import { currentMonthKey } from "@/lib/pipeline";
 import { db } from "@/api/client";
-import { mapImportHeaders } from "@/lib/importHeaderMapping";
-import { readImportFile } from "@/lib/importWorkbook";
+import { mapImportHeaders, needsExplicitCreatedMonthMapping } from "@/lib/importHeaderMapping";
+import { readImportFile, parseImportCreatedMonth } from "@/lib/importWorkbook";
 import { calculateNetRc } from "@/lib/netRc";
 import { businessIdError, normalizeCustomerType, netRcReconciliation } from "@/lib/pipelineValidation";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
 
 // Known importable fields and their target keys
 const FIELDS = [
+  { key: "created_month", label: "Create Month" },
   { key: "customer_name", label: "Customer Name", required: true },
   { key: "business_id", label: "Business ID", required: true },
   { key: "customer_type", label: "Customer Type", required: true },
@@ -111,13 +111,26 @@ export default function Import() {
 
   const validated = useMemo(() => {
     if (step !== "preview" && step !== "map") return [];
+    const unresolvedSourceMonth = needsExplicitCreatedMonthMapping(headers, mapping);
     return rows.map((row, i) => {
       const errors = [];
-      const rec = { status: "open", created_month: currentMonthKey() };
+      if (unresolvedSourceMonth) errors.push("Create Month column detected; select the correct source column in Map Columns");
+      const rec = { status: "open" };
       FIELDS.forEach((f) => {
         const idx = mapping[f.key];
         if (idx == null) return;
         let val = (row[idx] || "").trim();
+        if (f.key === "created_month") {
+          // Only explicitly mapped, valid source months reach the import-only API.
+          // A mapped blank is an error; without a mapping, backend uses server month.
+          if (!val) errors.push("Create Month is blank; supply the original month or skip mapping");
+          else {
+            const parsed = parseImportCreatedMonth(val);
+            if (!parsed) errors.push(`Create Month "${val}" must be a valid YYYY-MM or unambiguous date (e.g. 1-Jul-26)`);
+            else rec.source_created_month = parsed;
+          }
+          return;
+        }
         if (!val) return;
         if (f.resolve) {
           const ent = resolve[f.resolve][val.toLowerCase()];
@@ -167,7 +180,7 @@ export default function Import() {
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, mapping, resolve, step, activeStages]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, activeStages]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
@@ -282,11 +295,12 @@ export default function Import() {
             <div className="rounded-2xl border border-border bg-card p-5 shadow-soft max-h-64 overflow-auto">
               <h3 className="font-semibold text-sm mb-3">Valid Rows Preview</h3>
               <table className="w-full text-xs">
-                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Region</th><th className="text-left">Stage</th><th className="text-right">Net RC</th></tr></thead>
+                <thead><tr className="text-muted-foreground"><th className="text-left py-1">Customer</th><th className="text-left">Created Month</th><th className="text-left">Region</th><th className="text-left">Stage</th><th className="text-right">Net RC</th></tr></thead>
                 <tbody>
                   {validRows.slice(0, 50).map((v) => (
                     <tr key={v.row} className="border-t border-border">
                       <td className="py-1">{v.rec.customer_name}</td>
+                      <td>{v.rec.source_created_month || "Server import month"}</td>
                       <td>{master?.Region?.find((r) => r.id === v.rec.region_id)?.name}</td>
                       <td>{master?.Stage?.find((s) => s.id === v.rec.stage_id)?.name}</td>
                       <td className="text-right tabular-nums">{calculateNetRc({ quantity: v.rec.quantity, pricePerSub: v.rec.price_per_sub, oc: v.rec.oc })}</td>

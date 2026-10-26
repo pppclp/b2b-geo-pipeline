@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
-import {parseImportXlsx, readImportFile} from "../src/lib/importWorkbook.js";
+import {parseImportXlsx, readImportFile, parseImportCreatedMonth} from "../src/lib/importWorkbook.js";
 
 async function makeWorkbook(rows) {
  const wb=new ExcelJS.Workbook();
@@ -54,4 +54,44 @@ test("CSV import continues to work while XLSX is supported",async()=>{
   const result=await readImportFile(csvFile,parser);
   assert.deepEqual(result.headers,["Customer Name","Business ID"]);
   assert.deepEqual(result.rows,[["Alpha","0012345"]]);
+});
+
+test("legacy source Create Month and Created Month parse only explicit unambiguous dates",()=>{
+  for(const [value,expected] of [
+    ["1-Jul-26","2026-07"],["Jul-26","2026-07"],
+    ["2026-07","2026-07"],["2026-07-01","2026-07"],
+    ["31-Dec-99","1999-12"],["1-Jan-00","2000-01"],
+    ["2024-02-29","2024-02"],["  Oct-26  ","2026-10"]
+  ])assert.equal(parseImportCreatedMonth(value),expected,value);
+  for(const value of [
+    "","2026-13","2026-00","31-Feb-26","2026-02-30","2025-02-29",
+    "01/07/2026","07/01/2026","46204","2026/07","2026-07-01T00:00:00Z",
+    "1-Hello-26","2026-07-00","0000-01","2101-01"
+  ])assert.equal(parseImportCreatedMonth(value),null,value);
+});
+
+test("Excel date values and text-formatted dates retain source month and original 13-digit ID",async()=>{
+  const workbook=new ExcelJS.Workbook();
+  const sheet=workbook.addWorksheet("Legacy Pipelines");
+  sheet.addRow(["Create Month","Created Month","Business ID","Customer Name"]);
+  sheet.getCell("A2").value=new Date("2026-07-01T00:00:00.000Z");
+  sheet.getCell("A2").numFmt="dd-mmm-yy";
+  sheet.getCell("B2").value="1-Jul-26";
+  sheet.getCell("B2").numFmt="@";
+  sheet.getCell("C2").value=123;
+  sheet.getCell("C2").numFmt="0000000000000";
+  sheet.getCell("D2").value="Synthetic Account";
+  const parsed=await parseImportXlsx(await workbook.xlsx.writeBuffer());
+  assert.equal(parseImportCreatedMonth(parsed.rows[0][0]),"2026-07");
+  assert.equal(parseImportCreatedMonth(parsed.rows[0][1]),"2026-07");
+  assert.equal(parsed.rows[0][2],"0000000000123");
+});
+test("Ambiguous Excel raw numeric serial cannot silently become imported historical month",async()=>{
+  const workbook=new ExcelJS.Workbook();
+  const sheet=workbook.addWorksheet("Legacy Pipelines");
+  sheet.addRow(["Create Month","Customer Name"]);
+  sheet.addRow([46204,"Synthetic Account"]);
+  const parsed=await parseImportXlsx(await workbook.xlsx.writeBuffer());
+  assert.equal(parsed.rows[0][0],"46204");
+  assert.equal(parseImportCreatedMonth(parsed.rows[0][0]),null);
 });

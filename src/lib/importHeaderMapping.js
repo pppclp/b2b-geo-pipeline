@@ -1,6 +1,7 @@
 // Conservative, deterministic import header matching. Never auto-map ambiguous columns.
 // Thai combining marks must survive normalization; empty/unknown headers never match.
 export const IMPORT_HEADER_ALIASES = {
+  created_month: ["Create Month", "Created Month", "วันที่สร้าง", "เดือนที่สร้าง", "เดือนสร้าง"],
   customer_name: ["ชื่อลูกค้า", "ชื่อบริษัท", "ชื่อนิติบุคคล", "ลูกค้า"],
   business_id: ["เลขทะเบียนนิติบุคคล", "เลขประจำตัวผู้เสียภาษี", "เลขผู้เสียภาษี", "เลขทะเบียนบริษัท", "เลขประจำตัวผู้เสียภาษี13หลัก"],
   customer_type: ["ประเภทลูกค้า"],
@@ -51,4 +52,14 @@ export function mapImportHeaders(headers, fields) {
     used.add(matches[0].index);
   }
   return mapping;
+}
+
+// A recognized source-created-month column must not be silently dropped when
+ // auto-mapping abstains (e.g. duplicate "Create Month"/"Created Month").
+ // The user may resolve ambiguity using the existing manual mapping control.
+export function needsExplicitCreatedMonthMapping(headers, mapping) {
+  if (mapping?.created_month != null) return false;
+  const accepted = new Set(["created_month", "Create Month", ...(IMPORT_HEADER_ALIASES.created_month || [])]
+    .map(normalizeImportHeader));
+  return headers.some(header => accepted.has(normalizeImportHeader(header)));
 }

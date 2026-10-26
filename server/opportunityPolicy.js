@@ -25,7 +25,7 @@ export const SYSTEM_OPPORTUNITY_FIELDS = new Set([
   "stage_entered_at", "handler_since", "working_with_since",
   "won_at", "won_by", "won_by_user_id",
   "lost_at", "lost_by", "lost_by_user_id", "archived_at",
-  "import_batch_id", "import_row_number", "import_row_signature",
+  "source_created_month", "import_batch_id", "import_row_number", "import_row_signature",
 ]);
 
 export function stripSystemFields(data) {
