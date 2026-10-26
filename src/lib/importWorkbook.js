@@ -29,6 +29,41 @@ function excelCellText(cell, header = "") {
   return String(value);
 }
 
+// Parse historical source Create Month without guessing local date order.
+// ExcelJS converts recognized XLSX date cells to Date; our XLSX reader turns
+// those into ISO calendar dates before calling this. Unformatted serial
+// numbers and locale-dependent numeric dates remain ambiguous and are rejected.
+export function parseImportCreatedMonth(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const valid = (year, month, day = null) => {
+    if (!Number.isInteger(year) || year < 1900 || year > 2100 ||
+        !Number.isInteger(month) || month < 1 || month > 12) return null;
+    if (day !== null) {
+      if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if (date.getUTCFullYear() !== year ||
+          date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+    }
+    return String(year) + "-" + String(month).padStart(2, "0");
+  };
+  const iso = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/.exec(text);
+  if (iso) return valid(Number(iso[1]), Number(iso[2]),
+    iso[3] === undefined ? null : Number(iso[3]));
+  const named = /^(?:(\d{1,2})[-\/\s]+)?([A-Za-z]{3,9})[-\/\s]+(\d{2}|\d{4})$/.exec(text);
+  if (named) {
+    const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    const month = months.indexOf(named[2].slice(0,3).toLowerCase()) + 1;
+    const yearPart = named[3];
+    const yy = Number(yearPart);
+    // Same century convention as PR #72; two-digit years are a legacy
+    // compatibility rule, not a guessed day/month order.
+    const year = yearPart.length === 2 ? (yy <= 69 ? 2000 + yy : 1900 + yy) : yy;
+    return valid(year, month, named[1] === undefined ? null : Number(named[1]));
+  }
+  return null;
+}
+
 export async function parseImportXlsx(arrayBuffer) {
   const imported = await import("exceljs");
   const ExcelJS = imported.default || imported;
