@@ -941,7 +941,10 @@ export function createCore({ contract, store, now, uuid }) {
       // Management/Admin user customer-row access via an arbitrary handoff.
       if (["management", "admin"].includes(handler.role)) {
         if (actor?.role === "ae") throw new HttpError(403, "AE cannot hand off directly to Management or Admin");
-        if (handler.role === "management" && !handler.region_ids.includes(String(next.region_id))) {
+        // Management has nationwide scope by authorized role, independent of
+        // User_Region. Admin and Management can receive authorized escalations.
+        if (handler.role === "management" && scopeForRole(handler.role) !== "all" &&
+            !handler.region_ids.includes(String(next.region_id))) {
           throw new HttpError(400, "Management Handler is not assigned to this Pipeline's Region");
         }
       } else if (!["ae", "sm"].includes(handler.role) || !handler.region_ids.includes(String(next.region_id))) {
