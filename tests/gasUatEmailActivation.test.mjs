@@ -116,3 +116,22 @@ test("GAS exposes aggregate readiness helper without employee identifiers",()=>{
  assert.equal(typeof counts,"function");
  assert.match(source,/function debugUatEmailActivationReadiness\(/);
 });
+
+test("real Apps Script password hash matches Node reference vectors and fails closed",()=> {
+  const f=setup();
+  const start=source.indexOf("function uatPasswordDigest_(");
+  const end=source.indexOf("// ---- Opt-in UAT Corporate Email Activation",start);
+  assert.ok(start>=0 && end>start);
+  // Execute the actual GAS hash/verification functions, NOT the synthetic stub.
+  vm.runInContext(source.slice(start,end),f.ctx);
+  const salt="00112233445566778899aabbccddeeff";
+  const pass="Synthetic-Strong-Passphrase-47!";
+  const digest=createHmac("sha256","synthetic-password-pepper-long-enough")
+    .update(salt+":"+pass).digest("base64url");
+  assert.equal(f.ctx.uatPasswordDigest_(salt,pass),digest);
+  const credential={password_hash:"hmac-sha256-v1$"+salt+"$"+digest};
+  assert.equal(f.ctx.verifyUatPassword_(credential,pass),true);
+  assert.equal(f.ctx.verifyUatPassword_(credential,pass+"bad"),false);
+  assert.throws(()=>f.ctx.verifyUatPassword_({password_hash:"plain$"+salt+"$"+digest},pass),
+    e=>e.status===503);
+});
