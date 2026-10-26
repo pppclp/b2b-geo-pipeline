@@ -85,6 +85,8 @@ export function createApi({ yamlPath, dataDir }) {
           const token = /^Bearer (.+)$/i.exec(String(req.headers.authorization || ""))?.[1];
           const authenticatedUser = publicUatRequest ? null : sessions.verify(token);
           if (!publicUatRequest && !authenticatedUser) throw new HttpError(401, "Your session is invalid or has expired. Please sign in again.");
+          if (!publicUatRequest && !tempSetup.sessionReady(store, authenticatedUser))
+            throw new HttpError(401, "Password setup required. Sign in with your temporary password.");
           let out;
           if (verifyingActivation) out = emailAuth.verify(store, payload?.email, payload?.code);
           else if (completingActivation) out = emailAuth.complete(store, payload?.activation_ticket, payload?.new_password, payload?.confirm_password);
