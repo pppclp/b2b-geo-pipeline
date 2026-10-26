@@ -8,7 +8,8 @@ const client = fs.readFileSync(new URL("../src/api/client.js", import.meta.url),
 // Exercise the real client request wrapper without a browser or external network.
 function loadClient(apiUrl, fetchImpl) {
   const transformed = client
-    .replace("import.meta.env.VITE_GEO_API_URL", JSON.stringify(apiUrl))
+    .replaceAll("import.meta.env.VITE_GEO_API_URL", JSON.stringify(apiUrl))
+    .replaceAll("import.meta.env.PROD", "false")
     .replace(/^export /gm, "");
   const memory = new Map();
   const sandbox = {
