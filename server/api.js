@@ -85,7 +85,7 @@ export function createApi({ yamlPath, dataDir }) {
           let out;
           if (verifyingActivation) out = emailAuth.verify(store, payload?.email, payload?.code);
           else if (completingActivation) out = emailAuth.complete(store, payload?.activation_ticket, payload?.new_password, payload?.confirm_password);
-          else if (loggingIn && process.env.GEO_UAT_EMAIL_LOGIN_ENABLED === "true")
+          else if (loggingIn && process.env.GEO_UAT_EMAIL_LOGIN_ENABLED === "true" && String(payload?.username || "").includes("@"))
             out = emailAuth.login(store, payload?.username, payload?.password);
           else out = core.handle({
             method: req.method,
