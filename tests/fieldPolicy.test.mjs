@@ -27,6 +27,11 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
     [ORG + "/Regions"]: [{region_id:"R1",active:"Yes"},{region_id:"R2",active:"Yes"}],
     [ORG + "/Territories"]: [{territory_id:"T1",region_id:"R1",active:"Yes"}],
     [CONFIG + "/Stages"]: [{stage_id:"S1",active:"Yes"},{stage_id:"S2",active:"Yes"},{stage_id:"OFF",active:"No"}],
+    [CONFIG + "/Field_Options"]: [
+      { field_key:"customer_type",option_value:"SERVICE AND RETAIL",active:"Yes" },
+      { field_key:"customer_type",option_value:"INACTIVE CLASS",active:"No" },
+    ],
+    [CONFIG + "/Lost_Reasons"]: [{reason_id:"LR1",active:"Yes"}],
     [CONFIG + "/Product_Categories"]: [{category_id:"CAT1",active:"Yes"},{category_id:"OFF",active:"No"}],
     [DB + "/Pipelines"]: [{
       opportunity_id:"OPP-1",owner_user_id:"AE1",current_handler_user_id:"AE1",
@@ -198,10 +203,10 @@ test("authorized legacy import preserves source business month, never timestamps
   assert.ok(x.events().some(e=>e.opportunity_id===row.opportunity_id && e.event_at===stamp));
 });
 
-test("new import batch retry rejects changed source month; cross-batch commercial duplicate remains rejected",()=>{
+test("import batch retry rejects changed source month; explicit source ID prevents cross-batch duplicates",()=>{
   const x=fixture("2026-10-25T10:00:00.000Z");
   const item=input({customer_name:"Synthetic",business_id:"0000000000456",
-    source_created_month:"2026-07",client_request_id:undefined});
+    source_created_month:"2026-07",source_system:"Legacy CRM",source_record_id:"O-100",client_request_id:undefined});
   const batch={batch_id:"part4_legacy_import_00002",items:[item]};
   assert.equal(x.call("SM1","POST","imports/opportunities",batch).imported,1);
   const count=x.store.table(DB,"Pipelines").rows.length;
@@ -278,4 +283,104 @@ test("modern import and legacy month import keep source Business ID zeroes and N
   const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===result.opportunity_ids[0]);
   assert.equal(row.business_id,"0000000000123");
   assert.equal(row.pipeline_value,710);
+});
+
+test("import accepts active Config Customer Types but preserves old taxonomy on normal records",()=>{
+  const x=fixture();
+  const options=x.call("SM1","GET","imports/customer-types");
+  assert.ok(options.values.includes("SERVICE AND RETAIL"));
+  assert.ok(options.values.includes("SME"));
+  assert.ok(!options.values.includes("INACTIVE CLASS"));
+  const r=x.call("SM1","POST","imports/opportunities",{batch_id:"import_customer_types_01",
+    items:[input({business_id:"0000000060001",customer_type:"SERVICE AND RETAIL",client_request_id:undefined})]});
+  const row=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===r.opportunity_ids[0]);
+  assert.equal(row.customer_type,"SERVICE AND RETAIL");
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{batch_id:"import_customer_types_02",
+    items:[input({business_id:"0000000060002",customer_type:"INACTIVE CLASS",client_request_id:undefined})]}),rejected(400));
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",
+    input({business_id:"0000000060003",customer_type:"SERVICE AND RETAIL"})),rejected(400));
+});
+
+test("historical Won/Lost imports retain source calendar dates without forging audit event dates",()=>{
+  const x=fixture("2026-10-25T10:00:00.000Z");
+  const common={source_system:"CRM",source_created_at:"2026-07-10",
+    source_stage_entered_at:"2026-08-01",source_closed_at:"2026-09-09",
+    client_request_id:undefined};
+  const imported=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"historical_closed_00001",
+    items:[
+      input({...common,status:"won",source_record_id:"H-1",business_id:"0000000070001"}),
+      input({...common,status:"lost",lost_reason_id:"LR1",source_record_id:"H-2",business_id:"0000000070002"}),
+    ],
+  });
+  assert.equal(imported.imported,2);
+  const rows=x.store.table(DB,"Pipelines").rows.filter(r=>imported.opportunity_ids.includes(r.opportunity_id));
+  assert.equal(rows[0].status,"Won");
+  assert.equal(rows[0].created_at,"2026-07-10");
+  assert.equal(rows[0].created_month,"2026-07");
+  assert.equal(rows[0].stage_entered_at,"2026-08-01");
+  assert.equal(rows[0].won_at,"2026-09-09");
+  assert.equal(rows[0].updated_at,"2026-10-25T10:00:00.000Z");
+  assert.equal(rows[1].lost_at,"2026-09-09");
+  assert.equal(rows[1].lost_reason_id,"LR1");
+  assert.ok(x.events().filter(e=>e.event_type==="historical_import_status").length===2);
+  assert.ok(x.events().every(e=>e.event_at==="2026-10-25T10:00:00.000Z"));
+});
+
+test("historical imports reject fake dates, unsupported status and missing Lost evidence",()=>{
+  const x=fixture();
+  const base=input({business_id:"0000000080001",client_request_id:undefined});
+  for(const bad of [
+    {status:"lost",source_closed_at:"2026-08-01"},
+    {status:"won"},
+    {status:"won",source_closed_at:"2026-02-30"},
+    {source_created_at:"01/07/2026"},
+    {source_created_at:"2026-09-01",source_created_month:"2026-08"},
+    {status:"closed",source_closed_at:"2026-09-01"},
+  ])assert.throws(()=>x.call("SM1","POST","imports/opportunities",
+    {batch_id:"invalid_historical_date_01",items:[{...base,...bad}]}),rejected(400));
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,1);
+});
+
+test("financial import preserves legacy fields while independently reconciling reference Net RC",()=>{
+  const x=fixture();
+  const row=input({business_id:"0000000090001",client_request_id:undefined,
+    quantity:2,price_per_sub:350,oc:120,reference_net_rc:"710",
+    source_rc:"700",source_discount_pct:"15",source_monthly_sale_plan:"12000",
+    source_product_id:"PRODUCT-A",source_record_id:"SRC-9",source_system:"CRM"});
+  const imported=x.call("SM1","POST","imports/opportunities",
+    {batch_id:"legacy_financial_000001",items:[row]});
+  const stored=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===imported.opportunity_ids[0]);
+  assert.equal(stored.pipeline_value,710);
+  assert.equal(stored.import_source_rc,"700");
+  assert.equal(stored.import_source_discount_pct,"15");
+  assert.equal(stored.import_source_monthly_sale_plan,"12000");
+  assert.equal(stored.import_source_product_id,"PRODUCT-A");
+  assert.equal(stored.import_source_net_rc,"710");
+  assert.equal(stored.import_source_record_id,"SRC-9");
+  assert.equal(stored.import_source_system,"CRM");
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_financial_000002",items:[{...row,source_record_id:"SRC-10",reference_net_rc:"999"}],
+  }),rejected(400));
+  x.call("AE1","PUT","entities/Opportunity/"+stored.opportunity_id,
+    {import_source_rc:"999",source_created_at:"2020-01-01",remark:"Normal edit"});
+  assert.equal(stored.import_source_rc,"700");
+  assert.equal(stored.created_at,stored.created_at);
+  assert.equal(stored.remark,"Normal edit");
+});
+
+test("commercially similar deals are distinct unless source ID matches; identical batch rows are rejected",()=>{
+  const x=fixture();
+  const inputRow=input({business_id:"0000000099991",client_request_id:undefined});
+  assert.equal(x.call("SM1","POST","imports/opportunities",
+    {batch_id:"similar_ledger_one_01",items:[inputRow]}).imported,1);
+  assert.equal(x.call("SM1","POST","imports/opportunities",
+    {batch_id:"similar_ledger_two_02",items:[inputRow]}).imported,1);
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",
+    {batch_id:"similar_ledger_three_03",items:[inputRow,inputRow]}),rejected(409));
+  const linked={...inputRow,source_system:"CRM",source_record_id:"REF-001"};
+  assert.equal(x.call("SM1","POST","imports/opportunities",
+    {batch_id:"similar_ledger_four_04",items:[linked]}).imported,1);
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",
+    {batch_id:"similar_ledger_five_05",items:[linked]}),rejected(409));
 });
