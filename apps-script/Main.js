@@ -147,7 +147,8 @@ function uatLogin_(store, body) {
        String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
       (emailMode && (!uatCorporateDomainAllowed_(username) ||
         String(matchingCredentials[0].credential_status || "") !== "active" ||
-        !String(matchingCredentials[0].password_set_at || "").trim())) ||
+        !String(matchingCredentials[0].password_set_at || "").trim() ||
+        !String(matchingCredentials[0].password_hash || "").trim())) ||
       !verifyUatPassword_(matchingCredentials[0], password)) {
     denyUatLogin_(limiter, key);
   }
