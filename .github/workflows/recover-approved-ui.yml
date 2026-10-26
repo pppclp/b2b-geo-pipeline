@@ -1,7 +1,7 @@
-# One-time UAT frontend recovery. The trigger runs on main (approved Pages
+# One-time revert to original Inter + IBM Plex Sans Thai fonts in UAT. The trigger runs on main (approved Pages
 # deployment branch), but builds from the last successful Pages source
 # plus ONLY audited UI changes, never from unverified main backend code.
-name: Recover Approved UI Hotfix
+name: Restore Original Font to GitHub Pages
 
 on:
   push:
@@ -25,14 +25,14 @@ jobs:
       - name: Check out backend-compatible UI hotfix
         uses: actions/checkout@v4
         with:
-          ref: d5608232f640b754733edfcde5d5172d1f79ee38
+          ref: b8c272da7c878db46b4a12745a04678da96c705d
           fetch-depth: 0
       - name: Enforce Pages #57 backend compatibility and unchanged protected source
         shell: bash
         run: |
           set -euo pipefail
           BASE="56b1166686c2376cdabca259f17389b04b84a021"
-          APPROVED="d5608232f640b754733edfcde5d5172d1f79ee38"
+          APPROVED="b8c272da7c878db46b4a12745a04678da96c705d"
           [[ "$(git rev-parse HEAD)" == "$APPROVED" ]] || { echo "::error::Unexpected hotfix commit"; exit 1; }
           git merge-base --is-ancestor "$BASE" HEAD || { echo "::error::Baseline ancestry mismatch"; exit 1; }
           mapfile -t files < <(git diff --name-only "$BASE" HEAD)
