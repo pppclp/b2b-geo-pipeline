@@ -107,7 +107,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
         </div>
         {showRegion && showRegionControl && <SelectWrap label={LABELS.region} value={filters.region} onChange={choice("region")}
           className="w-[130px]">
-          {regionOptions.filter(r=>profile?.app_role==="admin" ||
+          {regionOptions.filter(r=>["admin","management"].includes(profile?.app_role) ||
             (profile?.region_ids||[]).includes(r.id)).map(r=><SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
         </SelectWrap>}
         <SelectWrap label={LABELS.product_category}

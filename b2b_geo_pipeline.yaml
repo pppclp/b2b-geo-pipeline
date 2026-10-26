@@ -350,7 +350,7 @@ source_01_user_org_master:
         - "Determine which Regions SM manages"
 
       Management:
-        - "Optional restricted Management scope"
+        - "Nationwide view is derived from the active Management role; User_Region rows are not required for access"
 
       export:
         - "Restrict data before generating Excel"
@@ -2370,8 +2370,7 @@ business_decisions_pending:
 # scope (opportunity-like sheets only):
 #   all     — every row
 #   region  — rows whose region_id is in the user's active User_Region rows
-#             (Management with no active User_Region rows = no access;
-#              nationwide view requires explicit assignments to all Region IDs)
+#             (for SM; empty SM mappings do not grant access)
 #   own     — rows where owner_user_id or current_handler_user_id = user
 # ============================================================
 
@@ -2388,7 +2387,7 @@ access_control:
   scope:
     AE: "own"
     SM: "region"
-    Management: "region"
+    Management: "all"
     Admin: "all"
 
   # Admin may preview the app as another user (Demo As).

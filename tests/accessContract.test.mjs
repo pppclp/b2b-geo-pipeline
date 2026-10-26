@@ -5,10 +5,14 @@ import { loadContract } from "../server/contract.js";
 const contract=loadContract(new URL("../b2b_geo_pipeline.yaml",import.meta.url));
 const db=contract.access.files["B2B_GEO_Pipeline_DB.xlsx"].sheets;
 
-test("production YAML allows Management create/update and AE scoped export",()=>{
+test("production YAML allows Management create/update, nationwide visibility, and AE scoped export",()=>{
   assert.ok(db.Pipelines.permissions.create.includes("Management"));
   assert.ok(db.Pipelines.permissions.update.includes("Management"));
   assert.ok(db.Pipelines.permissions.export.includes("AE"));
+  assert.equal(contract.access.scope.Management,"all");
+  assert.equal(contract.access.scope.Admin,"all");
+  assert.equal(contract.access.scope.SM,"region");
+  assert.equal(contract.access.scope.AE,"own");
 });
 test("UAT credentials contract preserves legacy columns and appends activation fields",()=>{
   assert.deepEqual(contract.columns.uat_credentials,[

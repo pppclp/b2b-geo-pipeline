@@ -73,7 +73,8 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     ? profile
     : (master?.TeamMember || []).find((m) => m.id === form.owner_id);
   const regionIds = selectedOwner?.region_ids || [];
-  const allowedOwnerRegions = profile?.app_role === "admin" ? regionIds :
+  const nationwideRole = ["admin", "management"].includes(profile?.app_role);
+  const allowedOwnerRegions = nationwideRole ? regionIds :
     regionIds.filter((id) => (profile?.region_ids || []).includes(id));
   const regionId = allowedOwnerRegions.includes(selectedOwner?.default_region_id)
     ? selectedOwner.default_region_id : allowedOwnerRegions[0] || "";
@@ -86,10 +87,10 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   );
   const aeMembers = useMemo(
     () => (master?.TeamMember || []).filter((m) => m.active && m.app_role === "ae" &&
-      (profile?.app_role === "admin" ||
+      (nationwideRole ||
         (m.region_ids || []).some((id) => (profile?.region_ids || []).includes(id))))
       .sort((a, b) => a.name.localeCompare(b.name)),
-    [master, profile]
+    [master, profile, nationwideRole]
   );
 
   const netRc = useMemo(() => {

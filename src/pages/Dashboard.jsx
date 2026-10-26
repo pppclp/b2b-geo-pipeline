@@ -34,9 +34,9 @@ export default function Dashboard() {
   // UI filters are not access controls: all charts begin with server-scoped opportunities.
   const regions = useMemo(
     () => Object.values(maps.region || {}).filter((r) => r.active)
-      .filter((r) => isAdmin || (profile?.region_ids || []).includes(r.id))
+      .filter((r) => isAdmin || isManagement || (profile?.region_ids || []).includes(r.id))
       .sort((a, b) => (a.order || 0) - (b.order || 0)),
-    [maps.region, profile?.region_ids, isAdmin]
+    [maps.region, profile?.region_ids, isAdmin, isManagement]
   );
   const region = regions.some((r) => r.id === regionFilter) ? regionFilter : "";
   // The same context rule applies to AE, SM, Management, and Admin.

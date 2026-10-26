@@ -116,15 +116,14 @@ test("B2: all ordinary user directories omit login employee_id except for Admin"
   assert.ok(x.call("ADMIN","GET","session/users").length>0);
 });
 
-test("B5: Management with no region sees zero Pipeline records; explicit regions grant access",()=>{
+test("B5: Active Management sees every Region without User_Region grants",()=>{
   const x=fixture();
   const list=()=>x.call("M1","GET","entities/Opportunity");
-  assert.deepEqual(list(),[]);
-  assert.equal(x.call("ADMIN","GET","entities/Opportunity").length,2);
-  x.regions().push({user_region_id:"UR4",user_id:"M1",region_id:"R1",active:"Yes"});
-  assert.deepEqual(list().map(o=>o.id),["P1"]);
-  x.regions().push({user_region_id:"UR5",user_id:"M1",region_id:"R2",active:"Yes"});
   assert.deepEqual(list().map(o=>o.id),["P1","P2"]);
+  assert.equal(x.call("ADMIN","GET","entities/Opportunity").length,2);
+  assert.equal(x.regions().filter(r=>r.user_id==="M1").length,0);
+  assert.deepEqual(x.call("SM1","GET","entities/Opportunity").map(o=>o.id),["P1"]);
+  assert.deepEqual(x.call("AE1","GET","entities/Opportunity").map(o=>o.id),["P1"]);
 });
 
 test("B6: frontend applies Bangkok business month to timestamps but keeps YYYY-MM date keys",()=>{
@@ -152,10 +151,11 @@ test("security: closed Pipelines reject changing Stage, Handler, owner and custo
   assert.equal(x.row().customer_name,"Legitimate edit");
 });
 
-test("security: Management outside Region cannot become handler",()=>{
+test("security: nationwide Management can receive an Admin handoff, but AE cannot grant it",()=>{
   const x=fixture();
-  x.regions().push({user_region_id:"UR4",user_id:"M1",region_id:"R2",active:"Yes"});
-  assert.throws(()=>x.call("ADMIN","PUT","entities/Opportunity/P1",{current_handler_id:"M1"}),denied(400));
+  assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/P1",{current_handler_id:"M1"}),denied(403));
+  const handed=x.call("ADMIN","PUT","entities/Opportunity/P1",{current_handler_id:"M1"});
+  assert.equal(handed.current_handler_id,"M1");
 });
 
 test("security: API requires explicit revision and rejects stale writes",()=>{

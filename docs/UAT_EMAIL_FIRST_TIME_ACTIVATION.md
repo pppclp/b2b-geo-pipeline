@@ -113,4 +113,4 @@ No GitHub success indicator can prove which Apps Script /exec version was deploy
 ### Master data integrity
 - Users and User_Region in B2B_GEO_User_Org_Master define role, status and authorized regions. UAT_Credentials stores verification state; its role text is not the permission source.
 - Only use unique, verified Employee IDs in both worksheets, mapped by the same stable user_id. Do not invent Employee IDs for people whose IDs remain blank.
-- The Management role does not grant all-region access by itself. Add only explicitly approved active User_Region rows.
+- **Updated Management policy:** Any Active User Master account with authorized role Management can view Pipeline records in all Regions, without any User_Region mapping. Backend RBAC, Dashboard and Pipeline Region filters use the same nationwide scope. This intentionally differs from SM/AE. An Inactive account still cannot sign in, and Admin remains the only role that may approve privileged User Master changes.
