@@ -136,12 +136,10 @@ function uatLogin_(store, body) {
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
   var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
-  // Global failures are observed for security alerting but must NOT lock out
-  // every legitimate user when an attacker sprays random account names.
-  if (key && Number(limiter.get(key) || 0) >= 5) {
-    throwUatError_(429, "Too many login attempts. Try again in 10 minutes.");
-  }
-
+  // Do not lock a legitimate user out merely because somebody previously
+  // submitted bad passwords for the same Employee ID. Verify credentials
+  // first; only invalid attempts are rate-limited below.
+  // Keep aggregate abuse alerts and invalid-attempt throttling in UAT.
   if (!username || !password) {
     throwUatError_(400, "Username and password are required");
   }
@@ -215,7 +213,11 @@ function uatLogin_(store, body) {
 }
 
 function denyUatLogin_(cache, key) {
-  if (key) cache.put(key, String(Number(cache.get(key) || 0) + 1), 600);
+  // A valid password always clears the counter in uatLogin_ and succeeds.
+  // Wrong guesses beyond the threshold are throttled without revealing how
+  // long the security cache lasts, or whether an account exists.
+  var priorFailures = key ? Number(cache.get(key) || 0) : 0;
+  if (key) cache.put(key, String(priorFailures + 1), 600);
   var globalKey = "GEO_LOGIN_FAIL_GLOBAL_V1";
   var attempts = Number(cache.get(globalKey) || 0) + 1;
   cache.put(globalKey, String(attempts), 600);
@@ -223,6 +225,7 @@ function denyUatLogin_(cache, key) {
     cache.put("GEO_LOGIN_SPRAY_ALERT_V1", "1", 600);
     console.warn("UAT_SECURITY_ALERT: high aggregate failed login count; investigate. No employee ID was logged.");
   }
+  if (priorFailures >= 5) throwUatError_(429, "Sign-in temporarily limited for security. Contact your UAT administrator if a valid password is rejected.");
   throwUatError_(401, "Invalid username or password");
 }
 
