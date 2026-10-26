@@ -37,6 +37,9 @@ test("strict transformations retain true sales semantics",()=>{
   assert.equal(legacyStageName("Stage 1.ติดต่อนำเสนอ/ยื่นใบเสนอราคา (50%)"),"Stage 1");
   assert.equal(legacyCustomerType("Others"),"Other");
   assert.equal(legacyProductCategory("Broadband"),"TOL");
+  assert.equal(legacyProductCategory("Postpaid"),"TMH");
+  assert.equal(legacyProductCategory("Solutions"),"Solution");
+  assert.equal(legacyProductCategory("CorpNet/Data Services"),"CorpNet/Data Services");
   assert.equal(legacySourceMonth("Oct-26"),"2026-10");
   assert.equal(legacySourceMonth("ต.ค.-26"),"2026-10");
   assert.equal(legacySourceMonth("Sep_26"),"2026-09");
