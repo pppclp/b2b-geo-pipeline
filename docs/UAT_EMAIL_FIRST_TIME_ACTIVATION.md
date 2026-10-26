@@ -1,11 +1,22 @@
 # Corporate Email First-Time Activation — UAT-only staged migration
 
+## Login identifier policy (updated 27 October 2026)
+
+**The login field accepts Employee ID OR Corporate Email**, not email-only. This avoids blocking AE/SM/Management staff while the corporate email roster is incomplete.
+
+- Employee ID: continues using the existing UAT credential lookup and password rules, even if `GEO_UAT_EMAIL_LOGIN_ENABLED=true`. It does not require a User Master email.
+- Email: supported only for users whose verified User Master email is present, unique, on the approved corporate domain, and whose UAT credential is `active` with a password set through activation.
+- The backend distinguishes the identifiers by `@`; invalid or unknown emails fail closed. Email matching is case-insensitive; Employee ID is kept as text, including leading zeros.
+- The frontend shows a single `Employee ID or Corporate Email` text field when the new UI flag is enabled; it never uses `type=email` for that mixed field. Session-expired re-auth uses the same rule.
+- For employees without registered emails, keep using their Employee ID. Do not invent emails, bulk-activate accounts, or change existing passwords.
+- This does not relax authorization: each successful login still resolves to the same User Master `user_id` and existing Role/Region scopes.
+
 ## Status / do not enable by default
 
 This branch prepares the application but **does not** activate new login in Production or UAT.
 - Current Staff login using Employee ID continues unchanged while `GEO_UAT_EMAIL_LOGIN_ENABLED` is unset.
 - The public activation API fails closed unless `GEO_ENVIRONMENT=UAT` and `GEO_UAT_EMAIL_ACTIVATION_ENABLED=true`.
-- The login UI remains Employee ID unless the frontend is built with `VITE_GEO_EMAIL_AUTH_ENABLED=true`.
+- The login UI remains Employee ID unless the frontend is built with `VITE_GEO_EMAIL_AUTH_ENABLED=true`; then it accepts **Employee ID or Corporate Email**.
 - The First-Time Activation entry point appears only with `VITE_GEO_EMAIL_ACTIVATION_ENABLED=true`.
 - Do not switch the frontend environment variables before updating the matching backend.
 - A company email suffix is **not** proof of ownership. The authorized custodian must verify the User Master email and deliver the activation code to that exact mailbox by an approved, private route.
@@ -31,7 +42,7 @@ Use the **existing Apps Script project and existing deployment**. Keep the previ
 6. When the security owner approves a small pilot, set `GEO_UAT_EMAIL_ACTIVATION_ENABLED=true` in Script Properties.
 7. For an approved single test user only: verify the account's corporate mailbox; set `GEO_UAT_ACTIVATION_ISSUANCE_APPROVED=YES` and `GEO_UAT_ACTIVATION_TARGET_EMAIL` to their verified email; run editor-only `issueUatActivationForApprovedTarget()`. The one-time 64-character code must be handled confidentially and delivered by your approved corporate channel. Do not log it. The helper clears the approval and target after one issuance. Code expires after 24 hours.
 8. From an approved test browser with the activation UI enabled, verify code; use 10-minute activation ticket to set a new personal UAT password; the code is invalidated and the password hash saved, with `credential_status=active` and `password_set_at`. Activation **does not issue a normal app session**.
-9. Only after verifying all user email mappings, activation, hashed passwords and role scopes, enable `GEO_UAT_EMAIL_LOGIN_ENABLED=true` AND deploy the frontend with `VITE_GEO_EMAIL_AUTH_ENABLED=true`. Prior to this cutover, existing employee-ID login remains the default.
+9. After verifying the email-enabled pilot accounts, activation, hashed passwords and role scopes, enable `GEO_UAT_EMAIL_LOGIN_ENABLED=true` AND deploy the frontend with `VITE_GEO_EMAIL_AUTH_ENABLED=true`. Prior to this cutover, existing employee-ID login remains the default.
 10. Do not deploy the email-login UI switch ahead of Backend: it would lock users out. Revert the front-end flag and Script Property to return to legacy UAT login only under an approved recovery plan.
 
 ## Security and architecture
@@ -47,4 +58,4 @@ Use the **existing Apps Script project and existing deployment**. Keep the previ
 
 Run `npm run lint`, `npm run build`, `node --test tests/*.test.mjs`, `npm run gas:build` and `node scripts/gas-singlefile.mjs`. Test synthetic AE/SM/Management/Admin, existing login unchanged, invalid/expired/used code, mismatched user IDs, duplicate emails, wrong domain, inactive account, wrong password, session expiry, and forbidden Region access.
 
-Do not attempt live email activation with the roster blank or launch `GEO_UAT_EMAIL_LOGIN_ENABLED` until approved identity data are present.
+Do not attempt live email activation for any employee without a verified email. Employee-ID login remains available to all existing authorized UAT users.
