@@ -594,6 +594,14 @@ export function createCore({ contract, store, now, uuid }) {
     }
     const templates = rows("scenario_tasks");
     const instances = rows("pipeline_tasks");
+    for (const template of templates.filter(t => /^(yes|true|1)$/i.test(String(t.active || "")))) {
+      if (!["calendar","business"].includes(String(template.day_type)) ||
+          !["stage_entry","manual","after_previous"].includes(String(template.start_policy)) ||
+          (template.sla_days !== "" && validDays(template.sla_days) === null) ||
+          !String(template.task_id || "").trim() || !String(template.task_name || "").trim()) {
+        throw new HttpError(503, "Active Scenario Task Config is invalid. Ask Admin to check Scenario_Tasks.");
+      }
+    }
     return opportunities.flatMap(o => pipelineTaskViews(o, templates, instances, now()));
   }
   function saveTaskProgress(actor, opportunityId, taskId, input = {}) {
@@ -610,7 +618,7 @@ export function createCore({ contract, store, now, uuid }) {
     if (!["in_progress","done"].includes(status)) throw new HttpError(400, "Invalid task status");
     if (item.status === "done") throw new HttpError(409, "Completed Task is locked");
     if (status === item.status) return item;
-    if (status === "done" && item.status === "not_started" && item.start_policy === "after_previous")
+    if (item.status === "not_started" && item.start_policy === "after_previous" && !item.started_at)
       throw new HttpError(409, "Previous task must be completed before this task starts");
     if (typeof input.expected_updated_at !== "string" || input.expected_updated_at !== item.updated_at)
       throw new HttpError(409, "Task changed; refresh before saving");
