@@ -526,13 +526,15 @@ function issueUatActivationForApprovedTarget() {
   }
 }
 
-// UAT ONLY — create a credential for one NEW approved User Master employee.
-// Never changes an existing credential, password, role, region, or user row.
+// UAT ONLY — provision one approved active User Master employee.
+// An existing credential row is eligible ONLY when both password fields and
+// all activation state are empty; it never resets an issued password, role, or region.
 // Generated password format: XXXX-XXXX-XXXX (uppercase A-Z and digits 2-9).
 // The authorized editor receives the password ONCE to deliver privately.
 // Prerequisites: Script Properties GEO_ENVIRONMENT=UAT,
 // GEO_UAT_NEW_CREDENTIAL_APPROVED=YES, GEO_UAT_NEW_EMPLOYEE_ID=<approved ID>.
-// Do not run for an existing account, even when it has a blank password.
+// Do not run for an account that already has a temporary password, hash,
+// nonblank credential status, or activation in progress.
 function provisionOneNewUatEmployeePassword() {
   var p = PropertiesService.getScriptProperties();
   if (p.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
@@ -550,10 +552,24 @@ function provisionOneNewUatEmployeePassword() {
     if (users.length !== 1 || !String(users[0].user_id || "").trim())
       throw Error("Employee ID must map to exactly one active approved User Master record");
     var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
-    if (creds.some(function (c) {
+    var uid = String(users[0].user_id).trim();
+    var found = creds.filter(function (c) {
       return normalizeEmployeeId_(c["employee_id / username"]) === employeeId ||
-        String(c.user_id || "") === String(users[0].user_id);
-    })) throw Error("Existing credential found; no password changed");
+        String(c.user_id || "").trim() === uid;
+    });
+    if (found.length > 1) throw Error("Ambiguous credential identity; no password changed");
+    var existing = found.length === 1 ? found[0] : null;
+    if (existing && (
+      String(existing.user_id || "").trim() !== uid ||
+      normalizeEmployeeId_(existing["employee_id / username"]) !== employeeId ||
+      String(existing.temporary_password || "").trim() ||
+      String(existing.password_hash || "").trim() ||
+      String(existing.credential_status || "").trim() ||
+      String(existing.activation_code_hash || "").trim() ||
+      String(existing.activation_expires_at || "").trim() ||
+      String(existing.activation_used_at || "").trim() ||
+      String(existing.password_set_at || "").trim()
+    )) throw Error("Credential is not an untouched blank UAT account; no password changed");
     var pepper = uatPasswordPepper_(false);
     if (!pepper) throw Error("UAT password pepper is missing; initialize via approved readiness procedure");
     var alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -566,24 +582,30 @@ function provisionOneNewUatEmployeePassword() {
     var password = groups.join("-");
     var salt = Utilities.getUuid().replace(/-/g, "");
     var hash = GEO_UAT_PASSWORD_HASH_SCHEME_ + "$" + salt + "$" + uatPasswordDigest_(salt, password);
-    creds.push({
-      user_id: String(users[0].user_id),
-      "employee_id / username": employeeId,
-      temporary_password: "",
-      password_hash: hash,
-      credential_status: "",
-      activation_code_hash: "",
-      activation_expires_at: "",
-      activation_used_at: "",
-      password_set_at: "",
-      password_changed_at: "",
-      password_hash_version: GEO_UAT_PASSWORD_HASH_SCHEME_
-    });
+    if (existing) {
+      // Preserve the existing row, identifiers and every unrelated field.
+      existing.password_hash = hash;
+      existing.password_hash_version = GEO_UAT_PASSWORD_HASH_SCHEME_;
+    } else {
+      creds.push({
+        user_id: uid,
+        "employee_id / username": employeeId,
+        temporary_password: "",
+        password_hash: hash,
+        credential_status: "",
+        activation_code_hash: "",
+        activation_expires_at: "",
+        activation_used_at: "",
+        password_set_at: "",
+        password_changed_at: "",
+        password_hash_version: GEO_UAT_PASSWORD_HASH_SCHEME_
+      });
+    }
     store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
     store.flush();
     p.deleteProperty("GEO_UAT_NEW_CREDENTIAL_APPROVED");
     p.deleteProperty("GEO_UAT_NEW_EMPLOYEE_ID");
-    return { created: true, one_time_password: password };
+    return { created: !existing, filled_blank: !!existing, one_time_password: password };
   } finally { lock.releaseLock(); }
 }
 
