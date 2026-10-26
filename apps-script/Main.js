@@ -524,6 +524,67 @@ function issueUatActivationForApprovedTarget() {
   }
 }
 
+// UAT ONLY — create a credential for one NEW approved User Master employee.
+// Never changes an existing credential, password, role, region, or user row.
+// Generated password format: XXXX-XXXX-XXXX (uppercase A-Z and digits 2-9).
+// The authorized editor receives the password ONCE to deliver privately.
+// Prerequisites: Script Properties GEO_ENVIRONMENT=UAT,
+// GEO_UAT_NEW_CREDENTIAL_APPROVED=YES, GEO_UAT_NEW_EMPLOYEE_ID=<approved ID>.
+// Do not run for an existing account, even when it has a blank password.
+function provisionOneNewUatEmployeePassword() {
+  var p = PropertiesService.getScriptProperties();
+  if (p.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
+      p.getProperty("GEO_UAT_NEW_CREDENTIAL_APPROVED") !== "YES")
+    throw Error("New UAT credential provisioning is not approved");
+  var employeeId = normalizeEmployeeId_(p.getProperty("GEO_UAT_NEW_EMPLOYEE_ID"));
+  if (!employeeId) throw Error("Set a valid GEO_UAT_NEW_EMPLOYEE_ID");
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
+      return normalizeEmployeeId_(u.employee_id) === employeeId &&
+        String(u.status || "Active").toLowerCase() === "active";
+    });
+    if (users.length !== 1 || !String(users[0].user_id || "").trim())
+      throw Error("Employee ID must map to exactly one active approved User Master record");
+    var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
+    if (creds.some(function (c) {
+      return normalizeEmployeeId_(c["employee_id / username"]) === employeeId ||
+        String(c.user_id || "") === String(users[0].user_id);
+    })) throw Error("Existing credential found; no password changed");
+    var pepper = uatPasswordPepper_(false);
+    if (!pepper) throw Error("UAT password pepper is missing; initialize via approved readiness procedure");
+    var alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    var raw = (Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, "");
+    var groups = [], group = "";
+    for (var i = 0; i < 12; i++) {
+      group += alphabet.charAt(parseInt(raw.charAt(i * 2), 16) * 2 + parseInt(raw.charAt(i * 2 + 1), 16) % 2);
+      if (group.length === 4) { groups.push(group); group = ""; }
+    }
+    var password = groups.join("-");
+    var salt = Utilities.getUuid().replace(/-/g, "");
+    var hash = GEO_UAT_PASSWORD_HASH_SCHEME_ + "$" + salt + "$" + uatPasswordDigest_(salt, password);
+    creds.push({
+      user_id: String(users[0].user_id),
+      "employee_id / username": employeeId,
+      temporary_password: "",
+      password_hash: hash,
+      credential_status: "",
+      activation_code_hash: "",
+      activation_expires_at: "",
+      activation_used_at: "",
+      password_set_at: "",
+      password_changed_at: "",
+      password_hash_version: GEO_UAT_PASSWORD_HASH_SCHEME_
+    });
+    store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
+    store.flush();
+    p.deleteProperty("GEO_UAT_NEW_CREDENTIAL_APPROVED");
+    p.deleteProperty("GEO_UAT_NEW_EMPLOYEE_ID");
+    return { created: true, one_time_password: password };
+  } finally { lock.releaseLock(); }
+}
+
 // MANUAL, READ-ONLY health check in Apps Script editor. Never returns or logs
 // names, employee IDs, temporary passwords, password hashes, or sheet contents.
 function debugUatLoginReadiness() {
