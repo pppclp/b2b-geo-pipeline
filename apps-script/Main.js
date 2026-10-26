@@ -11,13 +11,16 @@
 // Reads arrive as GET ?req=<json> (a POST can be redirected by Google and lose
 // its body). Without ?req it is a health check — clients treat that shape as
 // "not executed" and retry.
+// Public non-secret release marker: compare this exact value against the
+// deployed /exec health response before enabling the new frontend.
+var GEO_RELEASE_TAG_ = "geo-uat-login-e2e-20261027-r2";
 function doGet(e) {
   // Never accept serialized API requests over GET: tokens in query strings leak
   // into browser history and intermediaries. The authenticated client uses POST.
   if (e && e.parameter && Object.prototype.hasOwnProperty.call(e.parameter, "req")) {
     return json_({ status: 405, body: { message: "Use POST for API requests" } });
   }
-  return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API" }, health: true });
+  return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API", release: GEO_RELEASE_TAG_ }, health: true });
 }
 
 function doPost(e) {
