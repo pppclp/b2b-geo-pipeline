@@ -131,6 +131,7 @@ export const db = {
     pipelines: () => request("GET", "/exports/pipelines"),
   },
   imports: {
+    customerTypes: () => request("GET", "/imports/customer-types"),
     opportunities: (batch_id, items) =>
       request("POST", "/imports/opportunities", { body: { batch_id, items } }),
   },
