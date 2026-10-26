@@ -139,7 +139,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
         <div className="flex items-center gap-4 py-3">
           <div className="min-w-0 flex-1">
             <Label htmlFor={`stage-${op.id}`} className="text-[13px] font-medium">Current Stage</Label>
-            <p className="text-xs text-muted-foreground mt-1">Stage Aging · {agingDays(op.stage_entered_at)} days</p>
+            <p className="text-xs text-muted-foreground mt-1">Stage Aging · {op.stage_entered_at ? `${agingDays(op.stage_entered_at)} days` : "Unknown"}</p>
           </div>
           <div className="w-[48%] shrink-0">
             <Select disabled={!canEdit || saving} value={stageId} onValueChange={setStageId}>
@@ -151,7 +151,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
         <div className="flex items-center gap-4 py-3">
           <div className="min-w-0 flex-1">
             <Label htmlFor={`handler-${op.id}`} className="text-[13px] font-medium">Current Handler</Label>
-            <p className="text-xs text-muted-foreground mt-1">Handler Aging · {agingDays(op.handler_since)} days</p>
+            <p className="text-xs text-muted-foreground mt-1">Handler Aging · {op.handler_since ? `${agingDays(op.handler_since)} days` : "Unknown"}</p>
           </div>
           <div className="w-[48%] shrink-0">
             <Select disabled={!canEdit || saving} value={handlerId} onValueChange={setHandlerId}>
