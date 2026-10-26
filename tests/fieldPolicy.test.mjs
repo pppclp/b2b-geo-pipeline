@@ -451,7 +451,7 @@ test("legacy Sales Code must match authoritative owner even when source name loo
     source_record_id:"SAL-1",source_sales_code:"1002"});
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_bad_salescode_2026",items:[base],
-  }),rejected(400));
+  }),rejected(403));
   assert.equal(x.store.table(DB,"Pipelines").rows.length,1);
 });
 
