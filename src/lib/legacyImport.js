@@ -56,6 +56,16 @@ export function legacySourceMonth(value) {
   return mon&&y>=1900&&y<=2100?String(y)+"-"+String(mon).padStart(2,"0"):null;
 }
 
+// Import policy: if the source already exported an ID as scientific notation,
+// its original digits cannot be reconstructed reliably. Since Business ID is
+// optional, omit this value while retaining the untouched source workbook.
+// All other malformed values remain blocking so shifted columns are reviewed.
+export function legacyImportBusinessId(value) {
+  const id = legacyBusinessId(value);
+  if (id !== null) return id;
+  return /^\d+(?:\.\d+)?e\+\d+$/i.test(String(value ?? "").trim()) ? "" : null;
+}
+
 export function legacyBusinessId(value) {
   // Blank and non-13-digit numeric IDs are valid. Never decode lossy scientific notation.
   const text=String(value ?? "").replace(/\u00a0/g," ").trim();
