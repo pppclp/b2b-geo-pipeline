@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useData } from "@/lib/dataContext";
 import { db } from "@/api/client";
 import { mapImportHeaders, needsExplicitCreatedMonthMapping } from "@/lib/importHeaderMapping";
-import { readImportFile, parseImportCreatedMonth } from "@/lib/importWorkbook";
+import { readImportFile, parseImportCreatedMonth, parseImportSourceDate } from "@/lib/importWorkbook";
 import { calculateNetRc } from "@/lib/netRc";
-import { businessIdError, normalizeCustomerType, netRcReconciliation } from "@/lib/pipelineValidation";
+import { businessIdError, normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -12,6 +12,11 @@ import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
 // Known importable fields and their target keys
 const FIELDS = [
   { key: "created_month", label: "Create Month" },
+  { key: "source_created_at", label: "Original Created Date" },
+  { key: "source_stage_entered_at", label: "Original Stage Entered Date" },
+  { key: "source_closed_at", label: "Original Closed Date" },
+  { key: "source_system", label: "Source System" },
+  { key: "source_record_id", label: "Source Opportunity ID" },
   { key: "customer_name", label: "Customer Name", required: true },
   { key: "business_id", label: "Business ID", required: true },
   { key: "customer_type", label: "Customer Type", required: true },
@@ -26,6 +31,10 @@ const FIELDS = [
   { key: "handler", label: "Current Handler", resolve: "member" },
   { key: "product_category", label: "Product Category", required: true, resolve: "category" },
   { key: "product_details", label: "Product Details" },
+  { key: "source_product_id", label: "Legacy Product ID" },
+  { key: "source_rc", label: "Source RC" },
+  { key: "source_discount_pct", label: "Source Discount %" },
+  { key: "source_monthly_sale_plan", label: "Source Monthly Sale Plan" },
   { key: "quantity", label: "Number of Subs", required: true, type: "number" },
   { key: "price_per_sub", label: "Price per Sub", required: true, type: "number" },
   { key: "oc", label: "OC", type: "number" },
@@ -36,6 +45,7 @@ const FIELDS = [
   { key: "ccp_check_result", label: "CCP+ Check" },
   { key: "stage", label: "Stage", resolve: "stage" },
   { key: "status", label: "Status" },
+  { key: "lost_reason", label: "Lost Reason", resolve: "reason" },
   { key: "working_with", label: "Working With" },
   { key: "support_needed", label: "Support Needed" },
   { key: "support_type", label: "Support Type" },
@@ -74,8 +84,34 @@ export default function Import() {
   const [importError, setImportError] = useState("");
   const [importBatchId, setImportBatchId] = useState("");
   const fileRef = useRef();
+  const [customerTypes, setCustomerTypes] = useState([...CUSTOMER_TYPES]);
+  const [customerTypesError, setCustomerTypesError] = useState("");
 
-  const byName = (entity) => Object.fromEntries((master?.[entity] || []).map((x) => [x.name.toLowerCase(), x]));
+  useEffect(() => {
+    if (profile?.app_role !== "admin" && profile?.app_role !== "sm") return;
+    let active = true;
+    db.imports.customerTypes().then((reply) => {
+      if (active) {
+        setCustomerTypes(reply.values || []);
+        setCustomerTypesError("");
+      }
+    }).catch(() => { if (active) setCustomerTypesError("Cannot verify active Customer Types"); });
+    return () => { active = false; };
+  }, [profile?.app_role]);
+
+  // Accept stable ID or exact display name. Ambiguous matches fail closed.
+  const byName = (entity) => {
+    const names = {};
+    for (const record of master?.[entity] || []) {
+      for (const value of [record.name, record.id, entity === "TeamMember" && profile?.app_role === "admin" ? record.employee_id : ""]) {
+        const key = String(value || "").trim().toLowerCase();
+        if (!key) continue;
+        if (key in names && names[key]?.id !== record.id) names[key] = null;
+        else if (!(key in names)) names[key] = record;
+      }
+    }
+    return names;
+  };
 
   const onFile = async (e) => {
     const file = e.target.files?.[0];
@@ -106,15 +142,20 @@ export default function Import() {
     category: byName("ProductCategory"),
     scenario: byName("Scenario"),
     stage: byName("Stage"),
+    reason: byName("LostReason"),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [master]);
 
   const validated = useMemo(() => {
     if (step !== "preview" && step !== "map") return [];
     const unresolvedSourceMonth = needsExplicitCreatedMonthMapping(headers, mapping);
+    const mappedColumns = Object.values(mapping).filter((idx) => idx != null);
+    const duplicateColumn = new Set(mappedColumns).size !== mappedColumns.length;
     return rows.map((row, i) => {
       const errors = [];
       if (unresolvedSourceMonth) errors.push("Create Month column detected; select the correct source column in Map Columns");
+      if (duplicateColumn) errors.push("A source column cannot be mapped to multiple fields");
+      if (customerTypesError) errors.push(customerTypesError);
       const rec = { status: "open" };
       FIELDS.forEach((f) => {
         const idx = mapping[f.key];
@@ -132,9 +173,21 @@ export default function Import() {
           return;
         }
         if (!val) return;
+        if (["source_created_at", "source_stage_entered_at", "source_closed_at"].includes(f.key)) {
+          const date = parseImportSourceDate(val);
+          if (!date) errors.push(`${f.label} must be an unambiguous real date (YYYY-MM-DD or 1-Jul-26)`);
+          else rec[f.key] = date;
+          return;
+        }
+        if (f.key === "status") {
+          const status = val.toLowerCase();
+          if (!["open", "won", "lost"].includes(status)) errors.push("Historical Status must be Open, Won or Lost");
+          else rec.status = status;
+          return;
+        }
         if (f.resolve) {
           const ent = resolve[f.resolve][val.toLowerCase()];
-          if (!ent) errors.push(`${f.label} "${val}" not found`);
+          if (!ent) errors.push(`${f.label} "${val}" not found or ambiguous`);
           else rec[f.key + (f.resolve === "member" ? (f.key === "owner" ? "_id" : "_id") : "_id")] = ent.id;
           // map resolve keys to id fields
           if (f.resolve === "region") rec.region_id = ent.id;
@@ -144,8 +197,8 @@ export default function Import() {
           else if (f.resolve === "scenario") rec.scenario_id = ent.id;
           else if (f.resolve === "stage") rec.stage_id = ent.id;
         } else if (f.key === "customer_type") {
-          const canonical = normalizeCustomerType(val);
-          if (!canonical) errors.push(`Customer Type "${val}" is not supported`);
+          const canonical = normalizeCustomerType(val) || customerTypes.find((type) => type.toLowerCase() === val.toLowerCase());
+          if (!canonical) errors.push(`Customer Type "${val}" is not an active or recognized legacy value`);
           else rec.customer_type = canonical;
         } else if (f.type === "number") {
           const parsed = Number(val);
@@ -160,12 +213,27 @@ export default function Import() {
         const val = idx != null ? (row[idx] || "").trim() : "";
         if (!val) errors.push(`${f.label} is required`);
       });
+      if (rec.source_created_at && rec.source_created_month &&
+          rec.source_created_at.slice(0, 7) !== rec.source_created_month)
+        errors.push("Original Created Date does not match Create Month");
+      if (rec.source_created_at && rec.source_stage_entered_at && rec.source_stage_entered_at < rec.source_created_at)
+        errors.push("Original Stage Entered Date precedes Created Date");
+      if (["won", "lost"].includes(rec.status) && !rec.source_closed_at)
+        errors.push("Historical Won/Lost requires Original Closed Date");
+      if (rec.status === "lost" && !rec.lost_reason_id)
+        errors.push("Historical Lost requires Lost Reason");
+      if (rec.status === "open" && rec.source_closed_at)
+        errors.push("Open Pipeline cannot have a Closed Date");
+      if (rec.source_closed_at && rec.source_created_at && rec.source_closed_at < rec.source_created_at)
+        errors.push("Closed Date precedes Created Date");
+      if (rec.source_closed_at && rec.source_stage_entered_at && rec.source_closed_at < rec.source_stage_entered_at)
+        errors.push("Closed Date precedes Stage Entered Date");
       if (!rec.current_handler_id && rec.owner_id) rec.current_handler_id = rec.owner_id;
       if (!rec.stage_id && activeStages[0]) rec.stage_id = activeStages[0].id;
       if (rec.support_needed) rec.support_needed = ["yes", "true", "1", "y"].includes(rec.support_needed.toLowerCase());
       if (rec.business_id && businessIdError(rec.business_id)) errors.push(businessIdError(rec.business_id));
       const referenceNetRc = rec.reference_net_rc;
-      delete rec.reference_net_rc;
+      // Keep the reference value for independent backend reconciliation.
       let reconciliation = { checked: false, matches: null };
       if (referenceNetRc !== undefined) {
         let calculated = NaN;
@@ -180,7 +248,7 @@ export default function Import() {
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, headers, mapping, resolve, step, activeStages]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, activeStages, customerTypes, customerTypesError]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
@@ -216,7 +284,7 @@ export default function Import() {
   return (
     <div className="p-5 md:p-7 max-w-[1000px] mx-auto">
       <h1 className="text-2xl font-semibold tracking-tight mb-1">Import Opportunities</h1>
-      <p className="text-sm text-muted-foreground mb-6">Upload .xlsx or .csv, map columns, validate, then confirm. Maximum 200 rows.</p>
+      <p className="text-sm text-muted-foreground mb-6">Upload .xlsx or .csv, map columns, validate, then confirm. Maximum 200 rows. Legacy finance is preserved for reconciliation, not used to change Net RC.</p>
 
       <div className="flex items-center gap-2 mb-6 text-sm">
         <Step n={1} active={step === "upload"} done={["map", "preview", "done"].includes(step)} label="Upload" />
