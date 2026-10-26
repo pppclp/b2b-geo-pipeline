@@ -145,5 +145,18 @@ export function createUatTemporaryPasswordSetup({ env = process.env, clock = () 
     store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx","UAT_Credentials");
     return { password_set:true };
   }
-  return { login, complete };
+  function sessionReady(store, userId) {
+    if (!enabled()) return true;
+    const uid = String(userId || "").trim();
+    const matchedUsers = users(store).filter(u => String(u.user_id || "").trim() === uid);
+    const matchedCredentials = credentials(store).filter(c => String(c.user_id || "").trim() === uid);
+    return matchedUsers.length === 1 &&
+      String(matchedUsers[0].status || "").toLowerCase() === "active" &&
+      matchedCredentials.length === 1 &&
+      employeeKey(matchedCredentials[0]["employee_id / username"]) === employeeKey(matchedUsers[0].employee_id) &&
+      String(matchedCredentials[0].credential_status || "") === "active" &&
+      !!String(matchedCredentials[0].password_set_at || "").trim() &&
+      !!String(matchedCredentials[0].password_hash || "").trim();
+  }
+  return { login, complete, sessionReady };
 }
