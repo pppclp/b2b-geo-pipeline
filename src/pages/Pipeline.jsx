@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useData } from "@/lib/dataContext";
@@ -190,7 +191,7 @@ export default function Pipeline() {
       <h1 className="text-xl font-semibold mb-4">Pipeline</h1>
       <div role={error?"alert":"status"} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
         <AlertTriangle className="w-4 h-4 text-muted-foreground" aria-hidden="true"/>
-        <span className="flex-1 text-sm">{error?"Unable to load Pipeline data: "+error.message:"Loading Pipeline data…"}</span>
+        <span className="flex-1 text-sm">{error ? actionableErrorMessage(error, "load") : "Loading Pipeline data…"}</span>
         {error&&<Button variant="outline" size="sm" onClick={refresh}>Retry</Button>}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -159,7 +160,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
       onSaved?.();
       onClose();
     } catch (error) {
-      setSaveError(error?.message || "Unable to create Pipeline");
+      setSaveError(actionableErrorMessage(error));
     } finally {
       setSaving(false);
     }

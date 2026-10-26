@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
@@ -105,7 +106,7 @@ export default function Dashboard() {
         <div role={error ? "alert" : "status"} className="rounded-xl border border-border bg-card p-4 flex gap-3 items-center">
           <AlertCircle className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <div className="flex-1 text-sm">
-            {error ? "Unable to load Pipeline data. " + error.message : "Loading Pipeline data…"}
+            {error ? actionableErrorMessage(error, "load") : "Loading Pipeline data…"}
           </div>
           {error && <Button type="button" variant="outline" onClick={refresh}>Retry</Button>}
         </div>

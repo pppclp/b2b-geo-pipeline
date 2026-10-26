@@ -3,6 +3,7 @@ import { Trophy, XCircle } from "lucide-react";
 import { useData } from "@/lib/dataContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,7 +58,7 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
       setChoice(null);
       onClosed?.();
     } catch (err) {
-      setError(err?.message || "Unable to close Pipeline");
+      setError(actionableErrorMessage(err));
     } finally {
       setSaving(false);
     }

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useData } from "@/lib/dataContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,7 +34,7 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
       onSaved?.();
     } catch (err) {
       if (err?.status === 409) setConflicted(true);
-      setError(err?.message || "Unable to update Needs Support. Please retry.");
+      setError(actionableErrorMessage(err));
     } finally { setSaving(false); }
   };
 
