@@ -849,11 +849,11 @@ opportunity_entity:
 
     contact_name:
       source: "AE / SM input"
-      required_on_new_record: true
+      optional: true
 
     contact_phone:
       source: "AE / SM input"
-      required_on_new_record: true
+      optional: true
 
     remark:
       source: "AE / SM input"
