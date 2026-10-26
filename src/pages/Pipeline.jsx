@@ -51,7 +51,11 @@ export default function Pipeline() {
 
   useEffect(() => {
     const f = { status: "open" };
-    if (params.get("view") === "assigned-to-me" || params.get("assigned") === "me") f.handler = profile?.id;
+    if (params.get("view") === "assigned-to-me" || params.get("assigned") === "me") {
+      if (profile?.app_role === "management") f.with_me = "1";
+      else f.handler = profile?.id;
+    }
+    if (params.get("with_me") === "1" && profile?.app_role === "management") f.with_me = "1";
     if (params.get("view") === "support-needed" || params.get("support") === "1") f.support = "1";
     if (params.get("stuck") === "1") f.stuck = "1";
     if (params.get("due_this_month") === "1" || params.get("view") === "due-this-month") f.due_this_month = "1";
@@ -75,7 +79,7 @@ export default function Pipeline() {
     if (params.get("sort")) setSort(params.get("sort"));
     setFilters(f);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, profile?.id]);
+  }, [params, profile?.id, profile?.app_role]);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +102,7 @@ export default function Pipeline() {
     }
     setFilters((f) => {
       const next = {...f, [key]: value || ""};
+      if (key === "handler") next.with_me = "";
       if (key === "region" && shouldClearOwnerOnRegionChange(
         f.owner, value, master?.TeamMember || [], scopedOpportunities
       )) next.owner = "";
@@ -105,7 +110,9 @@ export default function Pipeline() {
     });
   };
 
-  const filterContext = useMemo(() => ({ master, maps, config, taskEntries }), [master, maps, config, taskEntries]);
+  const filterContext = useMemo(() => ({ master, maps, config, taskEntries,
+    viewerId: profile?.id, viewerRole: profile?.app_role,
+  }), [master, maps, config, taskEntries, profile?.id, profile?.app_role]);
   const filteredWithoutStage = useMemo(() =>
     scopedOpportunities.filter((o) => matchesPipelineFilters(o, filters, filterContext, { ignoreStage: true })),
     [scopedOpportunities, filters, filterContext]
@@ -172,9 +179,9 @@ export default function Pipeline() {
     { id: "stage-overdue", title: "Overdue", count: workCounts["stage-overdue"], icon: Clock3 },
     { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", count: workCounts["due-this-month"], icon: CalendarDays },
   ];
-  const activeQuickView = activePipelineView(filters, profile?.id);
+  const activeQuickView = activePipelineView(filters, profile?.id, profile?.app_role);
   const selectQuickView = (viewId) => {
-    const next = switchPipelineView(filters, viewId, profile?.id);
+    const next = switchPipelineView(filters, viewId, profile?.id, profile?.app_role);
     setFilters(next);
     // Mirror the view and active filters into the URL so refreshing or
     // opening a saved link will keep the same scope. Do not reset sort.
