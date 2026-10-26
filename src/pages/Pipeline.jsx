@@ -126,11 +126,11 @@ export default function Pipeline() {
   );
   const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
   // This is a presentation-only selector, never a replacement for server RBAC.
-  // Match the Dashboard's region choices: Admin sees active Regions; all other
-  // roles see only their own active User_Region assignments.
+  // Match Dashboard's region choices: Admin and Management see all active
+  // Regions; SM and AE only see active User_Region assignments.
   const quickRegions = useMemo(() => (master?.Region || [])
     .filter((region) => region.active && (
-      profile?.app_role === "admin" || (profile?.region_ids || []).includes(region.id)
+      ["admin", "management"].includes(profile?.app_role) || (profile?.region_ids || []).includes(region.id)
     ))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [master?.Region, profile?.app_role, profile?.region_ids]
