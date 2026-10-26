@@ -358,7 +358,7 @@ export default function Pipeline() {
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="divide-y divide-border/70 md:hidden" role="list" aria-label="Pipeline records">
             {sorted.map((o) => {
-              const age = agingDays(o.stage_entered_at);
+              const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
               const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any;
               return (
                 <button key={o.id} type="button" role="listitem"
@@ -380,7 +380,7 @@ export default function Pipeline() {
                       </>
                     )}
                     <span aria-hidden="true">·</span>
-                    <span className={overdue ? "font-semibold text-amber-700" : ""}>{age}d in stage</span>
+                    <span className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "Stage age unknown" : `${age}d in stage`}</span>
                     <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} />
                     {o.support_needed && <span className="inline-flex items-center gap-1 text-amber-700">
                       <AlertTriangle className="h-3 w-3" aria-hidden="true"/>Needs Support
@@ -428,7 +428,7 @@ export default function Pipeline() {
                   const handler = maps.member[o.current_handler_id];
                   const handlerName = handler?.name || "Unassigned";
                   const categoryName = maps.category[o.product_category_id]?.name || "";
-                  const age = agingDays(o.stage_entered_at);
+                  const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
                   const differentOwner = Boolean(o.current_handler_id && o.owner_id !== o.current_handler_id);
                   // Working With is a supporting-team indicator, not ownership.
                   // Inline it beside an assigned SM only; other collaborators
@@ -500,7 +500,7 @@ export default function Pipeline() {
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="font-medium tabular-nums text-[11px] whitespace-nowrap"
-                          title={"Days in current Stage: " + age}>{age}d</div>
+                          title={age === null ? "Original stage-entered date unavailable (legacy import)" : "Days in current Stage: " + age}>{age === null ? "Unknown" : `${age}d` }</div>
                         <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} /></div>
                         {o.support_needed && <div className="text-[10px] text-orange-700 mt-0.5" title="Support needed">Support</div>}
                       </td>
