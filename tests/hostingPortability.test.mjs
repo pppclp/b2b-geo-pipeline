@@ -72,3 +72,14 @@ test("release gate fails closed if GitHub job metadata cannot be verified",async
     return x.stub(url);
   }}),/HTTP 403/);
 });
+
+test("last completed publisher wins when workflow creation and completion order differ",async()=>{
+  const standard=run(14,"deploy-pages.yml","2026-10-26T09:20:00Z","main-from-normal");
+  standard.updated_at="2026-10-26T09:21:00Z";
+  const recovery=run(13,"recover-approved-ui.yml","2026-10-26T09:00:00Z","recovery-trigger-sha");
+  recovery.updated_at="2026-10-26T09:24:00Z";
+  const x=fakeGitHub({standard:[standard],recovery:[recovery],
+    jobs:{14:[{name:"deploy",conclusion:"success"}],13:[{name:"deploy",conclusion:"success"}]}});
+  assert.deepEqual(await latestVerifiedPagesSource({repo:"test/repo",token:"test-only",fetchImpl:x.stub}),
+    {sha:null,reason:"pinned-recovery"});
+});
