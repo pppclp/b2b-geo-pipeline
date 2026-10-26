@@ -135,3 +135,47 @@ test("real Apps Script password hash matches Node reference vectors and fails cl
   assert.throws(()=>f.ctx.verifyUatPassword_({password_hash:"plain$"+salt+"$"+digest},pass),
     e=>e.status===503);
 });
+test("editor-only provisioning fills one approved blank UAT credential row, never overwrites or activates disabled users",()=> {
+  const f=setup();
+  const begin=source.indexOf("function provisionOneNewUatEmployeePassword()");
+  const end=source.indexOf("// MANUAL, READ-ONLY",begin);
+  assert.ok(begin>=0 && end>begin);
+  f.ctx.LockService={getScriptLock:()=>({waitLock(){},releaseLock(){}})};
+  f.ctx.SheetStore_=function(){return f.store;};
+  f.store.flushed=false;
+  f.store.flush=()=>{f.store.flushed=true;};
+  vm.runInContext(source.slice(begin,end),f.ctx);
+  f.properties.set("GEO_UAT_NEW_CREDENTIAL_APPROVED","YES");
+  f.properties.set("GEO_UAT_NEW_EMPLOYEE_ID",f.user.employee_id);
+  f.credential.temporary_password="";
+  f.credential.credential_status="";
+  f.credential.activation_code_hash="";
+  f.credential.activation_expires_at="";
+  const beforeId=f.credential.user_id;
+  const ok=f.ctx.provisionOneNewUatEmployeePassword();
+  assert.equal(ok.created,false);
+  assert.equal(ok.filled_blank,true);
+  assert.match(ok.one_time_password,/^[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){2}$/);
+  assert.ok(f.store.flushed);
+  assert.equal(f.credential.user_id,beforeId);
+  assert.equal(f.credential.temporary_password,"");
+  assert.equal(f.credential.credential_status,"");
+  assert.match(f.credential.password_hash,/^hmac-sha256-v1\$[a-f0-9]{32}\$[A-Za-z0-9_-]+$/);
+  assert.equal(f.properties.has("GEO_UAT_NEW_CREDENTIAL_APPROVED"),false);
+  f.properties.set("GEO_UAT_NEW_CREDENTIAL_APPROVED","YES");
+  f.properties.set("GEO_UAT_NEW_EMPLOYEE_ID",f.user.employee_id);
+  assert.throws(()=>f.ctx.provisionOneNewUatEmployeePassword(),/not an untouched blank/);
+
+  const blocked=setup();
+  blocked.ctx.LockService=f.ctx.LockService;
+  blocked.ctx.SheetStore_=function(){return blocked.store;};
+  blocked.store.flush=()=>{throw Error("must not write disabled account");};
+  vm.runInContext(source.slice(begin,end),blocked.ctx);
+  blocked.properties.set("GEO_UAT_NEW_CREDENTIAL_APPROVED","YES");
+  blocked.properties.set("GEO_UAT_NEW_EMPLOYEE_ID",blocked.user.employee_id);
+  blocked.user.status="Inactive";
+  blocked.credential.temporary_password="";
+  blocked.credential.credential_status="disabled";
+  assert.throws(()=>blocked.ctx.provisionOneNewUatEmployeePassword(),/exactly one active/);
+  assert.equal(blocked.store.dirty,false);
+});
