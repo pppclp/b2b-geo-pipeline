@@ -384,3 +384,102 @@ test("commercially similar deals are distinct unless source ID matches; identica
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",
     {batch_id:"similar_ledger_five_05",items:[linked]}),rejected(409));
 });
+
+test("real legacy imports preserve source facts and never forge Stage Aging or audit time",()=>{
+  const stamp="2026-10-26T14:00:00.000Z";
+  const x=fixture(stamp);
+  const item=input({
+    customer_name:"Synthetic Thai customer",business_id:"",customer_type:"Other",
+    source_customer_type:"Others",sales_channel:"AE B2B GEO",
+    source_sales_code:"1001",source_created_month:"2026-07",source_created_at:"2026-07-08",
+    source_system:"Legacy Spreadsheet",source_record_id:"DOC-"+ "a".repeat(32)+"-R2",
+    source_rc:"12000",reference_net_rc:"12000",source_monthly_sale_plan:"2026-10",
+    customer_location_text:"BKK: sample district group",product_details:"Broadband",
+    quantity:1,price_per_sub:12000,oc:0,contract_period:12,
+    expected_close_month:undefined,client_request_id:undefined,
+    stage_id:"S1",remark:"Source note, not a call event",
+  });
+  const result=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_real_sample_20261026",items:[item],
+  });
+  assert.equal(result.imported,1);
+  const row=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===result.opportunity_ids[0]);
+  assert.equal(row.business_id,"");
+  assert.equal(row.customer_type,"Other");
+  assert.equal(row.import_source_customer_type,"Others");
+  assert.equal(row.owner_user_id,"AE1");
+  assert.equal(row.region_id,"R1");
+  assert.equal(row.created_at,"2026-07-08");
+  assert.equal(row.created_month,"2026-07");
+  assert.equal(row.stage_entered_at,"");
+  assert.equal(row.handler_since,stamp);
+  assert.equal(row.updated_at,stamp);
+  assert.equal(row.pipeline_value,12000);
+  assert.equal(row.import_source_rc,"12000");
+  assert.equal(row.import_source_net_rc,"12000");
+  assert.equal(row.import_source_monthly_sale_plan,"2026-10");
+  assert.equal(row.expected_close_month,undefined);
+  assert.equal(row.customer_location_text,"BKK: sample district group");
+  const events=x.events().filter(e=>e.opportunity_id===row.opportunity_id);
+  assert.equal(events.length,1);
+  assert.equal(events[0].event_type,"create");
+  assert.equal(events[0].event_at,stamp);
+  assert.match(events[0].remark,/Historical bulk import/);
+});
+
+test("legacy import permits short numeric Business IDs but never relaxes normal Create",()=>{
+  const x=fixture();
+  const created=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_short_business_2026",
+    items:[input({business_id:"01234",client_request_id:undefined,source_system:"Legacy",
+      source_record_id:"SHORT-1"})],
+  });
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===created.opportunity_ids[0]);
+  assert.equal(row.business_id,"01234");
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",
+    input({business_id:"01234"})),rejected(400));
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_bad_business_2026",
+    items:[input({business_id:"12-34",client_request_id:undefined,source_system:"Legacy",
+      source_record_id:"SHORT-2"})],
+  }),rejected(400));
+});
+
+test("legacy Sales Code must match authoritative owner even when source name looks similar",()=>{
+  const x=fixture();
+  const base=input({client_request_id:undefined,source_system:"Legacy",
+    source_record_id:"SAL-1",source_sales_code:"1002"});
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_bad_salescode_2026",items:[base],
+  }),rejected(403));
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,1);
+});
+
+test("Sales Code alone resolves owner, name variations are advisory, and events remain truthful",()=>{
+  const x=fixture("2026-10-26T14:00:00.000Z");
+  const payload=input({
+    business_id:"",client_request_id:undefined,
+    source_sales_code:"1001",source_sale_name:"AE ONE (legacy spelling)",
+    source_system:"Legacy Spreadsheet",source_record_id:"SALES-CODE-ONLY-1",
+    owner_id:undefined,current_handler_id:undefined,
+    source_created_at:"2026-07-08",source_created_month:"2026-07",
+    source_rc:"12000",reference_net_rc:"12000",quantity:1,price_per_sub:12000,oc:0,
+    expected_close_month:undefined,stage_id:"S1",
+  });
+  const result=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_source_salescode_only_1",items:[payload],
+  });
+  const row=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===result.opportunity_ids[0]);
+  assert.equal(row.owner_user_id,"AE1");
+  assert.equal(row.current_handler_user_id,"AE1");
+  assert.equal(row.business_id,"");
+  assert.equal(row.stage_entered_at,"");
+  assert.equal(row.created_at,"2026-07-08");
+  assert.equal(x.events().filter(e=>e.opportunity_id===row.opportunity_id&&e.event_type==="create").length,1);
+  const resolved=x.call("SM1","POST","imports/resolve-owners",{codes:["1001","1002","9999"]});
+  assert.deepEqual(resolved.owners.map(v=>[v.code,v.found]),[["1001",true],["1002",false],["9999",false]]);
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    batch_id:"legacy_source_salescode_conflict_2",
+    items:[{...payload,source_record_id:"SALES-CODE-ONLY-2",owner_id:"AE2"}],
+  }),rejected(400));
+});
