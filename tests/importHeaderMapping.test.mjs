@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {mapImportHeaders,normalizeImportHeader} from "../src/lib/importHeaderMapping.js";
+import {mapImportHeaders,normalizeImportHeader,needsExplicitCreatedMonthMapping} from "../src/lib/importHeaderMapping.js";
 const fields=[{key:"customer_name",label:"Customer Name"},{key:"contact_name",label:"Contact Name"},{key:"business_id",label:"Business ID"},{key:"region",label:"Region"},{key:"stage",label:"Stage"}];
 test("maps distinct Thai headers without collapsing to empty",()=>{
   const headers=["ชื่อลูกค้า","ชื่อผู้ติดต่อ","เลขทะเบียนนิติบุคคล","ภูมิภาค","ขั้นตอนการขาย"];
@@ -31,4 +31,12 @@ test("duplicate Create Month source headers are never mapped by guess",()=>{
   const fields=[{key:"created_month",label:"Create Month"}];
   assert.deepEqual(mapImportHeaders(["Create Month","Created Month"],fields),{});
   assert.deepEqual(mapImportHeaders(["Created Month","Created Month"],fields),{});
+});
+
+test("recognized but unmapped source-created month is blocked until manually selected",()=>{
+  const headers=["Created Month","Create Month","Customer Name"];
+  assert.equal(needsExplicitCreatedMonthMapping(headers,{}),true);
+  assert.equal(needsExplicitCreatedMonthMapping(headers,{created_month:1}),false);
+  assert.equal(needsExplicitCreatedMonthMapping(["Customer Name","Expected Close Month"],{}),false);
+  assert.equal(needsExplicitCreatedMonthMapping(["เดือนที่สร้าง","Customer Name"],{}),true);
 });
