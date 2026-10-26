@@ -9,6 +9,21 @@ async function makeWorkbook(rows) {
  for(const row of rows) ws.addRow(row);
  return wb.xlsx.writeBuffer();
 }
+test("historical 17 named headers retain 19 physical columns and source remarks", async()=>{
+ const header=["Create Month","Business ID","Customer Type","Customer Name","Sales Code",
+  "Sale Name","Channel","Region","Province","Product Category","รายละเอียดสินค้า",
+  "Sub","RC","Net RC","OC","Monthly Sale Plan","Stage (Current)","",""];
+ const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet("All Regions");
+ ws.addRow(header);
+ ws.addRow(["4-มิ.ย.-26","","Industrial","Synthetic Corp","SYNTH-1","Synthetic Seller",
+  "AE B2B GEO","East","Synthetic Area","Broadband","FTTH","1","499","499","",
+  "12 month","ต.ค.-26","Stage 1. Offer","Remark remains"]);
+ const parsed=await parseImportXlsx(await wb.xlsx.writeBuffer());
+ assert.equal(parsed.headers.length,19);
+ assert.equal(parsed.rows[0].length,19);
+ assert.equal(parsed.rows[0][18],"Remark remains");
+});
+
 test("xlsx import reads bilingual headers and preserves formatted ID zeroes",async()=>{
  const wb=new ExcelJS.Workbook();
  const ws=wb.addWorksheet("Opportunities");
