@@ -72,7 +72,7 @@ export async function latestVerifiedPagesSource({ repo = process.env.GITHUB_REPO
   }));
   const candidates = pages.flat()
     .filter((run) => run.conclusion === "success" && run.id && run.head_sha && run.created_at)
-    .sort((a,b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+    .sort((a,b) => Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at));
   for (const run of candidates) {
     const jobs = await getJson("runs/" + run.id + "/jobs?per_page=100");
     if (!Array.isArray(jobs.jobs)) throw Error("Malformed Pages job history");
