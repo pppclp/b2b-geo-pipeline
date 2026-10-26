@@ -12,9 +12,20 @@ export async function checkStaticBuild({ base, directory }) {
   const fallback = join(root, rootBased ? "index.html" : "404.html");
   const redirectFile = join(root, "_redirects");
   if (!existsSync(fallback)) throw Error("Missing SPA fallback: " + fallback);
-  if (rootBased && (existsSync(join(root,"404.html")) ||
-      readFileSync(redirectFile,"utf8").trim() !== "/* /index.html 200")) {
-    throw Error("Root build must use SPA 200 rewrite, not a GitHub Pages 404");
+  if (rootBased && existsSync(join(root,"404.html"))) {
+    throw Error("Root static build must not contain GitHub Pages 404 fallback");
+  }
+  // Cloudflare Workers serves deep links natively via Wrangler assets config,
+  // while legacy root hosts may still use _redirects. Do not require a redirect
+  // file for Workers: it can trigger an infinite rewrite loop.
+  if (rootBased && existsSync(redirectFile) &&
+      readFileSync(redirectFile,"utf8").trim() !== "/* /index.html 200") {
+    throw Error("Root SPA redirect must point to /index.html with status 200");
+  }
+  if (rootBased && !existsSync(redirectFile)) {
+    const wrangler = readFileSync(join(process.cwd(),"wrangler.jsonc"),"utf8");
+    if (!/"not_found_handling"\s*:\s*"single-page-application"/.test(wrangler))
+      throw Error("Missing native Cloudflare Workers SPA fallback");
   }
   if (!rootBased && existsSync(redirectFile)) throw Error("Project Pages build must not include root redirects");
   const assets = [...index.matchAll(/(?:src|href)="([^"]+\.(?:js|css)(?:\?[^"]*)?)"/g)].map(m=>m[1]);
@@ -59,7 +70,7 @@ export async function checkStaticBuild({ base, directory }) {
       if(response.status!==200)throw Error("Missing static asset: "+asset);
     }
   } finally { await new Promise(ok=>server.close(ok)); }
-  return {base,assetCount:assets.length,routes:4,fallback:rootBased?"200-rewrite":"404-html"};
+  return {base,assetCount:assets.length,routes:4,fallback:rootBased?(existsSync(redirectFile)?"200-rewrite":"native-spa"):"404-html"};
 }
 if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) {
   const arg = process.argv.indexOf("--base");
