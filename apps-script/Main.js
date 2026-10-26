@@ -80,11 +80,34 @@ function handle_(req) {
       store.flush();
       return activationResult;
     }
+    if (req.method === "POST" && authPath === "auth/temporary-password/complete") {
+      var passwordSetupResult = completeUatTemporaryPasswordSetup_(store, req.body || {});
+      // Never tell a user their password was saved before Sheets has committed it.
+      store.flush();
+      return passwordSetupResult;
+    }
 
     // All other requests must present a valid signed session.
     // Never accept the userId claimed by the browser as proof of identity.
     req.userId = verifyUatSession_(req.sessionToken);
     delete req.sessionToken;
+    // Pre-migration sessions must not bypass mandatory personal password setup.
+    if (uatTemporarySetupEnabled_()) {
+      var currentUsers = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
+        return String(u.user_id || "").trim() === req.userId;
+      });
+      var currentCreds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows.filter(function (c) {
+        return String(c.user_id || "").trim() === req.userId;
+      });
+      if (currentUsers.length !== 1 ||
+          String(currentUsers[0].status || "").toLowerCase() !== "active" ||
+          currentCreds.length !== 1 ||
+          String(currentCreds[0].credential_status || "") !== "active" ||
+          !String(currentCreds[0].password_set_at || "").trim() ||
+          !String(currentCreds[0].password_hash || "").trim()) {
+        throwUatError_(401, "Password setup required. Sign in with your temporary password.");
+      }
+    }
 
     var core = GeoCoreLib.createCore({
       contract: GEO_CONTRACT,
@@ -149,6 +172,9 @@ function uatLogin_(store, body) {
   // Fail closed on ambiguous or inconsistent identity bindings. An empty
   // credential user_id remains supported for legacy UAT rows; populated IDs
   // must agree with the authenticated Users row.
+  var credential = matchingCredentials.length === 1 ? matchingCredentials[0] : null;
+  var needsSetup = credential && !usingEmail && uatTemporarySetupEnabled_() &&
+    uatTemporaryCredentialPending_(credential);
   if (matchingCredentials.length !== 1 ||
       (String(matchingCredentials[0].user_id || "").trim() &&
        String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
@@ -158,10 +184,23 @@ function uatLogin_(store, body) {
         String(matchingCredentials[0].credential_status || "") !== "active" ||
         !String(matchingCredentials[0].password_set_at || "").trim() ||
         !String(matchingCredentials[0].password_hash || "").trim())) ||
-      !verifyUatPassword_(matchingCredentials[0], password)) {
+      !(needsSetup ? uatTemporaryPasswordMatches_(credential, password) :
+        verifyUatPassword_(credential, password))) {
+    denyUatLogin_(limiter, key);
+  }
+  if (!usingEmail && uatTemporarySetupEnabled_() && !needsSetup &&
+      (String(credential.credential_status || "") !== "active" ||
+       !String(credential.password_set_at || "").trim() ||
+       !String(credential.password_hash || "").trim())) {
     denyUatLogin_(limiter, key);
   }
   if (key) limiter.remove(key);
+  // Correct temporary credentials confer no app session or Pipeline access.
+  if (needsSetup) {
+    return { password_setup_required: true,
+      password_setup_ticket: uatTemporarySetupTicket_(String(user.user_id), credential),
+      expires_in_seconds: 600 };
+  }
 
   return {
     user_id: String(user.user_id || ""),
@@ -249,6 +288,102 @@ function geoUatTemporaryPasswordWindowOpen_() {
     if (!Number.isFinite(timestamp) || Date.now() >= timestamp) return false;
   }
   return true;
+}
+
+// ---- UAT first-login password setup (Employee ID temporary credentials) ----
+// Separate from email activation: validating a temporary password never issues
+// an application session. Feature flag defaults OFF until matching UI is deployed.
+function uatTemporarySetupEnabled_() {
+  var p = PropertiesService.getScriptProperties();
+  return p.getProperty("GEO_ENVIRONMENT") === "UAT" &&
+    p.getProperty("GEO_UAT_LEGACY_PASSWORD_SETUP_ENABLED") === "true";
+}
+function uatTemporaryCredentialPending_(c) {
+  return !String(c.credential_status || "").trim() &&
+    !String(c.password_set_at || "").trim() &&
+    !String(c.activation_code_hash || "").trim() &&
+    !String(c.activation_expires_at || "").trim() &&
+    !String(c.activation_used_at || "").trim() &&
+    (!!String(c.password_hash || "").trim() || !!String(c.temporary_password || "").trim());
+}
+function uatTemporaryPasswordMatches_(c, password) {
+  if (String(c.password_hash || "").trim()) return verifyUatPassword_(c, password);
+  var stored = String(c.temporary_password || "");
+  return !!stored && uatConstantTimeEqual_(stored, String(password || ""));
+}
+function uatTemporaryFingerprint_(uid, c) {
+  var storedHash = String(c.password_hash || "").trim();
+  var material = storedHash ? "hash:" + storedHash : "temp:" + String(c.temporary_password || "");
+  return sessionB64_(Utilities.computeHmacSha256Signature(
+    "uat-temp-setup:" + uid + ":" + material, uatActivationSecret_(false)));
+}
+function uatTemporarySetupTicket_(uid, c) {
+  var ts = Math.floor(Date.now() / 1000);
+  var payload = sessionB64_(Utilities.newBlob(JSON.stringify({
+    v: 1, typ: "uat_temp_setup", sub: uid, fp: uatTemporaryFingerprint_(uid, c),
+    iat: ts, exp: ts + 600
+  })).getBytes());
+  return payload + "." + sessionB64_(Utilities.computeHmacSha256Signature(
+    payload, uatActivationSecret_(false)));
+}
+function uatReadTemporarySetupTicket_(ticket) {
+  if (typeof ticket !== "string" || !/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/.test(ticket))
+    throwUatError_(401, "Password setup expired. Sign in with your temporary password again.");
+  var pieces = ticket.split(".");
+  var signature = sessionB64_(Utilities.computeHmacSha256Signature(
+    pieces[0], uatActivationSecret_(false)));
+  if (!uatConstantTimeEqual_(signature, pieces[1]))
+    throwUatError_(401, "Password setup expired. Sign in with your temporary password again.");
+  var data;
+  try {
+    data = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(pieces[0])).getDataAsString("UTF-8"));
+  } catch (err) { throwUatError_(401, "Password setup expired. Sign in with your temporary password again."); }
+  var now = Math.floor(Date.now() / 1000);
+  if (data.v !== 1 || data.typ !== "uat_temp_setup" ||
+      typeof data.sub !== "string" || !data.sub || typeof data.fp !== "string" ||
+      !Number.isInteger(data.iat) || !Number.isInteger(data.exp) ||
+      data.iat > now + 60 || data.exp <= now || data.exp - data.iat !== 600) {
+    throwUatError_(401, "Password setup expired. Sign in with your temporary password again.");
+  }
+  return data;
+}
+function completeUatTemporaryPasswordSetup_(store, body) {
+  if (!uatTemporarySetupEnabled_()) throwUatError_(503, "UAT password setup is not enabled");
+  var ticket = uatReadTemporarySetupTicket_(body.password_setup_ticket);
+  var matches = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
+    return String(u.user_id || "").trim() === ticket.sub;
+  });
+  if (matches.length !== 1 || String(matches[0].status || "").toLowerCase() !== "active" ||
+      !normalizeEmployeeId_(matches[0].employee_id))
+    throwUatError_(401, "Password setup expired. Sign in again.");
+  var employeeId = normalizeEmployeeId_(matches[0].employee_id);
+  var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows.filter(function (c) {
+    return String(c.user_id || "").trim() === ticket.sub ||
+      normalizeEmployeeId_(c["employee_id / username"]) === employeeId;
+  });
+  if (creds.length !== 1 || String(creds[0].user_id || "").trim() !== ticket.sub ||
+      normalizeEmployeeId_(creds[0]["employee_id / username"]) !== employeeId ||
+      !uatTemporaryCredentialPending_(creds[0]) ||
+      !uatConstantTimeEqual_(uatTemporaryFingerprint_(ticket.sub, creds[0]), ticket.fp))
+    throwUatError_(401, "Password setup expired. Sign in again.");
+  var c = creds[0];
+  var pass = uatCheckNewPassword_(body.new_password, normalizeUatCorporateEmail_(matches[0].email));
+  if (pass !== String(body.confirm_password || "")) throwUatError_(400, "Passwords do not match");
+  if (pass.indexOf(employeeId) !== -1 || uatTemporaryPasswordMatches_(c, pass))
+    throwUatError_(400, "Choose a new password that differs from the temporary password and Employee ID");
+  // Pepper must be provisioned securely before any login migration.
+  uatPasswordPepper_(false);
+  var salt = Utilities.getUuid().replace(/-/g, "");
+  var now = new Date().toISOString();
+  c.password_hash = GEO_UAT_PASSWORD_HASH_SCHEME_ + "$" + salt + "$" + uatPasswordDigest_(salt, pass);
+  c.password_hash_version = GEO_UAT_PASSWORD_HASH_SCHEME_;
+  c.temporary_password = "";
+  c.password_set_at = now;
+  c.password_changed_at = now;
+  c.credential_status = "active";
+  store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
+  // handle_ flushes under LockService before returning success, no session issued.
+  return { password_set: true };
 }
 
 // ---- Opt-in UAT Corporate Email Activation ----

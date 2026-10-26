@@ -52,6 +52,13 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(async (username, password) => {
     const result = await db.session.login(username, password);
+    if (result?.password_setup_required) {
+      // A temporary password is verified but never authenticates the user.
+      session.clear();
+      setUser(null);
+      setIsAuthenticated(false);
+      return result;
+    }
     if (!result?.session_token) throw new Error("Login did not return a valid session. Backend deployment may be outdated.");
     session.setToken(result.session_token);
     // Re-auth must not set isLoadingAuth: AuthenticatedApp would unmount
@@ -81,7 +88,10 @@ export const AuthProvider = ({ children }) => {
     setReauthBusy(true);
     setReauthError("");
     try {
-      await login(reauthUser.trim(), reauthPassword);
+      const outcome = await login(reauthUser.trim(), reauthPassword);
+      if (outcome?.password_setup_required) {
+        setReauthError("Temporary credentials require password setup. Return to Sign in and complete setup.");
+      }
     } catch (error) {
       setSessionExpired(true);
       setReauthError(error.status === 401

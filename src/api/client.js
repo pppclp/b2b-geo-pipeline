@@ -93,7 +93,8 @@ async function request(method, path, { query, body } = {}) {
   if (status >= 400) {
     // Keep the current route and any unsaved form mounted during re-auth.
     // Login itself must not trigger the expired-session dialog.
-    if (status === 401 && path !== "/session/login" && path !== "/session/me" && !path.startsWith("/auth/activation/")) {
+    if (status === 401 && path !== "/session/login" && path !== "/session/me" &&
+        !path.startsWith("/auth/activation/") && !path.startsWith("/auth/temporary-password/")) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
     const err = new Error(data?.message || `${method} ${path} failed (${status})`);
@@ -125,6 +126,12 @@ export const db = {
     users: () => request("GET", "/session/users"),
     login: (username, password) => request("POST", "/session/login", { body: { username, password } }),
     me: () => request("GET", "/session/me"),
+  },
+  temporaryPassword: {
+    complete: (password_setup_ticket, new_password, confirm_password) =>
+      request("POST", "/auth/temporary-password/complete", {
+        body: { password_setup_ticket, new_password, confirm_password },
+      }),
   },
   activation: {
     verify: (email, code) => request("POST", "/auth/activation/verify", { body: { email, code } }),

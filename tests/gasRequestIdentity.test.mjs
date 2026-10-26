@@ -32,6 +32,8 @@ function fixture() {
       return "AE1";
     },
     uatLogin_:()=>({user_id:"AE1",session_token:"signed-AE1"}),
+    // Legacy-password migration is disabled in this identity-spoofing fixture.
+    uatTemporarySetupEnabled_:()=>false,
   };
   vm.createContext(ctx);
   vm.runInContext(source.slice(start,end),ctx);
