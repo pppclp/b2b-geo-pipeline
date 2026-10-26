@@ -596,6 +596,64 @@ function debugUatEmailActivationReadiness() {
   } finally { lock.releaseLock(); }
 }
 
+// Editor-only, READ-ONLY diagnostic for the UAT first-login password flow.
+// Run from Apps Script editor; no staff data, secrets, workbook IDs or passwords
+// are returned or logged. Never expose this function as an HTTP endpoint.
+function debugUatPasswordSetupReadiness() {
+  var p = PropertiesService.getScriptProperties();
+  var report = {
+    environment_is_uat: p.getProperty("GEO_ENVIRONMENT") === "UAT",
+    temporary_password_setup_enabled: p.getProperty("GEO_UAT_LEGACY_PASSWORD_SETUP_ENABLED") === "true",
+    activation_signing_secret_present: !!p.getProperty("GEO_UAT_ACTIVATION_SECRET"),
+    password_pepper_present: !!p.getProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_),
+    user_master_binding_present: !!sheetIdFor_("B2B_GEO_User_Org_Master.xlsx"),
+    credentials_binding_present: !!sheetIdFor_("B2B_GEO_UAT_Credentials_Distribution.xlsx"),
+    sheet_read_ok: false,
+    user_count: 0,
+    credentials_count: 0,
+    active_users_missing_employee_id: 0,
+    pending_setup_accounts: 0,
+    already_personal_password_accounts: 0
+  };
+  // The editor function verifies real, current workbook access and headers
+  // without writing cells or disclosing employee identifiers.
+  try {
+    var store = new SheetStore_();
+    var us = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
+    var cs = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
+    report.sheet_read_ok = true;
+    report.user_count = us.length;
+    report.credentials_count = cs.length;
+    us.forEach(function (u) {
+      if (String(u.status || "").toLowerCase() !== "active") return;
+      var eid = normalizeEmployeeId_(u.employee_id);
+      if (!eid) { report.active_users_missing_employee_id++; return; }
+      var matches = cs.filter(function (c) {
+        return String(c.user_id || "").trim() === String(u.user_id || "").trim() &&
+          normalizeEmployeeId_(c["employee_id / username"]) === eid;
+      });
+      if (matches.length !== 1) return;
+      if (uatTemporaryCredentialPending_(matches[0])) report.pending_setup_accounts++;
+      if (String(matches[0].credential_status || "") === "active" &&
+          String(matches[0].password_set_at || "").trim() &&
+          String(matches[0].password_hash || "").trim()) report.already_personal_password_accounts++;
+    });
+  } catch (err) {
+    // No exception messages here: they can contain private spreadsheet names/IDs.
+    report.sheet_read_ok = false;
+  }
+  report.ready_for_existing_temporary_passwords =
+    report.environment_is_uat &&
+    report.temporary_password_setup_enabled &&
+    report.activation_signing_secret_present &&
+    report.password_pepper_present &&
+    report.user_master_binding_present &&
+    report.credentials_binding_present &&
+    report.sheet_read_ok;
+  console.log(JSON.stringify(report));
+  return report;
+}
+
 // Editor-only: safely initialize secrets after checking for existing hashes.
 // Do not log or return the secret/pepper values.
 function prepareUatEmailActivation() {
