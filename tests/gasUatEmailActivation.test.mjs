@@ -56,6 +56,7 @@ const setup=()=>{
       newBlob:x=>blob(x),
     },
     sessionB64_:bytes=>Buffer.from(bytes).toString("base64url"),
+    normalizeEmployeeId_:v=>String(v||"").trim(),
     uatConstantTimeEqual_:(a,b)=>String(a)===String(b),
     uatPasswordPepper_:()=>properties.get("GEO_UAT_PASSWORD_PEPPER"),
     uatPasswordDigest_:(salt,password)=>createHmac("sha256",properties.get("GEO_UAT_PASSWORD_PEPPER"))
@@ -102,4 +103,16 @@ test("GAS blocks duplicate-code replay and expiry without mutating the credentia
 });
 test("GAS activation endpoint commits Credentials before success",()=>{
  assert.match(source,/var activationResult = completeUatActivation_\(store, req\.body \|\| \{\}\);\s*\/\/[^\n]*\n[^\n]*\n\s*store\.flush\(\);\s*return activationResult;/);
+});
+
+test("GAS fails closed for credential employee mismatch and inactive duplicate corporate mailbox",()=>{
+ const a=setup();
+ a.credential["employee_id / username"]="90000002";
+ assert.throws(()=>a.ctx.verifyUatActivation_(a.store,{email:"person@truecorp.co.th",code:"synthetic-one-use"}),e=>e.status===401);
+});
+test("GAS exposes aggregate readiness helper without employee identifiers",()=>{
+ const a=setup();
+ const counts=a.ctx.debugUatEmailActivationReadiness;
+ assert.equal(typeof counts,"function");
+ assert.match(source,/function debugUatEmailActivationReadiness\(/);
 });
