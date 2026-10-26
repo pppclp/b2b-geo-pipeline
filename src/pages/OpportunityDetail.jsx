@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useData } from "@/lib/dataContext";
+import PipelineTaskPanel from "@/components/PipelineTaskPanel";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import HistoryTimeline from "@/components/HistoryTimeline";
@@ -210,6 +211,7 @@ export default function OpportunityDetail() {
           <div className="rounded-2xl border bg-card p-4 shadow-soft md:p-5">
             <h2 className="mb-4 text-base font-semibold">Quick Update</h2>
             <PipelineQuickActions op={op} />
+          <PipelineTaskPanel op={op} />
           </div>
         </aside>
       </div>
