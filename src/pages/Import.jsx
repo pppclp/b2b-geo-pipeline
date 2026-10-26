@@ -303,10 +303,7 @@ export default function Import() {
         else {
           if (rec.owner_id && rec.owner_id !== owner.id)
             errors.push("Sales Code conflicts with manually mapped Owner");
-          if (rec.source_sale_name &&
-            rec.source_sale_name.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase() !==
-            String(owner.name).normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase())
-            errors.push("Sale Name does not match Sales Code in Users Master");
+          // Name spellings in old files may differ; verified Sales Code governs owner identity.
           if (rec.region_id && !owner.region_ids?.includes(rec.region_id))
             errors.push("Sales Code AE is not assigned to the source Region");
           rec.owner_id = owner.id;
