@@ -104,9 +104,9 @@ test("Pipeline UI keeps Region pills for multi-region roles and promotes Product
   assert.ok(page.includes("<RegionQuickFilter regions={quickRegions}"));
   assert.ok(page.includes('showRegionControl={false}'),"No duplicate Region dropdown");
   assert.ok(!page.includes("Quick Views · Open Pipelines within your access scope"));
-  assert.ok(page.includes('activePipelineView(filters, profile?.id)'));
+  assert.ok(page.includes('activePipelineView(filters, profile?.id, profile?.app_role)'));
   assert.ok(page.includes('quickViewCounts(scopedOpportunities, filters, profile?.id, filterContext)'));
-  assert.ok(page.includes("switchPipelineView(filters, viewId, profile?.id)"));
+  assert.ok(page.includes("switchPipelineView(filters, viewId, profile?.id, profile?.app_role)"));
   assert.ok(page.includes('title: "Overdue"'));
   assert.ok(page.includes('"Due This Month"'));
   assert.ok(page.includes('f.due_this_month = "1"'));
@@ -116,4 +116,56 @@ test("Pipeline UI keeps Region pills for multi-region roles and promotes Product
   assert.ok(!toolbar.includes("{showOwner &&"));
   assert.ok(toolbar.includes('profile?.app_role !== "ae"'));
   assert.equal((toolbar.match(/label={LABELS.product_category}/g)||[]).length,1);
+});
+
+test("Management With Me tab counts match the selected Pipeline rows for a shared team", () => {
+  const rows=[
+    {id:"direct",status:"open",region_id:"R1",current_handler_id:"MGMT1",working_with_team_ids:""},
+    {id:"group",status:"open",region_id:"R1",current_handler_id:"SM1",working_with_team_ids:"WW007"},
+    {id:"mixed",status:"open",region_id:"R1",current_handler_id:"AE1",working_with_team_ids:"WW001,WW007"},
+    {id:"otherTeam",status:"open",region_id:"R1",current_handler_id:"SM2",working_with_team_ids:"WW001"},
+    {id:"closed",status:"lost",region_id:"R1",current_handler_id:"MGMT1",working_with_team_ids:"WW007"},
+    {id:"differentRegion",status:"open",region_id:"R2",current_handler_id:"SM1",working_with_team_ids:"WW007"},
+  ];
+  const managerContext={...context,viewerId:"MGMT1",viewerRole:"management",
+    master:{WorkingWithOption:[{id:"WW007",name:"Management",active:true},{id:"WW001",name:"Pre-sales",active:true}]}};
+  const scope=rows.filter(o=>o.region_id==="R1"); // The server already enforced this scope.
+  const base={status:"open",region:"R1"};
+  const selection=switchPipelineView(base,"assigned-to-me","MGMT1","management");
+  assert.equal(selection.with_me,"1");
+  assert.equal(selection.handler,"");
+  assert.equal(activePipelineView(selection,"MGMT1","management"),"assigned-to-me");
+  const selected=scope.filter(o=>matchesPipelineFilters(o,selection,managerContext));
+  assert.deepEqual(selected.map(o=>o.id),["direct","group","mixed"]);
+  assert.equal(quickViewCounts(scope,base,"MGMT1",managerContext)["assigned-to-me"],selected.length);
+
+  const otherManager={...managerContext,viewerId:"MGMT2"};
+  const secondManagerSelection=switchPipelineView(base,"assigned-to-me","MGMT2","management");
+  assert.deepEqual(scope.filter(o=>matchesPipelineFilters(o,secondManagerSelection,otherManager))
+    .map(o=>o.id),["group","mixed"]);
+  const aeContext={...managerContext,viewerId:"AE1",viewerRole:"ae"};
+  const aeSelection=switchPipelineView(base,"assigned-to-me","AE1","ae");
+  assert.equal(aeSelection.with_me,"");
+  assert.equal(aeSelection.handler,"AE1");
+  assert.deepEqual(scope.filter(o=>matchesPipelineFilters(o,aeSelection,aeContext)).map(o=>o.id),["mixed"]);
+  assert.equal(quickViewCounts(scope,base,"AE1",aeContext)["assigned-to-me"],1);
+});
+
+test("Management With Me deep links and tab toggles do not change other filters", () => {
+  const page=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
+  assert.ok(page.includes('params.get("with_me") === "1" && profile?.app_role === "management"'));
+  assert.ok(page.includes('if (key === "handler") next.with_me = "";'));
+  assert.ok(page.includes('viewerId: profile?.id, viewerRole: profile?.app_role'));
+  const start={status:"open",region:"R1",product_category:"CAT1",search:"foo",close_month:"2026-11"};
+  const withMe=switchPipelineView(start,"assigned-to-me","MGMT1","management");
+  assert.equal(withMe.with_me,"1");
+  assert.equal(activePipelineView(withMe,"MGMT1","management"),"assigned-to-me");
+  const support=switchPipelineView(withMe,"support-needed","MGMT1","management");
+  assert.equal(support.with_me,"");
+  assert.equal(support.support,"1");
+  const all=switchPipelineView(support,"all","MGMT1","management");
+  assert.equal(activePipelineView(all,"MGMT1","management"),"all");
+  for(const key of ["region","product_category","search","close_month"])
+    assert.equal(all[key],start[key],key);
+  assert.equal(activePipelineView({...withMe,handler:"MGMT1"},"MGMT1","management"),"");
 });
