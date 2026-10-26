@@ -105,7 +105,9 @@ function uatLogin_(store, body) {
   var environment = String(PropertiesService.getScriptProperties().getProperty("GEO_ENVIRONMENT") || "").toUpperCase();
   if (environment === "PRODUCTION" || environment === "PROD")
     throwUatError_(503, "UAT password login is disabled in Production");
-  var emailMode = PropertiesService.getScriptProperties().getProperty("GEO_UAT_EMAIL_LOGIN_ENABLED") === "true";
+  // Email authentication is UAT-only, even if an email flag is accidentally enabled elsewhere.
+  var emailMode = environment === "UAT" &&
+    PropertiesService.getScriptProperties().getProperty("GEO_UAT_EMAIL_LOGIN_ENABLED") === "true";
   var usingEmail = emailMode && String(body.username || "").indexOf("@") >= 0;
   var username = usingEmail ? normalizeUatCorporateEmail_(body.username) : normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
