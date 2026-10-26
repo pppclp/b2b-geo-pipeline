@@ -11,7 +11,7 @@ const start = source.indexOf("function uatLogin_(");
 const end = source.indexOf("// UAT signed sessions:", start);
 assert.ok(start >= 0 && end > start, "UAT function block must remain extractable");
 
-function fixture(credentials) {
+function fixture(credentials, users = [{employee_id:"90001",user_id:"U0001",status:"Active",role:"AE"}]) {
   const cacheValues = new Map();
   const properties = new Map();
   const cache = {
@@ -43,7 +43,7 @@ function fixture(credentials) {
   vm.createContext(ctx);
   vm.runInContext(source.slice(start,end),ctx);
   const store={table:(file,sheet)=>{
-    if(sheet==="Users")return {rows:[{employee_id:"90001",user_id:"U0001",status:"Active",role:"AE"}]};
+    if(sheet==="Users")return {rows:users};
     if(sheet==="UAT_Credentials")return {rows:credentials};
     throw Error("Unexpected sheet "+sheet);
   }};
@@ -132,4 +132,54 @@ test("manual recovery never downgrades hashed-password-only mode",()=>{
   properties.set("GEO_UAT_REQUIRE_HASHED_PASSWORDS","true");
   assert.throws(()=>ctx.enableUatTemporaryLoginFor14Days(),/do not downgrade/);
   assert.equal(properties.has("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS"),false);
+});
+
+test("one active user and one correctly bound credential can sign in", () => {
+  const {ctx,store,properties}=fixture([{
+    user_id:"U0001", "employee_id / username":"90001",temporary_password:"good"
+  }]);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  assert.equal(ctx.uatLogin_(store,{username:"90001",password:"good"}).user_id,"U0001");
+});
+
+test("duplicate active Employee IDs cannot choose another account or privileged role", () => {
+  const users=[
+    {employee_id:"90001",user_id:"U0001",status:"Active",role:"AE"},
+    {employee_id:"90001",user_id:"ADMIN1",status:"Active",role:"Admin"}
+  ];
+  const {ctx,store,properties}=fixture([
+    {user_id:"U0001","employee_id / username":"90001",temporary_password:"good"}
+  ],users);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+});
+
+test("duplicate credential rows never authenticate by the first matching password", () => {
+  const {ctx,store,properties}=fixture([
+    {user_id:"U0001","employee_id / username":"90001",temporary_password:"good"},
+    {user_id:"ADMIN1","employee_id / username":"90001",temporary_password:"other"}
+  ]);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+});
+
+test("a credential bound to a different user_id cannot unlock another identity", () => {
+  const {ctx,store,properties}=fixture([
+    {user_id:"ADMIN1","employee_id / username":"90001",temporary_password:"good"}
+  ]);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
+});
+
+test("inactive user login is blocked even if password matches", () => {
+  const {ctx,store,properties}=fixture([
+    {user_id:"U0001","employee_id / username":"90001",temporary_password:"good"}
+  ], [{employee_id:"90001",user_id:"U0001",status:"Inactive",role:"AE"}]);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"good"}),e=>e.status===401);
 });
