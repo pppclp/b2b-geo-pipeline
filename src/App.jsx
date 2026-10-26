@@ -10,6 +10,7 @@ import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { DataProvider } from '@/lib/dataContext';
 import AppLayout from '@/components/AppLayout';
+import ImportErrorBoundary from '@/components/ImportErrorBoundary';
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 import Pipeline from '@/pages/Pipeline';
 const OpportunityDetail = lazy(() => import('@/pages/OpportunityDetail'));
@@ -65,7 +66,7 @@ const AuthenticatedApp = () => {
           <Route path="/support-requests" element={<Navigate to="/pipeline?view=support-needed" replace />} />
           <Route path="/opportunity/:id" element={<Suspense fallback={<RouteLoading />}><OpportunityDetail /></Suspense>} />
           <Route path="/admin" element={<Suspense fallback={<RouteLoading />}><Admin /></Suspense>} />
-          <Route path="/import" element={<Suspense fallback={<RouteLoading />}><Import /></Suspense>} />
+          <Route path="/import" element={<ImportErrorBoundary><Suspense fallback={<RouteLoading />}><Import /></Suspense></ImportErrorBoundary>} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
