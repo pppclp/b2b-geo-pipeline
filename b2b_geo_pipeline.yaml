@@ -638,6 +638,8 @@ source_03_pipeline_config:
     field:
       threshold_days:
         description: "Legacy global aging threshold, retained for backwards compatibility; not used to flag Stage SLA."
+      stage_watch_days:
+        description: "Stage aging warning in calendar days; threshold 7 means >7 elapsed days. Independent from per-Stage SLA."
       internal_task_sla_days:
         description: "Separate calendar-day SLA for active Working With handoffs; blank disables this alert."
         used_to_calculate:
