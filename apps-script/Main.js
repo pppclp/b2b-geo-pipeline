@@ -11,13 +11,16 @@
 // Reads arrive as GET ?req=<json> (a POST can be redirected by Google and lose
 // its body). Without ?req it is a health check — clients treat that shape as
 // "not executed" and retry.
+// Public non-secret release marker: compare this exact value against the
+// deployed /exec health response before enabling the new frontend.
+var GEO_RELEASE_TAG_ = "geo-uat-login-e2e-20261027-r2";
 function doGet(e) {
   // Never accept serialized API requests over GET: tokens in query strings leak
   // into browser history and intermediaries. The authenticated client uses POST.
   if (e && e.parameter && Object.prototype.hasOwnProperty.call(e.parameter, "req")) {
     return json_({ status: 405, body: { message: "Use POST for API requests" } });
   }
-  return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API" }, health: true });
+  return json_({ status: 200, body: { ok: true, service: "B2B GEO Pipeline API", release: GEO_RELEASE_TAG_ }, health: true });
 }
 
 function doPost(e) {
@@ -136,12 +139,10 @@ function uatLogin_(store, body) {
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
   var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
-  // Global failures are observed for security alerting but must NOT lock out
-  // every legitimate user when an attacker sprays random account names.
-  if (key && Number(limiter.get(key) || 0) >= 5) {
-    throwUatError_(429, "Too many login attempts. Try again in 10 minutes.");
-  }
-
+  // Do not lock a legitimate user out merely because somebody previously
+  // submitted bad passwords for the same Employee ID. Verify credentials
+  // first; only invalid attempts are rate-limited below.
+  // Keep aggregate abuse alerts and invalid-attempt throttling in UAT.
   if (!username || !password) {
     throwUatError_(400, "Username and password are required");
   }
@@ -215,7 +216,11 @@ function uatLogin_(store, body) {
 }
 
 function denyUatLogin_(cache, key) {
-  if (key) cache.put(key, String(Number(cache.get(key) || 0) + 1), 600);
+  // A valid password always clears the counter in uatLogin_ and succeeds.
+  // Wrong guesses beyond the threshold are throttled without revealing how
+  // long the security cache lasts, or whether an account exists.
+  var priorFailures = key ? Number(cache.get(key) || 0) : 0;
+  if (key) cache.put(key, String(priorFailures + 1), 600);
   var globalKey = "GEO_LOGIN_FAIL_GLOBAL_V1";
   var attempts = Number(cache.get(globalKey) || 0) + 1;
   cache.put(globalKey, String(attempts), 600);
@@ -223,6 +228,7 @@ function denyUatLogin_(cache, key) {
     cache.put("GEO_LOGIN_SPRAY_ALERT_V1", "1", 600);
     console.warn("UAT_SECURITY_ALERT: high aggregate failed login count; investigate. No employee ID was logged.");
   }
+  if (priorFailures >= 5) throwUatError_(429, "Sign-in temporarily limited for security. Contact your UAT administrator if a valid password is rejected.");
   throwUatError_(401, "Invalid username or password");
 }
 
@@ -1212,6 +1218,160 @@ function prepareAdminAuditSheet() {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Editor-only, read-only UAT integrity preflight. All tables are read under
+// one ScriptLock; no customer names, employee IDs, spreadsheet IDs or passwords
+// are written to logs. Do not expose this through doGet/doPost.
+function debugGeoPipelineDataIntegrity() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var pipelines = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines").rows;
+    var events = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipeline_Events").rows;
+    var snapshots = store.table("B2B_GEO_Pipeline_DB.xlsx", "Snapshots").rows;
+    var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
+    var stages = store.table("B2B_GEO_Pipeline_Config.xlsx", "Stages").rows;
+    var categories = store.table("B2B_GEO_Pipeline_Config.xlsx", "Product_Categories").rows;
+    var regions = store.table("B2B_GEO_User_Org_Master.xlsx", "Regions").rows;
+    var idSet = function (records, field) {
+      var set = new Set();
+      records.forEach(function (r) { if (String(r[field] || "").trim()) set.add(String(r[field]).trim()); });
+      return set;
+    };
+    var opportunityIds = idSet(pipelines, "opportunity_id");
+    var knownOwners = idSet(users, "user_id");
+    var knownStages = idSet(stages, "stage_id");
+    var knownCategories = idSet(categories, "category_id");
+    var knownRegions = idSet(regions, "region_id");
+    var counts = {
+      pipelines: pipelines.length, events: events.length, snapshots: snapshots.length,
+      missing_updated_at: 0, missing_stage_entered_at: 0,
+      missing_expected_close_month: 0, missing_region: 0, missing_stage: 0,
+      invalid_owner: 0, invalid_handler: 0, invalid_stage: 0,
+      invalid_region: 0, invalid_product_category: 0,
+      orphan_events: 0, no_create_event: 0, duplicate_create_events: 0,
+      snapshot_duplicate_period_pipeline: 0, snapshot_orphans: 0
+    };
+    var createCounts = Object.create(null);
+    events.forEach(function (e) {
+      var oid = String(e.opportunity_id || "").trim();
+      if (!opportunityIds.has(oid)) counts.orphan_events++;
+      if (String(e.event_type || "").toLowerCase() === "create") createCounts[oid] = (createCounts[oid] || 0) + 1;
+    });
+    pipelines.forEach(function (p) {
+      if (!String(p.updated_at || "").trim()) counts.missing_updated_at++;
+      if (!String(p.stage_entered_at || "").trim()) counts.missing_stage_entered_at++;
+      if (!String(p.expected_close_month || "").trim()) counts.missing_expected_close_month++;
+      if (!String(p.region_id || "").trim()) counts.missing_region++;
+      if (!String(p.stage_id || "").trim()) counts.missing_stage++;
+      if (p.owner_user_id && !knownOwners.has(String(p.owner_user_id))) counts.invalid_owner++;
+      if (p.current_handler_user_id && !knownOwners.has(String(p.current_handler_user_id))) counts.invalid_handler++;
+      if (p.stage_id && !knownStages.has(String(p.stage_id))) counts.invalid_stage++;
+      if (p.region_id && !knownRegions.has(String(p.region_id))) counts.invalid_region++;
+      if (p.product_category_id && !knownCategories.has(String(p.product_category_id))) counts.invalid_product_category++;
+      var n = createCounts[String(p.opportunity_id)] || 0;
+      if (!n) counts.no_create_event++;
+      if (n > 1) counts.duplicate_create_events++;
+    });
+    var seenSnapshots = new Set();
+    snapshots.forEach(function (r) {
+      var key = String(r.snapshot_period || "") + "|" + String(r.opportunity_id || "");
+      if (seenSnapshots.has(key)) counts.snapshot_duplicate_period_pipeline++;
+      seenSnapshots.add(key);
+      // A historical snapshot may refer to a Pipeline later archived or
+      // removed. Report this count without silently deleting the history.
+      if (!opportunityIds.has(String(r.opportunity_id || ""))) counts.snapshot_orphans++;
+    });
+    console.log(JSON.stringify(counts));
+    return counts;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// An approved, narrow UAT correction for imported Pipelines whose updated_at
+// was omitted by the legacy Sheet import. The ONE authoritative create event
+// supplies the import transaction timestamp. Customer created_at and unknown
+// stage/handler clocks are NEVER replaced or inferred.
+function geoRevisionRepairPlan_(pipelines, events) {
+  var byPipeline = Object.create(null);
+  events.forEach(function (e) {
+    var id = String(e.opportunity_id || "");
+    (byPipeline[id] || (byPipeline[id] = [])).push(e);
+  });
+  var eligible = [];
+  var skipped = 0;
+  pipelines.forEach(function (p) {
+    if (String(p.updated_at || "").trim()) return;
+    var id = String(p.opportunity_id || "").trim();
+    var history = byPipeline[id] || [];
+    var created = history.length === 1 && String(history[0].event_type || "").toLowerCase() === "create";
+    var stamp = created ? String(history[0].event_at || "").trim() : "";
+    if (!id || !String(p.import_batch_id || "").trim() || !created ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(stamp) ||
+        !Number.isFinite(Date.parse(stamp))) {
+      skipped++;
+      return;
+    }
+    eligible.push({ row: p, at: stamp });
+  });
+  return { eligible: eligible, skipped: skipped };
+}
+// Editor-only preview. No mutation, private identities, workbook IDs or values.
+function debugGeoImportedRevisionRepair() {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var store = new SheetStore_();
+    var ps = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines").rows;
+    var es = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipeline_Events").rows;
+    var plan = geoRevisionRepairPlan_(ps, es);
+    var summary = { total_pipelines: ps.length, missing_revisions: plan.eligible.length + plan.skipped,
+      eligible: plan.eligible.length, unsafe_skipped: plan.skipped };
+    console.log(JSON.stringify(summary));
+    return summary;
+  } finally { lock.releaseLock(); }
+}
+// Editor-only opt-in. Require exact approved candidate count, so a concurrent
+// import cannot silently expand the repair. Never expose a public HTTP route.
+function repairGeoImportedRevisionsApproved() {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
+        props.getProperty("GEO_UAT_REVISION_REPAIR_APPROVED") !== "YES") {
+      throw Error("UAT data revision repair requires explicit editor approval");
+    }
+    var expectedText = String(props.getProperty("GEO_UAT_REVISION_REPAIR_EXPECTED_COUNT") || "");
+    if (!/^[1-9]\d*$/.test(expectedText)) throw Error("Expected count must be a positive integer");
+    var store = new SheetStore_();
+    var ps = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipelines").rows;
+    var es = store.table("B2B_GEO_Pipeline_DB.xlsx", "Pipeline_Events").rows;
+    var plan = geoRevisionRepairPlan_(ps, es);
+    if (plan.skipped || plan.eligible.length !== Number(expectedText))
+      throw Error("Live import changed or unsafe missing revisions found; no rows were modified");
+    var audit = store.table("B2B_GEO_Pipeline_DB.xlsx", "Admin_Audit");
+    var nowAt = new Date().toISOString();
+    plan.eligible.forEach(function (item) {
+      item.row.updated_at = item.at;
+      audit.rows.push({
+        audit_id: "AUD-" + Utilities.getUuid(),
+        event_type: "IMPORT_REVISION_REPAIRED",
+        source_file: "B2B_GEO_Pipeline_DB.xlsx", source_sheet: "Pipelines",
+        source_record_id: String(item.row.opportunity_id),
+        field_name: "updated_at", previous_value: "", new_value: item.at,
+        actor_user_id: "SYSTEM_APPROVED_UAT_REPAIR", actor_name: "Editor-approved UAT data repair",
+        actor_role: "system", event_at: nowAt
+      });
+    });
+    store.touch("B2B_GEO_Pipeline_DB.xlsx", "Pipelines");
+    store.touch("B2B_GEO_Pipeline_DB.xlsx", "Admin_Audit");
+    store.flush();
+    props.deleteProperty("GEO_UAT_REVISION_REPAIR_APPROVED");
+    props.deleteProperty("GEO_UAT_REVISION_REPAIR_EXPECTED_COUNT");
+    return { repaired: plan.eligible.length, audit_entries: plan.eligible.length };
+  } finally { lock.releaseLock(); }
 }
 
 // ---- Table store over Google Sheets (same interface as server/store.js) ----

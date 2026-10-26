@@ -551,3 +551,136 @@ test("Part 2: create UI, edit UI, import, and contract agree contacts are option
   assert.ok(!create.includes('<Field label="Contact Name" required'));
   assert.ok(!create.includes('<Field label="Contact Phone" required'));
 });
+
+
+test("historical imported Pipeline with blank first revision is editable exactly once per revision",()=>{
+ const x=fixture();
+ const original=x.row();
+ original.import_batch_id="APPROVED_LEGACY_BATCH";
+ original.updated_at="";
+ original.stage_entered_at="";
+ const auditBefore=x.events().length;
+ const first=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   expected_updated_at:"",remark:"Reviewed legacy Pipeline"
+ });
+ assert.equal(first.remark,"Reviewed legacy Pipeline");
+ assert.ok(first.updated_date);
+ assert.ok(x.row().updated_at);
+ assert.equal(x.row().stage_entered_at,"","Note edits cannot invent historical Stage Aging");
+ assert.equal(x.events().length,auditBefore+1);
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   expected_updated_at:"",remark:"Stale double-save"
+ }),e=>e.status===409);
+ assert.equal(x.row().remark,"Reviewed legacy Pipeline");
+ const changed=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   expected_updated_at:first.updated_date,stage_id:"S2"
+ });
+ assert.equal(changed.stage_id,"S2");
+ assert.equal(x.row().stage_entered_at,"2026-10-18T10:00:00.000Z");
+ const audits=x.events().filter(e=>e.event_type==="stage_change");
+ assert.equal(audits.length,1);
+});
+
+test("legacy empty revision uses one-time exact compare-and-set even without import metadata",()=>{
+ const x=fixture();
+ x.row().updated_at="";
+ const first=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   expected_updated_at:"",remark:"Correctly saved first revision"
+ });
+ assert.equal(first.remark,"Correctly saved first revision");
+ assert.ok(first.updated_date);
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   expected_updated_at:"",remark:"Stale retry"
+ }),e=>e.status===409);
+ assert.equal(x.row().remark,"Correctly saved first revision");
+});
+
+test("real YAML contract roundtrip: Create Edit Stage Handler Working With Need Support Won Reopen Lost",()=>{
+ const x=fixture();
+ const config="B2B_GEO_Pipeline_Config.xlsx";
+ x.store.table(config,"Working_With").rows.push(
+   {team_id:"TEAM1",team_name:"Presales",active:"Yes"},
+   {team_id:"TEAM2",team_name:"Pricing",active:"Yes"}
+ );
+ x.store.table(config,"Support_Types").rows.push(
+   {support_type_id:"SUP1",support_type_name:"Pricing",active:"Yes"}
+ );
+ const created=x.call("AE1","POST","entities/Opportunity",input({
+   client_request_id:"e2e_approved_legacy_req_002",
+   customer_name:"E2E Synthetic",
+   business_id:"000000001234",current_handler_id:"AE1",contact_phone:"0812345678",
+   price_per_sub:100,quantity:2,oc:120
+ }));
+ const get=()=>x.call("AE1","GET","entities/Opportunity/"+created.id);
+ const rows=x.store.table(DB,"Pipelines").rows;
+ const saved=()=>rows.find(r=>r.opportunity_id===created.id);
+ const ev=()=>x.store.table(DB,"Pipeline_Events").rows.filter(r=>r.opportunity_id===created.id);
+ assert.equal(get().status,"open");
+ assert.equal(get().pipeline_value,210);
+ assert.equal(get().business_id,"000000001234");
+ assert.equal(rows.filter(r=>r.opportunity_id===created.id).length,1);
+ assert.equal(ev().filter(e=>e.event_type==="create").length,1);
+ const edited=x.call("AE1","PUT","entities/Opportunity/"+created.id,{remark:"First meeting",contact_name:"Tester"});
+ assert.equal(edited.remark,"First meeting");
+ assert.equal(get().contact_name,"Tester");
+ assert.equal(rows.filter(r=>r.opportunity_id===created.id).length,1);
+ const stage=x.call("AE1","PUT","entities/Opportunity/"+created.id,{stage_id:"S2"});
+ assert.equal(stage.stage_id,"S2");
+ assert.equal(get().stage_id,"S2");
+ assert.equal(ev().filter(e=>e.event_type==="stage_change").length,1);
+ const changedHandler=x.call("AE1","PUT","entities/Opportunity/"+created.id,{current_handler_id:"SM1"});
+ assert.equal(changedHandler.current_handler_id,"SM1");
+ assert.equal(get().current_handler_id,"SM1");
+ assert.equal(saved().owner_user_id,"AE1","Commercial Owner must not change on handoff");
+ assert.equal(ev().filter(e=>e.event_type==="handler_change").length,1);
+ const teams=x.call("AE1","PUT","entities/Opportunity/"+created.id,{working_with_team_ids:"TEAM1,TEAM2"});
+ assert.equal(teams.working_with_team_ids,"TEAM1,TEAM2");
+ assert.equal(teams.working_with,"Presales");
+ assert.equal(saved().working_with_id,"TEAM1");
+ assert.equal(ev().filter(e=>e.event_type==="working_with_change").length,1);
+ assert.equal(ev().find(e=>e.event_type==="working_with_change").field_name,"working_with_teams");
+ const support=x.call("AE1","PUT","entities/Opportunity/"+created.id,{
+   support_needed:true,support_type:"Pricing",support_note:"Need approval"
+ });
+ assert.equal(support.support_needed,true);
+ assert.equal(support.support_type,"Pricing");
+ assert.equal(support.support_note,"Need approval");
+ assert.equal(saved().support_type_id,"SUP1");
+ assert.equal(ev().filter(e=>e.event_type==="support_on").length,1);
+ const removed=x.call("AE1","PUT","entities/Opportunity/"+created.id,{support_needed:false});
+ assert.equal(removed.support_needed,false);
+ assert.equal(removed.support_type||"","");
+ assert.equal(removed.support_note||"","");
+ assert.equal(ev().filter(e=>e.event_type==="support_off").length,1);
+ const won=x.call("AE1","PUT","entities/Opportunity/"+created.id,{status:"won"});
+ assert.equal(won.status,"won");
+ assert.equal(won.won_by,"AE1");
+ assert.equal(saved().won_by_user_id,"AE1");
+ assert.ok(won.won_at);
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/"+created.id,{stage_id:"S1"}),e=>e.status===409);
+ const reopened=x.call("ADMIN","PUT","entities/Opportunity/"+created.id,{
+   status:"open",audit_remark:"Approved reopen for UAT"
+ });
+ assert.equal(reopened.status,"open");
+ assert.equal(reopened.won_at||"","");
+ assert.equal(reopened.won_by||"","");
+ assert.ok(ev().some(e=>e.event_type==="status_change" && e.remark==="Approved reopen for UAT"));
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/"+created.id,{
+   status:"lost",lost_reason_id:"INVALID"
+ }),e=>e.status===400);
+ assert.equal(get().status,"open","Failed Lost must preserve Open");
+ const lost=x.call("AE1","PUT","entities/Opportunity/"+created.id,{
+   status:"lost",lost_reason_id:"LR1",lost_note:"Price"
+ });
+ assert.equal(lost.status,"lost");
+ assert.equal(lost.lost_reason_id,"LR1");
+ assert.equal(lost.lost_by,"AE1");
+ assert.ok(lost.lost_at);
+ assert.equal(get().lost_reason_id,"LR1");
+ assert.equal(ev().filter(e=>e.event_type==="won").length,1);
+ assert.equal(ev().filter(e=>e.event_type==="lost").length,1);
+ assert.equal(rows.filter(r=>r.opportunity_id===created.id).length,1);
+ assert.equal(new Set(ev().map(e=>e.event_id)).size,ev().length);
+ assert.ok(ev().every(e=>e.actor_user_id));
+ assert.ok(ev().every(e=>e.event_at));
+});

@@ -414,6 +414,11 @@ export function createCore({ contract, store, now, uuid }) {
     const snapshots = buildSnapshotRows(source, snapshotPeriod, stamp, () => "SNP-" + uuid(), snapshotUsers);
     if (!snapshots.length) throw new HttpError(409, "No eligible Pipelines; existing snapshot period was preserved");
     const table = tableOf(b);
+    // A duplicate manual capture is an expected business conflict, not a
+    // server crash; return 409 before any sheet or audit mutation.
+    if (table.rows.some((r) => String(r.snapshot_period) === snapshotPeriod)) {
+      throw new HttpError(409, "Snapshot period already captured; history is immutable");
+    }
     const replacement = replaceSnapshotPeriod(table.rows, snapshotPeriod, snapshots);
     // Validate and build the entire new state before touching the underlying sheet.
     table.rows = replacement;
@@ -1141,9 +1146,15 @@ export function createCore({ contract, store, now, uuid }) {
       }
       const row = findRow(b, actor, id);
       if (uiEntity === "Opportunity") {
+        // The empty string is still an explicit revision token for a legacy
+        // row whose stored updated_at was blank. Compare-and-set below blocks
+        // stale callers; null/omitted revisions remain forbidden.
         if (typeof expectedUpdatedAt !== "string") {
           throw new HttpError(428, "Pipeline revision is required. Refresh before saving.");
         }
+        // A known historical import can carry a blank first revision.
+        // The explicit empty token is compared to the current blank cell;
+        // after the first successful edit it becomes a server timestamp.
         if (String(expectedUpdatedAt) !== String(row.updated_at || "")) {
           throw new HttpError(409, "This Pipeline was updated by someone else. Refresh it before saving.");
         }

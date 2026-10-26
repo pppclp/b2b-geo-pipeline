@@ -3,6 +3,7 @@
 // the same shape the pages used with the Base44 SDK.
 
 const API_BASE = import.meta.env.VITE_GEO_API_URL || "/api";
+const BACKEND_URL_MISSING = import.meta.env.PROD && !import.meta.env.VITE_GEO_API_URL;
 const SESSION_KEY = "geo_session_token";
 const SESSION_EXPIRED_EVENT = "geo-session-expired";
 export const onSessionExpired = (listener) => {
@@ -63,6 +64,14 @@ async function appsScript(method, payload) {
 }
 
 async function request(method, path, { query, body } = {}) {
+  // Vite bakes the API URL at build time. A Cloudflare Pages build with no
+  // VITE_GEO_API_URL must never fall back to a fake /api and report a valid
+  // password as invalid. Local dev retains the /api proxy.
+  if (BACKEND_URL_MISSING) {
+    throw Object.assign(new Error("This site was deployed without a backend API URL. Ask the UAT operator to set VITE_GEO_API_URL and redeploy Cloudflare Pages."), {
+      status: 503, code: "BACKEND_NOT_CONFIGURED",
+    });
+  }
   const q = Object.fromEntries(
     Object.entries(query || {})
       .filter(([, v]) => v != null)

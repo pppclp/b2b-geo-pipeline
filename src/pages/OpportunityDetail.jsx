@@ -158,7 +158,7 @@ export default function OpportunityDetail() {
           <DetailSection number="03" title="Pipeline Information">
             <Field label="Current Stage" value={stage?.name} />
             <Field label="Expected Close Month" value={formatMonth(op.expected_close_month)} />
-            <Field label="Stage Entered" value={`${formatDate(op.stage_entered_at)} · ${stageAging} days`} />
+            <Field label="Stage Entered" value={op.stage_entered_at ? `${formatDate(op.stage_entered_at)} · ${stageAging} days` : "Unknown (historical import)"} />
             <Field label="Created" value={`${formatDate(op.created_date)} · ${maps.member[op.created_by_user_id]?.name || "—"}`} />
             <Field label="Scenario" value={scenario?.name || "Pending SM Review"} />
             <Field label="CCP+ Check" value={{
@@ -170,7 +170,7 @@ export default function OpportunityDetail() {
 
           <DetailSection number="04" title="Ownership & Support">
             <Field label="Current Handler" value={handler ? `${handler.name} · ${(handler.app_role || "").toUpperCase()}` : op.current_handler_id} />
-            <Field label="Handler Since" value={`${formatDate(op.handler_since)} · ${handlerAging} days`} />
+            <Field label="Handler Since" value={op.handler_since ? `${formatDate(op.handler_since)} · ${handlerAging} days` : "Unknown (historical import)"} />
             <Field label="Region" value={region?.name} />
             <Field label="Territory" value={territory?.name || "Not assigned"} />
             {originalOwner && originalOwner.id !== op.owner_id && <Field label="Original Owner" value={originalOwner.name} />}

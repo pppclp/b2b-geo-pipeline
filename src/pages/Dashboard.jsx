@@ -98,9 +98,14 @@ export default function Dashboard() {
     : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
   const queueItems = queue.slice().sort((a, b) => {
     const agingKey = selectedTab === "with" ? "handler_since" : "stage_entered_at";
-    const aTime = new Date(a[agingKey] || a.stage_entered_at || 0).getTime();
-    const bTime = new Date(b[agingKey] || b.stage_entered_at || 0).getTime();
-    return aTime - bTime;
+    // Never rank an unknown timestamp as 1970 (oldest); handler aging
+    // must not quietly fall back to the unrelated stage clock.
+    const timeOf = (row) => {
+      const ts = row[agingKey] ? Date.parse(row[agingKey]) : NaN;
+      return Number.isFinite(ts) ? ts : Infinity;
+    };
+    const aTime = timeOf(a), bTime = timeOf(b);
+    return aTime === bTime ? String(a.id || "").localeCompare(String(b.id || "")) : aTime - bTime;
   }).slice(0, 8);
   const closeValue = sumValue(won) + sumValue(open);
 

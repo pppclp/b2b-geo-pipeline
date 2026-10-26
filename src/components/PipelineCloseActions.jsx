@@ -23,7 +23,7 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
 
   const allowed = op.status === "open" && (
     profile?.app_role === "admin" ||
-    profile?.app_role === "sm" ||
+    profile?.app_role === "sm" || profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
   );
   const lostReasons = (master?.LostReason || []).filter((reason) => reason.active)
