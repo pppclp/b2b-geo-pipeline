@@ -30,3 +30,28 @@ export function unpackEntityBatch(entities, replies) {
     throw new Error(`Cannot load ${entity} (${status}, ${reason}). Check Apps Script deployment and sheet schema.`);
   });
 }
+
+
+/**
+ * Initial screen data shares one authenticated read-only Core batch.
+ * This avoids a second Apps Script lock acquisition for Tasks while retaining
+ * the existing per-entity permission checks and the fail-closed loading UI.
+ */
+export async function fetchStartupData(entities, fetchBatch) {
+  const requests = entities.map((entity) => ({
+    path: `entities/${entity}`, query: { sort: "-created_date" },
+  }));
+  requests.push({ path: "tasks" });
+  const replies = await fetchBatch(requests);
+  if (!Array.isArray(replies) || replies.length !== requests.length) {
+    throw new Error("Data synchronization failed: incomplete backend batch response");
+  }
+  const records = unpackEntityBatch(entities, replies.slice(0, entities.length));
+  const taskReply = replies[entities.length];
+  if (taskReply?.status !== 200 || !Array.isArray(taskReply.body?.items)) {
+    const status = taskReply?.status ?? "invalid";
+    const code = typeof taskReply?.body?.code === "string" ? taskReply.body.code : "DATA_SOURCE_ERROR";
+    throw new Error(`Cannot load Tasks (${status}, ${code}). Check Apps Script deployment and task configuration.`);
+  }
+  return { records, taskEntries: taskReply.body.items };
+}
