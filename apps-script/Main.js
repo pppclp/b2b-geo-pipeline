@@ -106,23 +106,33 @@ function uatLogin_(store, body) {
   }
 
   var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
-  var user = users.find(function (row) {
+  var matchingUsers = users.filter(function (row) {
     return normalizeEmployeeId_(row.employee_id) === username;
   });
 
-  if (!user || String(user.status || "Active").toLowerCase() !== "active") {
+  // A duplicated Employee ID must never select whichever account happens to
+  // appear first: that could issue a signed session for a different user/role.
+  if (matchingUsers.length !== 1 ||
+      String(matchingUsers[0].status || "Active").toLowerCase() !== "active") {
     denyUatLogin_(limiter, key);
   }
+  var user = matchingUsers[0];
 
   var credentials = store
     .table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials")
     .rows;
 
-  var credential = credentials.find(function (row) {
+  var matchingCredentials = credentials.filter(function (row) {
     return normalizeEmployeeId_(row["employee_id / username"]) === username;
   });
 
-  if (!credential || !verifyUatPassword_(credential, password)) {
+  // Fail closed on ambiguous or inconsistent identity bindings. An empty
+  // credential user_id remains supported for legacy UAT rows; populated IDs
+  // must agree with the authenticated Users row.
+  if (matchingCredentials.length !== 1 ||
+      (String(matchingCredentials[0].user_id || "").trim() &&
+       String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
+      !verifyUatPassword_(matchingCredentials[0], password)) {
     denyUatLogin_(limiter, key);
   }
   if (key) limiter.remove(key);
@@ -224,13 +234,18 @@ function debugUatLoginReadiness() {
     var store = new SheetStore_();
     var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
     var credentials = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
-    var credentialIndex = {};
+    var credentialIndex = Object.create(null);
+    var userEmployeeCounts = Object.create(null);
     var duplicates = 0;
     credentials.forEach(function (row) {
       var id = normalizeEmployeeId_(row["employee_id / username"]);
       if (!id) return;
       if (Object.prototype.hasOwnProperty.call(credentialIndex, id)) duplicates++;
       credentialIndex[id] = row;
+    });
+    users.forEach(function (user) {
+      var id = normalizeEmployeeId_(user.employee_id);
+      if (id) userEmployeeCounts[id] = (userEmployeeCounts[id] || 0) + 1;
     });
     var result = {
       active_users: 0,
@@ -239,6 +254,10 @@ function debugUatLoginReadiness() {
       missing_credential_record: 0,
       missing_password: 0,
       duplicate_credential_ids: duplicates,
+      duplicate_user_employee_ids: Object.keys(userEmployeeCounts).filter(function (id) {
+        return userEmployeeCounts[id] > 1;
+      }).length,
+      credential_user_id_mismatch: 0,
       by_role: {}
     };
     users.forEach(function (user) {
@@ -258,6 +277,13 @@ function debugUatLoginReadiness() {
       var credential = credentialIndex[id];
       if (!credential) {
         result.missing_credential_record++;
+        item.blocked++;
+        return;
+      }
+      if (userEmployeeCounts[id] !== 1 ||
+          (String(credential.user_id || "").trim() &&
+           String(credential.user_id).trim() !== String(user.user_id || "").trim())) {
+        result.credential_user_id_mismatch++;
         item.blocked++;
         return;
       }
