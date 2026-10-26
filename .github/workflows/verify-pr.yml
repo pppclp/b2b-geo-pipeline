@@ -23,3 +23,18 @@ jobs:
         run: npm run build
       - name: Net RC and Quick Action tests
         run: node --test tests/*.test.mjs
+      - name: Verify project-path GitHub Pages build and deep links
+        env:
+          VITE_BASE_PATH: /b2b-geo-pipeline/
+          VITE_GEO_API_URL: https://script.google.com/macros/s/CI_PLACEHOLDER_NOT_DEPLOYED/exec
+        run: |
+          npm run build
+          node scripts/check-static-build.mjs --base /b2b-geo-pipeline/
+      - name: Verify root-path static host build and deep links
+        env:
+          VITE_BASE_PATH: /
+          VITE_GEO_API_URL: https://script.google.com/macros/s/CI_PLACEHOLDER_NOT_DEPLOYED/exec
+        run: |
+          npm run build
+          node scripts/check-static-build.mjs --base /
+

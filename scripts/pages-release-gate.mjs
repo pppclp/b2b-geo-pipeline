@@ -44,24 +44,46 @@ function notice(message) {
 function git(args) {
   return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
-async function lastSuccessfulDeployment() {
-  const repo = process.env.GITHUB_REPOSITORY || "";
-  const token = process.env.GITHUB_TOKEN || "";
+// A successful workflow does NOT imply successful deployment: a preflight-only
+// run also concludes "success" when build/deploy jobs were skipped.
+// The pinned UI recovery workflow is a separate publisher whose checkout SHA
+// intentionally differs from the trigger SHA. Never mistake it for main.
+export async function latestVerifiedPagesSource({ repo = process.env.GITHUB_REPOSITORY,
+  token = process.env.GITHUB_TOKEN, fetchImpl = fetch } = {}) {
   if (!repo || !token) throw Error("GitHub token/repository missing: cannot verify previously published version");
-  const url = "https://api.github.com/repos/" + repo +
-    "/actions/workflows/deploy-pages.yml/runs?branch=main&status=success&per_page=20";
-  const response = await fetch(url, {
-    headers: {
-      Authorization: "Bearer " + token,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!response.ok) throw Error("Cannot fetch GitHub Pages release history: HTTP " + response.status);
-  const json = await response.json();
-  const previous = (json.workflow_runs || []).find((run) => run.conclusion === "success" && run.head_sha);
-  return previous?.head_sha || null;
+  const prefix = "https://api.github.com/repos/" + repo + "/actions/";
+  const headers = {
+    Authorization: "Bearer " + token,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  async function getJson(path) {
+    const response = await fetchImpl(prefix + path, {
+      headers, signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw Error("Cannot verify GitHub Pages deployment history: HTTP " + response.status);
+    return response.json();
+  }
+  const workflows = ["deploy-pages.yml", "recover-approved-ui.yml"];
+  const pages = await Promise.all(workflows.map(async (workflow) => {
+    const result = await getJson("workflows/" + workflow + "/runs?branch=main&status=success&per_page=20");
+    if (!Array.isArray(result.workflow_runs)) throw Error("Malformed Pages workflow history");
+    return result.workflow_runs.map((run) => ({ ...run, workflow }));
+  }));
+  const candidates = pages.flat()
+    .filter((run) => run.conclusion === "success" && run.id && run.head_sha && run.created_at)
+    .sort((a,b) => Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at));
+  for (const run of candidates) {
+    const jobs = await getJson("runs/" + run.id + "/jobs?per_page=100");
+    if (!Array.isArray(jobs.jobs)) throw Error("Malformed Pages job history");
+    const published = jobs.jobs.some((job) => job.name === "deploy" && job.conclusion === "success");
+    if (!published) continue;
+    if (run.workflow === "recover-approved-ui.yml") {
+      return { sha: null, reason: "pinned-recovery" };
+    }
+    return { sha: run.head_sha, reason: "verified-pages-deploy" };
+  }
+  return { sha: null, reason: "no-confirmed-deploy" };
 }
 
 export async function main() {
@@ -74,15 +96,19 @@ export async function main() {
     return;
   }
 
-  let previous;
+  let deployment;
   try {
-    previous = await lastSuccessfulDeployment();
+    deployment = await latestVerifiedPagesSource();
   } catch (error) {
     notice(error.message + ". Release skipped; use verified manual dispatch.");
     return;
   }
+  const previous = deployment.sha;
   if (!previous) {
-    notice("No successful Pages baseline. Release skipped; verify backend and run one manual UAT deployment.");
+    const reason = deployment.reason === "pinned-recovery"
+      ? "Last confirmed Pages publish used a pinned recovery checkout, not the workflow trigger SHA"
+      : "No successful Pages deploy job found";
+    notice(reason + ". Automatic release skipped; verify backend and run one manual UAT deployment.");
     return;
   }
 
