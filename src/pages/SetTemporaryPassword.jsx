@@ -20,8 +20,8 @@ export default function SetTemporaryPassword() {
   async function submit(event) {
     event.preventDefault();
     if (busy) return;
-    if (newPassword.length < 15 || newPassword.length > 128) {
-      setError("Use a unique password of 15–128 characters."); return;
+    if (newPassword.length < 10 || newPassword.length > 128) {
+      setError("Use a unique password of 10–128 characters."); return;
     }
     if (newPassword !== confirm) {
       setError("Passwords do not match."); return;
@@ -60,16 +60,16 @@ export default function SetTemporaryPassword() {
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4">
-          <p className="text-sm text-muted-foreground">Your temporary password was verified. Create a unique password of 15–128 characters. This step expires after 10 minutes.</p>
+          <p className="text-sm text-muted-foreground">Your temporary password was verified. Create a unique password of 10–128 characters. This step expires after 10 minutes.</p>
           <div className="space-y-1">
             <label htmlFor="setup-new-password" className="text-sm font-medium">New Password</label>
-            <input id="setup-new-password" type="password" autoComplete="new-password" required minLength={15} maxLength={128}
+            <input id="setup-new-password" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
               value={newPassword} onChange={e => setNewPassword(e.target.value)}
               className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" />
           </div>
           <div className="space-y-1">
             <label htmlFor="setup-confirm-password" className="text-sm font-medium">Confirm Password</label>
-            <input id="setup-confirm-password" type="password" autoComplete="new-password" required minLength={15} maxLength={128}
+            <input id="setup-confirm-password" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
               value={confirm} onChange={e => setConfirm(e.target.value)}
               className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" />
           </div>
