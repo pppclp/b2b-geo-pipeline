@@ -66,7 +66,7 @@ function harness(){
 }
 const db=(h,s)=>h.table["B2B_GEO_Pipeline_DB.xlsx|"+s].rows;
 
-test("imports accept omitted contacts and Industrial, but reject a truncated Business ID",()=>{
+test("creates accept omitted contacts, Industrial and short Business ID but reject malformed identifiers",()=>{
  const h=harness(),base={
   customer_name:"De-identified factory",business_id:"0000000000123",customer_type:"Industrial",
   sales_channel:"AE Self",quantity:2,price_per_sub:300,
@@ -77,9 +77,11 @@ test("imports accept omitted contacts and Industrial, but reject a truncated Bus
  assert.equal(created.customer_type,"Industrial");
  assert.equal(created.contact_name || "","");
  assert.equal(created.contact_phone || "","");
+ const short=h.call("ADMIN","POST","entities/Opportunity",{...base,business_id:"123456789012"});
+ assert.equal(short.business_id,"123456789012");
  const prior=h.table["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length;
- assert.throws(()=>h.call("ADMIN","POST","entities/Opportunity",{...base,business_id:"123456789012"}),
-   e=>e.status===400&&/13 digits/.test(e.message));
+ assert.throws(()=>h.call("ADMIN","POST","entities/Opportunity",{...base,business_id:"123-456"}),
+   e=>e.status===400&&/digits only/.test(e.message));
  assert.equal(h.table["B2B_GEO_Pipeline_DB.xlsx|Pipeline_Events"].rows.length,prior);
 });
 test("successful handoff creates recipient-only unread notification; repeat read idempotent",()=>{
