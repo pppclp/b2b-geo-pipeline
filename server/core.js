@@ -931,7 +931,18 @@ export function createCore({ contract, store, now, uuid }) {
       if (t && t.region_id !== next.region_id) throw new HttpError(400, "Territory does not belong to the selected Region");
     }
     const regionChanged = changed("region_id");
-    if (!filled("region_id")) throw new HttpError(400, "Region is required");
+    if (!filled("region_id")) {
+      // The historical import contract explicitly preserves unknown Regions.
+      // Such a record can be edited/closed within its existing access scope,
+      // but nobody may reassign Owner or Handler until a real Region is set.
+      // New Pipelines and attempts to clear a known Region still fail closed.
+      const unchangedImportedRegion = !!prev &&
+        !!String(next.import_batch_id || "").trim() &&
+        !filledPrev(prev, "region_id") && !regionChanged &&
+        !changed("owner_user_id") && !changed("current_handler_user_id");
+      if (!unchangedImportedRegion) throw new HttpError(400,
+        "Region is required before assigning an Owner or Handler");
+    }
     if (changed("owner_user_id") || regionChanged) {
       const owner = findUser(next.owner_user_id);
       if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
