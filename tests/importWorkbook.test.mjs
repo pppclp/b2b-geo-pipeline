@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
+import fs from "node:fs";
 import {parseImportXlsx, readImportFile, parseImportCreatedMonth,parseImportSourceDate} from "../src/lib/importWorkbook.js";
 
 async function makeWorkbook(rows) {
@@ -104,4 +105,24 @@ test("historical calendar dates require an unambiguous real day",()=>{
     "2026-07-01T00:00:00Z","29-Feb-25"]){
     assert.equal(parseImportSourceDate(bad),null,bad);
   }
+});
+
+test("CSV import rejects corrupted UTF-8 text and accepts UTF-8 BOM",async()=>{
+  const parse=(text)=>text.split("\\n").map(line=>line.split(","));
+  const csv=(text)=>({name:"legacy.csv",size:text.length,text:async()=>text});
+  await assert.rejects(readImportFile(csv("Customer Name\\n\\uFFFD"),parse),/encoding is invalid/);
+  await assert.rejects(readImportFile(csv("Customer Name\\nA\\u0000B"),parse),/encoding is invalid/);
+  const result=await readImportFile(csv("\\uFEFFCustomer Name,Business ID\\nบริษัททดสอบ,001234"),parse);
+  assert.deepEqual(result.headers,["Customer Name","Business ID"]);
+  assert.deepEqual(result.rows,[["บริษัททดสอบ","001234"]]);
+});
+test("Import route catches rendering errors and upload shows bounded progress",()=>{
+  const app=fs.readFileSync(new URL("../src/App.jsx",import.meta.url),"utf8");
+  const page=fs.readFileSync(new URL("../src/pages/Import.jsx",import.meta.url),"utf8");
+  const boundary=fs.readFileSync(new URL("../src/components/ImportErrorBoundary.jsx",import.meta.url),"utf8");
+  assert.ok(app.includes("<ImportErrorBoundary><Suspense"));
+  assert.ok(page.includes('setReadingFile(true)'));
+  assert.ok(page.includes('setReadingFile(false)'));
+  assert.ok(page.includes('Reading file…'));
+  assert.ok(boundary.includes('Import preview could not be displayed'));
 });
