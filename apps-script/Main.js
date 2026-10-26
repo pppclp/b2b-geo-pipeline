@@ -91,6 +91,23 @@ function handle_(req) {
     // Never accept the userId claimed by the browser as proof of identity.
     req.userId = verifyUatSession_(req.sessionToken);
     delete req.sessionToken;
+    // Pre-migration sessions must not bypass mandatory personal password setup.
+    if (uatTemporarySetupEnabled_()) {
+      var currentUsers = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
+        return String(u.user_id || "").trim() === req.userId;
+      });
+      var currentCreds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows.filter(function (c) {
+        return String(c.user_id || "").trim() === req.userId;
+      });
+      if (currentUsers.length !== 1 ||
+          String(currentUsers[0].status || "").toLowerCase() !== "active" ||
+          currentCreds.length !== 1 ||
+          String(currentCreds[0].credential_status || "") !== "active" ||
+          !String(currentCreds[0].password_set_at || "").trim() ||
+          !String(currentCreds[0].password_hash || "").trim()) {
+        throwUatError_(401, "Password setup required. Sign in with your temporary password.");
+      }
+    }
 
     var core = GeoCoreLib.createCore({
       contract: GEO_CONTRACT,
