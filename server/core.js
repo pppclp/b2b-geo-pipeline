@@ -15,6 +15,7 @@ import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
 import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } from "./opportunityPolicy.js";
+import { pipelineTaskViews, validDays } from "../src/lib/taskOverdue.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -347,20 +348,21 @@ export function createCore({ contract, store, now, uuid }) {
     return [
       { id: "aging_threshold_days", key: "aging_threshold_days", value: String(aging?.threshold_days ?? 14), read_only: true },
       { id: "internal_task_sla_days", key: "internal_task_sla_days", value: String(aging?.internal_task_sla_days ?? "") },
+      { id: "stage_watch_days", key: "stage_watch_days", value: String(aging?.stage_watch_days ?? 7) },
       ...Object.entries(CONFIG_DEFAULTS).map(([key, value]) => ({ id: key, key, value, read_only: true })),
     ];
   }
   function appConfigSet(actor, key, value) {
     const b = bindings.pipeline_settings;
     need(actor, b, "update");
-    if (key !== "internal_task_sla_days") throw new HttpError(400, `${key} is not editable (legacy threshold is read-only)`);
+    if (!["internal_task_sla_days","stage_watch_days"].includes(key)) throw new HttpError(400, `${key} is not editable`);
     const row = agingRow();
     if (!row) throw new HttpError(404, "Aging_Settings has no rows");
-    if (value !== "" && value != null && (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 365)) {
-      throw new HttpError(400, "Internal SLA must be 1-365 days or blank");
+    if ((key === "stage_watch_days" || (value !== "" && value != null)) && validDays(value) === null) {
+      throw new HttpError(400, `${key} must be 1-365 calendar days`);
     }
     const before = { ...row };
-    row.internal_task_sla_days = value === "" || value == null ? "" : Number(value);
+    row[key] = key === "internal_task_sla_days" && (value === "" || value == null) ? "" : Number(value);
     // Existing Aging_Settings is a master workbook; Audit stays in Admin_Audit.
     outputs.logMaster("UPDATED", b, row[b.primary_key], before, row, actor);
     touch(b);
@@ -577,6 +579,67 @@ export function createCore({ contract, store, now, uuid }) {
       }
       throw error;
     }
+  }
+
+  // Scenario Tasks are templates; Pipeline_Tasks holds actual progress. Both
+  // are owned by these routes, never by the generic source-sheet editor.
+  function taskRows(actor, opportunityId) {
+    const opportunityBinding = binding("Opportunity");
+    need(actor, opportunityBinding, "read");
+    const allowed = scopedFilter(opportunityBinding, actor);
+    let opportunities = tableOf(opportunityBinding).rows.filter(allowed);
+    if (opportunityId) {
+      opportunities = opportunities.filter(o => o.opportunity_id === opportunityId);
+      if (!opportunities.length) throw new HttpError(404, "Pipeline not found or outside access scope");
+    }
+    const templates = rows("scenario_tasks");
+    const instances = rows("pipeline_tasks");
+    return opportunities.flatMap(o => pipelineTaskViews(o, templates, instances, now()));
+  }
+  function saveTaskProgress(actor, opportunityId, taskId, input = {}) {
+    const opportunityBinding = binding("Opportunity");
+    need(actor, opportunityBinding, "update");
+    const opportunity = tableOf(opportunityBinding).rows.find(o => o.opportunity_id === opportunityId);
+    if (!opportunity || !scopedFilter(opportunityBinding, actor)(opportunity))
+      throw new HttpError(404, "Pipeline not found or outside access scope");
+    if (String(opportunity.status).toLowerCase() !== "open")
+      throw new HttpError(409, "Only Open Pipelines may update tasks");
+    const item = taskRows(actor, opportunityId).find(t => t.task_id === taskId);
+    if (!item) throw new HttpError(404, "Task is not configured for this Scenario and Stage");
+    const status = String(input.status || "");
+    if (!["in_progress","done"].includes(status)) throw new HttpError(400, "Invalid task status");
+    if (item.status === "done") throw new HttpError(409, "Completed Task is locked");
+    if (status === item.status) return item;
+    if (status === "done" && item.status === "not_started" && item.start_policy === "after_previous")
+      throw new HttpError(409, "Previous task must be completed before this task starts");
+    if (typeof input.expected_updated_at !== "string" || input.expected_updated_at !== item.updated_at)
+      throw new HttpError(409, "Task changed; refresh before saving");
+    const binding = bindings.pipeline_tasks;
+    if (!binding) throw new HttpError(503, "Pipeline_Tasks is not configured");
+    const table = tableOf(binding);
+    const stamp = now();
+    let record = table.rows.find(r => r.opportunity_id === opportunityId &&
+      r.task_id === taskId && r.stage_entered_at === item.stage_entered_at &&
+      r.scenario_id === item.scenario_id && r.stage_id === item.stage_id);
+    if (!record) {
+      record = { task_instance_id:"TSK-" + uuid(), opportunity_id:opportunityId,
+        task_id:taskId, scenario_id:item.scenario_id, stage_id:item.stage_id,
+        stage_entered_at:item.stage_entered_at, status:"not_started",
+        started_at:"", completed_at:"", updated_at:"", updated_by_user_id:"", note:"" };
+      table.rows.push(record);
+    }
+    record.started_at = item.started_at || stamp;
+    record.status = status;
+    record.completed_at = status === "done" ? stamp : "";
+    record.updated_at = stamp;
+    record.updated_by_user_id = actor.real.id;
+    touch(binding);
+    appendAudit(opportunityId, [{
+      event_type: status === "done" ? "TASK_COMPLETED" : "TASK_STARTED",
+      field_name: "task_id", previous_value: item.status,
+      new_value: status, remark: taskId,
+    }], actor, stamp);
+    return taskRows(actor, opportunityId).find(t => t.task_id === taskId);
   }
 
   // All notification/support APIs use the signed actor from the server.
@@ -1316,6 +1379,12 @@ export function createCore({ contract, store, now, uuid }) {
       return { role: actor.role, scope: scopeForRole(actor.role), allowed };
     }
 
+    if (parts[0] === "tasks") {
+      if (method === "GET" && parts.length <= 2) return { items: taskRows(actor, parts[1] || "") };
+      if (method === "POST" && parts.length === 3)
+        return saveTaskProgress(actor, parts[1], parts[2], req.body || {});
+      throw new HttpError(405, "Invalid Task operation");
+    }
     if (parts[0] === "notifications") {
       if (method === "GET" && parts.length === 1) return listNotifications(actor);
       if (method === "POST" && parts[2] === "read" && parts.length === 3)
