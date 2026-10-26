@@ -4,7 +4,8 @@ import { db } from "@/api/client";
 import { mapImportHeaders, needsExplicitCreatedMonthMapping } from "@/lib/importHeaderMapping";
 import { readImportFile, parseImportCreatedMonth, parseImportSourceDate } from "@/lib/importWorkbook";
 import { calculateNetRc } from "@/lib/netRc";
-import { businessIdError, normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
+import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType, legacyProductCategory, legacySourceMonth, legacyBusinessId, legacySourceDocumentId, legacyRowSourceId } from "@/lib/legacyImport";
+import { normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -17,14 +18,16 @@ const FIELDS = [
   { key: "source_closed_at", label: "Original Closed Date" },
   { key: "source_system", label: "Source System" },
   { key: "source_record_id", label: "Source Opportunity ID" },
+  { key: "source_sales_code", label: "Sales Code" },
   { key: "customer_name", label: "Customer Name", required: true },
-  { key: "business_id", label: "Business ID", required: true },
+  { key: "business_id", label: "Business ID" },
   { key: "customer_type", label: "Customer Type", required: true },
   { key: "sales_channel", label: "Sales Channel", required: true },
   { key: "partner_name", label: "Partner Name" },
   { key: "contact_name", label: "Contact Name" },
   { key: "contact_phone", label: "Contact Phone" },
   { key: "remark", label: "Remark" },
+  { key: "customer_location_text", label: "Customer Location / Province" },
   { key: "region", label: "Region", required: true, resolve: "region" },
   { key: "territory", label: "Territory", resolve: "territory" },
   { key: "owner", label: "Opportunity Owner", required: true, resolve: "member" },
@@ -36,11 +39,11 @@ const FIELDS = [
   { key: "source_discount_pct", label: "Source Discount %" },
   { key: "source_monthly_sale_plan", label: "Source Monthly Sale Plan" },
   { key: "quantity", label: "Number of Subs", required: true, type: "number" },
-  { key: "price_per_sub", label: "Price per Sub", required: true, type: "number" },
+  { key: "price_per_sub", label: "Price per Sub", type: "number" },
   { key: "oc", label: "OC", type: "number" },
   { key: "reference_net_rc", label: "Reference Net RC" },
   { key: "contract_period", label: "Contract Period", type: "number" },
-  { key: "expected_close_month", label: "Expected Close Month", required: true },
+  { key: "expected_close_month", label: "Expected Close Month" },
   { key: "scenario", label: "Scenario", resolve: "scenario" },
   { key: "ccp_check_result", label: "CCP+ Check" },
   { key: "stage", label: "Stage", resolve: "stage" },
@@ -73,7 +76,7 @@ function parseCSV(text) {
 }
 
 export default function Import() {
-  const { master, activeStages, refresh, profile } = useData();
+  const { master, refresh, profile } = useData();
   const [step, setStep] = useState("upload"); // upload | map | preview | done
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
@@ -83,6 +86,8 @@ export default function Import() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const [importBatchId, setImportBatchId] = useState("");
+  const [documentId, setDocumentId] = useState("");
+  const [rcInterpretation, setRcInterpretation] = useState("unknown");
   const fileRef = useRef();
   const [customerTypes, setCustomerTypes] = useState([...CUSTOMER_TYPES]);
   const [customerTypesError, setCustomerTypesError] = useState("");
@@ -126,6 +131,9 @@ export default function Import() {
       return;
     }
     const hdrs = parsed.headers;
+    try { setDocumentId(await legacySourceDocumentId(hdrs, parsed.rows)); }
+    catch { setImportError("Cannot fingerprint workbook. Import blocked."); return; }
+    setRcInterpretation("unknown");
     setHeaders(hdrs);
     setRows(parsed.rows);
     setRowNumbers(parsed.rowNumbers || parsed.rows.map((_, i) => i + 2));
@@ -169,10 +177,38 @@ export default function Import() {
             const parsed = parseImportCreatedMonth(val);
             if (!parsed) errors.push(`Create Month "${val}" must be a valid YYYY-MM or unambiguous date (e.g. 1-Jul-26)`);
             else rec.source_created_month = parsed;
+            if (mapping.source_created_at == null) {
+              const fullDate = parseImportSourceDate(val);
+              if (fullDate) rec.source_created_at = fullDate;
+            }
           }
           return;
         }
         if (!val) return;
+        if (f.key === "business_id") {
+          const id = legacyBusinessId(val);
+          if (id === null) errors.push("Legacy Business ID must have 1-40 digits, without guessing zeroes");
+          else rec.business_id = id;
+          return;
+        }
+        if (f.key === "source_monthly_sale_plan") {
+          const month = legacySourceMonth(val);
+          if (!month) errors.push("Monthly Sale Plan must be YYYY-MM or Oct-26 (not Expected Close)");
+          else rec.source_monthly_sale_plan = month;
+          return;
+        }
+        if (f.key === "source_rc" || f.key === "reference_net_rc") {
+          const amount = legacyNumber(val);
+          if (amount === null || amount < 0) errors.push(f.label + " must be a non-negative amount");
+          else rec[f.key] = String(amount);
+          return;
+        }
+        if (f.key === "contract_period") {
+          const months = legacyContractMonths(val);
+          if (months === null) errors.push("Contract Period must be 1-120 months, e.g. 12 month");
+          else rec.contract_period = months;
+          return;
+        }
         if (["source_created_at", "source_stage_entered_at", "source_closed_at"].includes(f.key)) {
           const date = parseImportSourceDate(val);
           if (!date) errors.push(`${f.label} must be an unambiguous real date (YYYY-MM-DD or 1-Jul-26)`);
@@ -186,7 +222,8 @@ export default function Import() {
           return;
         }
         if (f.resolve) {
-          const ent = resolve[f.resolve][val.toLowerCase()];
+          const key = f.resolve === "stage" ? legacyStageName(val) : f.resolve === "category" ? legacyProductCategory(val) : val;
+          const ent = resolve[f.resolve]?.[key.toLowerCase()];
           if (!ent) {
             errors.push(`${f.label} "${val}" not found or ambiguous`);
             return;
@@ -199,12 +236,14 @@ export default function Import() {
           else if (f.resolve === "stage") rec.stage_id = ent.id;
           else if (f.resolve === "reason") rec.lost_reason_id = ent.id;
         } else if (f.key === "customer_type") {
-          const canonical = normalizeCustomerType(val) || customerTypes.find((type) => type.toLowerCase() === val.toLowerCase());
+          rec.source_customer_type = val;
+          const normalized = legacyCustomerType(val);
+          const canonical = normalizeCustomerType(normalized) || customerTypes.find((type) => type.toLowerCase() === normalized.toLowerCase());
           if (!canonical) errors.push(`Customer Type "${val}" is not an active or recognized legacy value`);
           else rec.customer_type = canonical;
         } else if (f.type === "number") {
-          const parsed = Number(val);
-          if (!Number.isFinite(parsed)) errors.push(`${f.label} must be a number`);
+          const parsed = legacyNumber(val);
+          if (parsed === null) errors.push(`${f.label} must be a valid number`);
           else rec[f.key] = parsed;
         } else {
           rec[f.key] = val;
@@ -230,10 +269,21 @@ export default function Import() {
         errors.push("Closed Date precedes Created Date");
       if (rec.source_closed_at && rec.source_stage_entered_at && rec.source_closed_at < rec.source_stage_entered_at)
         errors.push("Closed Date precedes Stage Entered Date");
+      if (!rec.source_system) rec.source_system = "Legacy Spreadsheet";
+      if (!rec.source_record_id && documentId) rec.source_record_id = legacyRowSourceId(documentId, rowNumbers[i] || i + 2);
+      if (!rec.source_record_id) errors.push("Source row identity missing");
+      if (mapping.oc != null && rec.oc == null) rec.oc = 0;
+      if (rec.price_per_sub == null && rec.source_rc !== undefined && rec.quantity > 0) {
+        const rc = Number(rec.source_rc);
+        if (rec.quantity === 1 || rcInterpretation === "per_sub") rec.price_per_sub = rc;
+        else if (rcInterpretation === "total") rec.price_per_sub = Math.round((rc / rec.quantity) * 100) / 100;
+        else errors.push("Sub > 1: choose RC interpretation before deriving unit price");
+      }
+      if (rec.price_per_sub == null) errors.push("Price per Sub missing: map unit price or verify RC meaning");
+      if (!rec.stage_id) errors.push("Current Stage is required");
       if (!rec.current_handler_id && rec.owner_id) rec.current_handler_id = rec.owner_id;
-      if (!rec.stage_id && activeStages[0]) rec.stage_id = activeStages[0].id;
       if (rec.support_needed) rec.support_needed = ["yes", "true", "1", "y"].includes(rec.support_needed.toLowerCase());
-      if (rec.business_id && businessIdError(rec.business_id)) errors.push(businessIdError(rec.business_id));
+      if (rec.business_id && legacyBusinessId(rec.business_id) === null) errors.push("Invalid Legacy Business ID");
       const referenceNetRc = rec.reference_net_rc;
       // Keep the reference value for independent backend reconciliation.
       let reconciliation = { checked: false, matches: null };
@@ -250,7 +300,7 @@ export default function Import() {
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, headers, mapping, resolve, step, activeStages, customerTypes, customerTypesError]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
@@ -281,7 +331,7 @@ export default function Import() {
     }
   };
 
-  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setRowNumbers([]); setMapping({}); setResult(null); setImportBatchId(""); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
+  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setRowNumbers([]); setMapping({}); setResult(null); setImportBatchId(""); setDocumentId(""); setRcInterpretation("unknown"); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
 
   return (
     <div className="p-5 md:p-7 max-w-[1000px] mx-auto">
@@ -330,6 +380,18 @@ export default function Import() {
               </div>
             ))}
           </div>
+          {mapping.source_rc != null && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mt-4 space-y-2">
+            <p className="text-sm font-medium text-amber-900">Source RC interpretation (Sub &gt; 1)</p>
+            <p className="text-xs text-amber-800">For a single Sub, either meaning gives the same unit price. Confirm the source definition for multiple Subs; Net RC is reconciled before writing.</p>
+            <Select value={rcInterpretation} onValueChange={setRcInterpretation}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unknown">Not verified — block multi-Sub</SelectItem>
+                <SelectItem value="per_sub">RC is price per Sub</SelectItem>
+                <SelectItem value="total">RC is total monthly amount</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>}
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={reset}>Cancel</Button>
             <Button onClick={() => setStep("preview")}>Validate</Button>

@@ -1094,6 +1094,38 @@ opportunity_entity:
     working_with_user_ids:
       source: "AE / SM input"
       description: "Comma-separated region-authorized user_id values"
+    # Approved legacy-import source evidence; never treated as current workflow state.
+    import_source_system:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+    import_source_record_id:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+      description: "Deterministic source document fingerprint + physical source row"
+    import_source_product_id:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+    import_source_rc:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+    import_source_discount_pct:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+    import_source_monthly_sale_plan:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+      description: "Planning month from legacy report, not expected_close_month unless separately approved"
+    import_source_net_rc:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+    import_source_customer_type:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+      description: "Original Others preserved even after normalization to Other"
+    customer_location_text:
+      source: "TRUSTED HISTORICAL IMPORT"
+      description: "Original Province/area text; never guessed into territory_id"
+
 
   # Historical columns retained only when an existing legacy row already has them.
   # They are intentionally outside field_lineage so newly created Pipeline DB sheets
