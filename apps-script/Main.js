@@ -67,6 +67,16 @@ function handle_(req) {
       return uatLogin_(store, req.body || {});
     }
 
+    // Activation is a purpose-limited UAT flow, never an authenticated app session.
+    // Each request runs under the same script lock as ordinary writes.
+    var authPath = String(req.path || "").replace(/^\\/+/, "");
+    if (req.method === "POST" && authPath === "auth/activation/verify") {
+      return verifyUatActivation_(store, req.body || {});
+    }
+    if (req.method === "POST" && authPath === "auth/activation/complete") {
+      return completeUatActivation_(store, req.body || {});
+    }
+
     // All other requests must present a valid signed session.
     // Never accept the userId claimed by the browser as proof of identity.
     req.userId = verifyUatSession_(req.sessionToken);
@@ -91,7 +101,8 @@ function uatLogin_(store, body) {
   var environment = String(PropertiesService.getScriptProperties().getProperty("GEO_ENVIRONMENT") || "").toUpperCase();
   if (environment === "PRODUCTION" || environment === "PROD")
     throwUatError_(503, "UAT password login is disabled in Production");
-  var username = normalizeEmployeeId_(body.username);
+  var emailMode = PropertiesService.getScriptProperties().getProperty("GEO_UAT_EMAIL_LOGIN_ENABLED") === "true";
+  var username = emailMode ? normalizeUatCorporateEmail_(body.username) : normalizeEmployeeId_(body.username);
   var password = String(body.password || "");
   var limiter = CacheService.getScriptCache();
   var key = username ? "GEO_LOGIN_FAIL_" + sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username)).slice(0, 24) : "";
@@ -107,7 +118,8 @@ function uatLogin_(store, body) {
 
   var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
   var matchingUsers = users.filter(function (row) {
-    return normalizeEmployeeId_(row.employee_id) === username;
+    return emailMode ? normalizeUatCorporateEmail_(row.email) === username :
+      normalizeEmployeeId_(row.employee_id) === username;
   });
 
   // A duplicated Employee ID must never select whichever account happens to
@@ -123,7 +135,8 @@ function uatLogin_(store, body) {
     .rows;
 
   var matchingCredentials = credentials.filter(function (row) {
-    return normalizeEmployeeId_(row["employee_id / username"]) === username;
+    return emailMode ? String(row.user_id || "").trim() === String(user.user_id || "").trim() :
+      normalizeEmployeeId_(row["employee_id / username"]) === username;
   });
 
   // Fail closed on ambiguous or inconsistent identity bindings. An empty
@@ -132,6 +145,9 @@ function uatLogin_(store, body) {
   if (matchingCredentials.length !== 1 ||
       (String(matchingCredentials[0].user_id || "").trim() &&
        String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
+      (emailMode && (!uatCorporateDomainAllowed_(username) ||
+        String(matchingCredentials[0].credential_status || "") !== "active" ||
+        !String(matchingCredentials[0].password_set_at || "").trim())) ||
       !verifyUatPassword_(matchingCredentials[0], password)) {
     denyUatLogin_(limiter, key);
   }
@@ -223,6 +239,212 @@ function geoUatTemporaryPasswordWindowOpen_() {
     if (!Number.isFinite(timestamp) || Date.now() >= timestamp) return false;
   }
   return true;
+}
+
+// ---- Opt-in UAT Corporate Email Activation ----
+// IMPORTANT: Script Properties default to disabled. Never use this as Production auth.
+// A custodian must verify the employee's corporate mailbox by an approved channel;
+// checking an email suffix or issuing an activation code is NOT proof of ownership.
+// Codes are only shown once as a return value to the authorized Apps Script editor.
+function normalizeUatCorporateEmail_(v) {
+  var email = String(v || "").trim().toLowerCase();
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+function uatCorporateDomainAllowed_(email) {
+  var domains = String(PropertiesService.getScriptProperties().getProperty("GEO_UAT_ALLOWED_EMAIL_DOMAINS") || "")
+    .toLowerCase().split(",").map(function (s) { return s.trim().replace(/^@/, ""); }).filter(Boolean);
+  return domains.length > 0 && domains.indexOf(String(email || "").split("@")[1]) >= 0;
+}
+function uatActivationEnabled_() {
+  var p = PropertiesService.getScriptProperties();
+  return p.getProperty("GEO_ENVIRONMENT") === "UAT" &&
+    p.getProperty("GEO_UAT_EMAIL_ACTIVATION_ENABLED") === "true";
+}
+function uatActivationSecret_(create) {
+  var p = PropertiesService.getScriptProperties(), name = "GEO_UAT_ACTIVATION_SECRET";
+  var val = p.getProperty(name);
+  if (!val && create) {
+    val = [Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid()].join("-");
+    p.setProperty(name, val);
+  }
+  if (!val) throwUatError_(503, "UAT activation signing is not configured");
+  return val;
+}
+function uatActivationDigest_(code) {
+  return sessionB64_(Utilities.computeHmacSha256Signature("activate:" + String(code || ""), uatActivationSecret_(false)));
+}
+function uatActivationFind_(store, email) {
+  var normalized = normalizeUatCorporateEmail_(email);
+  if (!normalized || !uatCorporateDomainAllowed_(normalized)) throwUatError_(401, "Invalid activation credentials");
+  var matches = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
+    return normalizeUatCorporateEmail_(u.email) === normalized &&
+      String(u.status || "Active").toLowerCase() === "active";
+  });
+  if (matches.length !== 1) throwUatError_(401, "Invalid activation credentials");
+  var uid = String(matches[0].user_id || "");
+  var credentials = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows
+    .filter(function (c) { return String(c.user_id || "") === uid; });
+  if (credentials.length !== 1) throwUatError_(401, "Invalid activation credentials");
+  return { user: matches[0], credential: credentials[0] };
+}
+function uatActivationRate_(email, success) {
+  var cache = CacheService.getScriptCache();
+  var key = "GEO_UAT_ACTFAIL_" +
+    sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(email || ""))).slice(0, 24);
+  if (success) { cache.remove(key); return; }
+  var count = Number(cache.get(key) || 0) + 1;
+  cache.put(key, String(count), 600);
+}
+function uatActivationTicket_(uid, digest) {
+  var ts = Math.floor(Date.now() / 1000);
+  var payload = sessionB64_(Utilities.newBlob(JSON.stringify({
+    v: 1, typ: "uat_activate", sub: uid, fp: digest, iat: ts, exp: ts + 600
+  })).getBytes());
+  return payload + "." + sessionB64_(Utilities.computeHmacSha256Signature(
+    payload, uatActivationSecret_(false)));
+}
+function uatReadActivationTicket_(ticket) {
+  if (typeof ticket !== "string" ||
+      !/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/.test(ticket)) throwUatError_(401, "Activation expired. Verify your code again.");
+  var parts = ticket.split(".");
+  var expected = sessionB64_(Utilities.computeHmacSha256Signature(
+    parts[0], uatActivationSecret_(false)));
+  if (!uatConstantTimeEqual_(expected, parts[1])) throwUatError_(401, "Activation expired. Verify your code again.");
+  var data;
+  try {
+    data = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString("UTF-8"));
+  } catch (err) { throwUatError_(401, "Activation expired. Verify your code again."); }
+  var ts = Math.floor(Date.now() / 1000);
+  if (data.v !== 1 || data.typ !== "uat_activate" || !data.sub ||
+      typeof data.fp !== "string" || !Number.isInteger(data.exp) ||
+      !Number.isInteger(data.iat) || data.iat > ts + 60 ||
+      data.exp <= ts || data.exp - data.iat > 600) {
+    throwUatError_(401, "Activation expired. Verify your code again.");
+  }
+  return data;
+}
+function verifyUatActivation_(store, body) {
+  if (!uatActivationEnabled_()) throwUatError_(503, "Account activation is not enabled");
+  var email = normalizeUatCorporateEmail_(body.email);
+  var cache = CacheService.getScriptCache();
+  var key = "GEO_UAT_ACTFAIL_" +
+    sessionB64_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)).slice(0, 24);
+  if (Number(cache.get(key) || 0) >= 5) throwUatError_(429, "Too many attempts. Try again later.");
+  try {
+    var item = uatActivationFind_(store, email);
+    var c = item.credential;
+    if (String(c.credential_status || "") !== "pending_activation" ||
+        !c.activation_code_hash || c.activation_used_at ||
+        !(Date.parse(String(c.activation_expires_at || "")) > Date.now()) ||
+        !uatConstantTimeEqual_(String(c.activation_code_hash), uatActivationDigest_(body.code))) {
+      throwUatError_(401, "Invalid activation credentials");
+    }
+    uatActivationRate_(email, true);
+    return { activation_ticket: uatActivationTicket_(String(item.user.user_id), String(c.activation_code_hash)),
+      expires_in_seconds: 600 };
+  } catch (err) {
+    if (err.status === 401) uatActivationRate_(email, false);
+    throw err;
+  }
+}
+function uatCheckNewPassword_(value, email) {
+  var password = String(value || "");
+  if (password.length < 15 || password.length > 128 ||
+      /[\x00-\x1f\x7f]/.test(password) ||
+      (email && password.toLowerCase().includes(String(email).split("@")[0].toLowerCase())) ||
+      /^(password|123456|qwerty|letmein)/i.test(password)) {
+    throwUatError_(400, "Use a unique password of 15–128 characters without your email name");
+  }
+  return password;
+}
+function completeUatActivation_(store, body) {
+  if (!uatActivationEnabled_()) throwUatError_(503, "Account activation is not enabled");
+  var ticket = uatReadActivationTicket_(body.activation_ticket);
+  var matches = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows.filter(function (u) {
+    return String(u.user_id || "") === ticket.sub &&
+      String(u.status || "Active").toLowerCase() === "active";
+  });
+  if (matches.length !== 1 || !uatCorporateDomainAllowed_(normalizeUatCorporateEmail_(matches[0].email)))
+    throwUatError_(401, "Activation expired. Verify your code again.");
+  var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows
+    .filter(function (c) { return String(c.user_id || "") === ticket.sub; });
+  if (creds.length !== 1) throwUatError_(401, "Activation expired. Verify your code again.");
+  var c = creds[0];
+  if (String(c.credential_status || "") !== "pending_activation" ||
+      !c.activation_code_hash || c.activation_used_at ||
+      !uatConstantTimeEqual_(String(c.activation_code_hash), ticket.fp) ||
+      !(Date.parse(String(c.activation_expires_at || "")) > Date.now()))
+    throwUatError_(401, "Activation expired. Verify your code again.");
+  var password = uatCheckNewPassword_(body.new_password, normalizeUatCorporateEmail_(matches[0].email));
+  if (password !== String(body.confirm_password || "")) throwUatError_(400, "Passwords do not match");
+  // Pepper provisioning is an editor-only preflight, not a web-side key generator.
+  var pepper = uatPasswordPepper_(false);
+  if (!pepper) throwUatError_(503, "UAT password hashing not configured");
+  var salt = Utilities.getUuid().replace(/-/g, "");
+  var hash = GEO_UAT_PASSWORD_HASH_SCHEME_ + "$" + salt + "$" + uatPasswordDigest_(salt, password);
+  var now = new Date().toISOString();
+  c.password_hash = hash;
+  c.password_hash_version = GEO_UAT_PASSWORD_HASH_SCHEME_;
+  c.temporary_password = ""; // UAT transition: never retain an active plaintext fallback.
+  c.password_set_at = now;
+  c.password_changed_at = now;
+  c.credential_status = "active";
+  c.activation_used_at = now;
+  c.activation_code_hash = "";
+  c.activation_expires_at = "";
+  store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
+  // No login token here; employee signs in separately with the new password.
+  return { activated: true };
+}
+// Editor-only: safely initialize secrets after checking for existing hashes.
+// Do not log or return the secret/pepper values.
+function prepareUatEmailActivation() {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty("GEO_ENVIRONMENT") !== "UAT")
+      throw Error("Must set GEO_ENVIRONMENT=UAT");
+    var store = new SheetStore_();
+    var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
+    var hashCount = creds.filter(function (c) { return !!c.password_hash; }).length;
+    if (!props.getProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_) && hashCount)
+      throw Error("Missing password pepper with existing hashes: restore the original secret; DO NOT generate a new pepper.");
+    if (!props.getProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_)) uatPasswordPepper_(true);
+    uatActivationSecret_(true);
+    return { ok: true, hashedAccounts: hashCount, activationEnabled:
+      props.getProperty("GEO_UAT_EMAIL_ACTIVATION_ENABLED") === "true",
+      emailLoginEnabled: props.getProperty("GEO_UAT_EMAIL_LOGIN_ENABLED") === "true" };
+  } finally { lock.releaseLock(); }
+}
+// Editor-only: custodian must verify mailbox ownership and securely deliver code.
+// Requires explicit one-time approval property; returns code ONCE, never logs it.
+function issueUatActivationCode(email) {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var p = PropertiesService.getScriptProperties();
+    if (p.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
+        p.getProperty("GEO_UAT_ACTIVATION_ISSUANCE_APPROVED") !== "YES")
+      throw Error("UAT activation issuance requires approved custodian process");
+    var store = new SheetStore_(), item = uatActivationFind_(store, email);
+    var c = item.credential;
+    if (String(c.credential_status || "") === "active" && c.password_set_at)
+      throw Error("Account already activated: do not issue an activation code");
+    if (String(c.credential_status || "") === "disabled")
+      throw Error("Disabled account cannot be activated");
+    if (!p.getProperty("GEO_UAT_ACTIVATION_SECRET") ||
+        !p.getProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_))
+      throw Error("Run prepareUatEmailActivation() first");
+    var code = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, "");
+    var expiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    c.credential_status = "pending_activation";
+    c.activation_code_hash = uatActivationDigest_(code);
+    c.activation_expires_at = expiry;
+    c.activation_used_at = "";
+    store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
+    store.flush();
+    p.deleteProperty("GEO_UAT_ACTIVATION_ISSUANCE_APPROVED");
+    return { activation_code: code, expires_at: expiry };
+  } finally { lock.releaseLock(); }
 }
 
 // MANUAL, READ-ONLY health check in Apps Script editor. Never returns or logs
@@ -647,7 +869,9 @@ var GEO_REQUIRED_RUNTIME_HEADERS_ = {
   Handoff_Notifications: ["notification_id","recipient_user_id","opportunity_id","read_at"],
   Users: ["user_id","employee_id","role","status"],
   User_Region: ["user_region_id","user_id","region_id"],
-  UAT_Credentials: ["employee_id / username"],
+  UAT_Credentials: ["employee_id / username", "user_id", "password_hash", "credential_status",
+    "activation_code_hash", "activation_expires_at", "activation_used_at", "password_set_at",
+    "password_changed_at", "password_hash_version"],
   Lost_Reasons: ["reason_id"]
 };
 function geoSchemaError_(code, detail) {
