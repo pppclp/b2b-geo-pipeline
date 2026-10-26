@@ -51,7 +51,7 @@ export default function SetTemporaryPassword() {
         <div role="status" className="space-y-4 text-center">
           <h2 className="text-base font-semibold">Your password has been saved</h2>
           <p className="text-sm text-muted-foreground">Your temporary password can no longer be used. Sign in with your new password.</p>
-          <Link to="/login" replace="true" className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground">Return to Sign in</Link>
+          <Link to="/login" className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground">Return to Sign in</Link>
         </div>
       ) : !ticket ? (
         <div role="status" className="space-y-3 text-center">
