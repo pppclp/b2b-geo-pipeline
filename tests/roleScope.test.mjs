@@ -66,3 +66,15 @@ test("admin demoAs uses target account permission scope", () => {
   const seen = core.handle({ method: "GET", path: "entities/Opportunity", userId: "ADMIN1", demoAs: "AE2" });
   assert.deepEqual(seen.map((o) => o.id), ["OPP2"]);
 });
+
+test("Management with no User_Region assignments still sees all Regions, while inactive Management is denied", () => {
+  const core = makeCore();
+  const all = core.handle({ method: "GET", path: "entities/Opportunity", userId: "MGMT1" });
+  assert.deepEqual(all.map((o) => o.id), ["OPP1", "OPP2"]);
+  assert.throws(() =>
+    core.handle({ method: "GET", path: "entities/Opportunity", userId: "INACTIVE_MGMT" }),
+    (error) => error.status === 401
+  );
+  assert.deepEqual(core.handle({ method: "GET", path: "entities/Opportunity", userId: "SM1" }).map(o => o.id), ["OPP1"]);
+  assert.deepEqual(core.handle({ method: "GET", path: "entities/Opportunity", userId: "AE2" }).map(o => o.id), ["OPP2"]);
+});
