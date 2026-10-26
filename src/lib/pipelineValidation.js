@@ -1,6 +1,6 @@
 // Centralized Pipeline input rules. Existing historical rows remain readable.
-// The supported identifier for new records is currently the 13-digit Thai juristic/tax ID.
-// Other identifier types require an explicit field and business approval, not guesswork.
+// Business ID is optional for both new and historical records. Preserve digit strings
+// including leading zeros; never infer a full ID from rounded scientific notation.
 export const CUSTOMER_TYPES = Object.freeze(["Government", "Enterprise", "Industrial", "SME", "Education", "Telco", "Other"]);
 
 export function normalizeCustomerType(value) {
@@ -10,9 +10,9 @@ export function normalizeCustomerType(value) {
 
 export function businessIdError(value) {
   const id = String(value ?? "").trim();
-  if (!id) return "Business ID is required";
+  if (!id) return "";
   if (!/^\d+$/.test(id)) return "Business ID must contain digits only";
-  if (id.length !== 13) return "Business ID must be 13 digits. Restore the original ID from source data; do not guess leading zeroes";
+  if (id.length > 40) return "Business ID must contain no more than 40 digits";
   return "";
 }
 
