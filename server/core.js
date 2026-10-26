@@ -27,14 +27,17 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
-function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null, additionalCustomerTypes = [] } = {}) {
+function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null, additionalCustomerTypes = [], legacyImport = false } = {}) {
   const required = ["customer_name", "business_id", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
+    if (legacyImport && ["business_id", "expected_close_month"].includes(key)) continue;
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
       throw new HttpError(400, key + " is required");
     }
   }
-  if ("business_id" in data && data.business_id &&
+  if (legacyImport && data.business_id && !/^\d{1,40}$/.test(String(data.business_id)))
+    throw new HttpError(400, "Legacy Business ID must be 1-40 digits; preserve the original value");
+  if (!legacyImport && "business_id" in data && data.business_id &&
       (previousBusinessId === null || String(data.business_id) !== String(previousBusinessId))) {
     const error = businessIdError(data.business_id);
     if (error) throw new HttpError(400, error);
@@ -50,6 +53,7 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
   // Limits match ordinary sales usage; do not trim data silently on the server.
   const textLimits = {
     customer_name: 200, contact_name: 120, contact_phone: 40,
+    customer_location_text: 500,
     partner_name: 200, product_details: 2000, remark: 500,
     support_note: 1000, lost_note: 1000, last_remark: 500,
   };
@@ -457,10 +461,19 @@ export function createCore({ contract, store, now, uuid }) {
     } else if (dates.source_closed_at) {
       throw new HttpError(400, "Open Pipelines cannot contain a historical Closed Date");
     }
-    const normalizedCustomerType = allowedTypes.find((type) => type.toLowerCase() === String(item.customer_type || "").trim().toLowerCase());
+    const requestedType = /^others$/i.test(String(item.customer_type || "").trim()) ? "Other" : String(item.customer_type || "").trim();
+    const normalizedCustomerType = allowedTypes.find((type) => type.toLowerCase() === requestedType.toLowerCase());
     if (item.customer_type && !normalizedCustomerType)
       throw new HttpError(400, "Unknown Customer Type. Use an existing legacy type or active Field_Options value");
-    for (const key of ["source_record_id", "source_system", "source_product_id", "source_rc",
+    if (String(item.business_id ?? "").trim() && !/^\d{1,40}$/.test(String(item.business_id).trim()))
+      throw new HttpError(400, "Legacy Business ID must contain 1-40 digits");
+    const sourceSalesCode = String(item.source_sales_code || "").trim();
+    if (sourceSalesCode) {
+      const owner = rows("users").find((r) => String(r.user_id) === String(item.owner_id));
+      if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
+        throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
+    }
+    for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_product_id", "source_rc",
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
     }
@@ -483,6 +496,7 @@ export function createCore({ contract, store, now, uuid }) {
       sourceRecordId: String(item.source_record_id || "").trim(),
       sourceSystem: String(item.source_system || "").trim(),
       sourceProductId: String(item.source_product_id || "").trim(),
+      sourceCustomerType: String(item.source_customer_type || item.customer_type || "").trim(),
       sourceRc: String(item.source_rc ?? "").trim(),
       sourceDiscountPct: String(item.source_discount_pct ?? "").trim(),
       sourceMonthlySalePlan: String(item.source_monthly_sale_plan ?? "").trim(),
@@ -776,7 +790,8 @@ export function createCore({ contract, store, now, uuid }) {
       }
     }
     if (changed("expected_close_month") &&
-        (!filled("expected_close_month") || !isMonthKey(String(next.expected_close_month)))) {
+        ((!filled("expected_close_month") && !String(next.import_batch_id || "").trim()) ||
+         (filled("expected_close_month") && !isMonthKey(String(next.expected_close_month))))) {
       throw new HttpError(400, "Expected Close Month must be YYYY-MM");
     }
     if ((changed("territory_id") || changed("region_id")) && filled("territory_id") && bindings.territories) {
@@ -903,7 +918,7 @@ export function createCore({ contract, store, now, uuid }) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
         }
         validateLatestOpportunityFields(data, { requireRequired: !!importMeta || "sales_channel" in data,
-          additionalCustomerTypes: importMeta?.allowedTypes || [] });
+          additionalCustomerTypes: importMeta?.allowedTypes || [], legacyImport:!!importMeta });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
@@ -914,7 +929,8 @@ export function createCore({ contract, store, now, uuid }) {
         row.current_handler_user_id = row.current_handler_user_id || row.owner_user_id;
         row.original_owner_user_id = row.owner_user_id;
         row.created_month = importedCreatedMonth || bangkokMonth(stamp);
-        row.stage_entered_at = importMeta?.sourceStageEnteredAt || stamp;
+        // Unknown legacy stage-entry date stays unknown, never impersonates real Stage Aging.
+        row.stage_entered_at = importMeta ? (importMeta.sourceStageEnteredAt || "") : stamp;
         row.handler_since = stamp;
         if (importMeta) {
           const provenance = {
@@ -925,6 +941,7 @@ export function createCore({ contract, store, now, uuid }) {
             import_source_discount_pct: importMeta.sourceDiscountPct,
             import_source_monthly_sale_plan: importMeta.sourceMonthlySalePlan,
             import_source_net_rc: importMeta.sourceNetRc,
+            import_source_customer_type: importMeta.sourceCustomerType,
           };
           for (const [key, value] of Object.entries(provenance)) if (value !== "") row[key] = value;
           if (importMeta.status === "Won") row.won_at = importMeta.sourceClosedAt;
@@ -961,7 +978,8 @@ export function createCore({ contract, store, now, uuid }) {
       touch(b);
       if (uiEntity === "TeamMember") syncUserRegions(row[b.primary_key], data.region_ids);
       const auditEvents = b.entity === "opportunities"
-        ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved), actor, stamp)
+        ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved).map((event) =>
+            importMeta ? { ...event, remark:"Historical bulk import; batch " + importMeta.batchId } : event), actor, stamp)
         : [];
       if (b.entity === "opportunities" && String(saved.status).toLowerCase() === "open") addCreationNotifications(saved, actor, stamp);
       if (b.entity === "opportunities" && importMeta && importMeta.status !== "Open") {
