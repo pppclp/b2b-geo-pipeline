@@ -653,11 +653,6 @@ source_03_pipeline_config:
       - "Stuck Pipeline Value"
 
 
-# ============================================================
-# 4. SOURCE FILE 04 — OPTIONAL
-# EXISTING PIPELINE IMPORT
-# ============================================================
-
   sheet_scenario_tasks:
     source_sheet: "Scenario_Tasks"
     target_entity: "scenario_tasks"
@@ -674,6 +669,11 @@ source_03_pipeline_config:
       working_with_id: {target: "scenario_tasks.working_with_id"}
       active: {target: "scenario_tasks.active"}
       notes: {target: "scenario_tasks.notes"}
+
+# ============================================================
+# 4. SOURCE FILE 04 — OPTIONAL
+# EXISTING PIPELINE IMPORT
+# ============================================================
 
 source_05_pipeline_task_instances:
   description: "System-managed Task execution history. Templates remain in Pipeline Config."
