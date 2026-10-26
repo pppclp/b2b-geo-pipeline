@@ -72,7 +72,7 @@ test("Pipeline list uses owner-first identity, conditional Working With and cont
   assert.match(pipeline,/maps\.region\[o\.region_id\]/);
   assert.match(pipeline,/o\.status !== "open"/);
   assert.match(pipeline,/o\.support_needed/);
-  assert.match(pipeline,/isStageSlaOverdue\(o, maps\.stage\)/);
+  assert.match(pipeline,/OverdueTags op=\{o\}/);
   assert.match(pipeline,/onClick=\{\(\) => openQuickView\(o\.id\)\}/);
   assert.match(pipeline,/Product details:/);
   assert.ok(!pipeline.includes('>Status</th>'),"Do not repeat default Open in a status column");
