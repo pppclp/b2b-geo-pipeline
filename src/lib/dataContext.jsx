@@ -255,12 +255,12 @@ export function DataProvider({ children }) {
       const current = opportunities.find((o) => o.id === id);
       const revision = expectedUpdatedAt ?? current?.updated_date;
       // Missing revisions are not silently written: request a reload first.
-      if (revision == null || (revision === "" && !current?.import_batch_id)) {
+      if (revision == null) {
         throw new Error("Pipeline revision is missing. Refresh the page before saving.");
       }
-      // Approved historical imports may have an empty initial revision.
-      // Send the explicit empty compare-and-set token once; the backend
-      // atomically replaces it with a server-generated updated_at on save.
+      // Older rows may have no updated_at yet. An explicit empty revision
+      // is still a valid compare-and-set token, and never bypasses the
+      // backend's exact row revision check.
       const payload = {
         ...changes,
         ...(histEntry?.remark ? { audit_remark: histEntry.remark } : {}),
