@@ -53,3 +53,13 @@ export function mapImportHeaders(headers, fields) {
   }
   return mapping;
 }
+
+// A recognized source-created-month column must not be silently dropped when
+ // auto-mapping abstains (e.g. duplicate "Create Month"/"Created Month").
+ // The user may resolve ambiguity using the existing manual mapping control.
+export function needsExplicitCreatedMonthMapping(headers, mapping) {
+  if (mapping?.created_month != null) return false;
+  const accepted = new Set(["created_month", "Create Month", ...(IMPORT_HEADER_ALIASES.created_month || [])]
+    .map(normalizeImportHeader));
+  return headers.some(header => accepted.has(normalizeImportHeader(header)));
+}
