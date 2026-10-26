@@ -17,6 +17,7 @@ const Admin = lazy(() => import('@/pages/Admin'));
 const Import = lazy(() => import('@/pages/Import'));
 import Login from '@/pages/Login';
 import ActivateAccount from '@/pages/ActivateAccount';
+import SetTemporaryPassword from '@/pages/SetTemporaryPassword';
 import { Navigate } from 'react-router-dom';
 
 const RouteLoading = () => (
@@ -59,6 +60,7 @@ const AuthenticatedApp = () => {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/activate" element={<ActivateAccount />} />
+      <Route path="/setup-password" element={<SetTemporaryPassword />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<DataProvider><AppLayout /></DataProvider>}>
           <Route path="/" element={<Suspense fallback={<RouteLoading />}><Dashboard /></Suspense>} />
