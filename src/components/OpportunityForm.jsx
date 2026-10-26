@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import CreatePipelineModal from "@/components/CreatePipelineModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -194,7 +195,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
       onSaved?.();
       onClose();
     } catch (error) {
-      setSaveError(error?.message || "Unable to save. Please try again.");
+      setSaveError(actionableErrorMessage(error));
     } finally {
       setSaving(false);
     }
