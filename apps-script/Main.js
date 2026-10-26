@@ -197,6 +197,9 @@ function uatLogin_(store, body) {
   if (key) limiter.remove(key);
   // Correct temporary credentials confer no app session or Pipeline access.
   if (needsSetup) {
+    // First-use secret initialization is UAT-only, locked, and permitted only
+    // after the existing temporary credential has been verified.
+    uatEnsureFirstLoginSecrets_(store);
     return { password_setup_required: true,
       password_setup_ticket: uatTemporarySetupTicket_(String(user.user_id), credential),
       expires_in_seconds: 600 };
@@ -288,6 +291,30 @@ function geoUatTemporaryPasswordWindowOpen_() {
     if (!Number.isFinite(timestamp) || Date.now() >= timestamp) return false;
   }
   return true;
+}
+
+// The first valid UAT temporary-password login can safely prepare absent
+// authentication secrets, eliminating a shared 503 across all users when a new
+// Code.gs is deployed before the editor-only setup helper was run.
+//
+// This runs under handle_()'s ScriptLock *after* the password was verified.
+// Never overwrite existing secrets. Never invent a pepper when any stored
+// password hash already exists: it would permanently invalidate those hashes.
+// This is intentionally not available outside controlled UAT migration.
+function uatEnsureFirstLoginSecrets_(store) {
+  if (!uatTemporarySetupEnabled_())
+    throwUatError_(503, "UAT first-login migration is not enabled");
+  var props = PropertiesService.getScriptProperties();
+  var hasPepper = !!props.getProperty(GEO_UAT_PASSWORD_PEPPER_PROPERTY_);
+  if (!hasPepper) {
+    var creds = store.table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials").rows;
+    if (creds.some(function (c) { return !!String(c.password_hash || "").trim(); }))
+      throwUatError_(503, "Existing password hashes require the original UAT pepper; do not reset it");
+    uatPasswordPepper_(true);
+  }
+  // Signing key is independent from the credential pepper; a missing key can
+  // be created once, but already-issued tickets cannot survive key rotation.
+  uatActivationSecret_(true);
 }
 
 // ---- UAT first-login password setup (Employee ID temporary credentials) ----
