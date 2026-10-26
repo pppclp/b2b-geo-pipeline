@@ -14,6 +14,9 @@ export const OPPORTUNITY_COLUMNS = new Set([
   "support_type_id", "support_note", "won_at", "won_by_user_id",
   "lost_at", "lost_by_user_id", "lost_reason_id", "lost_note",
   "archived_at", "working_with_team_ids", "working_with_user_ids", "import_batch_id", "import_row_number", "import_row_signature", "client_request_id",
+  // Import-only provenance: never merge legacy RC/discount/product ID into live pricing.
+  "import_source_record_id", "import_source_product_id", "import_source_rc",
+  "import_source_discount_pct", "import_source_monthly_sale_plan", "import_source_net_rc",
 ]);
 
 // UI names AND sheet names of fields the browser must never control.
@@ -25,7 +28,12 @@ export const SYSTEM_OPPORTUNITY_FIELDS = new Set([
   "stage_entered_at", "handler_since", "working_with_since",
   "won_at", "won_by", "won_by_user_id",
   "lost_at", "lost_by", "lost_by_user_id", "archived_at",
-  "source_created_month", "import_batch_id", "import_row_number", "import_row_signature",
+  "source_created_month", "source_created_at", "source_stage_entered_at", "source_closed_at",
+  "source_record_id", "source_product_id", "source_rc", "source_discount_pct",
+  "source_monthly_sale_plan", "reference_net_rc",
+  "import_source_record_id", "import_source_product_id", "import_source_rc",
+  "import_source_discount_pct", "import_source_monthly_sale_plan", "import_source_net_rc",
+  "import_batch_id", "import_row_number", "import_row_signature",
 ]);
 
 export function stripSystemFields(data) {
