@@ -57,7 +57,7 @@ test("payload, role claims and signature tampering are rejected", () => {
   payload.sub="ADMIN1";
   const modified=Buffer.from(JSON.stringify(payload)).toString("base64url")+"."+mac;
   assert.throws(()=>ctx.verifyUatSession_(modified),unauthorized);
-  assert.throws(()=>ctx.verifyUatSession_(body+"."+mac.slice(0,-1)+"x"),unauthorized);
+  assert.throws(()=>ctx.verifyUatSession_(body+"."+(mac[0] === "A" ? "B" : "A")+mac.slice(1)),unauthorized);
   assert.throws(()=>ctx.verifyUatSession_(body+"."+"A"),unauthorized);
 });
 
