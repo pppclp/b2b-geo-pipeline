@@ -89,6 +89,7 @@ export default function Import() {
   const [mapping, setMapping] = useState({}); // fieldKey -> headerIndex
   const [result, setResult] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [readingFile, setReadingFile] = useState(false);
   const [importError, setImportError] = useState("");
   const [documentId, setDocumentId] = useState("");
   const [rcInterpretation, setRcInterpretation] = useState("unknown");
@@ -148,29 +149,31 @@ export default function Import() {
 
   const onFile = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || readingFile) return;
+    setReadingFile(true);
     setImportError("");
-    let parsed;
     try {
-      parsed = await readImportFile(file, parseCSV);
+      const parsed = await readImportFile(file, parseCSV);
+      // Hash the exact original rows before normalizing the mixed source layout.
+      const fingerprint = await legacySourceDocumentId(parsed.headers, parsed.rows);
+      const normalized = normalizeHistoricalGeoSource(parsed.headers, parsed.rows);
+      const hdrs = normalized.headers;
+      setDocumentId(fingerprint);
+      setRcInterpretation("unknown");
+      setHeaders(hdrs);
+      setRows(normalized.rows);
+      setLayoutErrors(normalized.layoutErrors);
+      setImportProgress({ completed: 0, total: 0, imported: 0, existing: 0 });
+      setRowNumbers(parsed.rowNumbers || parsed.rows.map((_, i) => i + 2));
+      setMapping(mapImportHeaders(hdrs, FIELDS));
+      setStep("map");
     } catch (error) {
-      setImportError(error.message || "Unable to read file");
-      return;
+      // No import is triggered by choosing a file. Keep the user on the upload screen.
+      setImportError(error?.message || "Unable to read file. No records imported.");
+    } finally {
+      setReadingFile(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
-    const normalized = normalizeHistoricalGeoSource(parsed.headers, parsed.rows);
-    const hdrs = normalized.headers;
-    try { setDocumentId(await legacySourceDocumentId(parsed.headers, parsed.rows)); }
-    catch { setImportError("Cannot fingerprint workbook. Import blocked."); return; }
-    setRcInterpretation("unknown");
-    setHeaders(hdrs);
-    setRows(normalized.rows);
-    setLayoutErrors(normalized.layoutErrors);
-    setImportProgress({ completed: 0, total: 0, imported: 0, existing: 0 });
-    setRowNumbers(parsed.rowNumbers || parsed.rows.map((_, i) => i + 2));
-    // auto-map
-    const auto = mapImportHeaders(hdrs, FIELDS);
-    setMapping(auto);
-    setStep("map");
   };
 
   const resolve = useMemo(() => ({
@@ -417,7 +420,8 @@ export default function Import() {
           </div>
           <p className="text-sm text-muted-foreground mb-4">Select an Excel (.xlsx) or CSV file with your opportunity data</p>
           <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={onFile} className="hidden" id="csv-upload" />
-          <Button className="rounded-lg" onClick={() => document.getElementById("csv-upload").click()}><Upload className="w-4 h-4 mr-1.5" /> Choose File</Button>
+          <Button className="rounded-lg" disabled={readingFile} onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 mr-1.5" /> {readingFile ? "Reading file…" : "Choose File"}</Button>
+          {readingFile && <p role="status" className="mt-3 text-sm text-muted-foreground">Checking file format and source row identity…</p>}
           {importError && <p role="alert" className="mt-3 text-sm text-red-600">{importError}</p>}
         </div>
       )}
