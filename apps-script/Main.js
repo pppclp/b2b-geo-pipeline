@@ -639,6 +639,10 @@ SheetStore_.prototype.book_ = function (file) {
 var GEO_REQUIRED_RUNTIME_HEADERS_ = {
   Pipelines: ["opportunity_id","business_id","customer_name","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"],
   Pipeline_Events: ["event_id","opportunity_id","event_type","actor_user_id","event_at"],
+  Pipeline_Tasks: ["task_instance_id","opportunity_id","task_id","scenario_id","stage_id","stage_entered_at","status","updated_at"],
+  Scenario_Tasks: ["task_id","scenario_id","stage_id","task_name","sort_order","sla_days","day_type","start_policy","active"],
+  Aging_Settings: ["setting_id","stage_watch_days"],
+  Stages: ["stage_id","sla_days"],
   Support_Requests: ["request_id","opportunity_id","region_id","status","assigned_to_user_id","updated_at"],
   Handoff_Notifications: ["notification_id","recipient_user_id","opportunity_id","read_at"],
   Users: ["user_id","employee_id","role","status"],
