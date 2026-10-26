@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -55,11 +56,10 @@
     --shadow-card: 0 1px 2px hsl(222 16% 14% / 0.05), 0 4px 12px hsl(222 16% 14% / 0.04);
     --shadow-lift: 0 4px 10px hsl(222 16% 14% / 0.06), 0 12px 28px hsl(222 16% 14% / 0.07);
 
-    /* Single web-app font for English, Thai, numbers, and all UI states. */
-    --font-heading: "Kanit", ui-sans-serif, system-ui, sans-serif;
-    --font-body: "Kanit", ui-sans-serif, system-ui, sans-serif;
-    --font-display: "Kanit", ui-sans-serif, system-ui, sans-serif;
-    --font-mono: "Kanit", ui-sans-serif, system-ui, sans-serif;
+    --font-heading: "Inter", "IBM Plex Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-body: "Inter", "IBM Plex Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Inter", "IBM Plex Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menaco, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 16% 14%;
@@ -125,35 +125,7 @@
     @apply border-border outline-ring/50;
   }
 
-  html {
-    font-family: var(--font-body);
-    font-weight: 400;
-    font-synthesis: none;
-  }
-
   body {
     @apply bg-shell text-foreground font-body antialiased;
-    font-weight: 400;
-  }
-
-  /* Form elements and Radix portals use the same Kanit typeface as the app.
-     Keep text size, line-height, and font-weight utilities in control. */
-  button,
-  input,
-  textarea,
-  select,
-  option {
-    font-family: inherit;
-  }
-
-  /* 400 for reading, 500 for labels/navigation (via font-medium), 600 for
-     titles/metrics (via font-semibold). Avoid unnecessarily heavy UI text. */
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading);
-    font-weight: 600;
-  }
-
-  strong, b {
-    font-weight: 600;
   }
 }
