@@ -144,3 +144,54 @@ test("batch import rejects unauthorized roles and duplicates before writing",()=
   assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.length,0);
   assert.throws(()=>x.call("ADMIN","POST","entities/Opportunity/bulk",input.items),e=>e.status===403);
 });
+
+test("E2E lifecycle uses one Pipeline row, append-only Events, and immutable monthly snapshots",()=>{
+  const x=fixture();
+  const created=x.call("M1","POST","entities/Opportunity",newPipeline);
+  const db="B2B_GEO_Pipeline_DB.xlsx|";
+  const p=x.all[db+"Pipelines"].rows;
+  const e=x.all[db+"Pipeline_Events"].rows;
+  assert.equal(p.length,1);
+  assert.equal(e.length,1);
+  const edited=x.call("AE1","PUT","entities/Opportunity/"+created.id,{remark:"Customer asked for follow-up"});
+  assert.equal(edited.remark,"Customer asked for follow-up");
+  assert.equal(p.length,1,"Edit must not append a second Pipeline record");
+  assert.equal(e.at(-1).field_name,"remark");
+  const moved=x.call("M1","PUT","entities/Opportunity/"+created.id,{
+    stage_id:"S2",current_handler_id:"M1",audit_remark:"Stage progressed and escalated"
+  });
+  assert.equal(moved.stage_id,"S2");
+  assert.equal(moved.current_handler_id,"M1");
+  assert.deepEqual(moved._audit_events.map(y=>y.event_type).sort(),["handler_change","stage_change"]);
+  const won=x.call("M1","PUT","entities/Opportunity/"+created.id,{status:"won"});
+  assert.equal(won.status,"won");
+  assert.equal(won.won_by,"M1");
+  assert.ok(won.won_at);
+  assert.throws(()=>x.call("M1","PUT","entities/Opportunity/"+created.id,{stage_id:"S3"}),err=>err.status===409);
+  const reopened=x.call("M1","PUT","entities/Opportunity/"+created.id,{status:"open",audit_remark:"Approved reopen"});
+  assert.equal(reopened.status,"open");
+  assert.equal(reopened.won_at,"");
+  assert.equal(reopened.won_by,"");
+  const lost=x.call("M1","PUT","entities/Opportunity/"+created.id,{
+    status:"lost",lost_reason_id:"R1",lost_note:"Price"
+  });
+  assert.equal(lost.status,"lost");
+  assert.equal(lost.lost_reason_id,"R1");
+  assert.equal(lost.lost_by,"M1");
+  assert.ok(lost.lost_at);
+  assert.equal(p.length,1);
+  assert.equal(new Set(e.map(event=>event.event_id)).size,e.length);
+  assert.equal(e.filter(event=>event.event_type==="create").length,1);
+  assert.equal(e.filter(event=>event.event_type==="won").length,1);
+  assert.equal(e.filter(event=>event.event_type==="lost").length,1);
+  assert.ok(e.some(event=>event.event_type==="status_change" &&
+    event.remark==="Approved reopen"),"Reopen reason must be audited");
+  const report=x.call("ADMIN","POST","snapshots/capture",{snapshot_period:"2026-10"});
+  assert.equal(report.captured,1);
+  const snap=x.all[db+"Snapshots"].rows[0];
+  assert.equal(snap.status,"Lost");
+  assert.equal(snap.pipeline_value,lost.pipeline_value);
+  assert.equal(snap.lost_reason_id,"R1");
+  assert.throws(()=>x.call("ADMIN","POST","snapshots/capture",{snapshot_period:"2026-10"}),/already captured/);
+  assert.equal(x.all[db+"Snapshots"].rows[0],snap);
+});
