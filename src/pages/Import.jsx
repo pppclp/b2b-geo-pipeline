@@ -2,6 +2,8 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useData } from "@/lib/dataContext";
 import { db } from "@/api/client";
 import { mapImportHeaders, needsExplicitCreatedMonthMapping } from "@/lib/importHeaderMapping";
+import { normalizeHistoricalGeoSource } from "@/lib/historicalGeoSource";
+import { makeHistoricalImportBatches } from "@/lib/importBatches";
 import { readImportFile, parseImportCreatedMonth, parseImportSourceDate } from "@/lib/importWorkbook";
 import { calculateNetRc } from "@/lib/netRc";
 import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType, legacyProductCategory, legacySourceMonth, legacyBusinessId, legacySourceDocumentId, legacyRowSourceId } from "@/lib/legacyImport";
@@ -82,6 +84,8 @@ export default function Import() {
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
   const [rowNumbers, setRowNumbers] = useState([]);
+  const [layoutErrors, setLayoutErrors] = useState([]);
+  const [importProgress, setImportProgress] = useState({ completed: 0, total: 0, imported: 0, existing: 0 });
   const [mapping, setMapping] = useState({}); // fieldKey -> headerIndex
   const [result, setResult] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -155,12 +159,15 @@ export default function Import() {
       setImportError(error.message || "Unable to read file");
       return;
     }
-    const hdrs = parsed.headers;
-    try { setDocumentId(await legacySourceDocumentId(hdrs, parsed.rows)); }
+    const normalized = normalizeHistoricalGeoSource(parsed.headers, parsed.rows);
+    const hdrs = normalized.headers;
+    try { setDocumentId(await legacySourceDocumentId(parsed.headers, parsed.rows)); }
     catch { setImportError("Cannot fingerprint workbook. Import blocked."); return; }
     setRcInterpretation("unknown");
     setHeaders(hdrs);
-    setRows(parsed.rows);
+    setRows(normalized.rows);
+    setLayoutErrors(normalized.layoutErrors);
+    setImportProgress({ completed: 0, total: 0, imported: 0, existing: 0 });
     setRowNumbers(parsed.rowNumbers || parsed.rows.map((_, i) => i + 2));
     // auto-map
     const auto = mapImportHeaders(hdrs, FIELDS);
@@ -186,6 +193,7 @@ export default function Import() {
     const duplicateColumn = new Set(mappedColumns).size !== mappedColumns.length;
     return rows.map((row, i) => {
       const errors = [];
+      if (layoutErrors[i]) errors.push(layoutErrors[i]);
       if (unresolvedSourceMonth) errors.push("Create Month column detected; select the correct source column in Map Columns");
       if (duplicateColumn) errors.push("A source column cannot be mapped to multiple fields");
       if (customerTypesError) errors.push(customerTypesError);
@@ -341,7 +349,7 @@ export default function Import() {
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation, salesCodeLookup]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation, salesCodeLookup, layoutErrors]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
@@ -356,28 +364,43 @@ export default function Import() {
   const invalidRows = validated.filter((v) => v.errors.length > 0);
 
   const doImport = async () => {
-    if (importing || !validRows.length || invalidRows.length || !importBatchId) return;
+    if (importing || !validRows.length || invalidRows.length || !documentId) return;
     setImporting(true);
     setImportError("");
+    let completed = 0, imported = 0, existing = 0;
     try {
-      const response = await db.imports.opportunities(importBatchId, validRows.map((v) => v.rec));
-      setResult({ ok: response.total, fail: 0, total: response.total,
-        alreadyImported: response.already_imported });
-      await refresh().catch(() => {}); // committed even when list refresh fails
+      const batches = makeHistoricalImportBatches(validRows.map((v) => v.rec), documentId);
+      setImportProgress({ completed: 0, total: batches.length, imported: 0, existing: 0 });
+      for (const batch of batches) {
+        // The backend still validates and commits no more than 200 rows per request.
+        // Stable batch IDs mean re-running after a partial success cannot duplicate it.
+        const response = await db.imports.opportunities(batch.batchId, batch.items);
+        if (response.already_imported) existing += Number(response.total || 0);
+        else imported += Number(response.imported ?? response.total ?? 0);
+        completed++;
+        setImportProgress({ completed, total: batches.length, imported, existing });
+      }
+      setResult({ ok: imported, fail: 0, total: imported + existing, alreadyImported: existing });
+      await refresh().catch(() => {});
       setStep("done");
     } catch (error) {
-      setImportError(error.message || "Import failed. No new data should be saved.");
+      await refresh().catch(() => {});
+      setImportError(completed
+        ? "Batch " + (completed + 1) + " failed after " + completed +
+          " completed batches. Earlier batches remain committed. Fix the error and retry this SAME file; stable source identity prevents duplicate batches. " +
+          (error.message || "Request failed")
+        : (error.message || "Import failed. No batch was confirmed; retry with the same file."));
     } finally {
       setImporting(false);
     }
   };
 
-  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setRowNumbers([]); setMapping({}); setResult(null); setImportBatchId(""); setDocumentId(""); setRcInterpretation("unknown"); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
+  const reset = () => { setStep("upload"); setHeaders([]); setRows([]); setRowNumbers([]); setLayoutErrors([]); setImportProgress({ completed: 0, total: 0, imported: 0, existing: 0 }); setMapping({}); setResult(null); setImportBatchId(""); setDocumentId(""); setRcInterpretation("unknown"); setImportError(""); if (fileRef.current) fileRef.current.value = ""; };
 
   return (
     <div className="p-5 md:p-7 max-w-[1000px] mx-auto">
       <h1 className="text-2xl font-semibold tracking-tight mb-1">Import Opportunities</h1>
-      <p className="text-sm text-muted-foreground mb-6">Upload .xlsx or .csv, map columns, validate, then confirm. Maximum 200 rows. Legacy finance is preserved for reconciliation, not used to change Net RC.</p>
+      <p className="text-sm text-muted-foreground mb-6">Upload .xlsx or .csv, map columns, validate, then confirm. Up to 400 preview rows, committed in batches of at most 200. Legacy finance is preserved for reconciliation, not used to change Net RC.</p>
 
       <div className="flex items-center gap-2 mb-6 text-sm">
         <Step n={1} active={step === "upload"} done={["map", "preview", "done"].includes(step)} label="Upload" />
@@ -486,6 +509,7 @@ export default function Import() {
           )}
 
           {importError && <p role="alert" className="text-sm text-red-600">{importError}</p>}
+          {importProgress.total > 0 && <p role="status" className="text-sm text-muted-foreground">Batches {importProgress.completed}/{importProgress.total} · New {importProgress.imported} · Already imported {importProgress.existing}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" disabled={importing} onClick={() => setStep("map")}>Back</Button>
             <Button onClick={doImport} disabled={validRows.length === 0 || invalidRows.length > 0 || importing}>{importing ? "Importing…" : "Confirm Import (" + validRows.length + ")"}</Button>
@@ -499,7 +523,7 @@ export default function Import() {
             <CheckCircle2 className="w-9 h-9 text-emerald-600" />
           </div>
           <h2 className="text-lg font-semibold">Import Complete</h2>
-          <p className="text-sm text-muted-foreground mt-1">{result?.alreadyImported ? "This batch was already imported (" + result.ok + " records). No duplicates created." : result?.ok + " imported successfully · " + result?.fail + " failed"}</p>
+          <p className="text-sm text-muted-foreground mt-1">{result?.ok + " newly imported · " + (result?.alreadyImported || 0) + " already imported · " + result?.fail + " failed"}</p>
           <Button className="mt-5 rounded-lg" onClick={reset}>Import Another File</Button>
         </div>
       )}
