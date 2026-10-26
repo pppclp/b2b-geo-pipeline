@@ -80,5 +80,10 @@ export function replaceSnapshotPeriod(previousRows, snapshotPeriod, replacement)
     }
     ids.add(String(row.opportunity_id));
   }
-  return [...previousRows.filter((r) => String(r.snapshot_period) !== snapshotPeriod), ...replacement];
+  // A published monthly report is immutable. Do not silently replace a
+  // historical month with today's live Pipeline state.
+  if (previousRows.some((r) => String(r.snapshot_period) === snapshotPeriod)) {
+    throw new Error("Snapshot period already captured; historical report is immutable");
+  }
+  return [...previousRows, ...replacement];
 }

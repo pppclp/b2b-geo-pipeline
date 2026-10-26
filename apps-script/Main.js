@@ -1298,10 +1298,35 @@ SheetStore_.prototype.table = function (file, sheet) {
         if (v !== "") has = true;
         rec[headers[c]] = v;
       }
-      if (has) rows.push(rec);
+      if (has) {
+        // Never compact physical row positions. writeDirty_ updates row i+2,
+        // so an interior blank row would otherwise overwrite another record.
+        if (rows.length !== i - 1) {
+          throw geoSchemaError_("SCHEMA_MISMATCH",
+            file + " / " + sheet + " has an interior blank row at " + (rows.length + 2) +
+            "; remove the gap before writing");
+        }
+        rows.push(rec);
+      }
     }
   }
   geoAssertSheetSchema_(file, sheet, headers);
+  // Reject duplicate primary keys before any update could target the wrong row.
+  var schemaRule = GEO_CONTRACT.access.files[file] && GEO_CONTRACT.access.files[file].sheets &&
+    GEO_CONTRACT.access.files[file].sheets[sheet];
+  if (schemaRule && schemaRule.primary_key) {
+    var seenPrimaryKeys = {};
+    rows.forEach(function (row, index) {
+      var id = String(row[schemaRule.primary_key] == null ? "" : row[schemaRule.primary_key]).trim();
+      if (!id) throw geoSchemaError_("SCHEMA_MISMATCH",
+        file + " / " + sheet + " missing " + schemaRule.primary_key + " in row " + (index + 2));
+      if (Object.prototype.hasOwnProperty.call(seenPrimaryKeys, id))
+        throw geoSchemaError_("SCHEMA_MISMATCH",
+          file + " / " + sheet + " duplicate " + schemaRule.primary_key + " at rows " +
+          seenPrimaryKeys[id] + " and " + (index + 2));
+      seenPrimaryKeys[id] = index + 2;
+    });
+  }
   this.tables[key] = { headers: headers, rows: rows };
   this.loaded[key] = {
     headers: this.tables[key].headers.slice(),
