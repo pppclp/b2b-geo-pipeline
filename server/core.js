@@ -29,9 +29,9 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
 function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null, additionalCustomerTypes = [], legacyImport = false } = {}) {
-  const required = ["customer_name", "business_id", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
+  const required = ["customer_name", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
-    if (legacyImport && ["business_id", "expected_close_month"].includes(key)) continue;
+    if (legacyImport && key === "expected_close_month") continue;
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
       throw new HttpError(400, key + " is required");
     }

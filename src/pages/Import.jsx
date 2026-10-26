@@ -6,7 +6,7 @@ import { normalizeHistoricalGeoSource } from "@/lib/historicalGeoSource";
 import { makeHistoricalImportBatches } from "@/lib/importBatches";
 import { readImportFile, parseImportCreatedMonth, parseImportSourceDate } from "@/lib/importWorkbook";
 import { calculateNetRc } from "@/lib/netRc";
-import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType, legacyProductCategory, legacySourceMonth, legacyBusinessId, legacySourceDocumentId, legacyRowSourceId } from "@/lib/legacyImport";
+import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType, legacyProductCategory, legacySourceMonth, legacyBusinessId, legacyImportBusinessId, legacySourceDocumentId, legacyRowSourceId } from "@/lib/legacyImport";
 import { normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -222,8 +222,8 @@ export default function Import() {
         }
         if (!val) return;
         if (f.key === "business_id") {
-          const id = legacyBusinessId(val);
-          if (id === null) errors.push("Legacy Business ID must have 1-40 digits, without guessing zeroes");
+          const id = legacyImportBusinessId(val);
+          if (id === null) errors.push("Legacy Business ID is malformed or columns shifted; check the source layout");
           else rec.business_id = id;
           return;
         }

@@ -30,7 +30,12 @@ export function legacyCustomerType(value) {
 
 export function legacyProductCategory(value) {
   const text = String(value ?? "").trim();
-  return /^broadband$/i.test(text) ? "TOL" : text;
+  if (/^broadband$/i.test(text)) return "TOL";
+  if (/^postpaid$/i.test(text)) return "TMH";
+  if (/^solutions$/i.test(text)) return "Solution";
+  // Anything still unmatched is resolved against the configured Other category
+  // by the import preview, not guessed into a specific product category.
+  return text;
 }
 
 const THAI_MONTHS = {"ม.ค.":1,"ก.พ.":2,"มี.ค.":3,"เม.ย.":4,"พ.ค.":5,"มิ.ย.":6,"ก.ค.":7,"ส.ค.":8,"ก.ย.":9,"ต.ค.":10,"พ.ย.":11,"ธ.ค.":12};
@@ -51,8 +56,18 @@ export function legacySourceMonth(value) {
   return mon&&y>=1900&&y<=2100?String(y)+"-"+String(mon).padStart(2,"0"):null;
 }
 
+// Import policy: if the source already exported an ID as scientific notation,
+// its original digits cannot be reconstructed reliably. Since Business ID is
+// optional, omit this value while retaining the untouched source workbook.
+// All other malformed values remain blocking so shifted columns are reviewed.
+export function legacyImportBusinessId(value) {
+  const id = legacyBusinessId(value);
+  if (id !== null) return id;
+  return /^\d+(?:\.\d+)?e\+\d+$/i.test(String(value ?? "").trim()) ? "" : null;
+}
+
 export function legacyBusinessId(value) {
-  // Blank and non-13-digit numeric IDs are valid for historical records only.
+  // Blank and non-13-digit numeric IDs are valid. Never decode lossy scientific notation.
   const text=String(value ?? "").replace(/\u00a0/g," ").trim();
   if (!text) return "";
   return /^\d{1,40}$/.test(text)?text:null;

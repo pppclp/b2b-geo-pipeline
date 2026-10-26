@@ -127,7 +127,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const pricingChanged = ["quantity", "price_per_sub", "oc"].some(changed);
   const problems = [
     requiredProblem("customer_name", !!String(form.customer_name || "").trim(), "Customer Name"),
-    requiredProblem("business_id", !businessIdError(form.business_id), "Business ID (13 digits)"),
+    requiredProblem("business_id", !businessIdError(form.business_id), "Business ID (digits only, max 40)"),
     requiredProblem("customer_type", !!normalizeCustomerType(form.customer_type), "Customer Type"),
     requiredProblem("sales_channel", !!form.sales_channel, "Sales Channel"),
     requiredProblem("region_id", !!form.region_id, "Region"),
@@ -215,8 +215,8 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
 
           <div>
-            <Label>Business ID *</Label>
-            <Input value={form.business_id} onChange={(e) => set("business_id", e.target.value)} placeholder="13-digit juristic/tax ID" />
+            <Label>Business ID (optional)</Label>
+            <Input type="text" inputMode="numeric" maxLength={40} value={form.business_id} onChange={(e) => set("business_id", e.target.value)} placeholder="Digits only, up to 40; may be blank" />
           </div>
           <div>
             <Label>Customer Type *</Label>

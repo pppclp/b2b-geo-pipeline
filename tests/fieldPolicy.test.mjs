@@ -440,7 +440,7 @@ test("real legacy imports preserve source facts and never forge Stage Aging or a
   assert.match(events[0].remark,/Historical bulk import/);
 });
 
-test("legacy import permits short numeric Business IDs but never relaxes normal Create",()=>{
+test("legacy import and normal Create accept short or blank Business IDs",()=>{
   const x=fixture();
   const created=x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_short_business_2026",
@@ -449,8 +449,13 @@ test("legacy import permits short numeric Business IDs but never relaxes normal 
   });
   const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===created.opportunity_ids[0]);
   assert.equal(row.business_id,"01234");
+  const short=x.call("AE1","POST","entities/Opportunity",input({business_id:"01234"}));
+  const blank=x.call("AE1","POST","entities/Opportunity",input({business_id:"",client_request_id:"blank_business_id_2026"}));
+  const stored=x.store.table(DB,"Pipelines").rows;
+  assert.equal(stored.find(r=>r.opportunity_id===short.id)?.business_id,"01234");
+  assert.equal(stored.find(r=>r.opportunity_id===blank.id)?.business_id,"");
   assert.throws(()=>x.call("AE1","POST","entities/Opportunity",
-    input({business_id:"01234"})),rejected(400));
+    input({business_id:"12-34",client_request_id:"invalid_business_id_2026"})),rejected(400));
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_bad_business_2026",
     items:[input({business_id:"12-34",client_request_id:undefined,source_system:"Legacy",
