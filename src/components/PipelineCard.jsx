@@ -1,8 +1,9 @@
 import React from "react";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
-import { formatMonth, agingDays } from "@/lib/pipeline";
-import { isStageSlaOverdue } from "@/lib/dashboardMetrics";
+import { formatMonth } from "@/lib/pipeline";
+import { overdueReasons } from "@/lib/overdueSummary.js";
+import OverdueTags from "@/components/OverdueTags";
 import { smWorkingWithTeamLabels } from "@/lib/pipelineListPresentation";
 import { AlertCircle, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,13 +11,12 @@ import { cn } from "@/lib/utils";
 // Board cards are a compact overview. Full ownership, handoff and working-with
 // history stays available in the shared Pipeline Quick View.
 export default function PipelineCard({ op, onOpen, showRegion = false }) {
-  const { maps, master } = useData();
+  const { maps, master, config, taskEntries } = useData();
   const owner = maps.member[op.owner_id];
   const handler = maps.member[op.current_handler_id];
   const category = maps.category[op.product_category_id];
-  const overdue = isStageSlaOverdue(op, maps.stage);
+  const overdue = overdueReasons(op, maps.stage, config?.stage_watch_days, taskEntries).any;
   const differentHandler = op.current_handler_id !== op.owner_id && Boolean(op.current_handler_id);
-  const age = agingDays(op.stage_entered_at);
   const teams = smWorkingWithTeamLabels(op, handler, master?.WorkingWithOption || []);
 
   return (
@@ -59,9 +59,7 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
           <span className="text-[11px] font-medium truncate" title={"AE Owner: " + (owner?.name || "Unassigned")}>
             {owner?.name || "Unassigned"}
           </span>
-          {overdue && <span className="shrink-0 text-amber-700 font-medium text-[10px]" title={"Stage SLA overdue, " + age + " days"}>
-            SLA {age}d
-          </span>}
+          <OverdueTags op={op} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} />
         </div>
         <div className="flex h-[19px] min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
           {differentHandler && <span className="min-w-0 truncate"

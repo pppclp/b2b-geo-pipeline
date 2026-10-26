@@ -7,7 +7,8 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
-import { isStageSlaOverdue } from "@/lib/dashboardMetrics";
+import { overdueReasons } from "@/lib/overdueSummary.js";
+import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
@@ -36,7 +37,7 @@ const SORTS = [
 
 
 export default function Pipeline() {
-  const { scopedOpportunities, opportunities, activeStages, maps, master, profile, config, loading, error, refresh } = useData();
+  const { scopedOpportunities, opportunities, activeStages, maps, master, profile, config, taskEntries, loading, error, refresh } = useData();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState("list");
@@ -104,7 +105,7 @@ export default function Pipeline() {
     });
   };
 
-  const filterContext = useMemo(() => ({ master, maps, config }), [master, maps, config]);
+  const filterContext = useMemo(() => ({ master, maps, config, taskEntries }), [master, maps, config, taskEntries]);
   const filteredWithoutStage = useMemo(() =>
     scopedOpportunities.filter((o) => matchesPipelineFilters(o, filters, filterContext, { ignoreStage: true })),
     [scopedOpportunities, filters, filterContext]
@@ -168,7 +169,7 @@ export default function Pipeline() {
     { id: "all", title: "All Open", count: workCounts.all, icon: Layers3 },
     { id: "assigned-to-me", title: "With Me", count: workCounts["assigned-to-me"], icon: UserRound },
     { id: "support-needed", title: "Needs Support", count: workCounts["support-needed"], icon: LifeBuoy },
-    { id: "stage-overdue", title: "Stage Overdue", count: workCounts["stage-overdue"], icon: Clock3 },
+    { id: "stage-overdue", title: "Overdue", count: workCounts["stage-overdue"], icon: Clock3 },
     { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", count: workCounts["due-this-month"], icon: CalendarDays },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id);
@@ -374,7 +375,7 @@ export default function Pipeline() {
           <div className="space-y-2.5 md:hidden" role="list" aria-label="Pipeline records">
             {sorted.map((o) => {
               const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
-              const overdue = isStageSlaOverdue(o, maps.stage);
+              const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any;
               return (
                 <button key={o.id} type="button" role="listitem"
                   className="relative flex w-full min-w-0 flex-col gap-2 rounded-2xl border border-border bg-card px-3.5 py-4 text-left shadow-soft transition-colors hover:border-foreground/20 hover:bg-secondary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -396,6 +397,7 @@ export default function Pipeline() {
                     )}
                     <span aria-hidden="true">·</span>
                     <span className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "Stage age unknown" : `${age}d in stage`}</span>
+                    <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} />
                     {o.support_needed && <span className="inline-flex items-center gap-1 text-amber-700">
                       <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true"/>Needs Support
                     </span>}
@@ -443,7 +445,6 @@ export default function Pipeline() {
                   const handler = maps.member[o.current_handler_id];
                   const handlerName = handler?.name || "Unassigned";
                   const categoryName = maps.category[o.product_category_id]?.name || "";
-                  const overdue = isStageSlaOverdue(o, maps.stage);
                   const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
                   const differentOwner = Boolean(o.current_handler_id && o.owner_id !== o.current_handler_id);
                   // Working With is a supporting-team indicator, not ownership.
@@ -517,7 +518,7 @@ export default function Pipeline() {
                       <td className="px-3 py-3 text-right">
                         <div className="font-medium tabular-nums text-[11px] whitespace-nowrap"
                           title={age === null ? "Original stage-entered date unavailable (legacy import)" : "Days in current Stage: " + age}>{age === null ? "Unknown" : `${age}d` }</div>
-                        {overdue && <div className="text-[10px] text-amber-700 mt-0.5" title="Stage SLA overdue">SLA overdue</div>}
+                        <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} /></div>
                         {o.support_needed && <div className="text-[10px] text-orange-700 mt-0.5" title="Support needed">Support</div>}
                       </td>
                     </tr>

@@ -638,6 +638,8 @@ source_03_pipeline_config:
     field:
       threshold_days:
         description: "Legacy global aging threshold, retained for backwards compatibility; not used to flag Stage SLA."
+      stage_watch_days:
+        description: "Stage aging warning in calendar days; threshold 7 means >7 elapsed days. Independent from per-Stage SLA."
       internal_task_sla_days:
         description: "Separate calendar-day SLA for active Working With handoffs; blank disables this alert."
         used_to_calculate:
@@ -651,10 +653,47 @@ source_03_pipeline_config:
       - "Stuck Pipeline Value"
 
 
+  sheet_scenario_tasks:
+    source_sheet: "Scenario_Tasks"
+    target_entity: "scenario_tasks"
+    primary_key: "task_id"
+    fields:
+      task_id: {target: "scenario_tasks.task_id"}
+      scenario_id: {target: "scenario_tasks.scenario_id"}
+      stage_id: {target: "scenario_tasks.stage_id"}
+      task_name: {target: "scenario_tasks.task_name"}
+      sort_order: {target: "scenario_tasks.sort_order"}
+      sla_days: {target: "scenario_tasks.sla_days"}
+      day_type: {target: "scenario_tasks.day_type"}
+      start_policy: {target: "scenario_tasks.start_policy"}
+      working_with_id: {target: "scenario_tasks.working_with_id"}
+      active: {target: "scenario_tasks.active"}
+      notes: {target: "scenario_tasks.notes"}
+
 # ============================================================
 # 4. SOURCE FILE 04 — OPTIONAL
 # EXISTING PIPELINE IMPORT
 # ============================================================
+
+source_05_pipeline_task_instances:
+  description: "System-managed Task execution history. Templates remain in Pipeline Config."
+  sheet_pipeline_tasks:
+    source_sheet: "Pipeline_Tasks"
+    target_entity: "pipeline_tasks"
+    primary_key: "task_instance_id"
+    fields:
+      task_instance_id: {target: "pipeline_tasks.task_instance_id"}
+      opportunity_id: {target: "pipeline_tasks.opportunity_id"}
+      task_id: {target: "pipeline_tasks.task_id"}
+      scenario_id: {target: "pipeline_tasks.scenario_id"}
+      stage_id: {target: "pipeline_tasks.stage_id"}
+      stage_entered_at: {target: "pipeline_tasks.stage_entered_at"}
+      status: {target: "pipeline_tasks.status"}
+      started_at: {target: "pipeline_tasks.started_at"}
+      completed_at: {target: "pipeline_tasks.completed_at"}
+      updated_at: {target: "pipeline_tasks.updated_at"}
+      updated_by_user_id: {target: "pipeline_tasks.updated_by_user_id"}
+      note: {target: "pipeline_tasks.note"}
 
 source_04_existing_pipeline_import:
 
@@ -2373,6 +2412,14 @@ access_control:
 
     "B2B_GEO_Pipeline_Config.xlsx":
       sheets:
+        Scenario_Tasks:
+          entity: "scenario_tasks"
+          primary_key: "task_id"
+          permissions:
+            read: []
+            create: []
+            update: []
+            delete: []
         Product_Categories:
           entity: "product_categories"
           primary_key: "category_id"
@@ -2446,6 +2493,14 @@ access_control:
             delete: []
             import: ["SM", "Admin"]
             export: ["AE", "SM", "Management", "Admin"]
+        Pipeline_Tasks:
+          entity: "pipeline_tasks"
+          primary_key: "task_instance_id"
+          permissions:
+            read: []
+            create: []
+            update: []
+            delete: []
         Pipeline_Events:
           entity: "opportunity_events"
           primary_key: "event_id"

@@ -1,4 +1,4 @@
-// Bump this only for intentional breaking changes to the API contract.
+// Keep v2 for backwards-compatible backend-first rollout; newer UI requires the scenario_task_overdue capability.
 // The frontend refuses an absent/older contract rather than displaying empty Pipeline data.
 export const API_CONTRACT_VERSION = 2;
 export const REQUIRED_CAPABILITIES = Object.freeze([
@@ -6,6 +6,7 @@ export const REQUIRED_CAPABILITIES = Object.freeze([
   "needs_support_toggle",
   "schema_fail_closed",
   "import_batch_dedupe",
+  "scenario_task_overdue",
   "legacy_import_owner_resolution",
 ]);
 export function validateApiContract(me) {

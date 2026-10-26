@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/dataContext";
+import PipelineTaskPanel from "@/components/PipelineTaskPanel";
 import { formatNetRc } from "@/lib/netRc";
 import { formatMonth, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import { Button } from "@/components/ui/button";
@@ -229,6 +230,7 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
             </div>
           </div>
           <PipelineQuickActions op={op} initialStageId={initialStageId} onCancel={requestClose} onDirtyChange={setDirty} onSaved={() => { setDirty(false); onClose(); }}/>
+          <PipelineTaskPanel op={op} />
           {canClose && (
             <div className="border-t pt-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-semibold">Close Pipeline</h3>

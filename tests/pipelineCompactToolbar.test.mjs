@@ -107,7 +107,7 @@ test("Pipeline UI keeps Region pills for multi-region roles and promotes Product
   assert.ok(page.includes('activePipelineView(filters, profile?.id)'));
   assert.ok(page.includes('quickViewCounts(scopedOpportunities, filters, profile?.id, filterContext)'));
   assert.ok(page.includes("switchPipelineView(filters, viewId, profile?.id)"));
-  assert.ok(page.includes('title: "Stage Overdue"'));
+  assert.ok(page.includes('title: "Overdue"'));
   assert.ok(page.includes('"Due This Month"'));
   assert.ok(page.includes('f.due_this_month = "1"'));
   assert.ok(page.includes("setParams(nextParams, { replace: true })"));

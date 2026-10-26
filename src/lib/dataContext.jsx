@@ -39,6 +39,7 @@ export function DataProvider({ children }) {
   const [master, setMaster] = useState(null);
   const [opportunities, setOpportunities] = useState([]);
   const [history, setHistory] = useState([]);
+  const [taskEntries, setTaskEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
@@ -52,12 +53,15 @@ export function DataProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const results = await fetchAllEntities([...MASTER_ENTITIES, "Opportunity"]);
+      const [results, tasksResponse] = await Promise.all([
+        fetchAllEntities([...MASTER_ENTITIES, "Opportunity"]), db.tasks.list(),
+      ]);
       if (requestId !== dataRequestSequence.current) return;
       const masterObj = {};
       MASTER_ENTITIES.forEach((e, i) => (masterObj[e] = results[i]));
       setMaster(masterObj);
       setOpportunities(results[MASTER_ENTITIES.length] || []);
+      setTaskEntries(tasksResponse.items || []);
       setLastLoadedAt(new Date().toISOString());
     } catch (e) {
       if (requestId === dataRequestSequence.current) {
@@ -155,6 +159,7 @@ export function DataProvider({ children }) {
     (master?.AppConfig || []).forEach((c) => (cfg[c.key] = c.value));
     return {
       aging_threshold_days: Number(cfg.aging_threshold_days || 14), // legacy only
+      stage_watch_days: Number(cfg.stage_watch_days || 7),
       internal_task_sla_days: cfg.internal_task_sla_days === "" || cfg.internal_task_sla_days == null
         ? null : Number(cfg.internal_task_sla_days),
       pipeline_value_metric: cfg.pipeline_value_metric || "pipeline_value",
@@ -493,6 +498,19 @@ export function DataProvider({ children }) {
     []
   );
 
+  const saveTask = useCallback(async (opportunityId, taskId, status, expectedUpdatedAt = "") => {
+    const result = await db.tasks.update(opportunityId, taskId, status, expectedUpdatedAt);
+    // Task save already committed. A later display refresh failure must not
+    // misreport it as a failed write and invite duplicate retries.
+    setTaskEntries(prev => prev.map(t => t.opportunity_id === opportunityId && t.task_id === taskId
+      ? result : t));
+    try {
+      const latest = await db.tasks.list(opportunityId);
+      setTaskEntries(prev => [...prev.filter(t => t.opportunity_id !== opportunityId), ...(latest.items || [])]);
+    } catch (error) { console.warn("Task saved; task list refresh deferred", error); }
+    return result;
+  }, []);
+
   const value = {
     loading,
     error,
@@ -512,6 +530,8 @@ export function DataProvider({ children }) {
     scopeFilter,
     history,
     historyFor,
+    taskEntries,
+    saveTask,
     refresh: loadAll,
     createMaster,
     updateMaster,

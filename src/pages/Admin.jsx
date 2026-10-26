@@ -273,6 +273,7 @@ function ConfigManager() {
   const { master, createMaster, updateMaster } = useData();
   const cfg = Object.fromEntries((master?.AppConfig || []).map((c) => [c.key, c]));
   const [internalSla, setInternalSla] = useState(cfg.internal_task_sla_days?.value ?? "");
+  const [stageWatch, setStageWatch] = useState(cfg.stage_watch_days?.value ?? "7");
   const [metric, setMetric] = useState(cfg.pipeline_value_metric?.value || "pipeline_value");
   const [weighted, setWeighted] = useState(cfg.weighted_enabled?.value === "true");
 
@@ -284,6 +285,20 @@ function ConfigManager() {
   return (
     <Card>
       <div className="space-y-4 max-w-md">
+        <div>
+          <Label>Stage Aging Warning (calendar days)</Label>
+          <Input type="number" min="1" max="365" step="1" value={stageWatch}
+            onChange={(e) => setStageWatch(e.target.value)}
+            onBlur={() => {
+              const next = String(stageWatch).trim();
+              if (!/^\d+$/.test(next) || Number(next) < 1 || Number(next) > 365) {
+                setStageWatch(cfg.stage_watch_days?.value ?? "7");
+                return;
+              }
+              if (next !== String(cfg.stage_watch_days?.value ?? "7")) save("stage_watch_days", next);
+            }} />
+          <p className="text-xs text-muted-foreground mt-1">Warning when an Open Pipeline stays in the current Stage beyond this limit. Independent from Stage SLA and Task SLA.</p>
+        </div>
         <div>
           <Label>Internal Working With SLA (calendar days)</Label>
           <Input type="number" min="1" max="365" step="1" value={internalSla} onChange={(e) => setInternalSla(e.target.value)} onBlur={() => {

@@ -1,4 +1,5 @@
-import { isStageSlaOverdue, isInternalSlaOverdue } from "./dashboardMetrics.js";
+import { isInternalSlaOverdue } from "./dashboardMetrics.js";
+import { overdueReasons } from "./overdueSummary.js";
 import { monthOf, currentMonthKey } from "./pipeline.js";
 import { matchesPipelineSearch } from "./pipelineFilterUi.js";
 
@@ -31,7 +32,7 @@ export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = 
   }
   if (f.support === "1" && !o.support_needed) return false;
   if (f.support === "0" && o.support_needed) return false;
-  if (f.stuck === "1" && !isStageSlaOverdue(o, maps?.stage)) return false;
+  if (f.stuck === "1" && !overdueReasons(o, maps?.stage, config?.stage_watch_days, context.taskEntries).any) return false;
   if (f.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
   if (f.won_month && monthOf(o.won_at) !== f.won_month) return false;
   if (f.lost_month && monthOf(o.lost_at) !== f.lost_month) return false;
@@ -49,7 +50,7 @@ export function quickViewCounts(scopedRecords, filters, profileId, context) {
     all: pool.length,
     "assigned-to-me": pool.filter(o => profileId && o.current_handler_id === profileId).length,
     "support-needed": pool.filter(o => o.support_needed).length,
-    "stage-overdue": pool.filter(o => isStageSlaOverdue(o, context.maps?.stage)).length,
+    "stage-overdue": pool.filter(o => overdueReasons(o, context.maps?.stage, context.config?.stage_watch_days, context.taskEntries).any).length,
     "due-this-month": pool.filter(o => o.expected_close_month === (filters.close_month || context.nowMonth || currentMonthKey())).length,
   };
 }

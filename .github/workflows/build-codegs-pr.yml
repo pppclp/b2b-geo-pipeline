@@ -21,16 +21,14 @@ jobs:
         run: npm run gas:build
       - name: Build single Code.gs
         run: node scripts/gas-singlefile.mjs
+      - name: Build offline Code.gs copy page
+        run: node scripts/gas-copy-page.mjs
       - name: Upload latest generated single-file Code.gs
         uses: actions/upload-artifact@v4
         with:
           name: b2b-geo-pipeline-codegs
-          path: apps-script/Code.gs
+          path: |
+            apps-script/Code.gs
+            apps-script/Copy-Codegs.html
           if-no-files-found: error
           retention-days: 7
-      - name: Emit Code.gs as base64 for retrieval
-        run: |
-          echo "CODE_GS_BASE64_BEGIN"
-          base64 -w0 apps-script/Code.gs
-          echo
-          echo "CODE_GS_BASE64_END"

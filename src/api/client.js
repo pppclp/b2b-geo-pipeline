@@ -139,6 +139,13 @@ export const db = {
   snapshots: {
     capture: (snapshot_period) => request("POST", "/snapshots/capture", { body: { snapshot_period } }),
   },
+  tasks: {
+    list: (opportunityId = "") => request("GET", opportunityId ? `/tasks/${encodeURIComponent(opportunityId)}` : "/tasks"),
+    update: (opportunityId, taskId, status, expected_updated_at) =>
+      request("POST", `/tasks/${encodeURIComponent(opportunityId)}/${encodeURIComponent(taskId)}`, {
+        body: { status, expected_updated_at },
+      }),
+  },
   notifications: {
     list: () => request("GET", "/notifications"),
     markRead: (id) => request("POST", `/notifications/${encodeURIComponent(id)}/read`),
