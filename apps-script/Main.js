@@ -74,7 +74,11 @@ function handle_(req) {
       return verifyUatActivation_(store, req.body || {});
     }
     if (req.method === "POST" && authPath === "auth/activation/complete") {
-      return completeUatActivation_(store, req.body || {});
+      var activationResult = completeUatActivation_(store, req.body || {});
+      // Persist before reporting success; otherwise the one-time code could be
+      // reused after the response while the credential row remains unchanged.
+      store.flush();
+      return activationResult;
     }
 
     // All other requests must present a valid signed session.
