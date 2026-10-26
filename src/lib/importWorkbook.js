@@ -1,8 +1,10 @@
 // Parse a user-selected .xlsx in the browser, without uploading raw bytes.
 // ExcelJS is loaded only when the user chooses a workbook.
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
-export const MAX_IMPORT_ROWS = 200;
+// Larger preview is safe; Apps Script requests remain capped at 200 rows each.
+export const MAX_IMPORT_ROWS = 400;
 const MAX_COLUMNS = 80;
+const THAI_MONTHS = {"ม.ค.":1,"ก.พ.":2,"มี.ค.":3,"เม.ย.":4,"พ.ค.":5,"มิ.ย.":6,"ก.ค.":7,"ส.ค.":8,"ก.ย.":9,"ต.ค.":10,"พ.ย.":11,"ธ.ค.":12};
 
 function excelCellText(cell, header = "") {
   const value = cell.value;
@@ -50,10 +52,10 @@ export function parseImportCreatedMonth(value) {
   const iso = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/.exec(text);
   if (iso) return valid(Number(iso[1]), Number(iso[2]),
     iso[3] === undefined ? null : Number(iso[3]));
-  const named = /^(?:(\d{1,2})[-\/\s]+)?([A-Za-z]{3,9})[-\/\s]+(\d{2}|\d{4})$/.exec(text);
+  const named = /^(?:(\d{1,2})[-_\/\s]+)?((?:[A-Za-z]{3,9}|[ก-๙.]+))[-_\/\s]+(\d{2}|\d{4})$/.exec(text);
   if (named) {
     const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-    const month = months.indexOf(named[2].slice(0,3).toLowerCase()) + 1;
+    const month = THAI_MONTHS[named[2]] || months.indexOf(named[2].slice(0,3).toLowerCase()) + 1;
     const yearPart = named[3];
     const yy = Number(yearPart);
     // Same century convention as PR #72; two-digit years are a legacy
@@ -69,10 +71,11 @@ export function parseImportSourceDate(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
   let iso = raw;
-  const english = /^(\d{1,2})[-\/\s]+([A-Za-z]{3,9})[-\/\s]+(\d{2}|\d{4})$/.exec(raw);
+  const english = /^(\d{1,2})[-_\/\s]+((?:[A-Za-z]{3,9}|[ก-๙.]+))[-_\/\s]+(\d{2}|\d{4})$/.exec(raw);
   if (english) {
-    const month = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+    let month = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
       .indexOf(english[2].slice(0, 3).toLowerCase()) + 1;
+    month = THAI_MONTHS[english[2]] || month;
     if (!month) return null;
     const yearNumber = Number(english[3]);
     const year = english[3].length === 2
@@ -112,7 +115,7 @@ export async function parseImportXlsx(arrayBuffer) {
     if (!row.some((cell)=>String(cell).trim())) return;
     rows.push(row);
     rowNumbers.push(rowNumber);
-    if (rows.length > MAX_IMPORT_ROWS) throw new Error("Import supports up to 200 data rows per file");
+    if (rows.length > MAX_IMPORT_ROWS) throw new Error("Import supports up to 400 data rows per file");
   });
   if (!rows.length) throw new Error("This workbook contains no data rows");
   return {headers,rows,rowNumbers};
@@ -125,7 +128,7 @@ export async function readImportFile(file, parseCsv) {
   if (name.endsWith(".csv")) {
     const parsed = parseCsv(await file.text());
     if (!parsed.length) throw new Error("CSV has no rows");
-    if (parsed.length - 1 > MAX_IMPORT_ROWS) throw new Error("Import supports up to 200 rows per file");
+    if (parsed.length - 1 > MAX_IMPORT_ROWS) throw new Error("Import supports up to 400 rows per file");
     return {headers:parsed[0].map((h)=>h.trim()),rows:parsed.slice(1)};
   }
   throw new Error("Choose a .xlsx or .csv file");
