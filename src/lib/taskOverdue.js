@@ -14,11 +14,15 @@ export function elapsedTaskDays(since, until, dayType = "calendar") {
   if (dayType !== "business") return daysBetween(since, until);
   const start = Date.parse(since), end = Date.parse(until);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
-  // Weekdays only; no unapproved assumptions about local public holidays.
-  let weekdays = 0, cursor = new Date(start);
-  while (cursor.getTime() + 86400000 <= end && weekdays < 366) {
-    cursor = new Date(cursor.getTime() + 86400000);
-    const weekday = cursor.getUTCDay();
+  // Weekdays only; Thai public holidays are NOT excluded without an approved calendar.
+  // Constant-time calculation avoids iterating through years of task history.
+  const fullDays = Math.floor((end - start) / 86400000);
+  const weeks = Math.floor(fullDays / 7);
+  const remainder = fullDays % 7;
+  const startDay = new Date(start).getUTCDay();
+  let weekdays = weeks * 5;
+  for (let day = 1; day <= remainder; day++) {
+    const weekday = (startDay + day) % 7;
     if (weekday !== 0 && weekday !== 6) weekdays += 1;
   }
   return weekdays;
