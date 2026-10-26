@@ -177,8 +177,8 @@ export function DataProvider({ children }) {
       if (!profile) return false;
       if (profile.app_role === "admin") return true;
       if (profile.app_role === "management") {
-        // Fail closed when User_Region assignments have not loaded or are empty.
-        return (profile.region_ids || []).includes(op.region_id);
+        // Already filtered by backend RBAC; Management is nationwide by role.
+        return true;
       }
       if (profile.app_role === "sm") {
         return (profile.region_ids || []).includes(op.region_id);
