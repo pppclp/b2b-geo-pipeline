@@ -453,8 +453,7 @@ export function createCore({ contract, store, now, uuid }) {
     const ae = legacyImportOwner(code, actor);
     if (item.owner_id && String(item.owner_id) !== ae.id)
       throw new HttpError(400, "Sales Code conflicts with the selected Opportunity Owner");
-    if (item.source_sale_name && normalizeSaleName(item.source_sale_name) !== normalizeSaleName(ae.name))
-      throw new HttpError(400, "Sale Name does not match Sales Code in Users Master: " + code);
+    // Historical name spellings are advisory. The unique active Sales Code is authoritative.
     return { ...item, owner_id:ae.id,
       current_handler_id:item.current_handler_id || ae.id };
   }
