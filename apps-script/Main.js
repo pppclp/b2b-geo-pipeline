@@ -106,23 +106,33 @@ function uatLogin_(store, body) {
   }
 
   var users = store.table("B2B_GEO_User_Org_Master.xlsx", "Users").rows;
-  var user = users.find(function (row) {
+  var matchingUsers = users.filter(function (row) {
     return normalizeEmployeeId_(row.employee_id) === username;
   });
 
-  if (!user || String(user.status || "Active").toLowerCase() !== "active") {
+  // A duplicated Employee ID must never select whichever account happens to
+  // appear first: that could issue a signed session for a different user/role.
+  if (matchingUsers.length !== 1 ||
+      String(matchingUsers[0].status || "Active").toLowerCase() !== "active") {
     denyUatLogin_(limiter, key);
   }
+  var user = matchingUsers[0];
 
   var credentials = store
     .table("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials")
     .rows;
 
-  var credential = credentials.find(function (row) {
+  var matchingCredentials = credentials.filter(function (row) {
     return normalizeEmployeeId_(row["employee_id / username"]) === username;
   });
 
-  if (!credential || !verifyUatPassword_(credential, password)) {
+  // Fail closed on ambiguous or inconsistent identity bindings. An empty
+  // credential user_id remains supported for legacy UAT rows; populated IDs
+  // must agree with the authenticated Users row.
+  if (matchingCredentials.length !== 1 ||
+      (String(matchingCredentials[0].user_id || "").trim() &&
+       String(matchingCredentials[0].user_id).trim() !== String(user.user_id || "").trim()) ||
+      !verifyUatPassword_(matchingCredentials[0], password)) {
     denyUatLogin_(limiter, key);
   }
   if (key) limiter.remove(key);
