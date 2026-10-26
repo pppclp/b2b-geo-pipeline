@@ -500,8 +500,14 @@ export function DataProvider({ children }) {
 
   const saveTask = useCallback(async (opportunityId, taskId, status, expectedUpdatedAt = "") => {
     const result = await db.tasks.update(opportunityId, taskId, status, expectedUpdatedAt);
-    const latest = await db.tasks.list(opportunityId);
-    setTaskEntries(prev => [...prev.filter(t => t.opportunity_id !== opportunityId), ...(latest.items || [])]);
+    // Task save already committed. A later display refresh failure must not
+    // misreport it as a failed write and invite duplicate retries.
+    setTaskEntries(prev => prev.map(t => t.opportunity_id === opportunityId && t.task_id === taskId
+      ? result : t));
+    try {
+      const latest = await db.tasks.list(opportunityId);
+      setTaskEntries(prev => [...prev.filter(t => t.opportunity_id !== opportunityId), ...(latest.items || [])]);
+    } catch (error) { console.warn("Task saved; task list refresh deferred", error); }
     return result;
   }, []);
 
