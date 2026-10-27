@@ -221,3 +221,30 @@ test("read-only login readiness reports identity ambiguity without exposing cred
   assert.equal(JSON.stringify(summary).includes("secret-1"),false);
   assert.equal(JSON.stringify(summary).includes("NOT-U0002"),false);
 });
+
+test("presentation UAT temporarily skips personal-password setup without changing credentials or access identity",()=>{
+  const credential={user_id:"U0001","employee_id / username":"90001",temporary_password:"presentation-test-secret",
+    password_hash:"",credential_status:"",password_set_at:""};
+  const {ctx,properties,store}=fixture([credential]);
+  properties.set("GEO_ENVIRONMENT","UAT");
+  properties.set("GEO_UAT_ALLOW_PLAINTEXT_PASSWORDS","true");
+  properties.set("GEO_UAT_TEMP_PASSWORD_EXPIRES_AT",new Date(Date.now()+60_000).toISOString());
+  properties.set("GEO_UAT_LEGACY_PASSWORD_SETUP_ENABLED","false");
+  const before=JSON.stringify(credential);
+  const direct=ctx.uatLogin_(store,{username:"90001",password:"presentation-test-secret"});
+  assert.equal(direct.user_id,"U0001");
+  assert.equal(direct.session_token,"session-U0001");
+  assert.equal(direct.password_setup_required,undefined);
+  assert.equal(JSON.stringify(credential),before,"sign-in must not modify credential rows");
+  assert.throws(()=>ctx.uatLogin_(store,{username:"90001",password:"wrong"}),e=>e.status===401);
+
+  // The existing setup journey remains available for later reactivation.
+  ctx.uatEnsureFirstLoginSecrets_=()=>{};
+  ctx.uatTemporarySetupTicket_=()=> "synthetic-password-setup-ticket";
+  properties.set("GEO_UAT_LEGACY_PASSWORD_SETUP_ENABLED","true");
+  const setup=ctx.uatLogin_(store,{username:"90001",password:"presentation-test-secret"});
+  assert.equal(setup.password_setup_required,true);
+  assert.equal(setup.password_setup_ticket,"synthetic-password-setup-ticket");
+  assert.equal(setup.session_token,undefined,"setup ticket must not grant application access");
+  assert.equal(JSON.stringify(credential),before);
+});
