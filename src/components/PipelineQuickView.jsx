@@ -121,7 +121,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
   return (
     <form onSubmit={save} className="space-y-4">
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-foreground">Stage Progress</h3>
+        <h3 className="text-sm font-semibold text-foreground">ความคืบหน้าตาม Stage</h3>
         <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(activeStages.length, 1)}, minmax(0, 1fr))` }}>
           {activeStages.map((stage, index) => {
             const position = activeStages.findIndex((item) => item.id === stageId);
@@ -139,7 +139,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
         <div className="flex items-center gap-4 py-3">
           <div className="min-w-0 flex-1">
             <Label htmlFor={`stage-${op.id}`} className="text-[13px] font-medium">Current Stage</Label>
-            <p className="text-xs text-muted-foreground mt-1">Stage Aging · {op.stage_entered_at ? `${agingDays(op.stage_entered_at)} days` : "Unknown"}</p>
+            <p className="text-xs text-muted-foreground mt-1">Stage Aging · จำนวนวันที่อยู่ใน Stage: {op.stage_entered_at ? `${agingDays(op.stage_entered_at)} วัน` : "ไม่ทราบ"}</p>
           </div>
           <div className="w-[48%] shrink-0">
             <Select disabled={!canEdit || saving} value={stageId} onValueChange={setStageId}>
@@ -151,7 +151,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
         <div className="flex items-center gap-4 py-3">
           <div className="min-w-0 flex-1">
             <Label htmlFor={`handler-${op.id}`} className="text-[13px] font-medium">Current Handler</Label>
-            <p className="text-xs text-muted-foreground mt-1">Handler Aging · {op.handler_since ? `${agingDays(op.handler_since)} days` : "Unknown"}</p>
+            <p className="text-xs text-muted-foreground mt-1">Handler Aging · จำนวนวันที่อยู่กับผู้รับผิดชอบ: {op.handler_since ? `${agingDays(op.handler_since)} วัน` : "ไม่ทราบ"}</p>
           </div>
           <div className="w-[48%] shrink-0">
             <Select disabled={!canEdit || saving} value={handlerId} onValueChange={setHandlerId}>
@@ -163,7 +163,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
         <div className="flex flex-col gap-2 py-3">
           <div className="min-w-0">
             <p id={`working-${op.id}`} className="text-[13px] font-medium">Working With</p>
-            <p className="text-xs text-muted-foreground mt-1">Optional</p>
+            <p className="text-xs text-muted-foreground mt-1">ทีมที่ร่วมดำเนินงาน · ไม่บังคับ</p>
           </div>
           <div className="w-full min-w-0" role="group" aria-labelledby={`working-${op.id}`}>
             <WorkingWithMultiSelect
@@ -179,7 +179,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
       <div className="flex items-center justify-end gap-2">
         {onCancel && <Button type="button" variant="outline" disabled={saving} onClick={onCancel}>Cancel</Button>}
         {canEdit && <Button type="submit" disabled={!changed || saving || !stageId || !handlerId} className="bg-red-600 text-white hover:bg-red-700 min-w-[126px]">
-          {saving ? "Saving…" : "Save Changes"}
+          {saving ? "กำลังบันทึก…" : "บันทึกการเปลี่ยนแปลง"}
         </Button>}
       </div>
     </form>
@@ -233,7 +233,7 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
           <PipelineTaskPanel op={op} />
           {canClose && (
             <div className="border-t pt-4 flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold">Close Pipeline</h3>
+              <h3 className="text-sm font-semibold">ปิด Pipeline</h3>
               <PipelineCloseActions op={op}
                 beforeOpen={() => !dirty || window.confirm("Discard unsaved Stage / Handler / Working With changes?")}
                 onClosed={() => { setDirty(false); onClose(); }}/>
@@ -249,15 +249,15 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
           </div>
           <div className="border-t pt-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Pipeline Summary</h3>
-              <Button variant="outline" size="sm" type="button" onClick={requestExpand}>View Full Detail</Button>
+              <h3 className="text-sm font-semibold">สรุปข้อมูล Pipeline</h3>
+              <Button variant="outline" size="sm" type="button" onClick={requestExpand}>ดูรายละเอียดทั้งหมด</Button>
             </div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 mt-3 text-sm">
-              <div><dt className="text-xs text-muted-foreground">Customer</dt><dd className="font-medium mt-1">{op.customer_name}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">ลูกค้า</dt><dd className="font-medium mt-1">{op.customer_name}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Business ID</dt><dd className="font-medium tabular-nums mt-1">{textOrDash(op.business_id)}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Sales Channel</dt><dd className="font-medium mt-1">{textOrDash(op.sales_channel)}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Contact</dt><dd className="font-medium mt-1">{textOrDash(op.contact_name)}{op.contact_phone ? ` · ${op.contact_phone}` : ""}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Expected Close</dt><dd className="font-medium mt-1">{formatMonth(op.expected_close_month)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">ช่องทางการขาย</dt><dd className="font-medium mt-1">{textOrDash(op.sales_channel)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">ผู้ติดต่อ</dt><dd className="font-medium mt-1">{textOrDash(op.contact_name)}{op.contact_phone ? ` · ${op.contact_phone}` : ""}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">เดือนที่คาดว่าจะปิดงาน</dt><dd className="font-medium mt-1">{formatMonth(op.expected_close_month)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">AE Owner</dt><dd className="font-medium mt-1">{textOrDash(owner?.name)}</dd></div>
             </dl>
           </div>
