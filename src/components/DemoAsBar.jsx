@@ -50,7 +50,7 @@ export default function DemoAsBar({ variant = "trigger" }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Demo As — UAT Simulation</DialogTitle>
+            <DialogTitle>Demo As — Access Preview</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">Simulate another role/user's permission scope. Your admin account stays unchanged.</p>
           <div className="space-y-3 py-2">
