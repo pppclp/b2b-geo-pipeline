@@ -36,9 +36,6 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
             {category?.name || "—"}{op.product_details ? " · " + op.product_details : ""}
           </div>
         </div>
-        {op.support_needed && <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5">
-          <AlertCircle className="w-3 h-3" aria-hidden="true" /> Support
-        </span>}
         <button type="button"
           className="shrink-0 -mr-1 -mt-1 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
           title="Open quick actions" aria-label={"Quick actions for " + op.customer_name}
