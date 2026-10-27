@@ -19,7 +19,7 @@ export function normalizeClosureUpdate(data, current, lostReasons, actorId, time
     const reasonId = String(output.lost_reason_id ?? current.lost_reason_id ?? "").trim();
     const valid = lostReasons.some((reason) =>
       String(reason.reason_id) === reasonId &&
-      ["YES", "Y", "TRUE", "1"].includes(String(reason.active).trim().toUpperCase())
+      // Older and current contracted Lost_Reasons tabs may omit `active` entirely.\n      // Match the shared master-data policy: blank means active, explicit No means inactive.\n      (reason.active == null || String(reason.active).trim() === "" ||\n        ["YES", "Y", "TRUE", "1"].includes(String(reason.active).trim().toUpperCase()))
     );
     if (!valid) throw new Error("Select an active Lost Reason before marking Pipeline Lost");
   }
