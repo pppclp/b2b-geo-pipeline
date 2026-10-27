@@ -28,3 +28,19 @@ test("Non-status Stage updates do not change closure fields",()=>{
 test("Can't close already closed Pipeline",()=>{
   assert.throws(()=>normalizeClosureUpdate({status:"won"},{...current,status:"lost"},reasons,actorId,stamp),/open Pipeline/);
 });
+
+test("Contracted Lost_Reasons without an active column remain selectable",()=>{
+  const contractedReasons=[{reason_id:"LR003",reason_name:"Cancel"}];
+  const v=normalizeClosureUpdate({status:"lost",lost_reason_id:"LR003"},current,contractedReasons,actorId,stamp);
+  assert.equal(v.lost_reason_id,"LR003");
+  assert.equal(v.status,"lost");
+});
+test("Blank optional active is allowed, but explicitly inactive is denied",()=>{
+  const optionalReasons=[
+    {reason_id:"BLANK",reason_name:"Cancel",active:""},
+    {reason_id:"INACTIVE",reason_name:"Other",active:"No"},
+  ];
+  assert.equal(normalizeClosureUpdate({status:"lost",lost_reason_id:"BLANK"},current,optionalReasons,actorId,stamp).status,"lost");
+  assert.throws(()=>normalizeClosureUpdate({status:"lost",lost_reason_id:"INACTIVE"},current,optionalReasons,actorId,stamp),/Lost Reason/);
+  assert.throws(()=>normalizeClosureUpdate({status:"lost",lost_reason_id:"MISSING"},current,optionalReasons,actorId,stamp),/Lost Reason/);
+});
