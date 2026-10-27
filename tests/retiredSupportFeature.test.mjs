@@ -25,7 +25,7 @@ test("retired Support cannot be enabled by a legacy filter or exported by the cu
 
 test("retired backend write guard preserves legacy audit schema and blocks further changes", () => {
   const code = read("server/core.js");
-  assert.match(code, /function rejectRetiredSupportPayload\\(uiEntity, data\\)/);
+  assert.ok(code.includes("function rejectRetiredSupportPayload(uiEntity, data)"));
   assert.match(code, /Needs Support has been retired/);
   assert.match(code, /Retired UAT feature/);
   assert.match(code, /Support feature has been retired/);
