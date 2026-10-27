@@ -41,9 +41,6 @@ const empty = {
   working_with: "",
   working_with_team_ids: "",
   working_with_user_ids: "",
-  support_needed: false,
-  support_type: "",
-  support_note: "",
 };
 
 function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
@@ -108,11 +105,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     () => (master?.WorkingWithOption || []).filter((w) => w.active).map((w) => ({ value: w.name, label: w.name })),
     [master]
   );
-  const supportTypeOptions = useMemo(
-    () => (master?.SupportType || []).filter((s) => s.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((s) => ({ value: s.name, label: s.name })),
-    [master]
-  );
-
   const legacyEdit = Boolean(opportunity && (opportunity.price_per_sub === "" || opportunity.price_per_sub == null));
   const hasUnitPrice = form.price_per_sub !== "" && form.price_per_sub != null;
   let calculatedNetRc = null;
@@ -370,10 +362,6 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             />
           </div>
         </div>
-
-        <p className="text-xs text-muted-foreground">
-          Needs Support is managed from Pipeline Detail or Quick View.
-        </p>
 
         {!valid && <p role="alert" className="text-xs text-amber-700">Check: {problems.join(", ")}</p>}
         {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
