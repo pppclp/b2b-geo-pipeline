@@ -111,7 +111,6 @@ export default function AppLayout() {
       <img src={LOGO_URL} alt="true" className="h-6 w-auto object-contain" />
       <div className="leading-tight">
         <div className="font-semibold text-[13px] tracking-tight">B2B GEO Pipeline</div>
-        <div className="text-[10px] text-muted-foreground">UAT · Test data only</div>
       </div>
     </div>
   );
