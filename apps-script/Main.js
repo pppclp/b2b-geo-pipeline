@@ -228,7 +228,7 @@ function denyUatLogin_(cache, key) {
     cache.put("GEO_LOGIN_SPRAY_ALERT_V1", "1", 600);
     console.warn("UAT_SECURITY_ALERT: high aggregate failed login count; investigate. No employee ID was logged.");
   }
-  if (priorFailures >= 5) throwUatError_(429, "Sign-in temporarily limited for security. Contact your UAT administrator if a valid password is rejected.");
+  if (priorFailures >= 5) throwUatError_(429, "Sign-in temporarily limited for security. Contact your account administrator if a valid password is rejected.");
   throwUatError_(401, "Invalid username or password");
 }
 
