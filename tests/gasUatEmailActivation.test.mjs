@@ -62,6 +62,9 @@ const setup=()=>{
     uatPasswordDigest_:(salt,password)=>createHmac("sha256",properties.get("GEO_UAT_PASSWORD_PEPPER"))
       .update(salt+":"+password).digest("base64url"),
     GEO_UAT_PASSWORD_HASH_SCHEME_:"hmac-sha256-v1",
+    // Physical row preflight is executed against a fake Sheet in the dedicated
+    // credential-integrity suite; this fixture concentrates on activation crypto.
+    geoAssertUatCredentialRowWritable_:()=>{},
     throwUatError_:(status,message)=>{const e=new Error(message);e.status=status;throw e;},
   };
   vm.createContext(ctx);
@@ -102,7 +105,7 @@ test("GAS blocks duplicate-code replay and expiry without mutating the credentia
  }),e=>e.status===401);
 });
 test("GAS activation endpoint commits Credentials before success",()=>{
- assert.match(source,/var activationResult = completeUatActivation_\(store, req\.body \|\| \{\}\);\s*\/\/[^\n]*\n[^\n]*\n\s*store\.flush\(\);\s*return activationResult;/);
+ assert.match(source,/var activationResult = completeUatActivation_\(store, req\.body \|\| \{\}\);\s*\/\/[^\n]*\n[^\n]*\n\s*store\.flush\(\);\s*geoVerifyUatCredentialPersisted_\\\(store\\\);\\s*return activationResult;/);
 });
 
 test("GAS fails closed for credential employee mismatch and inactive duplicate corporate mailbox",()=>{
