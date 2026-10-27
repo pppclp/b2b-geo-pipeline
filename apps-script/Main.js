@@ -81,12 +81,14 @@ function handle_(req) {
       // Persist before reporting success; otherwise the one-time code could be
       // reused after the response while the credential row remains unchanged.
       store.flush();
+      geoVerifyUatCredentialPersisted_(store);
       return activationResult;
     }
     if (req.method === "POST" && authPath === "auth/temporary-password/complete") {
       var passwordSetupResult = completeUatTemporaryPasswordSetup_(store, req.body || {});
       // Never tell a user their password was saved before Sheets has committed it.
       store.flush();
+      geoVerifyUatCredentialPersisted_(store);
       return passwordSetupResult;
     }
 
@@ -404,6 +406,9 @@ function completeUatTemporaryPasswordSetup_(store, body) {
   if (pass !== String(body.confirm_password || "")) throwUatError_(400, "Passwords do not match");
   if (pass.indexOf(employeeId) !== -1 || uatTemporaryPasswordMatches_(c, pass))
     throwUatError_(400, "Choose a new password that differs from the temporary password and Employee ID");
+  // The live credential row must be writable before we consume its
+  // one-time ticket or clear the old temporary password.
+  geoAssertUatCredentialRowWritable_(store, c);
   // Pepper must be provisioned securely before any login migration.
   uatPasswordPepper_(false);
   var salt = Utilities.getUuid().replace(/-/g, "");
@@ -415,7 +420,8 @@ function completeUatTemporaryPasswordSetup_(store, body) {
   c.password_changed_at = now;
   c.credential_status = "active";
   store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
-  // handle_ flushes under LockService before returning success, no session issued.
+  store.geoCredentialUserToVerify = ticket.sub; // server-only; never sent to browser
+  // handle_ flushes and reads the committed Sheet before returning success.
   return { password_set: true };
 }
 
@@ -565,6 +571,7 @@ function completeUatActivation_(store, body) {
     throwUatError_(401, "Activation expired. Verify your code again.");
   var password = uatCheckNewPassword_(body.new_password, normalizeUatCorporateEmail_(matches[0].email));
   if (password !== String(body.confirm_password || "")) throwUatError_(400, "Passwords do not match");
+  geoAssertUatCredentialRowWritable_(store, c);
   // Pepper provisioning is an editor-only preflight, not a web-side key generator.
   var pepper = uatPasswordPepper_(false);
   if (!pepper) throwUatError_(503, "UAT password hashing not configured");
@@ -581,6 +588,7 @@ function completeUatActivation_(store, body) {
   c.activation_code_hash = "";
   c.activation_expires_at = "";
   store.touch("B2B_GEO_UAT_Credentials_Distribution.xlsx", "UAT_Credentials");
+  store.geoCredentialUserToVerify = ticket.sub; // server-only; never sent to browser
   // No login token here; employee signs in separately with the new password.
   return { activated: true };
 }
@@ -626,6 +634,162 @@ function debugUatEmailActivationReadiness() {
       }
     });
     return counts;
+  } finally { lock.releaseLock(); }
+}
+
+// ---- Credentials Sheet integrity guard ------------------------------------
+// Google Sheets can have dropdown validations on the wrong columns after an
+// import. The password hash, expiry dates and display name MUST NOT accept a
+// Role dropdown; otherwise a valid password is rejected at Sheets.setValues.
+// All checks below are internal; they never return passwords or hash values.
+var GEO_CREDENTIAL_FILE_ = "B2B_GEO_UAT_Credentials_Distribution.xlsx";
+var GEO_CREDENTIAL_TAB_ = "UAT_Credentials";
+var GEO_CREDENTIAL_FREE_COLUMNS_ = [
+  "temporary_password", "password_hash", "activation_code_hash",
+  "activation_expires_at", "activation_used_at", "password_set_at",
+  "password_changed_at", "password_hash_version", "display_name"
+];
+var GEO_ROLE_VALUES_ = ["AE", "SM", "Management", "Admin"];
+
+function geoUatCredentialSheet_(store) {
+  var id = sheetIdFor_(GEO_CREDENTIAL_FILE_);
+  if (!id) throwUatError_(503, "Credential workbook binding is missing");
+  var book = store ? store.book_(GEO_CREDENTIAL_FILE_) : SpreadsheetApp.openById(id);
+  if (book.getName() !== "UAT_Credentials")
+    throwUatError_(503, "Unexpected Credentials workbook; no password was changed");
+  var ws = book.getSheetByName(GEO_CREDENTIAL_TAB_);
+  if (!ws || ws.getLastRow() < 1) throwUatError_(503, "Credential tab is missing");
+  var headers = ws.getRange(1, 1, 1, ws.getLastColumn())
+    .getDisplayValues()[0].map(function (v) { return String(v).trim(); });
+  var required = ["user_id", "employee_id / username", "credential_status", "role"]
+    .concat(GEO_CREDENTIAL_FREE_COLUMNS_);
+  if (required.some(function (h) { return headers.indexOf(h) < 0; }) ||
+      (new Set(headers)).size !== headers.length) {
+    throwUatError_(503, "Credentials Sheet headers do not match the authentication contract");
+  }
+  return { ws: ws, headers: headers };
+}
+
+function geoIsRoleOnlyValidation_(rule) {
+  if (!rule || rule.getCriteriaType() !== SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST)
+    return false;
+  var values = rule.getCriteriaValues()[0];
+  return Array.isArray(values) && values.length === GEO_ROLE_VALUES_.length &&
+    GEO_ROLE_VALUES_.every(function (value) { return values.indexOf(value) >= 0; });
+}
+
+// This lightweight check runs ONLY while submitting a new password. It blocks
+// an unwritable physical row BEFORE changing an in-memory credential record.
+function geoAssertUatCredentialRowWritable_(store, credential) {
+  var info = geoUatCredentialSheet_(store);
+  var rows = store.table(GEO_CREDENTIAL_FILE_, GEO_CREDENTIAL_TAB_).rows;
+  var index = rows.indexOf(credential);
+  if (index < 0) throwUatError_(503, "Credential row could not be located");
+  var rowNumber = index + 2;
+  for (var i = 0; i < GEO_CREDENTIAL_FREE_COLUMNS_.length; i++) {
+    var col = info.headers.indexOf(GEO_CREDENTIAL_FREE_COLUMNS_[i]) + 1;
+    if (info.ws.getRange(rowNumber, col).getDataValidation()) {
+      throwUatError_(503, "Credentials Sheet has incompatible field validation. Ask the system administrator to review the credential schema.");
+    }
+  }
+}
+
+// Confirmation is read from the *physical* Sheet after store.flush() returns;
+// an in-memory object is never proof that a password was committed. Compare
+// exact values without logging/returning any hash, identity or ticket.
+function geoVerifyUatCredentialPersisted_(store) {
+  var uid = String(store.geoCredentialUserToVerify || "");
+  if (!uid) throwUatError_(503, "Password write verification was not initialized");
+  var info = geoUatCredentialSheet_(store);
+  var rows = store.table(GEO_CREDENTIAL_FILE_, GEO_CREDENTIAL_TAB_).rows;
+  var matches = [];
+  rows.forEach(function (row, index) {
+    if (String(row.user_id || "").trim() === uid) matches.push({ index: index, row: row });
+  });
+  if (matches.length !== 1) throwUatError_(503, "Credential persistence identity is ambiguous");
+  var target = matches[0], fields = [
+    "password_hash", "password_hash_version", "credential_status",
+    "password_set_at", "password_changed_at", "temporary_password"
+  ];
+  var written = info.ws.getRange(target.index + 2, 1, 1, info.headers.length)
+    .getDisplayValues()[0];
+  var consistent = fields.every(function (field) {
+    var col = info.headers.indexOf(field);
+    return String(written[col] == null ? "" : written[col]) ===
+      String(target.row[field] == null ? "" : target.row[field]);
+  });
+  if (!consistent || !target.row.password_hash ||
+      String(target.row.credential_status) !== "active") {
+    throwUatError_(503, "Credential save could not be verified. Contact your system administrator with the backend error reference.");
+  }
+}
+
+// Editor-only READ-ONLY schema audit. Read validation rules, never secrets.
+function debugUatCredentialValidationReadiness() {
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var info = geoUatCredentialSheet_();
+    var result = { rows: Math.max(0, info.ws.getLastRow() - 1),
+      role_dropdowns_on_password_fields: 0, other_rules_on_password_fields: 0,
+      writable: true };
+    var count = info.ws.getMaxRows() - 1;
+    if (count <= 0) return result;
+    GEO_CREDENTIAL_FREE_COLUMNS_.forEach(function (field) {
+      var col = info.headers.indexOf(field) + 1;
+      info.ws.getRange(2, col, count, 1).getDataValidations().forEach(function (line) {
+        var rule = line[0];
+        if (!rule) return;
+        if (geoIsRoleOnlyValidation_(rule)) result.role_dropdowns_on_password_fields++;
+        else result.other_rules_on_password_fields++;
+      });
+    });
+    result.writable = result.role_dropdowns_on_password_fields === 0 &&
+      result.other_rules_on_password_fields === 0;
+    console.log(JSON.stringify(result));
+    return result;
+  } finally { lock.releaseLock(); }
+}
+
+// Opt-in, editor-only correction. No cell values, user roles, passwords,
+// salts, pepper or sessions are touched. Preserve legitimate status/role
+// validations (columns E and M in the current credentials workbook).
+function repairUatCredentialValidationApproved() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty("GEO_ENVIRONMENT") !== "UAT" ||
+      props.getProperty("GEO_UAT_CREDENTIAL_VALIDATION_FIX_APPROVED") !== "YES")
+    throw Error("Credential validation repair requires explicit UAT approval");
+  var approvedId = props.getProperty("GEO_APPROVED_CREDENTIALS_SHEET_ID");
+  if (!approvedId || approvedId !== sheetIdFor_(GEO_CREDENTIAL_FILE_))
+    throw Error("Credential workbook differs from the administrator-approved binding");
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var info = geoUatCredentialSheet_();
+    var count = info.ws.getMaxRows() - 1, clearedColumns = 0;
+    if (count > 0) {
+      // Abort BEFORE any mutation when an unexpected validation exists.
+      GEO_CREDENTIAL_FREE_COLUMNS_.forEach(function (field) {
+        var col = info.headers.indexOf(field) + 1;
+        info.ws.getRange(2, col, count, 1).getDataValidations().forEach(function (line) {
+          if (line[0] && !geoIsRoleOnlyValidation_(line[0]))
+            throw Error("Unexpected validation in credential field; manual review required");
+        });
+      });
+      GEO_CREDENTIAL_FREE_COLUMNS_.forEach(function (field) {
+        var col = info.headers.indexOf(field) + 1;
+        info.ws.getRange(2, col, count, 1).clearDataValidations();
+        clearedColumns++;
+      });
+      SpreadsheetApp.flush();
+      // Re-read after mutation: never report success on a partial schema fix.
+      GEO_CREDENTIAL_FREE_COLUMNS_.forEach(function (field) {
+        var col = info.headers.indexOf(field) + 1;
+        if (info.ws.getRange(2, col, count, 1).getDataValidations()
+          .some(function (line) { return !!line[0]; }))
+          throw Error("Credential validation repair not verified");
+      });
+    }
+    props.deleteProperty("GEO_UAT_CREDENTIAL_VALIDATION_FIX_APPROVED");
+    return { ok: true, cleared_columns: clearedColumns, values_changed: 0 };
   } finally { lock.releaseLock(); }
 }
 
