@@ -858,6 +858,17 @@ export function createCore({ contract, store, now, uuid }) {
   // rows are deliberately left untouched for audit/rollback; no API writes to
   // that retired table. Pipeline support changes use regular update + Events.
 
+  // Retired UAT feature: do not accept new Support writes. Legacy columns,
+  // master rows and immutable audit events remain available for history/rollback.
+  const RETIRED_SUPPORT_FIELDS = new Set(["support_needed", "support_type", "support_type_id", "support_note"]);
+  function rejectRetiredSupportPayload(uiEntity, data) {
+    if (uiEntity === "SupportType") throw new HttpError(410, "Support feature has been retired");
+    if (uiEntity === "Opportunity" && data && typeof data === "object" &&
+        Object.keys(data).some((key) => RETIRED_SUPPORT_FIELDS.has(key))) {
+      throw new HttpError(410, "Needs Support has been retired; remove Support fields and retry");
+    }
+  }
+
   // ---- Entity API (used by the app screens) ----
   function matches(rec, query) {
     return Object.entries(query || {}).every(([k, v]) => String(rec[k] ?? "") === String(v));
@@ -1007,6 +1018,7 @@ export function createCore({ contract, store, now, uuid }) {
       return visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, row)));
     },
     create(uiEntity, actor, data, importMeta = null) {
+      rejectRetiredSupportPayload(uiEntity, data);
       const b = binding(uiEntity);
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, data.key, data.value);
       need(actor, b, "create");
@@ -1139,6 +1151,7 @@ export function createCore({ contract, store, now, uuid }) {
       return b.entity === "opportunities" ? { ...created, _audit_events: auditEvents } : created;
     },
     update(uiEntity, actor, id, data) {
+      rejectRetiredSupportPayload(uiEntity, data);
       const b = binding(uiEntity);
       if (ENTITIES[uiEntity].virtual) return appConfigSet(actor, id, data.value);
       need(actor, b, "update");
@@ -1301,6 +1314,7 @@ export function createCore({ contract, store, now, uuid }) {
       return b.entity === "opportunities" ? { ...updated, _audit_events: auditEvents } : updated;
     },
     remove(uiEntity, actor, id) {
+      if (uiEntity === "SupportType") throw new HttpError(410, "Support feature has been retired");
       const b = binding(uiEntity);
       need(actor, b, "delete");
       if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
@@ -1315,6 +1329,7 @@ export function createCore({ contract, store, now, uuid }) {
       return { ok: true };
     },
     removeMany(uiEntity) {
+      if (uiEntity === "SupportType") throw new HttpError(410, "Support feature has been retired");
       if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
         throw new HttpError(403, "System-controlled entity");
       }
@@ -1343,7 +1358,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   const sheetApi = {
     list(actor) {
-      return Object.values(sheetRules)
+      return Object.values(sheetRules).filter((r) => !["support_types", "support_requests"].includes(r.entity))
         .map((r) => ({
           file: r.file,
           sheet: r.sheet,
@@ -1371,6 +1386,7 @@ export function createCore({ contract, store, now, uuid }) {
     },
     create(actor, file, sheet, data) {
       const b = sheetRule(file, sheet);
+      if (["support_types", "support_requests"].includes(b.entity)) throw new HttpError(410, "Support feature has been retired");
       need(actor, b, "create");
       if (b.append_only || b.scoped) throw new HttpError(400, `${sheet} is maintained by the app — edit it from the Pipeline screens`);
       const t = tableOf(b);
@@ -1386,6 +1402,7 @@ export function createCore({ contract, store, now, uuid }) {
     },
     update(actor, file, sheet, id, data) {
       const b = sheetRule(file, sheet);
+      if (["support_types", "support_requests"].includes(b.entity)) throw new HttpError(410, "Support feature has been retired");
       need(actor, b, "update");
       if (b.append_only || b.scoped) throw new HttpError(400, `${sheet} is maintained by the app — edit it from the Pipeline screens`);
       const row = findRow(b, actor, id);
@@ -1402,6 +1419,7 @@ export function createCore({ contract, store, now, uuid }) {
     },
     remove(actor, file, sheet, id) {
       const b = sheetRule(file, sheet);
+      if (["support_types", "support_requests"].includes(b.entity)) throw new HttpError(410, "Support feature has been retired");
       need(actor, b, "delete");
       if (b.append_only || b.scoped) throw new HttpError(400, `${sheet} is maintained by the app — edit it from the Pipeline screens`);
       const row = findRow(b, actor, id);
@@ -1502,7 +1520,7 @@ export function createCore({ contract, store, now, uuid }) {
     }
     if (parts[0] === "support-requests") {
       // Stop old browser clients from writing ticket records after toggle-only cutover.
-      throw new HttpError(410,"Support Requests retired. Use Pipeline Needs Support.");
+      throw new HttpError(410,"Support feature has been retired.");
     }
 
     if (parts[0] === "imports" && parts[1] === "resolve-owners" && method === "POST") {
