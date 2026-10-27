@@ -392,11 +392,9 @@ export function createCore({ contract, store, now, uuid }) {
         [b.primary_key]: nextId(b, "EVT"),
         opportunity_id: opportunityId,
         actor_user_id: actor.real.id,
+        actor_name: actor.real.name,
         event_at: stamp,
       };
-      // Historical Pipeline_Events omit actor_name. Retain immutable sheet headers
-      // while preserving actor_user_id; write the name only if that column exists.
-      if (table.headers.includes("actor_name")) row.actor_name = actor.real.name;
       table.rows.push(row);
       touch(b);
       return toUi("OpportunityHistory", b.primary_key, row);
