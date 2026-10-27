@@ -19,9 +19,10 @@ test("Management With Me contains only active Pipelines explicitly assigned as C
   assert.deepEqual(withMePipelines(data,""),[]);
 });
 
-test("Management Action Queue includes With Me, Needs Support, an explicit Region column and fixed row height", () => {
+test("Management Action Queue preserves With Me and Region after Support retirement", () => {
   const s=source("src/pages/Dashboard.jsx");
-  assert.ok(s.includes('["with", "With Me"], ["support", "Needs Support"]'));
+  assert.ok(s.includes('["with", "With Me"], ["overdue", "Overdue"]'));
+  assert.ok(!s.includes('["support", "Needs Support"]'));
   assert.ok(s.includes('const assigned = withMePipelines(cohort, profile?.id, {'));
   assert.ok(s.includes('title="With Me"'));
   assert.ok(s.includes('regionColumn={isManagement}'));
