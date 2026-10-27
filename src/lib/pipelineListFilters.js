@@ -34,8 +34,6 @@ export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = 
     const teamIds = String(o.working_with_team_ids || "").split(",").map(id => id.trim()).filter(Boolean);
     if (o.working_with !== f.working_with && (!teamId || !teamIds.includes(teamId))) return false;
   }
-  if (f.support === "1" && !o.support_needed) return false;
-  if (f.support === "0" && o.support_needed) return false;
   if (f.stuck === "1" && !overdueReasons(o, maps?.stage, config?.stage_watch_days, context.taskEntries).any) return false;
   if (f.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
   if (f.won_month && monthOf(o.won_at) !== f.won_month) return false;
@@ -48,14 +46,13 @@ export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = 
 // Work view counts exclude the view selector itself and Stage, but respect
 // Region, Close Month, Product Category and other independent filters.
 export function quickViewCounts(scopedRecords, filters, profileId, context) {
-  const base = { ...filters, status: "open", handler: "", with_me: "", support: "", stuck: "", due_this_month: "", stage: "" };
+  const base = { ...filters, status: "open", handler: "", with_me: "", stuck: "", due_this_month: "", stage: "" };
   const pool = (scopedRecords || []).filter(o => matchesPipelineFilters(o, base, context));
   return {
     all: pool.length,
     "assigned-to-me": pool.filter(o => isWithMePipeline(o, profileId, {
       role: context.viewerRole, teams: context.master?.WorkingWithOption,
     })).length,
-    "support-needed": pool.filter(o => o.support_needed).length,
     "stage-overdue": pool.filter(o => overdueReasons(o, context.maps?.stage, context.config?.stage_watch_days, context.taskEntries).any).length,
     "due-this-month": pool.filter(o => o.expected_close_month === (filters.close_month || context.nowMonth || currentMonthKey())).length,
   };
@@ -64,25 +61,23 @@ export function quickViewCounts(scopedRecords, filters, profileId, context) {
 export function activePipelineView(filters, profileId, role = "") {
   if (filters.status !== "open") return "";
   if (filters.with_me) return filters.with_me === "1" && role === "management" &&
-    !filters.handler && !filters.support && !filters.stuck && !filters.due_this_month
+    !filters.handler && !filters.stuck && !filters.due_this_month
     ? "assigned-to-me" : "";
-  if (filters.due_this_month === "1" && !filters.stuck && !filters.support && !filters.handler) return "due-this-month";
-  if (filters.stuck === "1" && !filters.due_this_month && !filters.support) return "stage-overdue";
-  if (filters.support === "1" && !filters.stuck && !filters.due_this_month && !filters.handler) return "support-needed";
-  if (!filters.support && !filters.stuck && !filters.due_this_month && profileId && filters.handler === profileId) return "assigned-to-me";
-  if (!filters.support && !filters.handler && !filters.stuck && !filters.due_this_month) return "all";
+  if (filters.due_this_month === "1" && !filters.stuck && !filters.handler) return "due-this-month";
+  if (filters.stuck === "1" && !filters.due_this_month) return "stage-overdue";
+  if (!filters.stuck && !filters.due_this_month && profileId && filters.handler === profileId) return "assigned-to-me";
+  if (!filters.handler && !filters.stuck && !filters.due_this_month) return "all";
   return "";
 }
 
 // Switch work modes without erasing customer search, selected Region,
 // Product Category, Close Month, Stage, or independent advanced filters.
 export function switchPipelineView(filters, view, profileId, role = "") {
-  const next = { ...filters, status: "open", support: "", handler: "", with_me: "", stuck: "", due_this_month: "" };
+  const next = { ...filters, status: "open", handler: "", with_me: "", stuck: "", due_this_month: "" };
   if (view === "assigned-to-me" && profileId) {
     if (role === "management") next.with_me = "1";
     else next.handler = profileId;
   }
-  if (view === "support-needed") next.support = "1";
   if (view === "stage-overdue") next.stuck = "1";
   if (view === "due-this-month") next.due_this_month = "1";
   return next;
