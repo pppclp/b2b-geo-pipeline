@@ -69,17 +69,17 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
       <div className={compact ? "flex items-center gap-2" : "flex flex-wrap items-center gap-2"}>
         <Button type="button" variant="outline" size="sm" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
           onClick={() => openAction("won")}>
-          <Trophy className="h-4 w-4 mr-1.5" /> Won
+          <Trophy className="h-4 w-4 mr-1.5" /> ปิดงานสำเร็จ
         </Button>
         <Button type="button" variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50"
           onClick={() => openAction("lost")}>
-          <XCircle className="h-4 w-4 mr-1.5" /> Lost
+          <XCircle className="h-4 w-4 mr-1.5" /> ปิดงานไม่สำเร็จ
         </Button>
       </div>
       <Dialog open={!!choice} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{choice === "won" ? "Confirm Won" : "Confirm Lost"}</DialogTitle>
+            <DialogTitle>{choice === "won" ? "ยืนยันปิดงานสำเร็จ" : "ยืนยันปิดงานไม่สำเร็จ"}</DialogTitle>
             <DialogDescription>
               {choice === "won"
                 ? "Confirm that this Pipeline has been won."
@@ -89,9 +89,9 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
           {choice === "lost" && (
             <div className="space-y-3 py-1">
               <div className="space-y-2">
-                <Label htmlFor="pipeline-lost-reason">Lost Reason <span className="text-red-600">*</span></Label>
+                <Label htmlFor="pipeline-lost-reason">เหตุผลที่ปิดงานไม่สำเร็จ <span className="text-red-600">*</span></Label>
                 <Select value={reasonId} onValueChange={setReasonId}>
-                  <SelectTrigger id="pipeline-lost-reason"><SelectValue placeholder="Select Lost Reason" /></SelectTrigger>
+                  <SelectTrigger id="pipeline-lost-reason"><SelectValue placeholder="เลือกเหตุผลที่ปิดงานไม่สำเร็จ" /></SelectTrigger>
                   <SelectContent>
                     {lostReasons.map((reason) =>
                       <SelectItem key={reason.id} value={reason.id}>{reason.name}</SelectItem>)}
@@ -100,7 +100,7 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
                 {!lostReasons.length && <p className="text-xs text-rose-600">No active Lost Reasons. Contact Admin.</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pipeline-lost-note">Lost Note (Optional)</Label>
+                <Label htmlFor="pipeline-lost-note">รายละเอียดเพิ่มเติม (ไม่บังคับ)</Label>
                 <Textarea id="pipeline-lost-note" value={note} onChange={(e) => setNote(e.target.value)}
                   rows={3} placeholder="Additional details" />
               </div>
@@ -108,10 +108,10 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
           )}
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={saving} onClick={closeDialog}>Cancel</Button>
+            <Button type="button" variant="outline" disabled={saving} onClick={closeDialog}>ยกเลิก</Button>
             <Button type="button" disabled={saving || (choice === "lost" && !lostReasons.some((r) => r.id === reasonId))}
               onClick={submit} className={choice === "lost" ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-emerald-700 text-white hover:bg-emerald-800"}>
-              {saving ? "Saving…" : choice === "lost" ? "Confirm Lost" : "Confirm Won"}
+              {saving ? "กำลังบันทึก…" : choice === "lost" ? "ยืนยันปิดงานไม่สำเร็จ" : "ยืนยันปิดงานสำเร็จ"}
             </Button>
           </DialogFooter>
         </DialogContent>
