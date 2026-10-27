@@ -216,66 +216,40 @@ test("Management creation alerts AE and regional SM but cannot override SM-only 
  }).remark,"Shared customer update");
 });
 
-test("Needs Support toggle works for AE, SM, Management and Admin without creating tickets",()=>{
+test("retired Support write is rejected for every role without changing Pipeline or Audit",()=>{
  const h=harness(),op=h.create(),id=op.id;
- const initialEvents=db(h,"Pipeline_Events").length;
- const turnOn=(user)=>h.call(user,"PUT","entities/Opportunity/"+id,{
-   support_needed:true,support_type:"Pricing",support_note:"Help with pricing"
- });
- const turnOff=(user)=>h.call(user,"PUT","entities/Opportunity/"+id,{support_needed:false});
- const on=turnOn("AE1");
- assert.equal(on.support_needed,true);
- assert.equal(db(h,"Pipelines")[0].support_type_id,"SUP1");
- assert.equal(db(h,"Pipelines")[0].support_note,"Help with pricing");
- assert.equal(turnOff("SM1").support_needed,false);
- assert.equal(db(h,"Pipelines")[0].support_type_id,"");
- assert.equal(db(h,"Pipelines")[0].support_note,"");
- turnOn("M1");turnOff("ADMIN");
+ const before={pipeline:JSON.stringify(db(h,"Pipelines")),events:db(h,"Pipeline_Events").length};
+ for(const user of ["AE1","SM1","M1","ADMIN"]){
+   assert.throws(()=>h.call(user,"PUT","entities/Opportunity/"+id,{support_needed:true,support_type:"Pricing",support_note:"Obsolete"}),e=>e.status===410);
+ }
+ assert.equal(JSON.stringify(db(h,"Pipelines")),before.pipeline);
+ assert.equal(db(h,"Pipeline_Events").length,before.events);
  assert.equal(db(h,"Support_Requests").length,0);
- assert.equal(db(h,"Pipelines")[0].support_needed,"No");
- const events=db(h,"Pipeline_Events").slice(initialEvents);
- assert.ok(events.some(x=>x.field_name==="support_needed"));
- assert.ok(events.some(x=>x.field_name==="support_type_id"));
 });
 
-test("Creating with Needs Support requires Type/Note but does not create a ticket",()=>{
- const h=harness();
- const payload={
-   customer_name:"Flagged account",business_id:"0000000000989",customer_type:"SME",
-   sales_channel:"AE Self",contact_name:"Contact",contact_phone:"0800000000",
-   quantity:1,price_per_sub:100,product_category_id:"CAT1",
-   expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",
-   stage_id:"STG1",support_needed:true,client_request_id:"support_test_create_001"
- };
- assert.throws(()=>h.call("AE1","POST","entities/Opportunity",payload),e=>e.status===400);
- const op=h.call("AE1","POST","entities/Opportunity",{
-   ...payload,support_type:"Pricing",support_note:"Please review"
- });
- assert.equal(op.support_needed,true);
- assert.equal(db(h,"Support_Requests").length,0);
- assert.equal(db(h,"Pipelines").find(x=>x.opportunity_id===op.id).support_note,"Please review");
+test("creation rejects retired Support fields, but ordinary Create still succeeds",()=>{
+ const h=harness();const ordinary=h.create();
+ assert.equal(ordinary.status,"open");
+ const initialCount=db(h,"Pipelines").length;
+ const payload={customer_name:"Synthetic account",business_id:"0000000000989",customer_type:"SME",sales_channel:"AE Self",quantity:1,price_per_sub:100,product_category_id:"CAT1",expected_close_month:"2026-11",region_id:"R1",owner_id:"AE1",stage_id:"STG1",support_needed:true};
+ assert.throws(()=>h.call("AE1","POST","entities/Opportunity",payload),e=>e.status===410);
+ assert.equal(db(h,"Pipelines").length,initialCount);
 });
 
-test("Toggle rejects invalid inputs and enforces AE scope; old ticket API is retired",()=>{
+test("retired support endpoints reject writes and preserve historical ticket records",()=>{
  const h=harness(),op=h.create(),id=op.id;
- assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{support_needed:true}),e=>e.status===403);
- assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+id,{support_needed:true}),e=>e.status===400);
- assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+id,{
-   support_needed:true,support_type:"Pricing",support_note:""
- }),e=>e.status===400);
- h.call("AE1","PUT","entities/Opportunity/"+id,{support_needed:true,support_type:"Pricing",support_note:"Approval"});
- const auditBefore=db(h,"Pipeline_Events").length;
- assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{support_needed:false}),e=>e.status===403);
- assert.equal(db(h,"Pipeline_Events").length,auditBefore);
  const legacy={request_id:"SRQ-HIST",opportunity_id:id,status:"In Progress",assigned_to_user_id:"M1"};
  db(h,"Support_Requests").push(legacy);
- h.call("AE1","PUT","entities/Opportunity/"+id,{support_needed:false});
- assert.deepEqual(db(h,"Support_Requests"),[legacy]);
- assert.equal(db(h,"Pipelines")[0].support_needed,"No");
+ const audits=db(h,"Pipeline_Events").length;
+ for(const field of ["support_needed","support_type","support_note"]){
+   assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+id,{[field]:"obsolete"}),e=>e.status===410);
+ }
  for(const method of ["GET","POST","PATCH"])
    assert.throws(()=>h.call("M1",method,method==="PATCH"?"support-requests/SRQ-HIST":"support-requests",{}),e=>e.status===410);
+ assert.equal(db(h,"Pipeline_Events").length,audits);
+ assert.deepEqual(db(h,"Support_Requests"),[legacy]);
+ assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{remark:"Out of scope"}),e=>e.status===403);
 });
-
 
 test("UAT: team multi-select survives reload and preserves legacy Working With people",()=>{
  const h=harness(),op=h.create(),id=op.id;
@@ -328,48 +302,14 @@ test("UAT: two browser snapshots cannot overwrite changed teams; stale save has 
  assert.equal(db(h,"Pipeline_Events").filter(e=>e.field_name==="working_with_teams").length,2);
 });
 
-test("UAT: Needs Support creates server-owned on/off history for all four roles, limited by scope",()=>{
- const h=harness(),r1=h.create(),id=r1.id;
- const r2=h.call("ADMIN","POST","entities/Opportunity",{
-   customer_name:"Region 2 test",business_id:"0000000022222",customer_type:"SME",sales_channel:"AE Self",
-   contact_name:"Region 2",contact_phone:"0800000011",quantity:1,price_per_sub:100,
-   product_category_id:"CAT1",expected_close_month:"2026-12",region_id:"R2",
-   owner_id:"AE2",current_handler_id:"AE2",stage_id:"STG1"
- });
- const checks=[
-   ["AE1",true],["SM1",false],["M1",true],["ADMIN",false]
- ];
- for (const [user,needed] of checks) {
-   const updated=h.call(user,"PUT","entities/Opportunity/"+id,{
-      support_needed:needed,...(needed?{support_type:"Pricing",support_note:"Help requested by "+user}:{})
-   });
-   assert.equal(updated.support_needed,needed);
-   const flags=db(h,"Pipeline_Events").filter(e=>e.opportunity_id===id &&
-     e.field_name==="support_needed");
-   const event=flags.at(-1);
-   assert.equal(event.event_type,needed?"support_on":"support_off");
-   assert.equal(event.actor_user_id,user);
-   assert.equal(event.actor_name,user==="ADMIN"?"Admin":user==="AE1"?"AE One":user==="SM1"?"SM One":"Manager");
-   assert.ok(event.event_at);
-   assert.equal(event.previous_value,needed?(user==="AE1"?"":"No"):"Yes");
-   assert.equal(event.new_value,needed?"Yes":"No");
-   assert.equal(db(h,"Support_Requests").length,0);
- }
- for (const user of ["AE1","SM1","M1"]) {
-   const auditBefore=db(h,"Pipeline_Events").length;
-   assert.throws(()=>h.call(user,"PUT","entities/Opportunity/"+r2.id,{
-      support_needed:true,support_type:"Pricing",support_note:"Out-of-region"
-   }),e=>e.status===403, user+" must not alter R2");
-   assert.equal(db(h,"Pipeline_Events").length,auditBefore);
- }
- assert.throws(()=>h.call("AE2","PUT","entities/Opportunity/"+id,{
-   support_needed:true,support_type:"Pricing",support_note:"Not my deal"
- }),e=>e.status===403);
- const r2TurnedOn=h.call("AE2","PUT","entities/Opportunity/"+r2.id,{
-   support_needed:true,support_type:"Pricing",support_note:"AE2 request"
- });
- assert.equal(r2TurnedOn.support_needed,true);
- assert.equal(h.call("ADMIN","PUT","entities/Opportunity/"+r2.id,{support_needed:false}).support_needed,false);
- assert.equal(h.call("SM1","GET","entities/OpportunityHistory").some(e=>e.opportunity_id===r2.id),false);
+test("UAT: historical Support event remains intact while new writes are blocked and scope holds",()=>{
+ const h=harness(),op=h.create(),id=op.id;
+ const historical={event_id:"EVT-HIST",opportunity_id:id,event_type:"support_on",field_name:"support_needed",actor_user_id:"AE1",event_at:"2026-01-01T00:00:00Z"};
+ db(h,"Pipeline_Events").push(historical);
+ const before=db(h,"Pipeline_Events").length;
+ assert.throws(()=>h.call("AE1","PUT","entities/Opportunity/"+id,{support_needed:false}),e=>e.status===410);
+ assert.equal(db(h,"Pipeline_Events").length,before);
+ assert.deepEqual(db(h,"Pipeline_Events").at(-1),historical);
+ assert.equal(h.call("AE1","GET","entities/OpportunityHistory").some(e=>e.opportunity_id===id),true);
  assert.equal(h.call("AE2","GET","entities/OpportunityHistory").some(e=>e.opportunity_id===id),false);
 });
