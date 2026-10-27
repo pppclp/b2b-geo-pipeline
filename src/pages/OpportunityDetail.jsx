@@ -113,13 +113,13 @@ export default function OpportunityDetail() {
           <p className="mt-1 text-sm text-muted-foreground">{category?.name || "—"}{op.product_details ? ` · ${op.product_details}` : ""}</p>
         </div>
         {(canEdit || canChangeArchiveState) && <div className="flex flex-wrap items-center gap-2">
-          {canEdit && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>}
+          {canEdit && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-4 w-4" />แก้ไข</Button>}
           {canEdit && canReassignOwner && <Button size="sm" variant="outline" onClick={() => setAction({ type: "reassign" })}><Users className="mr-1.5 h-4 w-4" />Reassign</Button>}
           {canEdit && <PipelineCloseActions op={op} compact />}
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button size="sm" variant="outline"><MoreHorizontal className="mr-1.5 h-4 w-4" />More</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canEdit && <DropdownMenuItem onSelect={() => setAction({ type: "closemonth" })}><CalendarClock className="mr-2 h-4 w-4" />Change Close Month</DropdownMenuItem>}
+              {canEdit && <DropdownMenuItem onSelect={() => setAction({ type: "closemonth" })}><CalendarClock className="mr-2 h-4 w-4" />เปลี่ยนเดือนที่คาดว่าจะปิดงาน</DropdownMenuItem>}
               {canChangeArchiveState && op.status !== "archived" && <DropdownMenuItem onSelect={() => setAction({ type: "archive" })}><Archive className="mr-2 h-4 w-4" />Archive Pipeline</DropdownMenuItem>}
               {canChangeArchiveState && op.status !== "open" && <DropdownMenuItem onSelect={() => setAction({ type: "reopen" })}><RefreshCw className="mr-2 h-4 w-4" />Reopen Pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
@@ -129,25 +129,25 @@ export default function OpportunityDetail() {
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.85fr)_minmax(290px,1fr)]">
         <div className="min-w-0 rounded-2xl border bg-card px-5 md:px-7">
-          <DetailSection number="01" title="Customer Information">
+          <DetailSection number="01" title="ข้อมูลลูกค้า">
             <Field label="AE Owner" value={owner?.name || op.owner_id} />
-            <Field label="Customer Name" value={op.customer_name} />
-            <Field label="Business ID" value={<span className="inline-flex flex-wrap items-center gap-2"><span className="tabular-nums">{op.business_id}</span>{op.business_id && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Copy Business ID" title="Copy Business ID" onClick={() => navigator.clipboard?.writeText(String(op.business_id))}><Copy className="h-3.5 w-3.5"/></button>}</span>} />
-            <Field label="Customer Type" value={op.customer_type} />
-            <Field label="Sales Channel" value={op.sales_channel} />
-            {op.partner_name && <Field label="Partner Name" value={op.partner_name} />}
-            <Field label="Contact Name" value={op.contact_name} />
-            <Field label="Contact Phone" value={op.contact_phone ? <a className="hover:underline" href={`tel:${String(op.contact_phone).replace(/[^+0-9]/g,"")}`}>{op.contact_phone}</a> : "Not provided"} />
-            <Field wide label="Remark" value={op.remark || "No remark"} />
+            <Field label="ชื่อลูกค้า" value={op.customer_name} />
+            <Field label="รหัสธุรกิจ (Business ID)" value={<span className="inline-flex flex-wrap items-center gap-2"><span className="tabular-nums">{op.business_id}</span>{op.business_id && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Copy Business ID" title="Copy Business ID" onClick={() => navigator.clipboard?.writeText(String(op.business_id))}><Copy className="h-3.5 w-3.5"/></button>}</span>} />
+            <Field label="ประเภทลูกค้า" value={op.customer_type} />
+            <Field label="ช่องทางการขาย" value={op.sales_channel} />
+            {op.partner_name && <Field label="ชื่อ Partner" value={op.partner_name} />}
+            <Field label="ชื่อผู้ติดต่อ" value={op.contact_name} />
+            <Field label="เบอร์โทรผู้ติดต่อ" value={op.contact_phone ? <a className="hover:underline" href={`tel:${String(op.contact_phone).replace(/[^+0-9]/g,"")}`}>{op.contact_phone}</a> : "Not provided"} />
+            <Field wide label="หมายเหตุ" value={op.remark || "No remark"} />
           </DetailSection>
 
-          <DetailSection number="02" title="Product & Value">
-            <Field label="Product Category" value={category?.name} />
-            <Field label="Product Description" value={op.product_details} />
-            <Field label="Number of Subs" value={op.quantity} />
-            <Field label="Price per Sub (THB/Month)" value={op.price_per_sub != null ? formatTHB(op.price_per_sub) : "Legacy value"} />
+          <DetailSection number="02" title="ผลิตภัณฑ์และมูลค่างาน">
+            <Field label="ประเภทผลิตภัณฑ์" value={category?.name} />
+            <Field label="รายละเอียดผลิตภัณฑ์" value={op.product_details} />
+            <Field label="จำนวน Subs" value={op.quantity} />
+            <Field label="ราคาต่อ Sub (บาท/เดือน)" value={op.price_per_sub != null ? formatTHB(op.price_per_sub) : "Legacy value"} />
             <Field label="OC (THB)" value={op.oc != null ? formatTHB(op.oc) : "—"} />
-            <Field label="Contract Period" value={op.contract_period ? `${op.contract_period} months` : "—"} />
+            <Field label="ระยะเวลาสัญญา (เดือน)" value={op.contract_period ? `${op.contract_period} months` : "—"} />
             <div className="col-span-full rounded-r-lg border-l-[3px] border-red-600 bg-secondary/35 px-4 py-3">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{op.price_per_sub == null ? "Pipeline Value (Legacy)" : "Net RC / Month"}</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">{formatTHB(op.pipeline_value)}</div>
@@ -155,9 +155,9 @@ export default function OpportunityDetail() {
             </div>
           </DetailSection>
 
-          <DetailSection number="03" title="Pipeline Information">
+          <DetailSection number="03" title="ข้อมูล Pipeline">
             <Field label="Current Stage" value={stage?.name} />
-            <Field label="Expected Close Month" value={formatMonth(op.expected_close_month)} />
+            <Field label="เดือนที่คาดว่าจะปิดงาน" value={formatMonth(op.expected_close_month)} />
             <Field label="Stage Entered" value={op.stage_entered_at ? `${formatDate(op.stage_entered_at)} · ${stageAging} days` : "Unknown (historical import)"} />
             <Field label="Created" value={`${formatDate(op.created_date)} · ${maps.member[op.created_by_user_id]?.name || "—"}`} />
             <Field label="Scenario" value={scenario?.name || "Pending SM Review"} />
@@ -168,14 +168,14 @@ export default function OpportunityDetail() {
             }[op.ccp_check_result] || op.ccp_check_result || "Pending SM Review"} />
           </DetailSection>
 
-          <DetailSection number="04" title="Ownership & Support">
+          <DetailSection number="04" title="ผู้รับผิดชอบและความช่วยเหลือ">
             <Field label="Current Handler" value={handler ? `${handler.name} · ${(handler.app_role || "").toUpperCase()}` : op.current_handler_id} />
             <Field label="Handler Since" value={op.handler_since ? `${formatDate(op.handler_since)} · ${handlerAging} days` : "Unknown (historical import)"} />
             <Field label="Region" value={region?.name} />
             <Field label="Territory" value={territory?.name || "Not assigned"} />
             {originalOwner && originalOwner.id !== op.owner_id && <Field label="Original Owner" value={originalOwner.name} />}
             <div className="col-span-full border-t pt-4">
-              <h3 className="mb-2 text-sm font-semibold">Working With</h3>
+              <h3 className="mb-2 text-sm font-semibold">Working With <span className="text-xs font-normal text-muted-foreground">· ทีมที่ร่วมดำเนินงาน</span></h3>
               <div className="flex flex-wrap gap-2">
                 {workingTeams.length ? workingTeams.map((team) => <span key={team} className="rounded-md border bg-secondary/50 px-2.5 py-1 text-xs font-medium">{team}</span>)
                 : <span className="text-sm text-muted-foreground">{op.working_with || "Not assigned"}</span>}
@@ -184,7 +184,7 @@ export default function OpportunityDetail() {
             <div className="col-span-full border-t pt-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">Needs Support</h3>
+                  <h3 className="text-sm font-semibold">Needs Support <span className="text-xs font-normal text-muted-foreground">· งานที่ต้องการความช่วยเหลือ</span></h3>
                   <Badge variant="outline" className={op.support_needed ? "border-amber-200 bg-amber-50 text-amber-800" : "text-muted-foreground"}>{op.support_needed ? "Yes" : "No"}</Badge>
                 </div>
                 <SupportToggleAction op={op} canEdit={canEdit} />
@@ -202,8 +202,8 @@ export default function OpportunityDetail() {
             {op.status === "won" && <Field label="Won By" value={maps.member[op.won_by]?.name} />}
             {op.status === "lost" && <Field label="Lost At" value={formatDate(op.lost_at)} />}
             {op.status === "lost" && <Field label="Lost By" value={maps.member[op.lost_by]?.name} />}
-            {op.status === "lost" && <Field label="Lost Reason" value={lostReason?.name} />}
-            {op.status === "lost" && <Field wide label="Lost Note" value={op.lost_note} />}
+            {op.status === "lost" && <Field label="เหตุผลที่ปิดงานไม่สำเร็จ" value={lostReason?.name} />}
+            {op.status === "lost" && <Field wide label="รายละเอียดเพิ่มเติม" value={op.lost_note} />}
             {op.status === "archived" && <Field label="Archived At" value={formatDate(op.archived_at)} />}
           </DetailSection>}
         </div>
@@ -219,7 +219,7 @@ export default function OpportunityDetail() {
       <section className="mt-6 rounded-2xl border bg-card p-5 md:p-7" aria-label="Activity History">
         <div className="mb-5 flex items-center gap-3">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-sm font-bold text-red-600">05</span>
-          <h2 className="text-base font-semibold">Activity History</h2>
+          <h2 className="text-base font-semibold">ประวัติการดำเนินงาน</h2>
         </div>
         <HistoryTimeline opportunityId={op.id} revision={op.updated_date} />
       </section>
@@ -304,7 +304,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
           <SelectTrigger><SelectValue placeholder="Keep current" /></SelectTrigger>
           <SelectContent>{ownerOpts.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
         </Select>
-        <Label>Current Handler</Label>
+        <Label>Current Handler · ผู้รับผิดชอบปัจจุบัน</Label>
         <Select value={action.handlerId || ""} onValueChange={(v) => setAction({ ...action, handlerId: v })}>
           <SelectTrigger><SelectValue placeholder="Keep current" /></SelectTrigger>
           <SelectContent>{memberOpts.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
@@ -315,7 +315,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
   if (t === "closemonth") {
     return (
       <div className="space-y-2">
-        <Label>New Expected Close Month</Label>
+        <Label>เดือนที่คาดว่าจะปิดงานใหม่</Label>
         <Input type="month" value={action.month || op.expected_close_month || ""} onChange={(e) => setAction({ ...action, month: e.target.value })} />
         <RemarkField remark={remark} setRemark={setRemark} />
       </div>
@@ -325,7 +325,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
     const opts = ["", "Presales", "Pricing", "Product", "Fulfillment", "Operation", "Other"];
     return (
       <div className="space-y-2">
-        <Label>Working With</Label>
+        <Label>Working With · ทีมที่ร่วมดำเนินงาน</Label>
         <Select value={action.value || ""} onValueChange={(v) => setAction({ ...action, value: v })}>
           <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
           <SelectContent>{opts.filter(Boolean).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
@@ -365,7 +365,7 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
 function RemarkField({ remark, setRemark }) {
   return (
     <>
-      <Label>Remark (optional)</Label>
+      <Label>หมายเหตุ (ไม่บังคับ)</Label>
       <Textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} placeholder="Short note…" />
     </>
   );
