@@ -38,7 +38,6 @@ export default function Admin() {
           <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
           <TabsTrigger value="lostreasons">Lost Reasons</TabsTrigger>
           <TabsTrigger value="workingwith">Working With</TabsTrigger>
-          <TabsTrigger value="supporttypes">Support Types</TabsTrigger>
           <TabsTrigger value="members">Team Members</TabsTrigger>
           <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
           <TabsTrigger value="exports">Exports</TabsTrigger>
@@ -53,7 +52,6 @@ export default function Admin() {
         <TabsContent value="scenarios"><SimpleManager entity="Scenario" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="lostreasons"><SimpleManager entity="LostReason" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="workingwith"><SimpleManager entity="WorkingWithOption" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
-        <TabsContent value="supporttypes"><SimpleManager entity="SupportType" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="members"><TeamMemberManager /></TabsContent>
         <TabsContent value="snapshots"><SnapshotManager /></TabsContent>
         <TabsContent value="exports"><ExportsManager /></TabsContent>
