@@ -2,7 +2,6 @@
 export const WORK_VIEW_SUBTITLES = Object.freeze({
   all: "งานที่ยังเปิดอยู่",
   with: "งานที่ส่งให้ฉัน",
-  support: "งานที่ต้องการความช่วยเหลือ",
   overdue: "งานเกินกำหนด",
   due: "งานที่คาดว่าจะปิดเดือนนี้",
 });
