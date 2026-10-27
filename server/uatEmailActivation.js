@@ -46,9 +46,9 @@ export function createUatEmailAuth({ env = process.env, clock = () => Date.now()
   }
   const validPassword = (pass, email) => {
     const pw = String(pass || "");
-    if (pw.length < 15 || pw.length > 128 || /[\x00-\x1f\x7f]/.test(pw) ||
+    if (pw.length < 10 || pw.length > 128 || /[\x00-\x1f\x7f]/.test(pw) ||
       pw.toLowerCase().includes(email.split("@")[0]) || /^(password|123456|qwerty|letmein)/i.test(pw))
-      throw http(400, "Use a unique password of 15–128 characters without your email name");
+      throw http(400, "Use a unique password of 10–128 characters without your email name");
     return pw;
   };
   function codeDigest(code) { return hash(secret(), "activate:" + String(code || "")); }
