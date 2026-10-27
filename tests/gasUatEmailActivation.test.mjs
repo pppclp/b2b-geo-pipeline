@@ -69,6 +69,9 @@ const setup=()=>{
   };
   vm.createContext(ctx);
   vm.runInContext(source.slice(start,end),ctx);
+  // The scanned slice also defines the sheet guard. This crypto fixture does
+  // not emulate Sheets; the separate persistence test executes the real guard.
+  ctx.geoAssertUatCredentialRowWritable_=()=>{};
   credential.activation_code_hash=ctx.uatActivationDigest_("synthetic-one-use");
   return {ctx,store,credential,user,properties,advance:ms=>{timestamp+=ms}};
 };
