@@ -15,7 +15,7 @@ const navFor = (role) => {
   const base = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/pipeline", label: "Pipeline", icon: KanbanSquare, view: "all" },
-    { to: "/pipeline?view=assigned-to-me", label: "Assigned to Me", icon: HandHelping, view: "assigned-to-me" },
+    { to: "/pipeline?view=assigned-to-me", label: "With Me", icon: HandHelping, view: "assigned-to-me" },
   ];
   if (role === "admin") {
     base.push({ to: "/admin", label: "Admin", icon: Settings });
