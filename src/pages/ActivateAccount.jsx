@@ -40,14 +40,14 @@ export default function ActivateAccount() {
   async function finish(event) {
     event.preventDefault();
     if (busy) return;
-    if (password.length < 15 || password.length > 128) { setError("Use a unique password between 15 and 128 characters."); return; }
+    if (password.length < 10 || password.length > 128) { setError("Use a unique password between 10 and 128 characters."); return; }
     if (password !== confirm) { setError("Passwords do not match."); return; }
     if (expiresAt && Date.now() >= expiresAt) { setTicket(""); setError("Activation expired. Verify the code again."); return; }
     setBusy(true);
     setError("");
     try {
       const result = await db.activation.complete(ticket, password, confirm);
-      if (!result?.activated) throw new Error("Activation was not completed. Please contact the UAT coordinator.");
+      if (!result?.activated) throw new Error("Activation was not completed. Please contact your account administrator.");
       setTicket("");
       setPassword("");
       setConfirm("");
@@ -59,7 +59,7 @@ export default function ActivateAccount() {
   }
 
   return <AuthLayout icon={ShieldCheck} title="B2B GEO Pipeline" subtitle="First-time account activation"
-    footer="Only employees provisioned by the UAT coordinator can activate an account.">
+    footer="Only employees with a registered account can activate it.">
     {!ENABLED ? (
       <div role="status" className="space-y-4 text-center">
         <p className="text-sm text-muted-foreground">Activation is not enabled for this deployment.</p>
@@ -88,16 +88,16 @@ export default function ActivateAccount() {
               className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" />
           </div>
         </> : <>
-          <p className="text-xs text-muted-foreground">Choose a unique 15–128 character password. Activation is valid for 10 minutes. This is a UAT account, not your corporate SSO password.</p>
+          <p className="text-xs text-muted-foreground">Choose a unique 10–128 character password. The activation code expires after 10 minutes. Do not reuse your corporate SSO password.</p>
           <div className="space-y-1">
             <label htmlFor="activate-password" className="text-sm font-medium">New Password</label>
-            <input id="activate-password" type="password" autoComplete="new-password" required minLength={15} maxLength={128}
+            <input id="activate-password" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
               value={password} onChange={e => setPassword(e.target.value)}
               className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" />
           </div>
           <div className="space-y-1">
             <label htmlFor="activate-confirm" className="text-sm font-medium">Confirm Password</label>
-            <input id="activate-confirm" type="password" autoComplete="new-password" required minLength={15} maxLength={128}
+            <input id="activate-confirm" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
               value={confirm} onChange={e => setConfirm(e.target.value)}
               className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" />
           </div>
