@@ -50,7 +50,6 @@ export function dashboardMetrics(cohort, { stages = {}, internalTaskSlaDays = nu
   const lost = cohort.filter((o) => o.status === "lost");
   return {
     created, open, expected, won, lost,
-    supportNeeded: open.filter((o) => o.support_needed),
     stageOverdue: open.filter((o) => isStageSlaOverdue(o, stages, now)),
     internalOverdue: open.filter((o) => isInternalSlaOverdue(o, internalTaskSlaDays, now)),
   };
