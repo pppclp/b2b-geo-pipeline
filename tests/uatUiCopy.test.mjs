@@ -6,7 +6,7 @@ const file = (path) => fs.readFileSync(new URL("../" + path, import.meta.url), "
 
 test("approved UAT work view copy is shared", () => {
   assert.equal(WORK_VIEW_SUBTITLES.with, "งานที่ส่งให้ฉัน");
-  assert.equal(WORK_VIEW_SUBTITLES.support, "งานที่ต้องการความช่วยเหลือ");
+  assert.equal(WORK_VIEW_SUBTITLES.support, undefined);
   assert.equal(WORK_VIEW_SUBTITLES.overdue, "งานเกินกำหนด");
   assert.equal(WORK_VIEW_SUBTITLES.due, "งานที่คาดว่าจะปิดเดือนนี้");
   assert.equal(selectedCloseMonthSubtitle, "งานที่คาดว่าจะปิดเดือนที่เลือก");
