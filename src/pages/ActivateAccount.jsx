@@ -88,7 +88,7 @@ export default function ActivateAccount() {
               className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" />
           </div>
         </> : <>
-          <p className="text-xs text-muted-foreground">Choose a unique 10–128 character password. The activation code expires after 10 minutes. Do not reuse your corporate SSO password.</p>
+          <p className="text-xs text-muted-foreground">Choose a unique 10–128 character password. Complete this step within 10 minutes. Do not reuse your corporate SSO password.</p>
           <div className="space-y-1">
             <label htmlFor="activate-password" className="text-sm font-medium">New Password</label>
             <input id="activate-password" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
