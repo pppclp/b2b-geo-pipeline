@@ -68,7 +68,7 @@ async function request(method, path, { query, body } = {}) {
   // VITE_GEO_API_URL must never fall back to a fake /api and report a valid
   // password as invalid. Local dev retains the /api proxy.
   if (BACKEND_URL_MISSING) {
-    throw Object.assign(new Error("This site was deployed without a backend API URL. Ask the UAT operator to set VITE_GEO_API_URL and redeploy Cloudflare Pages."), {
+    throw Object.assign(new Error("This site was deployed without a backend API URL. Ask your system administrator to set VITE_GEO_API_URL and redeploy Cloudflare Pages."), {
       status: 503, code: "BACKEND_NOT_CONFIGURED",
     });
   }
