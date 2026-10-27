@@ -22,8 +22,6 @@ const EVENT_META = {
   reassign: { label: "Reassignment", icon: Users },
   close_month_change: { label: "Expected close month changed", icon: CalendarClock },
   working_with_change: { label: "Working with changed", icon: Wrench },
-  support_on: { label: "Support needed enabled", icon: Wrench },
-  support_off: { label: "Support needed disabled", icon: Wrench },
   won: { label: "Marked Won", icon: Trophy },
   lost: { label: "Marked Lost", icon: XCircle },
   archived: { label: "Archived", icon: Archive },
@@ -39,6 +37,10 @@ function auditValue(field, value, maps) {
     .map((id) => dictionary?.[id]?.name || id).join(", ");
 }
 
+// Keep historical Support events in the audit sheet; do not show retired workflow in the UI.
+const isActiveWorkflowEvent = (event) => !["support_on", "support_off", "SUPPORT_RAISED", "SUPPORT_CLEARED"].includes(String(event.event_type || "")) &&
+  !["support_needed", "support_type", "support_type_id", "support_note"].includes(String(event.field || ""));
+
 export default function HistoryTimeline({ opportunityId, revision }) {
   const { profile, maps } = useData();
   const [items, setItems] = useState([]);
@@ -51,7 +53,7 @@ export default function HistoryTimeline({ opportunityId, revision }) {
     setError("");
     try {
       const rows = await db.entities.OpportunityHistory.filter({ opportunity_id: opportunityId }, "-created_date");
-      setItems(rows.slice().sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+      setItems(rows.filter(isActiveWorkflowEvent).slice().sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
     } catch (e) {
       setError(e.message || "Unable to load history");
     } finally {
@@ -65,7 +67,7 @@ export default function HistoryTimeline({ opportunityId, revision }) {
     setError("");
     db.entities.OpportunityHistory.filter({ opportunity_id: opportunityId }, "-created_date")
       .then((rows) => {
-        if (active) setItems(rows.slice().sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+        if (active) setItems(rows.filter(isActiveWorkflowEvent).slice().sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
       })
       .catch((e) => { if (active) setError(e.message || "Unable to load history"); })
       .finally(() => { if (active) setLoading(false); });
