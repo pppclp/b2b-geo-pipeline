@@ -32,7 +32,7 @@ export default function Login() {
       }
       navigate("/", { replace: true });
     } catch (e) {
-      setError(e.status === 401 ? "Employee ID, email or password is incorrect" : e.message);
+      setError(e.status === 401 ? "Sign-in could not be verified. Check your credentials or contact your account administrator." : e.message);
     } finally {
       setPending(false);
     }
