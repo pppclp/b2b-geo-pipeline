@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Maximize2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
-import SupportToggleAction from "@/components/SupportToggleAction";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
 
 const NONE = "__none__";
@@ -239,14 +238,6 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
                 onClosed={() => { setDirty(false); onClose(); }}/>
             </div>
           )}
-          <div className="border-t pt-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Needs Support</p>
-              <p className="text-xs text-muted-foreground">{op.support_needed ? "Support requested" : "No support requested"}</p>
-            </div>
-            <SupportToggleAction op={op} canEdit={canClose} compact disabled={dirty}
-              onSaved={() => { setDirty(false); onClose(); }} />
-          </div>
           <div className="border-t pt-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">สรุปข้อมูล Pipeline</h3>
