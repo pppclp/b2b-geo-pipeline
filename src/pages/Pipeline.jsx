@@ -234,14 +234,14 @@ export default function Pipeline() {
         </p>
       )}
       {/* Compact work-view cards on phones; same filters/counts as desktop tabs. */}
-      <nav aria-label="Pipeline work views" className="mb-4 grid grid-cols-6 gap-2 rounded-2xl border border-border/70 bg-card p-2.5 shadow-soft md:hidden">
-        {quickViews.map((item, index) => {
+      <nav aria-label="Pipeline work views" className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-card p-2.5 shadow-soft md:hidden">
+        {quickViews.map((item) => {
           const Icon = item.icon;
           const active = activeQuickView === item.id;
           return (
             <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
               aria-current={active ? "page" : undefined} aria-pressed={active}
-              className={`${index < 3 ? "col-span-2" : "col-span-3"} relative flex min-h-[94px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
+              className={`relative flex min-h-[94px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
               <span className="max-w-[calc(100%-20px)] text-current"><span className="block text-[11px] font-medium leading-4">{item.title}</span><span className="block mt-0.5 text-[10px] leading-3.5 opacity-75">{item.subtitle}</span></span>
               <span className="text-xl font-semibold leading-none tabular-nums">{item.count}</span>
               <Icon className={`absolute right-2.5 top-2.5 h-4 w-4 ${active ? "text-brand" : "text-muted-foreground"}`} aria-hidden="true" />
