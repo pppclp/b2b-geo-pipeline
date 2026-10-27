@@ -3,21 +3,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const file=(path)=>fs.readFileSync(new URL("../"+path,import.meta.url),"utf8");
-test("Full Detail follows Create sections and uses contextual Needs Support once",()=>{
+test("Full Detail follows Create sections without retired Support controls",()=>{
   const s=file("src/pages/OpportunityDetail.jsx");
   for(const title of ["ข้อมูลลูกค้า","ผลิตภัณฑ์และมูลค่างาน","ข้อมูล Pipeline","ผู้รับผิดชอบและความช่วยเหลือ","ประวัติการดำเนินงาน"])
     assert.ok(s.includes(title),title);
   assert.ok(s.indexOf("ข้อมูลลูกค้า")<s.indexOf("ผลิตภัณฑ์และมูลค่างาน"));
   assert.ok(s.indexOf("ผลิตภัณฑ์และมูลค่างาน")<s.indexOf("ข้อมูล Pipeline"));
   assert.ok(s.indexOf("ข้อมูล Pipeline")<s.indexOf("ผู้รับผิดชอบและความช่วยเหลือ"));
-  assert.ok(s.includes('<SupportToggleAction op={op} canEdit={canEdit} />'));
-  assert.equal((s.match(/<SupportToggleAction /g)||[]).length,1);
+  assert.ok(!s.includes('<SupportToggleAction op={op} canEdit={canEdit} />'));
+  assert.equal((s.match(/<SupportToggleAction /g)||[]).length,0);
   assert.ok(s.includes('<HistoryTimeline opportunityId={op.id} revision={op.updated_date} />'));
   assert.ok(!s.includes('"Opportunity not found"'));
 });
-test("Quick View keeps a single support action, no collaborator-person inputs",()=>{
+test("Quick View preserves handoffs without retired Support controls",()=>{
   const s=file("src/components/PipelineQuickView.jsx");
-  assert.ok(s.includes("<SupportToggleAction "));
+  assert.ok(!s.includes("<SupportToggleAction "));
   assert.ok(!s.includes("onUsers="));
   assert.ok(!s.includes("workingUserIds"));
   assert.ok(s.includes('profile?.app_role === "management"'));
@@ -30,7 +30,7 @@ test("Working With dropdown keeps Other last and uses only team IDs",()=>{
   assert.ok(!s.includes("onUsers"));
   assert.ok(!s.includes("activePeople"));
 });
-test("Edit and History do not create duplicated support input or person editing",()=>{
+test("Edit and History preserve collaboration and omit retired Support input",()=>{
   const edit=file("src/components/OpportunityForm.jsx");
   const history=file("src/components/HistoryTimeline.jsx");
   assert.ok(!edit.includes("<Switch checked={form.support_needed}"));
