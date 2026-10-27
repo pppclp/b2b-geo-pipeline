@@ -46,7 +46,7 @@ export default function Dashboard() {
   const regionContext = regionDisplayContext(cohort, maps.region, region, regions.map(r => r.id));
   // Assigned work may belong to a different AE; never credit it to this AE's sales.
   const sales = isAE ? cohort.filter((o) => o.owner_id === profile?.id) : cohort;
-  const { open, won, supportNeeded } = dashboardMetrics(sales, {
+  const { open, won } = dashboardMetrics(sales, {
     stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
   const overdue = open.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
@@ -88,14 +88,13 @@ export default function Dashboard() {
     }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
 
   const tabs = isManagement
-    ? [["with", "With Me"], ["support", "Needs Support"], ["overdue", "Overdue"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+    ? [["with", "With Me"], ["overdue", "Overdue"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
     : isSM
-      ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["support", "Needs Support"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+      ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
       : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]];
   const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : "with";
   const queue = selectedTab === "with" ? assigned
     : selectedTab === "overdue" ? (isManagement ? overdue : assignedOverdue)
-    : selectedTab === "support" ? supportNeeded
     : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
   const queueItems = queue.slice().sort((a, b) => {
     const agingKey = selectedTab === "with" ? "handler_since" : "stage_entered_at";
@@ -215,7 +214,6 @@ export default function Dashboard() {
                 status: "open",
                 ...(selectedTab === "with" ? withMeQuery : {}),
                 ...(selectedTab === "overdue" ? { stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) } : {}),
-                ...(selectedTab === "support" ? { support: "1" } : {}),
                 ...(selectedTab === "due" ? { due_this_month: "1" } : {}),
               })
             }>View All</Button>
@@ -358,8 +356,7 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
                     {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
                   </span>
                 )}
-                {o.support_needed && <span className="shrink-0 text-amber-700">Needs Support</span>}
-              </div>
+                </div>
             </div>
           </td>
           {regionColumn && <td className="py-2 pr-2 align-middle text-[11px] text-muted-foreground">

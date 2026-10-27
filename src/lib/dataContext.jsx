@@ -22,7 +22,6 @@ const MASTER_ENTITIES = [
   "Scenario",
   "LostReason",
   "WorkingWithOption",
-  "SupportType",
   "TeamMember",
   "AppConfig",
   "MonthlySnapshot",
@@ -143,7 +142,6 @@ export function DataProvider({ children }) {
       scenario: byId(master.Scenario),
       lostReason: byId(master.LostReason),
       workingWith: byId(master.WorkingWithOption),
-      supportType: byId(master.SupportType),
       member: byId(master.TeamMember),
     };
   }, [master]);
@@ -389,25 +387,6 @@ export function DataProvider({ children }) {
     [opportunities, updateWithHistory]
   );
 
-  const setSupport = useCallback(
-    async (id, { needed, type, note, expectedUpdatedAt }) => {
-      const op = opportunities.find((o) => o.id === id);
-      if (!op) return;
-      const changes = {
-        support_needed: !!needed,
-        support_type: needed ? type || "" : "",
-        support_note: needed ? note || "" : "",
-      };
-      return updateWithHistory(id, changes, {
-        event_type: needed ? "support_on" : "support_off",
-        field: "support_needed",
-        previous_value: op.support_needed ? "On" : "Off",
-        new_value: needed ? "On" : "Off",
-      }, { expectedUpdatedAt });
-    },
-    [opportunities, updateWithHistory]
-  );
-
   const markWon = useCallback(
     async (id) => {
       const op = opportunities.find((o) => o.id === id);
@@ -543,7 +522,6 @@ export function DataProvider({ children }) {
     reassign,
     changeCloseMonth,
     setWorkingWith,
-    setSupport,
     markWon,
     markLost,
     archiveOp,

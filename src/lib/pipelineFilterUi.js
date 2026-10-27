@@ -14,7 +14,6 @@ export const PIPELINE_FILTER_LABELS = Object.freeze({
   product_category: "Product Category",
   scenario: "Scenario",
   working_with: "Working With",
-  support: "Support Needed",
   sales_channel: "Sales Channel",
   ccp_check_result: "CCP+ Check",
   sm_info: "Missing SM Info",
@@ -29,7 +28,7 @@ export const QUICK_FILTER_KEYS = ["search", "close_month", "product_category", "
 export const ADVANCED_FILTER_KEYS = [
   "created_month", "owner", "handler", "working_with",
   "stage", "scenario", "sales_channel",
-  "ccp_check_result", "support",
+  "ccp_check_result",
 ];
 
 export const DEFAULT_PIPELINE_FILTERS = Object.freeze({status: "open"});

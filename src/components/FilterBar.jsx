@@ -79,7 +79,6 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
     if(key==="stage") return stages.find(s=>s.id===value)?.name || value;
     if(key==="product_category") return categories.find(c=>c.id===value)?.name || value;
     if(key==="scenario") return scenarios.find(s=>s.id===value)?.name || value;
-    if(key==="support") return value==="1"?"Needed":"Not Needed";
     if(key==="status" && value==="all") return "All Statuses";
     if(key==="ccp_check_result") return ({not_in_base:"Not in Base",enterprise_base:"Enterprise Existing Base",pending:"Pending Review"})[value] || value;
     if(key==="stuck" || key==="internal_overdue") return "Yes";
@@ -179,13 +178,6 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
                   <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
                   <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
                   <SelectItem value="pending">Pending Review</SelectItem>
-                </SelectWrap>
-              </section>
-              <section className="space-y-2">
-                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Support</h4>
-                <SelectWrap label={LABELS.support} value={filters.support} onChange={choice("support")}>
-                  <SelectItem value="1">Needed</SelectItem>
-                  <SelectItem value="0">Not Needed</SelectItem>
                 </SelectWrap>
               </section>
             </div>

@@ -595,7 +595,7 @@ test("legacy empty revision uses one-time exact compare-and-set even without imp
  assert.equal(x.row().remark,"Correctly saved first revision");
 });
 
-test("real YAML contract roundtrip: Create Edit Stage Handler Working With Need Support Won Reopen Lost",()=>{
+test("real YAML contract roundtrip: Create Edit Stage Handler Working With Won Reopen Lost; retired Support writes rejected",()=>{
  const x=fixture();
  const config="B2B_GEO_Pipeline_Config.xlsx";
  x.store.table(config,"Working_With").rows.push(
@@ -639,19 +639,12 @@ test("real YAML contract roundtrip: Create Edit Stage Handler Working With Need 
  assert.equal(saved().working_with_id,"TEAM1");
  assert.equal(ev().filter(e=>e.event_type==="working_with_change").length,1);
  assert.equal(ev().find(e=>e.event_type==="working_with_change").field_name,"working_with_teams");
- const support=x.call("AE1","PUT","entities/Opportunity/"+created.id,{
-   support_needed:true,support_type:"Pricing",support_note:"Need approval"
- });
- assert.equal(support.support_needed,true);
- assert.equal(support.support_type,"Pricing");
- assert.equal(support.support_note,"Need approval");
- assert.equal(saved().support_type_id,"SUP1");
- assert.equal(ev().filter(e=>e.event_type==="support_on").length,1);
- const removed=x.call("AE1","PUT","entities/Opportunity/"+created.id,{support_needed:false});
- assert.equal(removed.support_needed,false);
- assert.equal(removed.support_type||"","");
- assert.equal(removed.support_note||"","");
- assert.equal(ev().filter(e=>e.event_type==="support_off").length,1);
+ const eventsBeforeSupport=ev().length;
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/"+created.id,{
+   support_needed:true,support_type:"Pricing",support_note:"Retired"
+ }),e=>e.status===410);
+ assert.equal(ev().length,eventsBeforeSupport,"Rejected legacy Support write must not add audit events");
+ assert.equal(saved().support_needed||"","No"===saved().support_needed?"No":"");
  const won=x.call("AE1","PUT","entities/Opportunity/"+created.id,{status:"won"});
  assert.equal(won.status,"won");
  assert.equal(won.won_by,"AE1");
@@ -686,7 +679,7 @@ test("real YAML contract roundtrip: Create Edit Stage Handler Working With Need 
 });
 
 
-test("historical imported Pipeline with blank Region can Edit Stage Support and Close without inventing Region",()=>{
+test("historical imported Pipeline with blank Region can Edit Stage and Close without inventing Region",()=>{
  const x=fixture();
  const row=x.row();
  row.import_batch_id="APPROVED_HISTORICAL_IMPORT";
@@ -708,16 +701,12 @@ test("historical imported Pipeline with blank Region can Edit Stage Support and 
  const updated=x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Following up"});
  assert.equal(updated.remark,"Following up");
  assert.equal(updated.region_id,"");
- x.store.table(CONFIG,"Support_Types").rows.push({
-   support_type_id:"SUP1",support_type_name:"Pricing",active:"Yes"
- });
- const supported=x.call("AE1","PUT","entities/Opportunity/OPP-1",{
-   support_needed:true,support_type:"Pricing",support_note:"Need quotation help"
- });
- assert.equal(supported.support_needed,true);
- assert.equal(supported.support_type,"Pricing");
- assert.equal(supported.region_id,"");
- assert.ok(x.events().some(e=>e.event_type==="support_on"));
+ const historyCount=x.events().length;
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   support_needed:true,support_type:"Pricing",support_note:"Retired"
+ }),e=>e.status===410);
+ assert.equal(x.events().length,historyCount);
+ assert.equal(x.row().region_id,"");
  const won=x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"won"});
  assert.equal(won.status,"won");
  assert.equal(won.region_id,"");

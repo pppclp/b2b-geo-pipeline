@@ -11,7 +11,6 @@ export const PIPELINE_EXPORT_HEADERS = [
   "Stage", "Status", "Created At", "Created Month", "Expected Close Month",
   "Stage Aging (days)", "Stage SLA (days)", "Handler Aging (days)",
   "Working With", "Working With Aging (days)",
-  "Support Needed", "Support Type", "Support Note",
   "Won At", "Lost At", "Lost Reason", "Lost Note", "Created By", "Updated At",
 ];
 
@@ -56,7 +55,6 @@ export function pipelineExportRows(ops, maps) {
     toBangkokExcelDate(o.created_date), o.created_month || "", monthKeyToExcelDate(o.expected_close_month),
     o.stage_entered_at ? agingDays(o.stage_entered_at) : null, maps?.stage?.[o.stage_id]?.sla_days ?? null, o.handler_since ? agingDays(o.handler_since) : null,
     o.working_with || "", o.working_with ? agingDays(o.working_with_since) : null,
-    o.support_needed ? "Yes" : "No", o.support_type || "", o.support_note || "",
     toBangkokExcelDate(o.won_at), toBangkokExcelDate(o.lost_at), dict("lostReason", o.lost_reason_id), o.lost_note || "",
     dict("member", o.created_by_user_id), toBangkokExcelDate(o.updated_date),
   ]);
@@ -83,7 +81,7 @@ export function buildPipelineWorkbook(ops, maps, ExcelJS) {
   financialIndexes.forEach((i) => { sheet.getColumn(i + 1).numFmt = '#,##0.00;[Red](#,##0.00)'; });
   sheet.getColumn(3).numFmt = "@"; // Business ID
   sheet.getColumn(8).numFmt = "@"; // Phone
-  [25, 36, 37, 41].forEach((column) => { sheet.getColumn(column).numFmt = "dd mmm yyyy"; });
+  [25, 33, 34, 38].forEach((column) => { sheet.getColumn(column).numFmt = "dd mmm yyyy"; });
   sheet.getColumn(27).numFmt = "mmm yyyy"; // Expected Close Month as a real Date
   sheet.getColumn(26).numFmt = "@"; // Created Month is a YYYY-MM identifier
   return workbook;

@@ -41,49 +41,45 @@ const data = [
 test("work view counts respond to Region, Close Month, Product Category, and advanced AE Owner", () => {
   const base = { status:"open", region:"R1", close_month:"2026-10", product_category:"CAT1" };
   assert.deepEqual(quickViewCounts(data,base,"MGMT1",context),
-    {all:2,"assigned-to-me":1,"support-needed":1,"stage-overdue":1,"due-this-month":2});
+    {all:2,"assigned-to-me":1,"stage-overdue":1,"due-this-month":2});
   const allRegions = {...base,region:""};
   assert.deepEqual(quickViewCounts(data,allRegions,"MGMT1",context),
-    {all:3,"assigned-to-me":2,"support-needed":2,"stage-overdue":1,"due-this-month":3});
+    {all:3,"assigned-to-me":2,"stage-overdue":1,"due-this-month":3});
   const otherCategory = {...base,product_category:"CAT2"};
   assert.deepEqual(quickViewCounts(data,otherCategory,"MGMT1",context),
-    {all:1,"assigned-to-me":1,"support-needed":1,"stage-overdue":1,"due-this-month":1});
+    {all:1,"assigned-to-me":1,"stage-overdue":1,"due-this-month":1});
   const ownerOnly = {...base,owner:"AE1"};
   assert.deepEqual(quickViewCounts(data,ownerOnly,"MGMT1",context),
-    {all:2,"assigned-to-me":1,"support-needed":1,"stage-overdue":1,"due-this-month":2});
+    {all:2,"assigned-to-me":1,"stage-overdue":1,"due-this-month":2});
   assert.deepEqual(quickViewCounts(data,{...base,owner:"AE2"},"MGMT1",context),
-    {all:0,"assigned-to-me":0,"support-needed":0,"stage-overdue":0,"due-this-month":0});
+    {all:0,"assigned-to-me":0,"stage-overdue":0,"due-this-month":0});
 });
 
 test("stage and chosen work view do not shrink unrelated tab counts", () => {
   const filter={status:"open",region:"R1",close_month:"2026-10",product_category:"CAT1",
-    support:"1",stage:"STG1"};
+    stage:"STG1"};
   assert.deepEqual(quickViewCounts(data,filter,"MGMT1",context),
-    {all:2,"assigned-to-me":1,"support-needed":1,"stage-overdue":1,"due-this-month":2});
+    {all:2,"assigned-to-me":1,"stage-overdue":1,"due-this-month":2});
   assert.equal(data.filter(o=>matchesPipelineFilters(o,filter,context)).length,1);
 });
 
 test("switching views preserves scope, search, stage, and independent advanced filters", () => {
   const base={status:"won",region:"R1",close_month:"2026-10",product_category:"CAT1",
-    stage:"STG2",search:"B",owner:"AE1",handler:"OTHER",support:"0"};
+    stage:"STG2",search:"B",owner:"AE1",handler:"OTHER"};
   const withMe=switchPipelineView(base,"assigned-to-me","MGMT1");
   assert.equal(withMe.status,"open");
   assert.equal(withMe.handler,"MGMT1");
-  assert.equal(withMe.support,"");
+  assert.equal(withMe.support,undefined);
   for(const key of ["region","close_month","product_category","stage","search","owner"])
     assert.equal(withMe[key],base[key],key);
   assert.equal(activePipelineView(withMe,"MGMT1"),"assigned-to-me");
-  const needs=switchPipelineView(withMe,"support-needed","MGMT1");
-  assert.equal(needs.handler,"");
-  assert.equal(needs.support,"1");
-  assert.equal(activePipelineView(needs,"MGMT1"),"support-needed");
-  const all=switchPipelineView(needs,"all","MGMT1");
+  const all=switchPipelineView(withMe,"all","MGMT1");
   assert.equal(activePipelineView(all,"MGMT1"),"all");
   assert.equal(activePipelineView({...all,status:"won"},"MGMT1"),"");
   assert.equal(activePipelineView({...all,handler:"OTHER"},"MGMT1"),"");
-  const overdue=switchPipelineView({status:"open",region:"R1",product_category:"CAT1",close_month:"2026-10",support:"1"},"stage-overdue","MGMT1");
+  const overdue=switchPipelineView({status:"open",region:"R1",product_category:"CAT1",close_month:"2026-10"},"stage-overdue","MGMT1");
   assert.equal(overdue.stuck,"1");
-  assert.equal(overdue.support,"");
+  assert.equal(overdue.support,undefined);
   assert.equal(overdue.handler,"");
   assert.equal(activePipelineView(overdue,"MGMT1"),"stage-overdue");
   assert.deepEqual(data.filter(o=>matchesPipelineFilters(o,{...overdue,stage:""},context)).map(o=>o.id),["1"]);
@@ -160,10 +156,7 @@ test("Management With Me deep links and tab toggles do not change other filters"
   const withMe=switchPipelineView(start,"assigned-to-me","MGMT1","management");
   assert.equal(withMe.with_me,"1");
   assert.equal(activePipelineView(withMe,"MGMT1","management"),"assigned-to-me");
-  const support=switchPipelineView(withMe,"support-needed","MGMT1","management");
-  assert.equal(support.with_me,"");
-  assert.equal(support.support,"1");
-  const all=switchPipelineView(support,"all","MGMT1","management");
+  const all=switchPipelineView(withMe,"all","MGMT1","management");
   assert.equal(activePipelineView(all,"MGMT1","management"),"all");
   for(const key of ["region","product_category","search","close_month"])
     assert.equal(all[key],start[key],key);

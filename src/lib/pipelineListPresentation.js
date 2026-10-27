@@ -16,7 +16,6 @@ export function sortPipelineRows(items, key = "close_month") {
     case "updated_desc": return rows.sort((a, b) => (Date.parse(b.updated_date || "") || 0) - (Date.parse(a.updated_date || "") || 0) || fallback(a, b));
     case "created_desc": return rows.sort((a, b) => (Date.parse(b.created_date || "") || 0) - (Date.parse(a.created_date || "") || 0) || fallback(a, b));
     case "customer_asc": return rows.sort((a, b) => String(a.customer_name || "").localeCompare(String(b.customer_name || "")) || fallback(a, b));
-    case "support_first": return rows.sort((a, b) => Number(Boolean(b.support_needed)) - Number(Boolean(a.support_needed)) || fallback(a, b));
     case "close_month":
     default:
       // Future/unknown months sort last. Within the same month, surface

@@ -12,7 +12,7 @@ test("exact English labels and group membership preserve all requested filters",
     created_month:"Created Month",close_month:"Expected Close Month",
     region:"Region",owner:"AE Owner",handler:"Current Handler",
     stage:"Stage",status:"Status",product_category:"Product Category",
-    scenario:"Scenario",working_with:"Working With",support:"Support Needed",
+    scenario:"Scenario",working_with:"Working With",
   };
   for(const [key,label] of Object.entries(wanted))
     assert.equal(PIPELINE_FILTER_LABELS[key],label);
@@ -24,11 +24,11 @@ test("exact English labels and group membership preserve all requested filters",
 
 test("default Open is not an active chip, explicit All Statuses is a chip",()=>{
   assert.deepEqual(visibleActiveFilters(DEFAULT_PIPELINE_FILTERS),[]);
-  const selected={status:"all",region:"R1",handler:"SM1",support:"0"};
+  const selected={status:"all",region:"R1",handler:"SM1"};
   assert.deepEqual(visibleActiveFilters(selected),Object.entries(selected));
-  assert.equal(advancedFilterCount(selected,{app_role:"management"}),2);
-  assert.equal(advancedFilterCount(selected,{app_role:"sm"}),2);
-  assert.equal(advancedFilterCount({...selected,owner:"AE1"},{app_role:"sm"}),3);
+  assert.equal(advancedFilterCount(selected,{app_role:"management"}),1);
+  assert.equal(advancedFilterCount(selected,{app_role:"sm"}),1);
+  assert.equal(advancedFilterCount({...selected,owner:"AE1"},{app_role:"sm"}),2);
   assert.equal(advancedFilterCount({status:"open",close_month:"2026-10"}),0);
 });
 
@@ -62,9 +62,11 @@ test("owner options are scoped by authorized Pipelines and dependent on Region",
 test("primary toolbar stays minimal and rarely-used filters remain available",()=>{
   assert.deepEqual(QUICK_FILTER_KEYS,["search","close_month","product_category","region","status"]);
   for(const key of ["owner","stage","handler","working_with","scenario","ccp_check_result",
-    "support","sales_channel","created_month"])
+    "sales_channel","created_month"])
     assert.ok(ADVANCED_FILTER_KEYS.includes(key),key);
   assert.ok(!ADVANCED_FILTER_KEYS.includes("product_category"));
+  assert.ok(!ADVANCED_FILTER_KEYS.includes("support"));
+  assert.equal(PIPELINE_FILTER_LABELS.support, undefined);
   assert.equal(advancedFilterCount({owner:"A1",product_category:"CAT1"}),1);
   assert.equal(showQuickOwner({app_role:"management"}),true); // access capability, not visible toolbar
   assert.equal(showQuickOwner({app_role:"admin"}),true);
