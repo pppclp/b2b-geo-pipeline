@@ -43,7 +43,7 @@ export default function Login() {
       icon={LogIn}
       title="B2B GEO Pipeline"
       subtitle={EMAIL_AUTH_ENABLED ? "Sign in with your Employee ID or registered corporate email" : "Sign in with your Employee ID and password"}
-      footer={EMAIL_AUTH_ENABLED ? "For corporate email activation, use the code provided by your account administrator" : "If this is your first sign-in, your temporary password will take you to personal password setup"}
+      footer={EMAIL_AUTH_ENABLED ? "For corporate email activation, use the code provided by your account administrator" : "Use the password issued for your account. Your administrator will tell you when personal password setup is required."}
     >
       {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
 
