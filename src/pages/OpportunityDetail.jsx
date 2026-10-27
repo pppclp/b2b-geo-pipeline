@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, MoreHorizontal, Copy } from "lucide-react";
-import SupportToggleAction from "@/components/SupportToggleAction";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const statusColor = {
@@ -31,7 +30,7 @@ const statusColor = {
 export default function OpportunityDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { opportunities, maps, activeStages, master, profile, moveStage, handoff, reassign, archiveOp, reopen, changeCloseMonth, setWorkingWith, setSupport } = useData();
+  const { opportunities, maps, activeStages, master, profile, moveStage, handoff, reassign, archiveOp, reopen, changeCloseMonth, setWorkingWith } = useData();
   const op = opportunities.find((o) => o.id === id);
 
   const [editOpen, setEditOpen] = useState(false);
@@ -80,7 +79,6 @@ export default function OpportunityDetail() {
       else if (a.type === "archive") await archiveOp(op.id);
       else if (a.type === "reopen") await reopen(op.id, remark);
       else if (a.type === "workingwith") await setWorkingWith(op.id, a.value);
-      else if (a.type === "support") await setSupport(op.id, { needed: a.needed, type: a.type_, note: a.note });
       else throw new Error("Unsupported action");
       setAction(null);
       setRemark("");
@@ -181,20 +179,6 @@ export default function OpportunityDetail() {
                 : <span className="text-sm text-muted-foreground">{op.working_with || "Not assigned"}</span>}
               </div>
             </div>
-            <div className="col-span-full border-t pt-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">Needs Support <span className="text-xs font-normal text-muted-foreground">· งานที่ต้องการความช่วยเหลือ</span></h3>
-                  <Badge variant="outline" className={op.support_needed ? "border-amber-200 bg-amber-50 text-amber-800" : "text-muted-foreground"}>{op.support_needed ? "Yes" : "No"}</Badge>
-                </div>
-                <SupportToggleAction op={op} canEdit={canEdit} />
-              </div>
-              {op.support_needed && <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Support Type" value={op.support_type} />
-                <Field wide label="Support Note" value={op.support_note} />
-              </div>}
-              {!op.support_needed && <p className="mt-2 text-xs text-muted-foreground">No support requested</p>}
-            </div>
           </DetailSection>
 
           {op.status !== "open" && <DetailSection number="—" title="Closure">
@@ -233,7 +217,7 @@ export default function OpportunityDetail() {
             <DialogTitle>{actionTitle(action)}</DialogTitle>
           </DialogHeader>
           <ActionBody action={action} setAction={setAction} remark={remark} setRemark={setRemark}
-            members={members} stages={activeStages} supportTypes={(master?.SupportType || []).filter((s) => s.active)} op={op} />
+            members={members} stages={activeStages} op={op} />
           {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={closeAction} disabled={saving}>Cancel</Button>
@@ -246,8 +230,6 @@ export default function OpportunityDetail() {
 }
 
 function actionTitle(action) {
-  if (action?.type === "support")
-    return action.needed ? "Mark Needs Support" : "Remove Needs Support?";
   return ({
     reassign: "Reassign", closemonth: "Change Close Month",
     archive: "Archive", reopen: "Reopen",
@@ -262,11 +244,10 @@ function actionValid(a, remark = "") {
   if (a.type === "handoff") return !!a.handlerId;
   if (a.type === "reassign") return !!a.ownerId || !!a.handlerId;
   if (a.type === "closemonth") return !!a.month;
-  if (a.type === "support") return !a.needed || (!!a.type_ && !!String(a.note||"").trim());
   return true;
 }
 
-function ActionBody({ action, setAction, remark, setRemark, members, stages, supportTypes, op }) {
+function ActionBody({ action, setAction, remark, setRemark, members, stages, op }) {
   if (!action) return null;
   const t = action.type;
   const allowed = members.filter((m) => (m.region_ids || []).includes(op.region_id));
@@ -330,23 +311,6 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, sup
           <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
           <SelectContent>{opts.filter(Boolean).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
         </Select>
-      </div>
-    );
-  }
-  if (t === "support") {
-    if (!action.needed) return <DialogDescription>
-      Remove the Needs Support flag from this Pipeline? Support Type and Note will be
-      cleared from its current details. The change will remain in Pipeline History.
-    </DialogDescription>;
-    return (
-      <div className="space-y-2">
-        <Label>Support Type</Label>
-        <Select value={action.type_ || ""} onValueChange={(v) => setAction({ ...action, type_: v })} disabled={!action.needed}>
-          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-          <SelectContent>{(supportTypes || []).map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
-        </Select>
-        <Label>Support Note</Label>
-        <Textarea value={action.note || ""} onChange={(e) => setAction({ ...action, note: e.target.value })} rows={2} />
       </div>
     );
   }
