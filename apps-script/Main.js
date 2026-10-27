@@ -13,7 +13,7 @@
 // "not executed" and retry.
 // Public non-secret release marker: compare this exact value against the
 // deployed /exec health response before enabling the new frontend.
-var GEO_RELEASE_TAG_ = "geo-uat-login-e2e-20261027-r2";
+var GEO_RELEASE_TAG_ = "geo-write-audit-safe-20261027-r3";
 function doGet(e) {
   // Never accept serialized API requests over GET: tokens in query strings leak
   // into browser history and intermediaries. The authenticated client uses POST.
@@ -119,7 +119,13 @@ function handle_(req) {
       uuid: function () { return Utilities.getUuid(); },
     });
     var result = core.handle(req);
-    store.flush();
+    try {
+      store.flush();
+    } catch (writeError) {
+      if (!writeError.publicCode) writeError.publicCode = "PIPELINE_PERSIST_FAILED";
+      console.error("GEO_PIPELINE_WRITE_FAILURE: " + (writeError && writeError.stack ? writeError.stack : writeError));
+      throw writeError;
+    }
     return result;
   } finally {
     lock.releaseLock();
@@ -1628,6 +1634,39 @@ function recoverGeoDb_(book) {
   props.deleteProperty(GEO_DB_TXN_PROPERTY_);
 }
 
+// EDITOR-ONLY, READ-ONLY write diagnostic. Never exposed via doPost or doGet.
+function debugGeoWriteReadiness() {
+  var props = PropertiesService.getScriptProperties();
+  var markerRaw = props.getProperty(GEO_DB_TXN_PROPERTY_);
+  var output = {release:GEO_RELEASE_TAG_, pending_transaction:!!markerRaw,
+    sheets:[], ready:false, problems:[]};
+  if (markerRaw) {
+    output.problems.push("Pending GEO_RUNTIME_DB_TXN: review recovery before further writes");
+    console.warn(JSON.stringify(output));
+    return output;
+  }
+  var id = sheetIdFor_("B2B_GEO_Pipeline_DB.xlsx");
+  if (!id) { output.problems.push("Pipeline DB binding missing"); return output; }
+  var book = SpreadsheetApp.openById(id);
+  var required = {
+    Pipelines:["opportunity_id","updated_at","client_request_id","stage_id","current_handler_user_id","working_with_team_ids","support_needed","status","lost_reason_id","won_at","lost_at"],
+    Pipeline_Events:["event_id","opportunity_id","event_type","field_name","previous_value","new_value","actor_user_id","event_at","remark"],
+    Handoff_Notifications:["notification_id","recipient_user_id","opportunity_id","actor_user_id","type","created_at","read_at"]
+  };
+  Object.keys(required).forEach(function (tab) {
+    var ws = book.getSheetByName(tab);
+    if (!ws) {output.problems.push(tab+" missing");output.sheets.push({name:tab,exists:false});return;}
+    var head = ws.getLastColumn() ? ws.getRange(1,1,1,ws.getLastColumn()).getValues()[0].map(String) : [];
+    var missing = required[tab].filter(function (h) {return head.indexOf(h)<0;});
+    if (missing.length) output.problems.push(tab+" missing columns: "+missing.join(","));
+    if (head.some(function(h,i){return !h||head.indexOf(h)!==i;})) output.problems.push(tab+" blank/duplicate header");
+    output.sheets.push({name:tab,exists:true,rows:Math.max(0,ws.getLastRow()-1),columns:head.length,missing:missing});
+  });
+  output.ready = output.problems.length===0;
+  console.log(JSON.stringify(output,null,2));
+  return output;
+}
+
 // Spreadsheet writes must preserve identifier/month strings and must never
 // interpret user-provided text as a formula. Format columns BEFORE setValues.
 // Only explicitly textual fields receive TEXT format; amounts remain numeric.
@@ -1666,9 +1705,26 @@ SheetStore_.prototype.writeDirty_ = function (d) {
   var key = d.file + "|" + d.sheet;
   var t = this.tables[key];
   var before = this.loaded[key] || { headers: [], rows: [], json: [] };
-  t.rows.forEach(function (r) {
-    Object.keys(r).forEach(function (k) { if (t.headers.indexOf(k) < 0) t.headers.push(k); });
-  });
+  var protectedAudit = d.file === "B2B_GEO_Pipeline_DB.xlsx" &&
+    (d.sheet === "Pipeline_Events" || d.sheet === "Admin_Audit");
+  if (protectedAudit) {
+    // Legacy Pipeline_Events did not store actor_name. Keep it in API results,
+    // but never mutate immutable Audit sheet headers to persist that optional field.
+    if (d.sheet === "Pipeline_Events" && t.headers.indexOf("actor_name") < 0) {
+      t.rows.slice(before.rows.length).forEach(function (row) { delete row.actor_name; });
+    }
+    var extras = t.rows.slice(before.rows.length).reduce(function (missing, row) {
+      Object.keys(row).forEach(function (k) {
+        if (t.headers.indexOf(k) < 0 && missing.indexOf(k) < 0) missing.push(k);
+      });
+      return missing;
+    }, []);
+    if (extras.length) throw geoSchemaError_("AUDIT_SCHEMA_MISMATCH", d.sheet + " missing audit columns: " + extras.join(", "));
+  } else {
+    t.rows.forEach(function (r) {
+      Object.keys(r).forEach(function (k) { if (t.headers.indexOf(k) < 0) t.headers.push(k); });
+    });
+  }
   var ws = this.book_(d.file).getSheetByName(d.sheet) || this.book_(d.file).insertSheet(d.sheet);
   var toValues = function (r) {
     return t.headers.map(function (h) { return geoSafeSheetValue_(r[h]); });
@@ -1757,7 +1813,12 @@ SheetStore_.prototype.flush = function () {
     });
     // Keep full sheet backups only for mutable tables. Audit tables cannot be
     // changed in place and are restored by removing appended rows.
-    geoBackups_(book, backupSheets);
+    try {
+      geoBackups_(book, backupSheets);
+    } catch (backupError) {
+      backupError.publicCode = "PIPELINE_BACKUP_FAILED";
+      throw backupError;
+    }
     try {
       props.setProperty(GEO_DB_TXN_PROPERTY_, JSON.stringify({
         spreadsheetId: book.getId(), sheets: sheets, backupSheets: backupSheets,
@@ -1771,7 +1832,13 @@ SheetStore_.prototype.flush = function () {
       throw markerError;
     }
     try {
-      critical.forEach(function (d) { self.writeDirty_(d); });
+      critical.forEach(function (d) {
+        try { self.writeDirty_(d); }
+        catch (tableError) {
+          tableError.publicCode = "PIPELINE_WRITE_" + String(d.sheet).toUpperCase();
+          throw tableError;
+        }
+      });
       SpreadsheetApp.flush();
       // Mark committed BEFORE cleanup: a crash during backup deletion must
       // never roll back a fully committed operation.
