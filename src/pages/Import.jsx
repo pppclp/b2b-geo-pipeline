@@ -53,9 +53,6 @@ const FIELDS = [
   { key: "status", label: "Status" },
   { key: "lost_reason", label: "Lost Reason", resolve: "reason" },
   { key: "working_with", label: "Working With" },
-  { key: "support_needed", label: "Support Needed" },
-  { key: "support_type", label: "Support Type" },
-  { key: "support_note", label: "Support Note" },
 ];
 
 function parseCSV(text) {
