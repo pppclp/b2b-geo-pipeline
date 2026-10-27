@@ -46,7 +46,7 @@ function Field({ label, required, error, children, className = "" }) {
 export default function CreatePipelineModal({ open, onClose, onSaved }) {
   const { master, activeStages, profile, createOpportunity } = useData();
   const [form, setForm] = useState(EMPTY);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -57,7 +57,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
       setClientRequestId(crypto.randomUUID());
       setForm({ ...EMPTY, owner_id: profile?.app_role === "ae" ? profile.id : "" });
       setSubmitted(false);
-      setExpanded(false);
+      setExpanded(true);
       setSaving(false);
       setSaveError("");
     }
@@ -169,7 +169,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
     <Dialog open={open} onOpenChange={(next) => { if (!next) requestClose(); }}>
       <DialogContent
         className={`p-0 gap-0 w-[calc(100vw-2rem)] max-h-[92vh] flex flex-col overflow-hidden rounded-2xl sm:rounded-2xl
-          ${expanded ? "sm:max-w-[1280px]" : "sm:max-w-[1000px]"}`}
+          ${expanded ? "!w-screen !max-w-none !h-[100dvh] !max-h-[100dvh] !rounded-none sm:!rounded-none border-0" : "sm:max-w-[1000px]"}`}
         onEscapeKeyDown={(event) => { event.preventDefault(); requestClose(); }}
         onPointerDownOutside={(event) => { event.preventDefault(); requestClose(); }}
       >
