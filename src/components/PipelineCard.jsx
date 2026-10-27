@@ -5,7 +5,7 @@ import { formatMonth } from "@/lib/pipeline";
 import { overdueReasons } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import { smWorkingWithTeamLabels } from "@/lib/pipelineListPresentation";
-import { AlertCircle, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Board cards are a compact overview. Full ownership, handoff and working-with
