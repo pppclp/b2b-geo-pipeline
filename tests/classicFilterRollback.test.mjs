@@ -17,7 +17,7 @@ test("FilterBar keeps stable dropdown component identity and accessible labels",
 test("Compact English quick filters retain access to all existing advanced fields",()=>{
   for(const key of ["close_month","region","owner","stage","status",
     "created_month","handler","product_category","sales_channel",
-    "ccp_check_result","scenario","working_with","support"]){
+    "ccp_check_result","scenario","working_with"]){
     assert.ok(filter.includes(`filters.${key}`),`${key} dropdown is missing`);
   }
   for(const component of ["Popover","SearchableSelect","MonthPicker"]){
@@ -71,7 +71,7 @@ test("Pipeline list uses owner-first identity, conditional Working With and cont
   assert.match(pipeline,/regionContext\.showColumn/);
   assert.match(pipeline,/maps\.region\[o\.region_id\]/);
   assert.match(pipeline,/o\.status !== "open"/);
-  assert.match(pipeline,/o\.support_needed/);
+  assert.doesNotMatch(pipeline,/o\.support_needed/);
   assert.match(pipeline,/OverdueTags op=\{o\}/);
   assert.match(pipeline,/onClick=\{\(\) => openQuickView\(o\.id\)\}/);
   assert.match(pipeline,/Product details:/);
