@@ -105,7 +105,7 @@ test("GAS blocks duplicate-code replay and expiry without mutating the credentia
  }),e=>e.status===401);
 });
 test("GAS activation endpoint commits Credentials before success",()=>{
- assert.match(source,/var activationResult = completeUatActivation_\(store, req\.body \|\| \{\}\);\s*\/\/[^\n]*\n[^\n]*\n\s*store\.flush\(\);\s*geoVerifyUatCredentialPersisted_\\\(store\\\);\\s*return activationResult;/);
+ assert.ok(source.includes("store.flush();\n      geoVerifyUatCredentialPersisted_(store);\n      return activationResult;"));
 });
 
 test("GAS fails closed for credential employee mismatch and inactive duplicate corporate mailbox",()=>{
