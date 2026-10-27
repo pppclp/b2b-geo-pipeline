@@ -20,4 +20,4 @@ for (const [entity, pk, nameColumn] of optionalMasters) {
 
 test("Entities with explicitly defined active remain fail-closed when missing", () => {
   assert.equal(toUi("Stage", "stage_id", { stage_id: "S1", stage_name: "Start" }).active, false);
-}
+});
