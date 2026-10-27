@@ -1708,6 +1708,11 @@ SheetStore_.prototype.writeDirty_ = function (d) {
   var protectedAudit = d.file === "B2B_GEO_Pipeline_DB.xlsx" &&
     (d.sheet === "Pipeline_Events" || d.sheet === "Admin_Audit");
   if (protectedAudit) {
+    // Legacy Pipeline_Events did not store actor_name. Keep it in API results,
+    // but never mutate immutable Audit sheet headers to persist that optional field.
+    if (d.sheet === "Pipeline_Events" && t.headers.indexOf("actor_name") < 0) {
+      t.rows.slice(before.rows.length).forEach(function (row) { delete row.actor_name; });
+    }
     var extras = t.rows.slice(before.rows.length).reduce(function (missing, row) {
       Object.keys(row).forEach(function (k) {
         if (t.headers.indexOf(k) < 0 && missing.indexOf(k) < 0) missing.push(k);
