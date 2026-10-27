@@ -10,6 +10,7 @@ import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
 import { withMePipelines } from "@/lib/dashboardQueue";
+import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
 
@@ -139,7 +140,7 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">You can review {cohort.length} Pipelines for {regionContext.label}. Region breakdown below shows Open Pipeline Net RC.</p>
           <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>Open Pipeline</Button>
         </Panel>
-        <Panel title="Open Pipeline by Region" meta="Open · Net RC">
+        <Panel title="มูลค่างานที่ยังเปิดอยู่แยกตามภาค" meta="Open · Net RC">
           <BreakdownTable rows={regionRows} label="Region"
             onSelect={(id) => toPipeline({ status: "open", region: id })} />
         </Panel>
@@ -158,11 +159,11 @@ export default function Dashboard() {
         </div>
         <div className="flex flex-wrap gap-3 items-end">
           <div className="w-[150px]">
-            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">Created Month</label>
+            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">เดือนที่สร้างงาน</label>
             <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
           </div>
           <div className="w-[150px]">
-            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">Expected Close</label>
+            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
             <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
           </div>
           {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
@@ -170,23 +171,23 @@ export default function Dashboard() {
       </div>
       {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric title="Close Outlook" value={formatTHB(closeValue)} note="Won + Open (selected filters)" />
-        <Metric title={isAE ? "My Open Pipeline" : isSM ? "Region Open Pipeline" : "Open Pipeline"}
-          value={formatTHB(sumValue(open))} note={open.length + " opportunities"}
+        <Metric title="มูลค่างานที่คาดว่าจะปิด" value={formatTHB(closeValue)} note="Net RC" />
+        <Metric title={isAE ? "มูลค่างานที่ยังเปิดอยู่ของฉัน" : isSM ? "มูลค่างานที่ยังเปิดอยู่ในภาค" : "มูลค่างานที่ยังเปิดอยู่"}
+          value={formatTHB(sumValue(open))} note="Net RC"
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
         <Metric title="With Me"
           value={String(assigned.length)}
-          note={isManagement ? "Current Handler or Working With: Management" : "Current Handler"}
+          note={isManagement ? "งานที่ส่งให้ฉัน · รวมทีม Management" : WORK_VIEW_SUBTITLES.with}
           onClick={() => toPipeline({ status: "open", ...withMeQuery })} />
         <Metric title={isManagement ? "Overdue" : "Overdue With Me"}
-          value={String(isManagement ? overdue.length : assignedOverdue.length)} note="Stage Aging · Stage SLA · Task"
+          value={String(isManagement ? overdue.length : assignedOverdue.length)} note={WORK_VIEW_SUBTITLES.overdue}
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
       </div>
       <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
       <div className={`grid grid-cols-1 gap-4 ${isManagement ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"}`}>
-        <Panel title={isManagement ? "Action Queue" : "My Assigned Work"} meta={queue.length + " Pipelines"}>
+        <Panel title={isManagement ? "งานที่ต้องดำเนินการ" : "งานที่ฉันรับผิดชอบ"} meta={queue.length + " Pipelines"}>
           <div className="flex flex-wrap gap-1.5 mb-3" aria-label="Work queue filters">
             {tabs.map(([id, label]) =>
               <button key={id} type="button" onClick={() => setQueueTab(id)}
@@ -194,7 +195,8 @@ export default function Dashboard() {
                 className={selectedTab === id
                   ? "px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
                   : "px-2.5 py-1.5 text-[11px] rounded-lg border border-border hover:bg-secondary"}>
-                {label}
+                <span className="block">{label}</span>
+                <span className="block text-[10px] font-normal opacity-75">{id === "due" && closeMonth ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES[id]}</span>
               </button>
             )}
           </div>
@@ -219,18 +221,18 @@ export default function Dashboard() {
             }>View All</Button>
           </div>
         </Panel>
-        <Panel title="Pipeline by Stage" meta="Open · Net RC">
+        <Panel title="มูลค่างานแยกตาม Stage" meta="Open · Net RC">
           <BarList rows={stageRows} onSelect={(id) => toPipeline({ status: "open", stage: id, ...(isAE ? { owner: profile.id } : {}) })} />
         </Panel>
       </div>
       {(isSM || isManagement) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Panel title={(isManagement || isSM) && !region && regions.length > 1 ? "Pipeline by Region" : "Pipeline by AE Owner"} meta="Open · Net RC">
+          <Panel title={(isManagement || isSM) && !region && regions.length > 1 ? "มูลค่างานแยกตามภาค" : "มูลค่างานแยกตาม AE"} meta="Open · Net RC">
             <BreakdownTable rows={(isManagement || isSM) && !region && regions.length > 1 ? regionRows : ownerRows}
               label={(isManagement || isSM) && !region && regions.length > 1 ? "Region" : "AE Owner"}
               onSelect={(id) => (isManagement || isSM) && !region && regions.length > 1 ? setRegionFilter(id) : toPipeline({ status: "open", owner: id })} />
           </Panel>
-          <Panel title="Pipeline by Product Category" meta="Open · Net RC">
+          <Panel title="มูลค่างานแยกตามประเภทผลิตภัณฑ์" meta="Open · Net RC">
             <BarList rows={categoryRows} onSelect={(id) => toPipeline({ status: "open", product_category: id, ...(isAE ? { owner: profile.id } : {}) })} />
           </Panel>
         </div>
@@ -272,7 +274,7 @@ function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-4">
       <div className="min-w-[155px]">
-        <div className="text-[12px] font-semibold">Close Summary</div>
+        <div className="text-[12px] font-semibold">สรุปการปิดงาน</div>
         <div className="text-[10px] text-muted-foreground">{closeMonth ? "Selected Expected Close Month" : "All Expected Close Months"}</div>
       </div>
       <div className="flex-1 min-w-[160px]">

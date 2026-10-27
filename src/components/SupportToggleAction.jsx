@@ -43,12 +43,12 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
       disabled={disabled || saving} title={disabled ? "Save or discard unsaved Quick Update changes first" : undefined}
       className={compact ? "h-8 text-xs" : "h-9 rounded-lg"}>
       <LifeBuoy className="mr-2 h-4 w-4" />
-      {needed ? "Remove Needs Support" : "Request Support"}
+      {needed ? "ยกเลิกการขอความช่วยเหลือ" : "ขอความช่วยเหลือ"}
     </Button>}
     <Dialog open={open} onOpenChange={(value) => { if (!value) close(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{needed ? "Remove Needs Support?" : "Request Support"}</DialogTitle>
+          <DialogTitle>{needed ? "ยกเลิกการขอความช่วยเหลือ?" : "ขอความช่วยเหลือ"}</DialogTitle>
           <DialogDescription>
             {needed
               ? "This Pipeline will no longer appear in Needs Support. The current support type and note will be cleared; the change remains in History."
@@ -57,7 +57,7 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
         </DialogHeader>
         {!needed && <div className="space-y-3 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`support-type-${op.id}`}>Support Type *</Label>
+            <Label htmlFor={`support-type-${op.id}`}>ประเภทความช่วยเหลือ *</Label>
             <Select value={supportType} onValueChange={setSupportType}>
               <SelectTrigger id={`support-type-${op.id}`}><SelectValue placeholder="Select support type" /></SelectTrigger>
               <SelectContent>{types.map((type) =>
@@ -66,7 +66,7 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`support-note-${op.id}`}>Support Note *</Label>
+            <Label htmlFor={`support-note-${op.id}`}>รายละเอียดความช่วยเหลือ *</Label>
             <Textarea id={`support-note-${op.id}`} rows={3} maxLength={1000}
               placeholder="Describe the support needed" value={supportNote}
               onChange={(event) => setSupportNote(event.target.value)} />
@@ -75,9 +75,9 @@ export default function SupportToggleAction({ op, canEdit, onSaved, compact = fa
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {conflicted && <p className="text-xs text-muted-foreground">This form is locked to protect the latest update. Copy your notes, close it and refresh the Pipeline before editing again.</p>}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={close} disabled={saving}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={close} disabled={saving}>ยกเลิก</Button>
           <Button type="button" onClick={save} disabled={saving || conflicted || !canEdit || (!needed && (!supportType || !supportNote.trim()))}>
-            {saving ? "Saving…" : needed ? "Remove Support" : "Request Support"}
+            {saving ? "กำลังบันทึก…" : needed ? "ยกเลิกการขอความช่วยเหลือ" : "ขอความช่วยเหลือ"}
           </Button>
         </DialogFooter>
       </DialogContent>

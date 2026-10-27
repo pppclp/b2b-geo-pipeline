@@ -126,16 +126,16 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     !good && (!opportunity || changed(field)) ? label : "";
   const pricingChanged = ["quantity", "price_per_sub", "oc"].some(changed);
   const problems = [
-    requiredProblem("customer_name", !!String(form.customer_name || "").trim(), "Customer Name"),
+    requiredProblem("customer_name", !!String(form.customer_name || "").trim(), "ชื่อลูกค้า"),
     requiredProblem("business_id", !businessIdError(form.business_id), "Business ID (digits only, max 40)"),
     requiredProblem("customer_type", !!normalizeCustomerType(form.customer_type), "Customer Type"),
-    requiredProblem("sales_channel", !!form.sales_channel, "Sales Channel"),
+    requiredProblem("sales_channel", !!form.sales_channel, "ช่องทางการขาย"),
     requiredProblem("region_id", !!form.region_id, "Region"),
     requiredProblem("owner_id", !!form.owner_id, "Opportunity Owner"),
     requiredProblem("product_category_id", !!form.product_category_id, "Product Category"),
     requiredProblem("stage_id", !!form.stage_id, "Stage"),
-    requiredProblem("expected_close_month", !!form.expected_close_month, "Expected Close Month"),
-    String(form.remark || "").length > 500 && "Remark (max 500 characters)",
+    requiredProblem("expected_close_month", !!form.expected_close_month, "เดือนที่คาดว่าจะปิดงาน"),
+    String(form.remark || "").length > 500 && "หมายเหตุ (ไม่เกิน 500 ตัวอักษร)",
     (pricingChanged || !opportunity) && !(legacyEdit && !hasUnitPrice) && calculatedNetRc === null &&
       "Number of Subs / Price per Sub",
   ].filter(Boolean);
@@ -205,21 +205,21 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
     <Dialog open={open} onOpenChange={(o) => !o && !saving && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Pipeline</DialogTitle>
+          <DialogTitle>แก้ไข Pipeline</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
           <div className="sm:col-span-2">
-            <Label>Customer Name *</Label>
+            <Label>ชื่อลูกค้า *</Label>
             <Input maxLength={200} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="e.g. PTT Public Company Limited" />
           </div>
 
           <div>
-            <Label>Business ID (optional)</Label>
+            <Label>รหัสธุรกิจ (Business ID) · ไม่บังคับ</Label>
             <Input type="text" inputMode="numeric" maxLength={40} value={form.business_id} onChange={(e) => set("business_id", e.target.value)} placeholder="Digits only, up to 40; may be blank" />
           </div>
           <div>
-            <Label>Customer Type *</Label>
+            <Label>ประเภทลูกค้า *</Label>
             <Select value={form.customer_type} onValueChange={(v) => set("customer_type", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
@@ -229,7 +229,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
 
           <div>
-            <Label>Sales Channel *</Label>
+            <Label>ช่องทางการขาย *</Label>
             <Select value={form.sales_channel || ""} onValueChange={(v) => set("sales_channel", v)}>
               <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
               <SelectContent>{["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
@@ -237,18 +237,18 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
           {form.sales_channel === "B2B Premium Partner" && (
             <div>
-              <Label>Partner Name</Label>
+              <Label>ชื่อ Partner</Label>
               <Input maxLength={200} value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
             </div>
           )}
-          <div><Label>Contact Name (optional)</Label><Input maxLength={120} value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
-          <div><Label>Contact Phone (optional)</Label><Input type="tel" maxLength={40} value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
+          <div><Label>ชื่อผู้ติดต่อ (ไม่บังคับ)</Label><Input maxLength={120} value={form.contact_name || ""} onChange={(e) => set("contact_name", e.target.value)} /></div>
+          <div><Label>เบอร์โทรผู้ติดต่อ (ไม่บังคับ)</Label><Input type="tel" maxLength={40} value={form.contact_phone || ""} onChange={(e) => set("contact_phone", e.target.value)} /></div>
           <div className="sm:col-span-2">
-            <Label>Remark</Label>
+            <Label>หมายเหตุ</Label>
             <Textarea maxLength={500} rows={2} value={form.remark || ""} onChange={(e) => set("remark", e.target.value)} />
           </div>
           <div>
-            <Label>Region *</Label>
+            <Label>ภาค *</Label>
             <Select value={form.region_id} onValueChange={(v) => set("region_id", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
@@ -257,7 +257,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             </Select>
           </div>
           <div>
-            <Label>Territory</Label>
+            <Label>พื้นที่ขาย</Label>
             <Select value={form.territory_id} onValueChange={(v) => set("territory_id", v)} disabled={!form.region_id}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
@@ -267,7 +267,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
 
           <div>
-            <Label>AE Owner *</Label>
+            <Label>AE Owner · เจ้าของงานขาย *</Label>
             <Select value={form.owner_id} onValueChange={(v) => set("owner_id", v)} disabled={!canChangeOwner}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
@@ -276,7 +276,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             </Select>
           </div>
           <div>
-            <Label>Current Handler</Label>
+            <Label>Current Handler <span className="text-xs text-muted-foreground">· ผู้รับผิดชอบปัจจุบัน</span></Label>
             <Select value={form.current_handler_id} onValueChange={(v) => set("current_handler_id", v)}>
               <SelectTrigger><SelectValue placeholder="Defaults to owner" /></SelectTrigger>
               <SelectContent>
@@ -286,7 +286,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           </div>
 
           <div>
-            <Label>Product Category *</Label>
+            <Label>ประเภทผลิตภัณฑ์ *</Label>
             <Select value={form.product_category_id} onValueChange={(v) => set("product_category_id", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
@@ -295,7 +295,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             </Select>
           </div>
           <div>
-            <Label>Product Description (Free Text)</Label>
+            <Label>รายละเอียดผลิตภัณฑ์</Label>
             <Input maxLength={2000} value={form.product_details || ""} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter product / package description" />
           </div>
           <div>
@@ -308,7 +308,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             </Select>
           </div>
           <div>
-            <Label>Expected Close Month *</Label>
+            <Label>เดือนที่คาดว่าจะปิดงาน *</Label>
             {closedAe ? <Input readOnly aria-label="Expected Close Month locked for closed Pipeline" value={formatMonth(form.expected_close_month)} className="bg-muted/40" /> : <MonthPicker value={form.expected_close_month} onChange={(v) => set("expected_close_month", v)} />}
           </div>
 
@@ -356,12 +356,12 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Input type="number" min="0" step="0.01" disabled={closedAe} value={form.oc ?? ""} onChange={(e) => set("oc", e.target.value)} />
           </div>
           <div>
-            <Label>Contract Period (months)</Label>
+            <Label>ระยะเวลาสัญญา (เดือน)</Label>
             <Input type="number" disabled={closedAe} value={form.contract_period ?? ""} onChange={(e) => set("contract_period", e.target.value)} />
           </div>
 
           <div>
-            <Label>Working With</Label>
+            <Label>Working With <span className="text-xs text-muted-foreground">· ทีมที่ร่วมดำเนินงาน</span></Label>
             <WorkingWithMultiSelect
               teams={master?.WorkingWithOption || []}
               disabled={closedAe}
@@ -378,9 +378,9 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         {!valid && <p role="alert" className="text-xs text-amber-700">Check: {problems.join(", ")}</p>}
         {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>ยกเลิก</Button>
           <Button onClick={submit} disabled={!valid || saving}>
-            {saving ? "Saving…" : opportunity ? "Save Changes" : "Create Pipeline"}
+            {saving ? "กำลังบันทึก…" : opportunity ? "บันทึกการเปลี่ยนแปลง" : "สร้าง Pipeline"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -5,11 +5,11 @@ import fs from "node:fs";
 const file=(path)=>fs.readFileSync(new URL("../"+path,import.meta.url),"utf8");
 test("Full Detail follows Create sections and uses contextual Needs Support once",()=>{
   const s=file("src/pages/OpportunityDetail.jsx");
-  for(const title of ["Customer Information","Product & Value","Pipeline Information","Ownership & Support","Activity History"])
+  for(const title of ["ข้อมูลลูกค้า","ผลิตภัณฑ์และมูลค่างาน","ข้อมูล Pipeline","ผู้รับผิดชอบและความช่วยเหลือ","ประวัติการดำเนินงาน"])
     assert.ok(s.includes(title),title);
-  assert.ok(s.indexOf("Customer Information")<s.indexOf("Product & Value"));
-  assert.ok(s.indexOf("Product & Value")<s.indexOf("Pipeline Information"));
-  assert.ok(s.indexOf("Pipeline Information")<s.indexOf("Ownership & Support"));
+  assert.ok(s.indexOf("ข้อมูลลูกค้า")<s.indexOf("ผลิตภัณฑ์และมูลค่างาน"));
+  assert.ok(s.indexOf("ผลิตภัณฑ์และมูลค่างาน")<s.indexOf("ข้อมูล Pipeline"));
+  assert.ok(s.indexOf("ข้อมูล Pipeline")<s.indexOf("ผู้รับผิดชอบและความช่วยเหลือ"));
   assert.ok(s.includes('<SupportToggleAction op={op} canEdit={canEdit} />'));
   assert.equal((s.match(/<SupportToggleAction /g)||[]).length,1);
   assert.ok(s.includes('<HistoryTimeline opportunityId={op.id} revision={op.updated_date} />'));

@@ -174,7 +174,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
         onPointerDownOutside={(event) => { event.preventDefault(); requestClose(); }}
       >
         <DialogHeader className="flex-none border-b px-6 md:px-7 py-5 pr-24 text-left relative">
-          <DialogTitle className="text-xl font-semibold tracking-tight">Create New Pipeline</DialogTitle>
+          <DialogTitle className="text-xl font-semibold tracking-tight">สร้าง Pipeline ใหม่</DialogTitle>
           <DialogDescription className="sr-only">Enter customer and product information to create a Pipeline.</DialogDescription>
           <Button
             type="button" variant="ghost" size="icon" aria-label={expanded ? "Collapse" : "Expand"}
@@ -189,48 +189,48 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
         <form id="new-pipeline-form" onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto px-6 md:px-7 py-5 space-y-5">
             <section aria-labelledby="section-1">
-              <SectionHeading number="1">Customer Information</SectionHeading>
+              <SectionHeading number="1">ข้อมูลลูกค้า</SectionHeading>
               {!ownerIsAE && (
                 <div className="mb-4 max-w-sm">
-                  <Field label="AE Owner" required error={submitted && errors.owner_id}>
+                  <Field label="AE Owner · เจ้าของงานขาย" required error={submitted && errors.owner_id}>
                     <Select value={form.owner_id} onValueChange={(v) => set("owner_id", v)}>
-                      <SelectTrigger aria-label="AE Owner"><SelectValue placeholder="Select AE" /></SelectTrigger>
+                      <SelectTrigger aria-label="AE Owner · เจ้าของงานขาย"><SelectValue placeholder="Select AE" /></SelectTrigger>
                       <SelectContent>{aeMembers.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </Field>
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-4">
-                <Field label="Customer Name" required error={submitted && errors.customer_name}>
+                <Field label="ชื่อลูกค้า" required error={submitted && errors.customer_name}>
                   <Input maxLength={200} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="Enter customer name" aria-invalid={submitted && !!errors.customer_name} />
                 </Field>
-                <Field label="Business ID" required error={submitted && errors.business_id}>
+                <Field label="รหัสธุรกิจ (Business ID)" required error={submitted && errors.business_id}>
                   <Input value={form.business_id} inputMode="numeric" onChange={(e) => set("business_id", e.target.value.replace(/\D/g, ""))} placeholder="Enter business ID" aria-invalid={submitted && !!errors.business_id}/>
                 </Field>
-                <Field label="Customer Type" required error={submitted && errors.customer_type}>
+                <Field label="ประเภทลูกค้า" required error={submitted && errors.customer_type}>
                   <Select value={form.customer_type} onValueChange={(v) => set("customer_type", v)}>
-                    <SelectTrigger aria-label="Customer Type"><SelectValue placeholder="Select customer type" /></SelectTrigger>
+                    <SelectTrigger aria-label="ประเภทลูกค้า"><SelectValue placeholder="Select customer type" /></SelectTrigger>
                     <SelectContent>{CUSTOMER_TYPES.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
-                <Field label="Sales Channel" required>
+                <Field label="ช่องทางการขาย" required>
                   <Select value={form.sales_channel} onValueChange={(v) => set("sales_channel", v)}>
-                    <SelectTrigger aria-label="Sales Channel"><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="ช่องทางการขาย"><SelectValue /></SelectTrigger>
                     <SelectContent>{SALES_CHANNELS.map((channel) => <SelectItem key={channel} value={channel}>{channel}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
-                <Field label="Contact Name">
+                <Field label="ชื่อผู้ติดต่อ">
                   <Input maxLength={120} value={form.contact_name} onChange={(e) => set("contact_name", e.target.value)} placeholder="Enter contact name"/>
                 </Field>
-                <Field label="Contact Phone">
+                <Field label="เบอร์โทรผู้ติดต่อ">
                   <Input type="tel" maxLength={40} value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} placeholder="e.g. 08x-xxx-xxxx"/>
                 </Field>
-                <Field label="Remark" className="sm:col-span-2">
+                <Field label="หมายเหตุ" className="sm:col-span-2">
                   <Textarea rows={2} maxLength={500} value={form.remark} onChange={(e) => set("remark", e.target.value)} placeholder="Customer needs, next steps, details" className="resize-none" />
                   <div className="text-right text-[11px] text-muted-foreground">{form.remark.length}/500</div>
                 </Field>
                 {form.sales_channel === "B2B Premium Partner" && (
-                  <Field label="Partner Name" className="sm:col-span-2">
+                  <Field label="ชื่อ Partner" className="sm:col-span-2">
                     <Input maxLength={200} value={form.partner_name} onChange={(e) => set("partner_name", e.target.value)} placeholder="Enter partner name"/>
                   </Field>
                 )}
@@ -238,32 +238,32 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
             </section>
 
             <section aria-labelledby="section-2" className="border-t pt-5">
-              <SectionHeading number="2">Product &amp; Value</SectionHeading>
+              <SectionHeading number="2">ผลิตภัณฑ์และมูลค่างาน</SectionHeading>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <Field label="Product Category" required error={submitted && errors.product_category_id}>
+                <Field label="ประเภทผลิตภัณฑ์" required error={submitted && errors.product_category_id}>
                   <Select value={form.product_category_id} onValueChange={(v) => set("product_category_id", v)}>
-                    <SelectTrigger aria-label="Product Category"><SelectValue placeholder="Select product category" /></SelectTrigger>
+                    <SelectTrigger aria-label="ประเภทผลิตภัณฑ์"><SelectValue placeholder="Select product category" /></SelectTrigger>
                     <SelectContent>{categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
-                <Field label="Product Description (Free Text)">
+                <Field label="รายละเอียดผลิตภัณฑ์">
                   <Input maxLength={2000} value={form.product_details} onChange={(e) => set("product_details", e.target.value)} placeholder="Enter package / solution / equipment description" />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <Field label="Number of Subs" required error={submitted && errors.quantity}>
+                <Field label="จำนวน Subs" required error={submitted && errors.quantity}>
                   <Input type="number" min="1" step="1" value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="0" aria-invalid={submitted && !!errors.quantity}/>
                 </Field>
-                <Field label="Price per Sub (THB)" required error={submitted && errors.price_per_sub}>
+                <Field label="ราคาต่อ Sub (บาท)" required error={submitted && errors.price_per_sub}>
                   <Input type="number" min="0" step="0.01" value={form.price_per_sub} onChange={(e) => set("price_per_sub", e.target.value)} placeholder="0.00" aria-invalid={submitted && !!errors.price_per_sub}/>
                 </Field>
-                <Field label="OC (THB)" error={submitted && errors.oc}>
+                <Field label="OC (บาท)" error={submitted && errors.oc}>
                   <Input type="number" min="0" step="0.01" value={form.oc} onChange={(e) => set("oc", e.target.value)} placeholder="0.00" aria-invalid={submitted && !!errors.oc}/>
                 </Field>
-                <Field label="Contract Period">
+                <Field label="ระยะเวลาสัญญา (เดือน)">
                   <Input type="number" min="1" step="1" value={form.contract_period} onChange={(e) => set("contract_period", e.target.value)} placeholder="Months" />
                 </Field>
-                <Field label="Expected Close Month" required error={submitted && errors.expected_close_month}>
+                <Field label="เดือนที่คาดว่าจะปิดงาน" required error={submitted && errors.expected_close_month}>
                   <MonthPicker value={form.expected_close_month} onChange={(v) => set("expected_close_month", v)} placeholder="MM / YYYY" />
                 </Field>
               </div>
@@ -276,7 +276,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
             </section>
 
             <section aria-labelledby="section-3" className="border-t pt-5">
-              <SectionHeading number="3" trailing={smCanReview ? "SM Input · Optional at Create" : "Completed by SM"}>Additional Information</SectionHeading>
+              <SectionHeading number="3" trailing={smCanReview ? "SM Input · Optional at Create" : "Completed by SM"}>ข้อมูลเพิ่มเติม</SectionHeading>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Scenario">
                   {smCanReview ? (
@@ -309,12 +309,12 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
             {saveError && <p role="alert" className="text-sm text-red-600 mb-3">{saveError}</p>}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Button type="button" variant="outline" className="gap-2" disabled={saving} onClick={() => { setForm({ ...EMPTY, owner_id: ownerIsAE ? profile?.id : "" }); setSubmitted(false); setSaveError(""); }}>
-                <RotateCcw className="h-4 w-4"/> Clear All
+                <RotateCcw className="h-4 w-4"/> ล้างข้อมูลที่กรอก
               </Button>
               <div className="flex items-center gap-2 ml-auto">
-                <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>Cancel</Button>
+                <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>ยกเลิก</Button>
                 <Button type="submit" disabled={saving} className="bg-red-600 text-white hover:bg-red-700 min-w-[142px]">
-                  {saving ? "Creating..." : "Create Pipeline"}
+                  {saving ? "กำลังสร้าง..." : "สร้าง Pipeline"}
                 </Button>
               </div>
             </div>

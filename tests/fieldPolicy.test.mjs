@@ -546,10 +546,10 @@ test("Part 2: create UI, edit UI, import, and contract agree contacts are option
     assert.match(importer,new RegExp('key: "'+field+'", label: "Contact [^"]+" \\}'));
     assert.match(yaml,new RegExp('    '+field+':\\n      source: "AE / SM input"\\n      optional: true'));
   }
-  assert.ok(create.includes('<Field label="Contact Name">'));
-  assert.ok(create.includes('<Field label="Contact Phone">'));
-  assert.ok(!create.includes('<Field label="Contact Name" required'));
-  assert.ok(!create.includes('<Field label="Contact Phone" required'));
+  assert.ok(create.includes('<Field label="ชื่อผู้ติดต่อ">'));
+  assert.ok(create.includes('<Field label="เบอร์โทรผู้ติดต่อ">'));
+  assert.ok(!create.includes('<Field label="ชื่อผู้ติดต่อ" required'));
+  assert.ok(!create.includes('<Field label="เบอร์โทรผู้ติดต่อ" required'));
 });
 
 

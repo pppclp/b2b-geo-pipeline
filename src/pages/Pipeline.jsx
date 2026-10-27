@@ -17,6 +17,7 @@ import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipe
 import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
+import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -173,11 +174,11 @@ export default function Pipeline() {
 
   const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
   const quickViews = [
-    { id: "all", title: "All Open", count: workCounts.all, icon: Layers3 },
-    { id: "assigned-to-me", title: "With Me", count: workCounts["assigned-to-me"], icon: UserRound },
-    { id: "support-needed", title: "Needs Support", count: workCounts["support-needed"], icon: LifeBuoy },
-    { id: "stage-overdue", title: "Overdue", count: workCounts["stage-overdue"], icon: Clock3 },
-    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", count: workCounts["due-this-month"], icon: CalendarDays },
+    { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all, icon: Layers3 },
+    { id: "assigned-to-me", title: "With Me", subtitle: WORK_VIEW_SUBTITLES.with, count: workCounts["assigned-to-me"], icon: UserRound },
+    { id: "support-needed", title: "Needs Support", subtitle: WORK_VIEW_SUBTITLES.support, count: workCounts["support-needed"], icon: LifeBuoy },
+    { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"], icon: Clock3 },
+    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"], icon: CalendarDays },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id, profile?.app_role);
   const selectQuickView = (viewId) => {
@@ -222,7 +223,7 @@ export default function Pipeline() {
             </Button>
           )}
           <Button size="sm" className="h-10 min-w-0 flex-1 rounded-xl bg-primary px-2 text-xs text-primary-foreground sm:h-9 sm:flex-none sm:px-3 sm:text-sm" onClick={() => setFormOpen(true)}>
-            <Plus className="w-4 h-4 mr-1.5" /> New Pipeline
+            <Plus className="w-4 h-4 mr-1.5" /> สร้าง Pipeline
           </Button>
         </div>
       </div>
@@ -243,8 +244,8 @@ export default function Pipeline() {
           return (
             <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
               aria-current={active ? "page" : undefined} aria-pressed={active}
-              className={`${index < 3 ? "col-span-2" : "col-span-3"} relative flex min-h-[76px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
-              <span className="max-w-[calc(100%-20px)] text-[11px] font-medium leading-4 text-current">{item.title}</span>
+              className={`${index < 3 ? "col-span-2" : "col-span-3"} relative flex min-h-[94px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
+              <span className="max-w-[calc(100%-20px)] text-current"><span className="block text-[11px] font-medium leading-4">{item.title}</span><span className="block mt-0.5 text-[10px] leading-3.5 opacity-75">{item.subtitle}</span></span>
               <span className="text-xl font-semibold leading-none tabular-nums">{item.count}</span>
               <Icon className={`absolute right-2.5 top-2.5 h-4 w-4 ${active ? "text-brand" : "text-muted-foreground"}`} aria-hidden="true" />
             </button>
@@ -260,7 +261,7 @@ export default function Pipeline() {
               className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeQuickView === item.id
                 ? "bg-brand-tint text-brand"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
-              {item.title}
+              <span className="text-left leading-4"><span className="block">{item.title}</span><span className="block text-[10px] font-normal opacity-75">{item.subtitle}</span></span>
               <span className="text-[12px] font-semibold tabular-nums">{item.count}</span>
             </button>
           ))}

@@ -48,13 +48,13 @@ export default function WorkingWithMultiSelect({ teams = [], teamIds = "", disab
           <span className="min-w-0 flex flex-wrap items-center gap-1.5">
             {selected.length ? selected.map((team) =>
               <span key={team.id} className="rounded-md bg-secondary px-2 py-1 text-xs font-medium">{team.name}</span>
-            ) : <span className="text-muted-foreground">Add team</span>}
+            ) : <span className="text-muted-foreground">เพิ่มทีม</span>}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(340px,calc(100vw-40px))] p-2" sideOffset={4}>
-        <p className="px-2 pb-2 text-xs font-semibold text-muted-foreground">Working With · Teams only</p>
+        <p className="px-2 pb-2 text-xs font-semibold text-muted-foreground">Working With · ทีมที่ร่วมดำเนินงาน</p>
         <div className="max-h-60 space-y-0.5 overflow-y-auto" role="group" aria-label="Working With teams">
           {options.map((team) =>
             <label key={team.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-secondary/70">
