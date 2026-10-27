@@ -21,7 +21,7 @@ import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KanbanSquare, List, Plus, Download, AlertTriangle, Layers3, UserRound, LifeBuoy, Clock3, CalendarDays, ChevronRight } from "lucide-react";
+import { KanbanSquare, List, Plus, Download, AlertTriangle, Layers3, UserRound, Clock3, CalendarDays, ChevronRight } from "lucide-react";
 
 const SORTS = [
   { value: "close_month", label: "Close Month ↑ · Net RC ↓" },
@@ -32,7 +32,6 @@ const SORTS = [
   { value: "updated_desc", label: "Recently Updated" },
   { value: "created_desc", label: "Created Date" },
   { value: "customer_asc", label: "Customer Name A-Z" },
-  { value: "support_first", label: "Support Needed First" },
 ];
 
 
@@ -57,7 +56,6 @@ export default function Pipeline() {
       else f.handler = profile?.id;
     }
     if (params.get("with_me") === "1" && profile?.app_role === "management") f.with_me = "1";
-    if (params.get("view") === "support-needed" || params.get("support") === "1") f.support = "1";
     if (params.get("stuck") === "1") f.stuck = "1";
     if (params.get("due_this_month") === "1" || params.get("view") === "due-this-month") f.due_this_month = "1";
     if (params.get("view") === "stage-overdue") f.stuck = "1";
@@ -176,7 +174,6 @@ export default function Pipeline() {
   const quickViews = [
     { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all, icon: Layers3 },
     { id: "assigned-to-me", title: "With Me", subtitle: WORK_VIEW_SUBTITLES.with, count: workCounts["assigned-to-me"], icon: UserRound },
-    { id: "support-needed", title: "Needs Support", subtitle: WORK_VIEW_SUBTITLES.support, count: workCounts["support-needed"], icon: LifeBuoy },
     { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"], icon: Clock3 },
     { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"], icon: CalendarDays },
   ];
@@ -406,9 +403,6 @@ export default function Pipeline() {
                     <span aria-hidden="true">·</span>
                     <span className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "Stage age unknown" : `${age}d in stage`}</span>
                     <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} />
-                    {o.support_needed && <span className="inline-flex items-center gap-1 text-amber-700">
-                      <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true"/>Needs Support
-                    </span>}
                   </span>
                   <ChevronRight className="pointer-events-none absolute right-2.5 bottom-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </button>
@@ -527,7 +521,6 @@ export default function Pipeline() {
                         <div className="font-medium tabular-nums text-[11px] whitespace-nowrap"
                           title={age === null ? "Original stage-entered date unavailable (legacy import)" : "Days in current Stage: " + age}>{age === null ? "Unknown" : `${age}d` }</div>
                         <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} /></div>
-                        {o.support_needed && <div className="text-[10px] text-orange-700 mt-0.5" title="Support needed">Support</div>}
                       </td>
                     </tr>
                   );
