@@ -46,7 +46,7 @@ export default function SetTemporaryPassword() {
   return (
     <AuthLayout icon={ShieldCheck} title="B2B GEO Pipeline"
       subtitle="Set your personal password"
-      footer="UAT only. Do not reuse your corporate SSO password.">
+      footer="Do not reuse your corporate SSO password.">
       {complete ? (
         <div role="status" className="space-y-4 text-center">
           <h2 className="text-base font-semibold">Your password has been saved</h2>

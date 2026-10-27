@@ -123,7 +123,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setSessionExpired(true);
       setReauthError(error.status === 401
-        ? (EMAIL_AUTH_ENABLED ? "Employee ID, email or password is incorrect" : "Employee ID or password is incorrect")
+        ? "Sign-in could not be verified. Check your credentials or contact your account administrator."
         : error.message || "Unable to sign in again");
     } finally {
       setReauthBusy(false);

@@ -32,7 +32,7 @@ export default function Login() {
       }
       navigate("/", { replace: true });
     } catch (e) {
-      setError(e.status === 401 ? "Employee ID, email or password is incorrect" : e.message);
+      setError(e.status === 401 ? "Sign-in could not be verified. Check your credentials or contact your account administrator." : e.message);
     } finally {
       setPending(false);
     }
@@ -42,8 +42,8 @@ export default function Login() {
     <AuthLayout
       icon={LogIn}
       title="B2B GEO Pipeline"
-      subtitle={EMAIL_AUTH_ENABLED ? "Sign in with your Employee ID or registered corporate email" : "UAT sign in with your Employee ID and password"}
-      footer={EMAIL_AUTH_ENABLED ? "For corporate email activation, use the code from your UAT coordinator" : "If this is your first sign-in, your temporary password will take you to personal password setup"}
+      subtitle={EMAIL_AUTH_ENABLED ? "Sign in with your Employee ID or registered corporate email" : "Sign in with your Employee ID and password"}
+      footer={EMAIL_AUTH_ENABLED ? "For corporate email activation, use the code provided by your account administrator" : "If this is your first sign-in, your temporary password will take you to personal password setup"}
     >
       {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
 
@@ -73,7 +73,7 @@ export default function Login() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={EMAIL_AUTH_ENABLED ? "Enter your password" : "Enter your UAT password"}
+            placeholder="Enter your password"
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             required
           />

@@ -16,7 +16,7 @@ export function validateApiContract(me) {
   if (me?.api_contract_version !== API_CONTRACT_VERSION ||
       !REQUIRED_CAPABILITIES.every(cap => Array.isArray(me?.capabilities) && me.capabilities.includes(cap)) ||
       (activationRequested && !me?.capabilities?.includes(UAT_EMAIL_ACTIVATION_CAPABILITY))) {
-    const error = new Error("Backend version mismatch. Your Pipeline data has not been loaded. Contact the UAT operator to deploy matching Apps Script and frontend versions.");
+    const error = new Error("Backend version mismatch. Your Pipeline data has not been loaded. Contact your system administrator to deploy matching Apps Script and frontend versions.");
     error.code = "API_CONTRACT_MISMATCH";
     error.status = 503;
     throw error;

@@ -103,6 +103,25 @@ test("new password policy and explicit confirmation are server-enforced",()=>{
   assert.equal(a.cred.credential_status,"pending_activation");
   assert.equal(a.store.touched.length,0);
 });
+test("a unique ten-character email activation password is accepted and persists as a verifiable hash",()=>{
+  const a=make();
+  const tenChars="A7x!Q4p@Z2";
+  assert.equal(tenChars.length,10);
+  const ticket=a.auth.verify(a.store,"synthetic@truecorp.co.th","one-time-synthetic-code").activation_ticket;
+  assert.deepEqual(a.auth.complete(a.store,ticket,tenChars,tenChars),{activated:true});
+  assert.equal(a.cred.credential_status,"active");
+  assert.ok(a.cred.password_hash.startsWith("hmac-sha256-v1$"));
+  assert.equal(a.auth.login(a.store,"synthetic@truecorp.co.th",tenChars).user_id,"USR1");
+  assert.throws(()=>a.auth.login(a.store,"synthetic@truecorp.co.th","A7x!Q4p@Z3"),{status:401});
+});
+test("browser activation and Apps Script password policies agree on ten characters",()=>{
+  const ui=readFileSync(new URL("../src/pages/ActivateAccount.jsx",import.meta.url),"utf8");
+  const gas=readFileSync(new URL("../apps-script/Main.js",import.meta.url),"utf8");
+  assert.match(ui,/password\.length < 10/);
+  assert.match(ui,/minLength=\{10\}/);
+  assert.doesNotMatch(ui,/minLength=\{15\}|15[–-]128|password\.length < 15/);
+  assert.match(gas,/password\.length < 10/);
+});
 test("Apps Script requires editor provisioning, one-time code and no Login Session in activation",()=>{
   const gas=readFileSync(new URL("../apps-script/Main.js",import.meta.url),"utf8");
   assert.match(gas,/function verifyUatActivation_\(/);

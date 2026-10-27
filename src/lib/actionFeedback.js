@@ -2,7 +2,7 @@
 export function actionableErrorMessage(error, operation = "save") {
   const loading = operation === "load";
   if (error?.code === "API_CONTRACT_MISMATCH") {
-    return "Frontend and backend versions do not match. Contact the UAT operator before retrying.";
+    return "Frontend and backend versions do not match. Contact your system administrator before retrying.";
   }
   if (error?.status === 401) {
     return "Your session has expired. Sign in again to continue without discarding your draft.";
@@ -16,7 +16,7 @@ export function actionableErrorMessage(error, operation = "save") {
   if (error?.status === 503 || error?.status === 0 ||
       error?.name === "TypeError" || error?.code === "NETWORK_ERROR") {
     return loading
-      ? "Unable to load data. Check your connection, then select Retry. If it persists, contact the UAT operator."
+      ? "Unable to load data. Check your connection, then select Retry. If it persists, contact your system administrator."
       : "Connection lost or the backend did not respond. Copy any unsaved notes and refresh to check whether the change was saved before trying again.";
   }
   if (typeof error?.message === "string" && error.message.trim()) return error.message;
