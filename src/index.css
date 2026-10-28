@@ -167,7 +167,7 @@
   }
 
   .geo-page-header {
-    @apply flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between;
+    @apply flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between;
   }
 
   .geo-page-title {
@@ -198,6 +198,14 @@
     @apply font-medium text-muted-foreground;
     font-size: 12px;
     line-height: 18px;
+  }
+
+  .geo-metric-card {
+    display: grid;
+    grid-template-rows: minmax(56px, auto) minmax(32px, auto) minmax(30px, auto);
+    align-content: space-between;
+    min-width: 0;
+    min-height: 160px;
   }
 
   .geo-metric-label {
