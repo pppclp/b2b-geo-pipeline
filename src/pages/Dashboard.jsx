@@ -154,14 +154,14 @@ export default function Dashboard() {
         title="Dashboard"
         actions={
           <div className="flex min-w-0 flex-wrap items-end gap-3">
-          <div className="w-[150px]">
-            <label className="geo-filter-label block mb-1.5">เดือนที่สร้างงาน</label>
-            <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
-          </div>
-          <div className="w-[150px]">
-            <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
-            <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
-          </div>
+            <div className="w-[150px]">
+              <label className="geo-filter-label block mb-1.5">เดือนที่สร้างงาน</label>
+              <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
+            </div>
+            <div className="w-[150px]">
+              <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
+              <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
+            </div>
             {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
           </div>
         }
@@ -190,10 +190,10 @@ export default function Dashboard() {
               <button key={id} type="button" onClick={() => setQueueTab(id)}
                 aria-pressed={selectedTab === id}
                 className={selectedTab === id
-                  ? "px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
-                  : "px-2.5 py-1.5 text-[11px] rounded-lg border border-border hover:bg-secondary"}>
+                  ? "px-2.5 py-1.5 text-[12px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
+                  : "px-2.5 py-1.5 text-[12px] rounded-lg border border-border hover:bg-secondary"}>
                 <span className="block">{label}</span>
-                <span className="block text-[10px] font-normal opacity-75">{id === "due" && closeMonth ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES[id]}</span>
+                <span className="block text-[11px] font-normal opacity-75">{id === "due" && closeMonth ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES[id]}</span>
               </button>
             )}
           </div>
@@ -262,11 +262,10 @@ function CloseStrip({ won, open, closeValue, onWon, onOpen }) {
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-4">
       <div className="min-w-[155px]">
-        <div className="text-[12px] font-semibold">สรุปการปิดงาน</div>
-        
+        <div className="geo-panel-title">สรุปการปิดงาน</div>
       </div>
       <div className="flex-1 min-w-[160px]">
-        <div className="flex gap-3 justify-between text-[11px] mb-2">
+        <div className="flex gap-3 justify-between text-[12px] mb-2">
           <button className="hover:underline" onClick={onWon} type="button"><strong>Won</strong> {formatTHB(wonValue)} · {won.length}</button>
           <button className="hover:underline" onClick={onOpen} type="button"><strong>Open</strong> {formatTHB(openValue)} · {open.length}</button>
         </div>
