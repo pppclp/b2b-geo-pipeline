@@ -142,7 +142,7 @@ export default function AppLayout() {
       <nav aria-label="Primary navigation" className="flex-1 px-3 py-3 space-y-4 overflow-y-auto">
         {sections.map((section) => (
           <div key={section.title} className="space-y-1">
-            <div className="text-[10px] tracking-wider font-semibold text-muted-foreground/80 px-3 pb-1">
+            <div className="text-[11px] tracking-wider font-semibold text-muted-foreground/80 px-3 pb-1">
               {section.title}
             </div>
             {section.links.map((it) => {
@@ -151,7 +151,7 @@ export default function AppLayout() {
               return (
                 <Link key={it.to} to={it.to} aria-current={active ? "page" : undefined}
                   onClick={() => setOpen(false)}
-                  className={"group relative flex items-center gap-3 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors " +
+                  className={"group relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors " +
                     (active ? "bg-brand-tint text-brand" : "text-muted-foreground hover:text-foreground hover:bg-secondary/70")}>
                   {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-brand" />}
                   <Icon className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
@@ -229,7 +229,7 @@ export default function AppLayout() {
             <div className="md:hidden flex items-center gap-2">
               <img src={LOGO_URL} alt="true" className="h-5 w-auto object-contain" />
             </div>
-            <h2 className="hidden md:block text-[15px] font-semibold tracking-tight truncate">
+            <h2 className="hidden md:block text-[14px] font-semibold tracking-tight truncate">
               {sectionTitle(location.pathname)}
             </h2>
           </div>
