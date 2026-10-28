@@ -1,4 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/*
+ * Thai UI: LINE Seed Sans TH (SIL OFL 1.1), with a version-pinned webfont URL.
+ * Typeface: https://seed.line.me/index_th.html
+ * Font assets: https://github.com/lazywasabi/thai-web-fonts/tree/main/fonts/LINESeedSansTH
+ * Inter remains first so English and Arabic numerals keep their original font.
+ * Thai has native Regular/Bold; map 500 to Regular and 600+ to Bold without synthetic weights.
+ * 103% glyph sizing improves small Thai labels without changing component font sizes/layout.
+ */
+@font-face {
+  font-family: "LINE Seed Sans TH";
+  src: url("https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LINESeedSansTH/LINESeedSansTH-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  size-adjust: 103%;
+  unicode-range: U+0E00-0E7F, U+200B;
+}
+
+@font-face {
+  font-family: "LINE Seed Sans TH";
+  src: url("https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LINESeedSansTH/LINESeedSansTH-Bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  size-adjust: 103%;
+  unicode-range: U+0E00-0E7F, U+200B;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -56,9 +84,9 @@
     --shadow-card: 0 1px 2px hsl(222 16% 14% / 0.05), 0 4px 12px hsl(222 16% 14% / 0.04);
     --shadow-lift: 0 4px 10px hsl(222 16% 14% / 0.06), 0 12px 28px hsl(222 16% 14% / 0.07);
 
-    --font-heading: "Inter", "IBM Plex Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --font-body: "Inter", "IBM Plex Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --font-display: "Inter", "IBM Plex Sans Thai", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-heading: "Inter", "LINE Seed Sans TH", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-body: "Inter", "LINE Seed Sans TH", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Inter", "LINE Seed Sans TH", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menaco, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
     --sidebar-background: 0 0% 100%;
