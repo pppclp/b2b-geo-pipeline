@@ -8,7 +8,7 @@ export default function RegionQuickFilter({ regions, value, onChange }) {
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1"
       role="group" aria-label="Quick filter by Region" tabIndex={0}>
-      <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground mr-1">Region</span>
+      <span className="shrink-0 text-[12px] font-medium uppercase tracking-wide text-muted-foreground mr-1">Region</span>
       <button
         type="button"
         aria-pressed={!value}

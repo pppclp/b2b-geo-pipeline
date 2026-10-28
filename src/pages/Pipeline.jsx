@@ -12,6 +12,7 @@ import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
+import PageHeader from "@/components/PageHeader";
 import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
 import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipelineView } from "@/lib/pipelineListFilters";
 import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
@@ -193,8 +194,8 @@ export default function Pipeline() {
 
   // Never present stale totals after a failed batch read as current data.
   if (loading || error) return (
-    <div className="p-5 md:p-7 max-w-[1400px] mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Pipeline</h1>
+    <div className="geo-page">
+      <PageHeader title="Pipeline" className="mb-4" />
       <div role={error?"alert":"status"} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
         <AlertTriangle className="w-4 h-4 text-muted-foreground" aria-hidden="true"/>
         <span className="flex-1 text-sm">{error ? actionableErrorMessage(error, "load") : "Loading Pipeline data…"}</span>
@@ -205,15 +206,13 @@ export default function Pipeline() {
 
 
   return (
-    <div className="w-full min-w-0 p-3 sm:p-4 md:p-5">
-      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-xl">Pipeline</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {sorted.length} Pipelines · {formatTHB(totalValue)} Net RC
-          </p>
-        </div>
-        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+    <div className="geo-page">
+      <PageHeader
+        title="Pipeline"
+        description={`${sorted.length} Pipelines · ${formatTHB(totalValue)} Net RC`}
+        className="mb-4"
+        actions={
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
           {canExport && (
             <Button variant="outline" size="sm" className="h-10 min-w-0 flex-1 rounded-xl px-2 text-xs sm:h-9 sm:flex-none sm:px-3 sm:text-sm" disabled={exporting} onClick={exportExcel}>
               <Download className="w-4 h-4 mr-1.5" /> {exporting ? "Generating Excel…" : "Export Excel"}
@@ -222,8 +221,9 @@ export default function Pipeline() {
           <Button size="sm" className="h-10 min-w-0 flex-1 rounded-xl bg-primary px-2 text-xs text-primary-foreground sm:h-9 sm:flex-none sm:px-3 sm:text-sm" onClick={() => setFormOpen(true)}>
             <Plus className="w-4 h-4 mr-1.5" /> สร้าง Pipeline
           </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {exportError && <p role="alert" className="text-sm text-red-600 mb-3">{exportError}</p>}
       {!loading && !error && scopedOpportunities.length === 0 && (
@@ -242,7 +242,7 @@ export default function Pipeline() {
             <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
               aria-current={active ? "page" : undefined} aria-pressed={active}
               className={`relative flex min-h-[94px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
-              <span className="max-w-[calc(100%-20px)] text-current"><span className="block text-[11px] font-medium leading-4">{item.title}</span><span className="block mt-0.5 text-[10px] leading-3.5 opacity-75">{item.subtitle}</span></span>
+              <span className="max-w-[calc(100%-20px)] text-current"><span className="block text-[12px] font-semibold leading-4">{item.title}</span><span className="block mt-0.5 text-[11px] leading-4 opacity-75">{item.subtitle}</span></span>
               <span className="text-xl font-semibold leading-none tabular-nums">{item.count}</span>
               <Icon className={`absolute right-2.5 top-2.5 h-4 w-4 ${active ? "text-brand" : "text-muted-foreground"}`} aria-hidden="true" />
             </button>
@@ -255,10 +255,10 @@ export default function Pipeline() {
             <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
               aria-current={activeQuickView === item.id ? "page" : undefined}
               aria-pressed={activeQuickView === item.id}
-              className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeQuickView === item.id
+              className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeQuickView === item.id
                 ? "bg-brand-tint text-brand"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
-              <span className="text-left leading-4"><span className="block">{item.title}</span><span className="block text-[10px] font-normal opacity-75">{item.subtitle}</span></span>
+              <span className="text-left leading-4"><span className="block">{item.title}</span><span className="block text-[11px] font-normal opacity-75">{item.subtitle}</span></span>
               <span className="text-[12px] font-semibold tabular-nums">{item.count}</span>
             </button>
           ))}
@@ -432,13 +432,13 @@ export default function Pipeline() {
               </colgroup>
               <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
                 <tr className="h-10">
-                  <th scope="col" className="sticky left-0 z-20 bg-secondary px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
-                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Stage</th>
-                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
-                  {regionContext.showColumn && <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Region</th>}
-                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
-                  <th scope="col" className="px-3 py-1.5 text-right align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Net RC</th>
-                  <th scope="col" className="bg-secondary px-3 py-1.5 text-right align-middle text-[11px] font-semibold leading-4 whitespace-nowrap">Stage Age / Alerts</th>
+                  <th scope="col" className="sticky left-0 z-20 bg-secondary px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
+                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Stage</th>
+                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
+                  {regionContext.showColumn && <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Region</th>}
+                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
+                  <th scope="col" className="px-3 py-1.5 text-right align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Net RC</th>
+                  <th scope="col" className="bg-secondary px-3 py-1.5 text-right align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Stage Age / Alerts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">

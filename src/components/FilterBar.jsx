@@ -16,7 +16,7 @@ import {
 // Stable identity is essential: never define dropdown components inside FilterBar.
 const SelectWrap = ({label, value, onChange, children, className = "", allText = "All"}) => (
   <div className={`flex min-w-0 flex-col gap-1 ${className}`}>
-    <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+    <span className="geo-filter-label">{label}</span>
     <Select value={value || "all"} onValueChange={onChange}>
       <SelectTrigger aria-label={label}
         className={`h-9 w-full rounded-lg ${isActiveFilter(label === "Status" ? "status" : "",value) ? "border-primary/60" : ""}`}>
@@ -32,7 +32,7 @@ const SelectWrap = ({label, value, onChange, children, className = "", allText =
 
 const MonthFilter = ({label, value, onChange}) => (
   <div className="flex min-w-0 flex-col gap-1">
-    <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+    <span className="geo-filter-label">{label}</span>
     <MonthPicker value={value || ""} onChange={onChange} placeholder="All Months" allowAll className="w-full"/>
   </div>
 );
@@ -89,7 +89,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
     <div className="space-y-3">
       <div className="grid min-w-0 grid-cols-2 items-end gap-x-2.5 gap-y-3 md:flex md:flex-wrap md:gap-y-2.5">
         <div className="col-span-2 min-w-0 space-y-1 md:w-[250px] md:flex-1 md:max-w-[340px]">
-          <label htmlFor="pipeline-search" className="block text-[11px] font-medium text-muted-foreground">Search</label>
+          <label htmlFor="pipeline-search" className="geo-filter-label block">Search</label>
           <div className="relative">
             <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"/>
             <Input id="pipeline-search" aria-label="Search customer, Business ID or Pipeline ID"
@@ -146,7 +146,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
               <section className="space-y-2">
                 <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Sales & Ownership</h4>
                 {profile?.app_role !== "ae" && <div className="space-y-1">
-                  <span className="text-[11px] font-medium text-muted-foreground">{LABELS.owner}</span>
+                  <span className="geo-filter-label">{LABELS.owner}</span>
                   <SearchableSelect value={filters.owner || "all"} ariaLabel={LABELS.owner}
                     onChange={choice("owner")} searchPlaceholder="Search AE..."
                     placeholder="All AEs" className="h-9 rounded-lg"
