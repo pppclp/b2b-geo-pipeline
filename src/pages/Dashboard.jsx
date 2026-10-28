@@ -8,6 +8,7 @@ import { dashboardCohort, dashboardMetrics } from "@/lib/dashboardMetrics";
 import { overdueReasons } from "@/lib/overdueSummary.js";
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
+import PageHeader from "@/components/PageHeader";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
 import { withMePipelines } from "@/lib/dashboardQueue";
 import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
@@ -111,8 +112,8 @@ export default function Dashboard() {
 
   if (loading || error) {
     return (
-      <div className="p-5 md:p-7 max-w-[1400px] mx-auto">
-        <h1 className="text-[22px] font-semibold mb-5">Dashboard</h1>
+      <div className="geo-page">
+        <PageHeader title="Dashboard" className="mb-5" />
         <div role={error ? "alert" : "status"} className="rounded-xl border border-border bg-card p-4 flex gap-3 items-center">
           <AlertCircle className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <div className="flex-1 text-sm">
@@ -126,8 +127,8 @@ export default function Dashboard() {
 
   if (isAdmin) {
     return (
-      <div className="p-5 md:p-7 max-w-[1400px] mx-auto space-y-4">
-        <h1 className="text-[22px] font-semibold">Data & Access</h1>
+      <div className="geo-page space-y-4">
+        <PageHeader title="Dashboard" description="Data & Access" />
         {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Panel title="User & Organization"><p className="text-xs text-muted-foreground mb-3">Manage users and authorized Region mappings.</p>
@@ -148,26 +149,24 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-5 md:p-7 max-w-[1400px] mx-auto space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">
-            {isAE ? "My Dashboard" : isSM ? "Regional Dashboard" : "Management Dashboard"}
-          </h1>
-
-        </div>
-        <div className="flex flex-wrap gap-3 items-end">
+    <div className="geo-page space-y-4">
+      <PageHeader
+        title="Dashboard"
+        description={isAE ? "My overview" : isSM ? "Regional overview" : "Management overview"}
+        actions={
+          <div className="flex min-w-0 flex-wrap items-end gap-3">
           <div className="w-[150px]">
-            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">เดือนที่สร้างงาน</label>
+            <label className="geo-filter-label block mb-1.5">เดือนที่สร้างงาน</label>
             <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
           </div>
           <div className="w-[150px]">
-            <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
+            <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
             <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
           </div>
-          {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
-        </div>
-      </div>
+            {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
+          </div>
+        }
+      />
       {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Metric title="มูลค่างานที่คาดว่าจะปิด" value={formatTHB(closeValue)} note="Net RC" />
@@ -246,7 +245,7 @@ function Panel({ title, meta, children }) {
   return (
     <section className="rounded-xl border border-border bg-card p-4 shadow-soft min-w-0">
       <div className="flex justify-between items-center gap-3 mb-4">
-        <h2 className="text-[13px] font-semibold">{title}</h2>
+        <h2 className="geo-panel-title">{title}</h2>
         {meta && <span className="text-[10px] text-muted-foreground shrink-0">{meta}</span>}
       </div>
       {children}
@@ -256,9 +255,9 @@ function Panel({ title, meta, children }) {
 
 function Metric({ title, value, note, onClick }) {
   const children = <>
-    <div className="text-[11px] text-muted-foreground font-medium">{title}</div>
-    <div className="text-[22px] leading-7 font-semibold tabular-nums mt-2">{value}</div>
-    <div className="text-[11px] text-muted-foreground mt-1">{note}</div>
+    <div className="geo-metric-label">{title}</div>
+    <div className="geo-metric-value">{value}</div>
+    <div className="geo-metric-note">{note}</div>
   </>;
   return onClick
     ? <button type="button" onClick={onClick}
