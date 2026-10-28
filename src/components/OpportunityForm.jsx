@@ -143,7 +143,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         business_id: String(form.business_id || "").trim(),
         customer_type: form.customer_type,
         sales_channel: form.sales_channel,
-        partner_name: form.sales_channel === "B2B Premium Partner" ? String(form.partner_name || "").trim() : "",
+        partner_name: String(form.partner_name || "").trim(),
         contact_name: String(form.contact_name || "").trim(),
         contact_phone: String(form.contact_phone || "").trim(),
         remark: String(form.remark || "").trim(),
@@ -227,9 +227,9 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
               <SelectContent>{["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          {form.sales_channel === "B2B Premium Partner" && (
+          {(form.sales_channel === "B2B Premium Partner" || Boolean(String(opportunity?.partner_name || "").trim())) && (
             <div>
-              <Label>ชื่อ Partner</Label>
+              <Label>ชื่อพาร์ทเนอร์ (ถ้ามี)</Label>
               <Input maxLength={200} value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
             </div>
           )}

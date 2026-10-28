@@ -429,6 +429,7 @@ export default function Import() {
             <h2 className="font-medium">Map Columns</h2>
             <span className="text-sm text-muted-foreground">{rows.length} rows detected</span>
           </div>
+          <p className="text-xs text-muted-foreground mb-3">Historical Sale Name may refer to an AE or a Partner. Map verified Partner Name separately and select a confirmed AE Owner. Never infer either identity from Sale Name alone.</p>
           <div className="space-y-2">
             {FIELDS.map((f) => (
               <div key={f.key} className="grid grid-cols-2 gap-3 items-center">
