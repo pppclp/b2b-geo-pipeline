@@ -180,7 +180,7 @@ export default function Dashboard() {
           value={String(isManagement ? overdue.length : assignedOverdue.length)} note={WORK_VIEW_SUBTITLES.overdue}
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
       </div>
-      <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
+      <CloseStrip won={won} open={open} closeValue={closeValue}
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
       <div className={`grid grid-cols-1 gap-4 ${isManagement ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"}`}>
@@ -256,7 +256,7 @@ function Metric({ title, value, note, onClick }) {
     : <div className="geo-metric-card rounded-xl border border-border bg-card p-4 min-w-0">{children}</div>;
 }
 
-function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
+function CloseStrip({ won, open, closeValue, onWon, onOpen }) {
   const wonValue = sumValue(won);
   const openValue = sumValue(open);
   return (
