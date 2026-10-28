@@ -140,7 +140,7 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">You can review {cohort.length} Pipelines for {regionContext.label}. Region breakdown below shows Open Pipeline Net RC.</p>
           <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>Open Pipeline</Button>
         </Panel>
-        <Panel title="มูลค่างานที่ยังเปิดอยู่แยกตามภาค" meta="Open · Net RC">
+        <Panel title="มูลค่างานที่ยังเปิดอยู่แยกตามภาค" >
           <BreakdownTable rows={regionRows} label="Region"
             onSelect={(id) => toPipeline({ status: "open", region: id })} />
         </Panel>
@@ -152,17 +152,16 @@ export default function Dashboard() {
     <div className="geo-page space-y-4">
       <PageHeader
         title="Dashboard"
-        description={isAE ? "My overview" : isSM ? "Regional overview" : "Management overview"}
         actions={
           <div className="flex min-w-0 flex-wrap items-end gap-3">
-          <div className="w-[150px]">
-            <label className="geo-filter-label block mb-1.5">เดือนที่สร้างงาน</label>
-            <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
-          </div>
-          <div className="w-[150px]">
-            <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
-            <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
-          </div>
+            <div className="w-[150px]">
+              <label className="geo-filter-label block mb-1.5">เดือนที่สร้างงาน</label>
+              <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
+            </div>
+            <div className="w-[150px]">
+              <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
+              <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
+            </div>
             {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
           </div>
         }
@@ -181,7 +180,7 @@ export default function Dashboard() {
           value={String(isManagement ? overdue.length : assignedOverdue.length)} note={WORK_VIEW_SUBTITLES.overdue}
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
       </div>
-      <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
+      <CloseStrip won={won} open={open} closeValue={closeValue}
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
       <div className={`grid grid-cols-1 gap-4 ${isManagement ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"}`}>
@@ -191,18 +190,13 @@ export default function Dashboard() {
               <button key={id} type="button" onClick={() => setQueueTab(id)}
                 aria-pressed={selectedTab === id}
                 className={selectedTab === id
-                  ? "px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
-                  : "px-2.5 py-1.5 text-[11px] rounded-lg border border-border hover:bg-secondary"}>
+                  ? "px-2.5 py-1.5 text-[12px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
+                  : "px-2.5 py-1.5 text-[12px] rounded-lg border border-border hover:bg-secondary"}>
                 <span className="block">{label}</span>
-                <span className="block text-[10px] font-normal opacity-75">{id === "due" && closeMonth ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES[id]}</span>
+                <span className="block text-[11px] font-normal opacity-75">{id === "due" && closeMonth ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES[id]}</span>
               </button>
             )}
           </div>
-          {isManagement && selectedTab === "with" && (
-            <p className="mb-2 text-[11px] text-muted-foreground">
-              Current Handler assignments and Pipelines involving the Management team in your authorized Regions.
-            </p>
-          )}
           <OpportunityTable rows={queueItems} maps={maps}
             showRegion={isManagement || regionContext.showColumn}
             regionColumn={isManagement}
@@ -218,25 +212,22 @@ export default function Dashboard() {
             }>View All</Button>
           </div>
         </Panel>
-        <Panel title="มูลค่างานแยกตาม Stage" meta="Open · Net RC">
+        <Panel title="มูลค่างานแยกตาม Stage">
           <BarList rows={stageRows} onSelect={(id) => toPipeline({ status: "open", stage: id, ...(isAE ? { owner: profile.id } : {}) })} />
         </Panel>
       </div>
       {(isSM || isManagement) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Panel title={(isManagement || isSM) && !region && regions.length > 1 ? "มูลค่างานแยกตามภาค" : "มูลค่างานแยกตาม AE"} meta="Open · Net RC">
+          <Panel title={(isManagement || isSM) && !region && regions.length > 1 ? "มูลค่างานแยกตามภาค" : "มูลค่างานแยกตาม AE"} >
             <BreakdownTable rows={(isManagement || isSM) && !region && regions.length > 1 ? regionRows : ownerRows}
               label={(isManagement || isSM) && !region && regions.length > 1 ? "Region" : "AE Owner"}
               onSelect={(id) => (isManagement || isSM) && !region && regions.length > 1 ? setRegionFilter(id) : toPipeline({ status: "open", owner: id })} />
           </Panel>
-          <Panel title="มูลค่างานแยกตามประเภทผลิตภัณฑ์" meta="Open · Net RC">
+          <Panel title="มูลค่างานแยกตามประเภทผลิตภัณฑ์" >
             <BarList rows={categoryRows} onSelect={(id) => toPipeline({ status: "open", product_category: id, ...(isAE ? { owner: profile.id } : {}) })} />
           </Panel>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">
-        Metrics use the intersection of Created Month, Expected Close and permitted Region. Won is filtered by Expected Close, not by the actual Won date.
-      </p>
     </div>
   );
 }
@@ -261,21 +252,20 @@ function Metric({ title, value, note, onClick }) {
   </>;
   return onClick
     ? <button type="button" onClick={onClick}
-        className="rounded-xl border border-border bg-card p-4 text-left hover:border-brand/40 hover:bg-secondary/20 min-w-0">{children}</button>
-    : <div className="rounded-xl border border-border bg-card p-4 min-w-0">{children}</div>;
+        className="geo-metric-card rounded-xl border border-border bg-card p-4 text-left hover:border-brand/40 hover:bg-secondary/20 min-w-0">{children}</button>
+    : <div className="geo-metric-card rounded-xl border border-border bg-card p-4 min-w-0">{children}</div>;
 }
 
-function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
+function CloseStrip({ won, open, closeValue, onWon, onOpen }) {
   const wonValue = sumValue(won);
   const openValue = sumValue(open);
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-4">
       <div className="min-w-[155px]">
-        <div className="text-[12px] font-semibold">สรุปการปิดงาน</div>
-        <div className="text-[10px] text-muted-foreground">{closeMonth ? "Selected Expected Close Month" : "All Expected Close Months"}</div>
+        <div className="geo-panel-title">สรุปการปิดงาน</div>
       </div>
       <div className="flex-1 min-w-[160px]">
-        <div className="flex gap-3 justify-between text-[11px] mb-2">
+        <div className="flex gap-3 justify-between text-[12px] mb-2">
           <button className="hover:underline" onClick={onWon} type="button"><strong>Won</strong> {formatTHB(wonValue)} · {won.length}</button>
           <button className="hover:underline" onClick={onOpen} type="button"><strong>Open</strong> {formatTHB(openValue)} · {open.length}</button>
         </div>
