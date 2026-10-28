@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 
 /*
  * Thai UI: LINE Seed Sans TH (SIL OFL 1.1), with a version-pinned webfont URL.
@@ -155,5 +155,74 @@
 
   body {
     @apply bg-shell text-foreground font-body antialiased;
+    font-optical-sizing: auto;
+    font-kerning: normal;
+  }
+}
+
+/* Shared visual hierarchy for Dashboard and Pipeline. Only opt-in classes. */
+@layer components {
+  .geo-page {
+    @apply mx-auto w-full min-w-0 max-w-[1400px] p-4 sm:p-5 md:p-6;
+  }
+
+  .geo-page-header {
+    @apply flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between;
+  }
+
+  .geo-page-title {
+    @apply m-0 font-semibold text-foreground;
+    font-size: 22px;
+    line-height: 1.3;
+    letter-spacing: -0.025em;
+  }
+
+  .geo-page-description {
+    @apply mt-1 text-muted-foreground;
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 400;
+  }
+
+  .geo-page-actions {
+    @apply flex w-full min-w-0 flex-wrap items-end gap-3 sm:w-auto;
+  }
+
+  .geo-panel-title {
+    @apply font-semibold text-foreground;
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .geo-filter-label {
+    @apply font-medium text-muted-foreground;
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .geo-metric-label {
+    @apply font-medium text-muted-foreground;
+    font-size: 13px;
+    line-height: 19px;
+  }
+
+  .geo-metric-value {
+    @apply mt-2 font-semibold tabular-nums text-foreground;
+    font-size: clamp(20px, 2vw, 26px);
+    line-height: 1.28;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+  }
+
+  .geo-metric-note {
+    @apply mt-1 text-muted-foreground;
+    font-size: 12px;
+    line-height: 18px;
+  }
+}
+
+@media (min-width: 768px) {
+  .geo-page-title {
+    font-size: 24px;
   }
 }
