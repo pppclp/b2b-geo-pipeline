@@ -230,7 +230,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                   <div className="text-right text-[11px] text-muted-foreground">{form.remark.length}/500</div>
                 </Field>
                 {form.sales_channel === "B2B Premium Partner" && (
-                  <Field label="ชื่อ Partner" className="sm:col-span-2">
+                  <Field label="ชื่อพาร์ทเนอร์ (ถ้ามี)" className="sm:col-span-2">
                     <Input maxLength={200} value={form.partner_name} onChange={(e) => set("partner_name", e.target.value)} placeholder="Enter partner name"/>
                   </Field>
                 )}
