@@ -4,14 +4,23 @@ import { readFileSync } from "node:fs";
 
 const source = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
-test("original Inter + IBM Plex Sans Thai fonts are restored across the application", () => {
+test("LINE Seed Sans TH is used for Thai while English keeps Inter", () => {
   const css = source("src/index.css");
   const html = source("index.html");
-  assert.ok(css.includes("family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Inter:wght@400;500;600;700"));
-  assert.ok(css.includes('font-heading: "Inter", "IBM Plex Sans Thai"'));
-  assert.ok(css.includes('font-body: "Inter", "IBM Plex Sans Thai"'));
-  assert.ok(css.includes('font-display: "Inter", "IBM Plex Sans Thai"'));
-  assert.ok(!css.includes('"Kanit"'));
+  assert.ok(css.includes("family=Inter:wght@400;500;600;700&display=swap"));
+  assert.ok(css.includes('font-family: "LINE Seed Sans TH"'));
+  for (const font of ["LINESeedSansTH-Regular.woff2", "LINESeedSansTH-Bold.woff2"]) {
+    assert.ok(css.includes(font), font);
+  }
+  assert.ok(css.includes("thai-web-fonts@7"), "Font CDN must be version pinned");
+  assert.ok(css.includes("unicode-range: U+0E00-0E7F"), "Latin must continue using Inter");
+  assert.ok(css.includes("size-adjust: 103%"), "Slight Thai optical size adjustment");
+  assert.ok(css.includes("font-weight: 400 500"), "Thai labels map to native Regular");
+  assert.ok(css.includes("font-weight: 600 900"), "Thai headings map to native Bold");
+  for (const key of ["heading", "body", "display"]) {
+    assert.ok(css.includes('--font-' + key + ': "Inter", "LINE Seed Sans TH"'));
+  }
+  assert.ok(!css.includes('"IBM Plex Sans Thai"'));
   assert.ok(!html.includes("family=Kanit"));
 });
 
