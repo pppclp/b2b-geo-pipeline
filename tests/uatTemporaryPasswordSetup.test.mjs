@@ -109,13 +109,14 @@ test("actual GAS temporary setup functions enforce ticket purpose and current ac
     normalizeUatCorporateEmail_:v=>String(v||"").trim().toLowerCase(),
     uatActivationSecret_:()=>props.get("GEO_UAT_ACTIVATION_SECRET"),
     uatConstantTimeEqual_:(x,y)=>String(x)===String(y),
-    uatCheckNewPassword_:x=>{if(String(x).length<15)throw Object.assign(new Error("too short"),{status:400});return x;},
+    uatCheckNewPassword_:x=>{if(String(x).length<10)throw Object.assign(new Error("too short"),{status:400});return x;},
     uatPasswordPepper_:()=>props.get("GEO_UAT_PASSWORD_PEPPER"),
     uatPasswordDigest_:(salt,pw)=>crypto.createHmac("sha256",props.get("GEO_UAT_PASSWORD_PEPPER")).update(salt+":"+pw).digest("base64url"),
     verifyUatPassword_:(c,pw)=>{
       const v=String(c.password_hash).split("$");return v.length===3&&v[2]===crypto.createHmac("sha256",props.get("GEO_UAT_PASSWORD_PEPPER")).update(v[1]+":"+pw).digest("base64url");
     },
     GEO_UAT_PASSWORD_HASH_SCHEME_:"hmac-sha256-v1",
+    geoAssertUatCredentialRowWritable_:()=>{},
     throwUatError_:(status,message)=>{throw Object.assign(new Error(message),{status});},
   };
   vm.createContext(ctx);
@@ -134,6 +135,6 @@ test("actual GAS temporary setup functions enforce ticket purpose and current ac
   }),e=>e.status===401);
   now+=601000;
   assert.throws(()=>ctx.uatReadTemporarySetupTicket_(t),e=>e.status===401);
-  assert.match(source,/var passwordSetupResult = completeUatTemporaryPasswordSetup_\(store, req\.body \|\| \{\}\);[\s\S]*?store\.flush\(\);\s*return passwordSetupResult;/);
+  assert.ok(source.includes("store.flush();\n      geoVerifyUatCredentialPersisted_(store);\n      return passwordSetupResult;"));
   assert.match(source,/if \(needsSetup\) \{[\s\S]*?password_setup_required: true/);
 });

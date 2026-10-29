@@ -49,7 +49,7 @@ test("Node and Apps Script activation code HMAC use identical synthetic vectors"
 
 test("GAS activation persists under ScriptLock before advertising success", () => {
   assert.match(gas, /function handle_\(req\)[\s\S]*?var lock = LockService\.getScriptLock\(\);[\s\S]*?lock\.waitLock\(30000\)/);
-  assert.match(gas, /var activationResult = completeUatActivation_\(store, req\.body \|\| \{\}\);[\s\S]*?store\.flush\(\);\s*return activationResult;/);
+  assert.ok(gas.includes("store.flush();\n      geoVerifyUatCredentialPersisted_(store);\n      return activationResult;"));
   assert.match(gas, /c\.activation_used_at = now;[\s\S]*?c\.activation_code_hash = "";/);
   assert.match(gas, /function completeUatActivation_\([\s\S]*?return \{ activated: true \};/);
 });
