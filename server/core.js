@@ -13,6 +13,7 @@ import { businessIdError, normalizeCustomerType, netRcReconciliation } from "../
 import { API_CONTRACT_VERSION, REQUIRED_CAPABILITIES, UAT_EMAIL_ACTIVATION_CAPABILITY } from "../src/lib/apiContract.js";
 import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
+import { buildTeamActivityLog } from "./activityLog.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
 import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } from "./opportunityPolicy.js";
 import { pipelineTaskViews, validDays } from "../src/lib/taskOverdue.js";
@@ -1517,6 +1518,23 @@ export function createCore({ contract, store, now, uuid }) {
         if (f.permissions) allowed[file]._file = Object.keys(f.permissions).filter((a) => (f.permissions[a] || []).includes(actor.role));
       }
       return { role: actor.role, scope: scopeForRole(actor.role), allowed };
+    }
+
+    if (parts[0] === "activity-log") {
+      if (method !== "GET" || parts.length !== 1) throw new HttpError(405, "Activity Log is read-only");
+      if (!["sm","management","admin"].includes(actor.role)) throw new HttpError(403, "Activity Log requires SM or Management access");
+      // Check existing entity read contracts, then narrow AGAIN by the actor role
+      // and current AE/region assignment in the dedicated query helper.
+      need(actor, binding("Opportunity"), "read");
+      need(actor, binding("OpportunityHistory"), "read");
+      return buildTeamActivityLog({
+        actor,
+        opportunities:rows("opportunities").filter(scopeFn(actor)),
+        events:rows("opportunity_events"),
+        users:rows("users"),
+        userRegions:rows("user_regions"),
+        filters:query,
+      });
     }
 
     if (parts[0] === "tasks") {

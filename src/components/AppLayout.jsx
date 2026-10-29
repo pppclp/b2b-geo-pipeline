@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { useData } from "@/lib/dataContext";
 import { ROLE_LABELS } from "@/lib/pipeline";
-import { LayoutDashboard, KanbanSquare, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
 import HandoffBell from "@/components/HandoffBell";
@@ -17,6 +17,9 @@ const navFor = (role) => {
     { to: "/pipeline", label: "Pipeline", icon: KanbanSquare, view: "all" },
     { to: "/pipeline?view=assigned-to-me", label: "With Me", icon: HandHelping, view: "assigned-to-me" },
   ];
+  if (["sm", "management", "admin"].includes(role)) {
+    base.push({ to: "/activity-log", label: "Activity Log", icon: History });
+  }
   if (role === "admin") {
     base.push({ to: "/admin", label: "Admin", icon: Settings });
     base.push({ to: "/import", label: "Import", icon: Upload });
@@ -31,6 +34,7 @@ const sectionTitle = (pathname) => {
   if (pathname === "/") return "Dashboard";
   if (pathname.startsWith("/pipeline")) return "Pipeline";
   if (pathname.startsWith("/opportunity")) return "Pipeline";
+  if (pathname.startsWith("/activity-log")) return "Activity Log";
   if (pathname.startsWith("/admin")) return "Admin";
   if (pathname.startsWith("/import")) return "Import";
   return "";
@@ -134,7 +138,7 @@ export default function AppLayout() {
   const NavList = () => {
     const sections = [
       { title: "WORKSPACE", links: items.filter((it) =>
-        ["/", "/pipeline", "/pipeline?view=assigned-to-me"].includes(it.to)) },
+        ["/", "/pipeline", "/pipeline?view=assigned-to-me", "/activity-log"].includes(it.to)) },
       { title: "TOOLS", links: items.filter((it) =>
         ["/admin", "/import"].includes(it.to)) },
     ].filter((section) => section.links.length > 0);
