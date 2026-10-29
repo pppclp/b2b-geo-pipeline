@@ -11,6 +11,7 @@ import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Maximize2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
+import { isActiveOpenStage } from "@/lib/openStagePolicy";
 
 const NONE = "__none__";
 const textOrDash = (value) => value || "—";
@@ -91,6 +92,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
   }, [master, op.working_with]);
 
   const hasPending = Boolean(initialStageId && initialStageId !== op.stage_id);
+  const isLegacyStage = !isActiveOpenStage(op.stage_id, activeStages);
   useEffect(() => { onDirtyChange?.(changed); }, [changed, onDirtyChange]);
 
   const save = async (event) => {
@@ -134,6 +136,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
         </div>
       </div>
       {hasPending && <p className="text-xs text-amber-700">Stage change pending confirmation</p>}
+      {isLegacyStage && <p className="text-xs text-amber-700">Historical Stage · {maps.stage[op.stage_id]?.name || op.stage_id || "Unknown"} is inactive. Review the record before moving it; no status will change automatically.</p>}
       <div className="border-t border-border/70 divide-y divide-border/70">
         <div className="flex items-center gap-4 py-3">
           <div className="min-w-0 flex-1">
@@ -143,7 +146,10 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
           <div className="w-[48%] shrink-0">
             <Select disabled={!canEdit || saving} value={stageId} onValueChange={setStageId}>
               <SelectTrigger id={`stage-${op.id}`} className="w-full"><SelectValue placeholder="Select Stage" /></SelectTrigger>
-              <SelectContent>{activeStages.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {isLegacyStage && stageId === op.stage_id && <SelectItem value={op.stage_id} disabled>{maps.stage[op.stage_id]?.name || op.stage_id} (inactive · historical)</SelectItem>}
+                {activeStages.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>)}
+              </SelectContent>
             </Select>
           </div>
         </div>
