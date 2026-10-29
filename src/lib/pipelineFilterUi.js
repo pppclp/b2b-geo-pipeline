@@ -17,6 +17,7 @@ export const PIPELINE_FILTER_LABELS = Object.freeze({
   sales_channel: "Sales Channel",
   ccp_check_result: "CCP+ Check",
   sm_info: "Missing SM Info",
+  incomplete: "Incomplete Data",
   stuck: "Overdue",
   due_this_month: "Due This Month",
   internal_overdue: "Internal SLA Overdue",
@@ -28,7 +29,7 @@ export const QUICK_FILTER_KEYS = ["search", "close_month", "product_category", "
 export const ADVANCED_FILTER_KEYS = [
   "created_month", "owner", "handler", "working_with",
   "stage", "scenario", "sales_channel",
-  "ccp_check_result",
+  "ccp_check_result", "incomplete", "sm_info",
 ];
 
 export const DEFAULT_PIPELINE_FILTERS = Object.freeze({status: "open"});
