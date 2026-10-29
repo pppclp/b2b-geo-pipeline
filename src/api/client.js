@@ -150,6 +150,9 @@ export const db = {
       }),
   },
   access: () => request("GET", "/access"),
+  activity: {
+    list: (filters = {}) => request("GET", "/activity-log", { query: filters }),
+  },
   exports: {
     pipelines: () => request("GET", "/exports/pipelines"),
   },
