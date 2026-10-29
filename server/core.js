@@ -1196,7 +1196,7 @@ export function createCore({ contract, store, now, uuid }) {
         // Retired Stage IDs remain on historical rows. A Reopen must not create
         // a new Open Pipeline in an inactive Stage; explicitly select any active
         // Stage from the master. This works with 2, 3, 4 or more stages.
-        const stageActive = rows("stages").some((stage) =>
+        const stageActive = !bindings.stages || rows("stages").some((stage) =>
           String(stage.stage_id) === String(row.stage_id) && isActive(stage.active));
         const reopeningWithInactiveStage = transition && desired === "open" &&
           prior !== "open" && !stageActive;
