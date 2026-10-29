@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { currentMonthKey } from "@/lib/pipeline";
 import { buildQuickActionChanges } from "@/lib/quickActionChanges";
 import { fetchStartupData } from "@/lib/entityBatch";
+import { activeOpenStages, isActiveOpenStage } from "@/lib/openStagePolicy";
 
 const DataContext = createContext(null);
 
@@ -160,7 +161,7 @@ export function DataProvider({ children }) {
   }, [master]);
 
   const activeStages = useMemo(
-    () => (master?.Stage || []).filter((s) => s.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    () => activeOpenStages(master?.Stage),
     [master]
   );
   const stageWeightMap = useMemo(() => {
@@ -305,6 +306,7 @@ export function DataProvider({ children }) {
     async (id, newStageId, remark) => {
       const op = opportunities.find((o) => o.id === id);
       if (!op || op.stage_id === newStageId) return;
+      if (op.status !== "open" || !isActiveOpenStage(newStageId, activeStages)) throw new Error("Select an active Stage for an Open Pipeline");
       const now = new Date().toISOString();
       await updateWithHistory(id, { stage_id: newStageId, stage_entered_at: now }, {
         event_type: "stage_change",
@@ -314,7 +316,7 @@ export function DataProvider({ children }) {
         remark,
       });
     },
-    [opportunities, updateWithHistory, maps.stage]
+    [opportunities, updateWithHistory, maps.stage, activeStages]
   );
 
   const handoff = useCallback(
@@ -437,14 +439,21 @@ export function DataProvider({ children }) {
   );
 
   const reopen = useCallback(
-    async (id, reason) => {
+    async (id, reason, stageId = "") => {
       const op = opportunities.find((o) => o.id === id);
       if (!op || op.status === "open") return;
       if (!["sm", "management", "admin"].includes(profile?.app_role)) {
         throw new Error("Only SM, Management or Admin can Reopen a Pipeline");
       }
       if (!String(reason || "").trim()) throw new Error("Reopen reason is required");
-      await updateWithHistory(id, { status: "open", audit_remark: reason.trim() }, {
+      const legacyInactive = !isActiveOpenStage(op.stage_id, activeStages);
+      if (legacyInactive && !isActiveOpenStage(stageId, activeStages)) {
+        throw new Error("Select an active Stage before reopening a Pipeline with a retired Stage");
+      }
+      await updateWithHistory(id, {
+        status: "open", audit_remark: reason.trim(),
+        ...(legacyInactive ? { stage_id: stageId } : {}),
+      }, {
         event_type: "status_change",
         field: "status",
         previous_value: op.status,
@@ -452,7 +461,7 @@ export function DataProvider({ children }) {
         remark: reason.trim(),
       });
     },
-    [opportunities, updateWithHistory, profile?.app_role]
+    [opportunities, updateWithHistory, profile?.app_role, activeStages]
   );
 
   const historyFor = useCallback((opId) => history.filter((h) => h.opportunity_id === opId), [history]);

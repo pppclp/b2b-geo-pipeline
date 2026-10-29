@@ -1193,6 +1193,17 @@ export function createCore({ contract, store, now, uuid }) {
         const desired = "status" in data ? String(data.status || "").toLowerCase() : prior;
         const roleCanReopen = ["sm", "management", "admin"].includes(actor.role);
         const transition = desired !== prior;
+        // Retired Stage IDs remain on historical rows. A Reopen must not create
+        // a new Open Pipeline in an inactive Stage; explicitly select any active
+        // Stage from the master. This works with 2, 3, 4 or more stages.
+        const stageActive = !bindings.stages || rows("stages").some((stage) =>
+          String(stage.stage_id) === String(row.stage_id) && isActive(stage.active));
+        const reopeningWithInactiveStage = transition && desired === "open" &&
+          prior !== "open" && !stageActive;
+        if (reopeningWithInactiveStage && !rows("stages").some((stage) =>
+            String(stage.stage_id) === String(data.stage_id || "") && isActive(stage.active))) {
+          throw new HttpError(400, "Select an active Stage when reopening a Pipeline with a retired Stage");
+        }
         if (transition && desired === "archived" && !roleCanReopen) {
           throw new HttpError(403, "Only SM, Management or Admin can Archive a Pipeline");
         }
@@ -1204,13 +1215,15 @@ export function createCore({ contract, store, now, uuid }) {
           // Closed Pipelines are immutable except for harmless remarks or a
           // separately audited status transition. Reopen is never bundled with
           // edits to Stage, Handler, ownership, customer or financial fields.
-          const allowed = new Set(["status", "remark", "last_remark", "audit_remark"]);
+          const allowed = new Set(["status", "remark", "last_remark", "audit_remark",
+            ...(reopeningWithInactiveStage ? ["stage_id"] : [])]);
           for (const field of Object.keys(data)) {
             if (!allowed.has(field)) {
               throw new HttpError(409, "Reopen the Pipeline before editing " + field);
             }
           }
-          if (desired === "open" && Object.keys(data).some((f) => f !== "status" && f !== "audit_remark")) {
+          if (desired === "open" && Object.keys(data).some((f) =>
+              !["status", "audit_remark", ...(reopeningWithInactiveStage ? ["stage_id"] : [])].includes(f))) {
             throw new HttpError(400, "Reopen and edit must be separate audited actions");
           }
         }

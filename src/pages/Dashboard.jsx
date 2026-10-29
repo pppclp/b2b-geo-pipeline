@@ -12,6 +12,7 @@ import PageHeader from "@/components/PageHeader";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
 import { withMePipelines } from "@/lib/dashboardQueue";
 import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
+import { legacyOpenStageRecords } from "@/lib/openStagePolicy";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
 
@@ -51,6 +52,7 @@ export default function Dashboard() {
     stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
   const overdue = open.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
+  const legacyStageOpen = legacyOpenStageRecords(open, activeStages);
   const assigned = withMePipelines(cohort, profile?.id, {
     role, teams: master?.WorkingWithOption,
   });
@@ -220,6 +222,11 @@ export default function Dashboard() {
         </Panel>
         <Panel title="มูลค่างานแยกตาม Stage" meta="Open · Net RC">
           <BarList rows={stageRows} onSelect={(id) => toPipeline({ status: "open", stage: id, ...(isAE ? { owner: profile.id } : {}) })} />
+          {legacyStageOpen.length > 0 && (
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50/40 p-2 text-xs text-amber-900">
+              Historical Stage · รอตรวจสอบ: {legacyStageOpen.length} Pipelines · {formatTHB(sumValue(legacyStageOpen))} Net RC — รวมอยู่ในยอด Open แต่ไม่รวมใน Stage ที่ Active
+            </p>
+          )}
         </Panel>
       </div>
       {(isSM || isManagement) && (
