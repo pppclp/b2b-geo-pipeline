@@ -13,6 +13,7 @@ import { businessIdError, normalizeCustomerType } from "@/lib/pipelineValidation
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
+import { isActiveOpenStage } from "@/lib/openStagePolicy";
 
 const empty = {
   customer_name: "",
@@ -50,6 +51,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   const [saveError, setSaveError] = useState("");
   const canReview = ["sm", "admin"].includes(profile?.app_role);
   const closedAe = !!opportunity && opportunity.status !== "open" && profile?.app_role === "ae";
+  const legacyStage = !!opportunity && !isActiveOpenStage(opportunity.stage_id, activeStages);
 
   useEffect(() => {
     if (opportunity) {
@@ -295,9 +297,13 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Select value={form.stage_id} onValueChange={(v) => set("stage_id", v)}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
+                {legacyStage && form.stage_id === opportunity.stage_id && (
+                  <SelectItem value={opportunity.stage_id} disabled>{maps.stage[opportunity.stage_id]?.name || opportunity.stage_id} (inactive · historical)</SelectItem>
+                )}
                 {activeStages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
+            {legacyStage && <p className="mt-1 text-xs text-amber-700">Historical Stage · ข้อมูลเดิมยังคงอยู่ และสามารถแก้ฟิลด์อื่นได้โดยไม่บังคับเปลี่ยน Stage</p>}
           </div>
           <div>
             <Label>เดือนที่คาดว่าจะปิดงาน *</Label>
