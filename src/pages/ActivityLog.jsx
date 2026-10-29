@@ -58,6 +58,7 @@ export default function ActivityLog() {
   const [data,setData]=useState(empty);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
+  const [reload,setReload]=useState(0);
   const [exporting,setExporting]=useState(false);
   const [showFilters,setShowFilters]=useState(false);
   const [expanded,setExpanded]=useState("");
@@ -77,7 +78,7 @@ export default function ActivityLog() {
       .catch(e=>{if(active){setData(empty);setError(e.message||"ไม่สามารถโหลด Activity Log ได้");}})
       .finally(()=>{if(active)setLoading(false);});
     return()=>{active=false};
-  },[allowed,query,filters.period,filters.from,filters.to]);
+  },[allowed,query,filters.period,filters.from,filters.to,reload]);
   const set=(key,value)=>{
     setFilters(old=>({...old,[key]:value,
       ...(key==="region"||key==="role"?{actor_id:""}:{})}));
@@ -158,7 +159,7 @@ export default function ActivityLog() {
         </div>
         <span className="text-xs text-muted-foreground">{data.total.toLocaleString()} กิจกรรม{data.total>2000?" · Export จำกัด 2,000 รายการ":""}</span>
       </div>
-      {error&&<p role="alert" className="text-sm text-destructive">{error} <Button variant="ghost" size="sm" onClick={()=>setOffset(v=>v===0?1:0)}>ลองใหม่</Button></p>}
+      {error&&<p role="alert" className="text-sm text-destructive">{error} <Button variant="ghost" size="sm" onClick={()=>setReload(v=>v+1)}>ลองใหม่</Button></p>}
       {exportError&&<p role="alert" className="text-sm text-destructive">{exportError}</p>}
       {filters.period==="custom"&&(!filters.from||!filters.to)?<p className="py-10 text-center text-sm text-muted-foreground">เลือกวันที่เริ่มต้นและวันที่สิ้นสุดเพื่อดู Activity</p>:
       loading?<p role="status" className="py-10 text-center text-sm text-muted-foreground">กำลังโหลด Activity Log...</p>:
