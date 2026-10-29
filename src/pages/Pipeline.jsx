@@ -77,6 +77,7 @@ export default function Pipeline() {
     if (params.get("search")) f.search = params.get("search");
     if (params.get("status")) f.status = params.get("status");
     if (profile?.app_role === "sm" && params.get("sm_info") === "missing") f.sm_info = "missing";
+    if (params.get("incomplete") === "1") f.incomplete = "1";
     if (params.get("sort")) setSort(params.get("sort"));
     setFilters(f);
     // eslint-disable-next-line react-hooks/exhaustive-deps
