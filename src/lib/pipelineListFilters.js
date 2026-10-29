@@ -3,6 +3,7 @@ import { overdueReasons } from "./overdueSummary.js";
 import { monthOf, currentMonthKey } from "./pipeline.js";
 import { matchesPipelineSearch } from "./pipelineFilterUi.js";
 import { isWithMePipeline } from "./dashboardQueue.js";
+import { isPipelineCoreIncomplete } from "./pipelineDataCompleteness.js";
 
 // Filtering is presentation-only and always runs on backend-authorized records.
 // A single predicate keeps Quick View counts in sync with the list.
@@ -22,6 +23,7 @@ export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = 
     role: context.viewerRole, teams: master?.WorkingWithOption,
   })) return false;
   if (f.status && f.status !== "all" && o.status !== f.status) return false;
+  if (f.incomplete === "1" && !isPipelineCoreIncomplete(o)) return false;
   if (f.sm_info === "missing" &&
     (o.status !== "open" || (o.scenario_id && o.ccp_check_result && o.ccp_check_result !== "pending")))
     return false;
