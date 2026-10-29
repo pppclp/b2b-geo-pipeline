@@ -1200,7 +1200,8 @@ export function createCore({ contract, store, now, uuid }) {
           String(stage.stage_id) === String(row.stage_id) && isActive(stage.active));
         const reopeningWithInactiveStage = transition && desired === "open" &&
           prior !== "open" && !stageActive;
-        if (reopeningWithInactiveStage && !String(data.stage_id || "").trim()) {
+        if (reopeningWithInactiveStage && !rows("stages").some((stage) =>
+            String(stage.stage_id) === String(data.stage_id || "") && isActive(stage.active))) {
           throw new HttpError(400, "Select an active Stage when reopening a Pipeline with a retired Stage");
         }
         if (transition && desired === "archived" && !roleCanReopen) {
