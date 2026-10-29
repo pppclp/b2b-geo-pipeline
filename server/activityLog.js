@@ -11,13 +11,13 @@ const bangkokDay = (value) => {
 };
 const checkDay = (value) => {
   if (!value) return "";
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value) || Number.isNaN(Date.parse(value + "T00:00:00Z")) ||
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value + "T00:00:00Z")) ||
       new Date(value + "T00:00:00Z").toISOString().slice(0,10) !== value) throw Object.assign(new Error("Invalid activity date"),{status:400});
   return value;
 };
 const cappedInt = (value, fallback, max) => {
   if (value == null || value === "") return fallback;
-  if (!/^\\d+$/.test(String(value)) || Number(value) > max) throw Object.assign(new Error("Invalid activity page size or offset"),{status:400});
+  if (!/^\d+$/.test(String(value)) || Number(value) > max) throw Object.assign(new Error("Invalid activity page size or offset"),{status:400});
   return Number(value);
 };
 const kindOf = (event) => ACTIONS.has(String(event.event_type)) ? String(event.event_type) : "other";
