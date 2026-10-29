@@ -77,7 +77,7 @@ export default function OpportunityDetail() {
       else if (a.type === "reassign") await reassign(op.id, { owner_id: a.ownerId, current_handler_id: a.handlerId, remark });
       else if (a.type === "closemonth") await changeCloseMonth(op.id, a.month, remark);
       else if (a.type === "archive") await archiveOp(op.id);
-      else if (a.type === "reopen") await reopen(op.id, remark);
+      else if (a.type === "reopen") await reopen(op.id, remark, a.stageId || "");
       else if (a.type === "workingwith") await setWorkingWith(op.id, a.value);
       else throw new Error("Unsupported action");
       setAction(null);
@@ -221,7 +221,7 @@ export default function OpportunityDetail() {
           {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={closeAction} disabled={saving}>Cancel</Button>
-            <Button onClick={runAction} disabled={saving || !actionValid(action, remark)}>{saving ? "Saving…" : "Confirm"}</Button>
+            <Button onClick={runAction} disabled={saving || !actionValid(action, remark, op, activeStages)}>{saving ? "Saving…" : "Confirm"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -237,9 +237,12 @@ function actionTitle(action) {
   })[action?.type] || "Action";
 }
 
-function actionValid(a, remark = "") {
+function actionValid(a, remark = "", op, activeStages = []) {
   if (!a) return false;
-  if (a.type === "reopen") return !!remark.trim();
+  if (a.type === "reopen") {
+    const inactive = !activeStages.some((stage) => stage.id === op?.stage_id);
+    return !!remark.trim() && (!inactive || activeStages.some((stage) => stage.id === a.stageId));
+  }
   if (a.type === "stage") return !!a.stageId;
   if (a.type === "handoff") return !!a.handlerId;
   if (a.type === "reassign") return !!a.ownerId || !!a.handlerId;
@@ -317,6 +320,16 @@ function ActionBody({ action, setAction, remark, setRemark, members, stages, op 
   if (t === "reopen") return (
     <div className="space-y-2">
       <DialogDescription>Reopen this Pipeline. Your reason will be saved in Pipeline History.</DialogDescription>
+      {!stages.some((stage) => stage.id === op.stage_id) && (
+        <div className="space-y-2">
+          <p className="text-sm text-amber-700">This Pipeline uses a retired Stage. Choose an active Stage to reopen it.</p>
+          <Label>Stage ที่กลับมาเปิดงาน *</Label>
+          <Select value={action.stageId || ""} onValueChange={(stageId) => setAction({ ...action, stageId })}>
+            <SelectTrigger><SelectValue placeholder="เลือก Stage" /></SelectTrigger>
+            <SelectContent>{stages.map((stage) => <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      )}
       <Label htmlFor="reopen-reason">Reason for Reopen <span className="text-red-600">*</span></Label>
       <Textarea id="reopen-reason" required maxLength={500} value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} placeholder="Explain why this Pipeline needs to be reopened" />
     </div>
