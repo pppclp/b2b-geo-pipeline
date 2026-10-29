@@ -743,3 +743,60 @@ test("legacy blank Region cannot bypass Owner or Handler validation before a ver
  const handed=x.call("AE1","PUT","entities/Opportunity/OPP-1",{current_handler_id:"SM1"});
  assert.equal(handed.current_handler_id,"SM1");
 });
+
+
+test("B: Won is a separate status and never automatically inferred from Stage order",()=>{
+ const x=fixture();
+ // A stage named later in the workflow remains Open until explicitly closed.
+ x.store.table(CONFIG,"Stages").rows.push({stage_id:"S3",stage_name:"Stage 3",active:"Yes"});
+ const moved=x.call("AE1","PUT","entities/Opportunity/OPP-1",{stage_id:"S3"});
+ assert.equal(moved.status,"open");
+ assert.equal(x.row().stage_id,"S3");
+ const won=x.call("AE1","PUT","entities/Opportunity/OPP-1",{status:"won"});
+ assert.equal(won.status,"won");
+ assert.equal(x.row().stage_id,"S3","Won must not change or infer Stage");
+ assert.ok(x.events().some((e)=>e.event_type==="won"));
+});
+
+test("B: retired Stage on closed Pipeline needs explicit active Stage on atomic Reopen",()=>{
+ const x=fixture();
+ // Historical state deliberately retained: a completed record in a now inactive Stage.
+ x.row().status="Won";
+ x.row().stage_id="OFF";
+ x.row().won_at="2026-09-01T00:00:00Z";
+ x.row().won_by_user_id="AE1";
+ const origEvents=x.events().length;
+ assert.throws(()=>x.call("SM1","PUT","entities/Opportunity/OPP-1",{
+   status:"open",audit_remark:"Review old Won"
+ }),rejected(400));
+ assert.throws(()=>x.call("SM1","PUT","entities/Opportunity/OPP-1",{
+   status:"open",stage_id:"OFF",audit_remark:"Invalid stage"
+ }),rejected(400));
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{
+   status:"open",stage_id:"S1",audit_remark:"AE not authorized"
+ }),rejected(403));
+ assert.equal(x.row().status,"Won");
+ assert.equal(x.row().stage_id,"OFF");
+ assert.equal(x.events().length,origEvents);
+ const reopened=x.call("SM1","PUT","entities/Opportunity/OPP-1",{
+   status:"open",stage_id:"S2",audit_remark:"Revalidate historic record"
+ });
+ assert.equal(reopened.status,"open");
+ assert.equal(reopened.stage_id,"S2");
+ assert.equal(x.row().status,"Open");
+ assert.equal(x.row().stage_entered_at,"2026-10-18T10:00:00.000Z");
+ assert.equal(x.row().won_at,"");
+ assert.ok(x.events().some(e=>e.event_type==="stage_change"));
+ assert.ok(x.events().some(e=>e.event_type==="status_change"));
+});
+
+test("B: new Stage activated in Master becomes editable without any static Stage count",()=>{
+ const x=fixture();
+ const stage={stage_id:"S4",stage_name:"Stage 4",active:"Yes"};
+ x.store.table(CONFIG,"Stages").rows.push(stage);
+ assert.equal(x.call("AE1","PUT","entities/Opportunity/OPP-1",{stage_id:"S4"}).stage_id,"S4");
+ stage.active="No";
+ assert.equal(x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Keep legacy data"}).stage_id,"S4");
+ assert.equal(x.call("AE1","PUT","entities/Opportunity/OPP-1",{stage_id:"S1"}).stage_id,"S1");
+ assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{stage_id:"S4"}),rejected(400));
+});
