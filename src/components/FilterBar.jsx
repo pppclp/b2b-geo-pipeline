@@ -1,3 +1,4 @@
+import {useNavigate} from "react-router-dom";
 import React, {useMemo, useState} from "react";
 import {useData} from "@/lib/dataContext";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
@@ -40,6 +41,7 @@ const MonthFilter = ({label, value, onChange}) => (
 // Presentation only. Never change user scope or derive access from selected filters.
 export default function FilterBar({filters, onFilter, showCreatedMonth = true, stageChipsVisible = false, showRegionControl = true}) {
   const {master, profile, scopedOpportunities} = useData();
+  const navigate = useNavigate();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const regionOptions = useMemo(() =>
     (master?.Region || []).filter(r=>r.active).sort((a,b)=>a.order-b.order),[master]);
@@ -67,10 +69,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   const chipEntries = visibleActiveFilters(filters).filter(([key]) =>
     !["search", "close_month", "product_category", "region", "status"].includes(key) &&
     !(key === "stage" && stageChipsVisible));
-  const missingSmInfoCount = profile?.app_role === "sm"
-    ? scopedOpportunities.filter(o => o.status === "open" &&
-      (!o.scenario_id || !o.ccp_check_result || o.ccp_check_result === "pending")).length
-    : 0;
+
 
   const display = (key,value) => {
     if(key==="region") return regionOptions.find(r=>r.id===value)?.name || value;
@@ -179,28 +178,18 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
                   <SelectItem value="pending">Pending Review</SelectItem>
                 </SelectWrap>
               </section>
-              <section className="space-y-2 border-t border-border/70 pt-4" aria-label="Data Quality filters">
+              <section className="space-y-2 border-t border-border/70 pt-4" aria-label="Data Quality">
                 <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Data Quality</h4>
-                <label className="flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
-                  <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-primary"
-                    checked={filters.incomplete === "1"}
-                    onChange={(event) => onFilter("incomplete", event.target.checked ? "1" : "")} />
-                  <span className="min-w-0">
-                    <span className="block font-medium text-[12px]">Incomplete Data</span>
-                    <span className="block text-[11px] text-muted-foreground">ข้อมูลหลักของ Pipeline ที่ยังไม่ครบ</span>
-                  </span>
-                </label>
-                {profile?.app_role === "sm" && (
-                  <label className="flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
-                    <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-primary"
-                      checked={filters.sm_info === "missing"}
-                      onChange={(event) => onFilter("sm_info", event.target.checked ? "missing" : "")} />
-                    <span className="min-w-0">
-                      <span className="block font-medium text-[12px]">Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}</span>
-                      <span className="block text-[11px] text-muted-foreground">Scenario / CCP+ Check ที่ยังไม่ครบ</span>
+                <button type="button" onClick={() => { setAdvancedOpen(false); navigate("/review-queue"); }}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left hover:bg-secondary/70">
+                  <span>
+                    <span className="block text-[12px] font-medium">Review Queue</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      Incomplete Data · Missing SM Info · Stage Review
                     </span>
-                  </label>
-                )}
+                  </span>
+                  <span aria-hidden="true" className="text-muted-foreground">›</span>
+                </button>
               </section>
             </div>
             <div className="flex justify-between items-center border-t p-3">
