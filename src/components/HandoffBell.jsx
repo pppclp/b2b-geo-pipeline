@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Inbox, RefreshCw } from "lucide-react";
+import { Bell, Inbox, RefreshCw, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { db } from "@/api/client";
 
@@ -123,6 +123,13 @@ export default function HandoffBell({ userId }) {
                 {!item.read_at && <span className="text-red-600 text-[11px]">Unread</span>}
               </button>
             ))}
+          </div>
+          <div className="mt-2 border-t border-border/70 pt-2">
+            <button type="button" onClick={() => { setOpen(false); navigate("/review-queue"); }}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-medium hover:bg-secondary/70">
+              <span>Review Queue</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            </button>
           </div>
         </div>
       )}
