@@ -33,6 +33,7 @@ const navFor = (role) => {
 const sectionTitle = (pathname) => {
   if (pathname === "/") return "Dashboard";
   if (pathname.startsWith("/pipeline")) return "Pipeline";
+  if (pathname.startsWith("/review-queue")) return "Review Queue";
   if (pathname.startsWith("/opportunity")) return "Pipeline";
   if (pathname.startsWith("/activity-log")) return "Activity Log";
   if (pathname.startsWith("/admin")) return "Admin";
