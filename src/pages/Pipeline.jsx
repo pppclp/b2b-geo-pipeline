@@ -378,19 +378,11 @@ export default function Pipeline() {
             })}
             </div>
             {legacyStageRecords.length > 0 && (
-              <section className="mt-4 rounded-xl border border-amber-200 bg-amber-50/40 p-3" aria-label="Historical stage review">
-                <h3 className="text-sm font-semibold">Historical Stage · รอตรวจสอบ ({legacyStageRecords.length})</h3>
-                <p className="mt-1 text-xs text-muted-foreground">รายการ Open ที่ใช้ Stage ซึ่งปิดการใช้งานแล้ว ยังคงอยู่ในระบบและยังไม่ถูกเปลี่ยนสถานะอัตโนมัติ</p>
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {legacyStageRecords.map((record) => (
-                    <button type="button" key={record.id} onClick={() => openQuickView(record.id)}
-                      className="min-w-0 rounded-lg border border-border bg-card p-3 text-left hover:border-foreground/30">
-                      <span className="block truncate text-sm font-medium">{record.customer_name}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">{maps.stage[record.stage_id]?.name || record.stage_id || "Unknown Stage"} · {formatTHB(record.pipeline_value)}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+                <span>Historical Stage · รอตรวจสอบ ({legacyStageRecords.length})</span>
+                <button type="button" className="font-medium text-brand hover:underline"
+                  onClick={() => navigate("/review-queue?tab=stage")}>Open Review Queue</button>
+              </div>
             )}
             {closedBoardRecords.length > 0 && (
               <section className="mt-4 rounded-xl border border-border p-3" aria-label="Closed Pipeline statuses">
