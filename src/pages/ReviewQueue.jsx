@@ -190,8 +190,8 @@ export default function ReviewQueue() {
           );
         })}
       </div>
-      <OpportunityForm key={editId || "closed"} open={!!editOp} opportunity={editOp}
-        onClose={() => setEditId(null)} onSaved={() => setEditId(null)} />
+      {editOp && <OpportunityForm key={editOp.id} open opportunity={editOp}
+        onClose={() => setEditId(null)} onSaved={() => setEditId(null)} />}
       <PipelineQuickView key={quickViewId || "closed"} open={!!quickViewOp} op={quickViewOp}
         onClose={() => setQuickViewId(null)}
         onExpand={() => { if (quickViewId) { const id = quickViewId; setQuickViewId(null); navigate(`/opportunity/${encodeURIComponent(id)}`); } }} />
