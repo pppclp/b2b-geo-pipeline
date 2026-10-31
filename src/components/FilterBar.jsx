@@ -66,7 +66,6 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   // Only show chips for additional filters that are hidden behind More Filters.
   const chipEntries = visibleActiveFilters(filters).filter(([key]) =>
     !["search", "close_month", "product_category", "region", "status"].includes(key) &&
-    !(key === "sm_info" && profile?.app_role === "sm") &&
     !(key === "stage" && stageChipsVisible));
   const missingSmInfoCount = profile?.app_role === "sm"
     ? scopedOpportunities.filter(o => o.status === "open" &&
@@ -81,7 +80,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
     if(key==="scenario") return scenarios.find(s=>s.id===value)?.name || value;
     if(key==="status" && value==="all") return "All Statuses";
     if(key==="ccp_check_result") return ({not_in_base:"Not in Base",enterprise_base:"Enterprise Existing Base",pending:"Pending Review"})[value] || value;
-    if(key==="stuck" || key==="internal_overdue") return "Yes";
+    if(key==="stuck" || key==="internal_overdue" || key==="incomplete" || key==="sm_info") return "On";
     return value;
   };
   const choice = (key) => (v) => onFilter(key,v==="all" ? "" : v);
@@ -180,6 +179,29 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
                   <SelectItem value="pending">Pending Review</SelectItem>
                 </SelectWrap>
               </section>
+              <section className="space-y-2 border-t border-border/70 pt-4" aria-label="Data Quality filters">
+                <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Data Quality</h4>
+                <label className="flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
+                  <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-primary"
+                    checked={filters.incomplete === "1"}
+                    onChange={(event) => onFilter("incomplete", event.target.checked ? "1" : "")} />
+                  <span className="min-w-0">
+                    <span className="block font-medium text-[12px]">Incomplete Data</span>
+                    <span className="block text-[11px] text-muted-foreground">ข้อมูลหลักของ Pipeline ที่ยังไม่ครบ</span>
+                  </span>
+                </label>
+                {profile?.app_role === "sm" && (
+                  <label className="flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
+                    <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-primary"
+                      checked={filters.sm_info === "missing"}
+                      onChange={(event) => onFilter("sm_info", event.target.checked ? "missing" : "")} />
+                    <span className="min-w-0">
+                      <span className="block font-medium text-[12px]">Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}</span>
+                      <span className="block text-[11px] text-muted-foreground">Scenario / CCP+ Check ที่ยังไม่ครบ</span>
+                    </span>
+                  </label>
+                )}
+              </section>
             </div>
             <div className="flex justify-between items-center border-t p-3">
               <Button type="button" size="sm" variant="ghost" onClick={()=>onFilter("clear","")}>Reset to Default</Button>
@@ -187,14 +209,6 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
             </div>
           </PopoverContent>
         </Popover>
-        {profile?.app_role === "sm" && (
-          <Button type="button" variant={filters.sm_info === "missing" ? "secondary" : "outline"}
-            size="sm" aria-pressed={filters.sm_info === "missing"}
-            onClick={()=>onFilter("sm_info",filters.sm_info === "missing" ? "" : "missing")}
-            className={`col-span-2 h-10 w-full rounded-xl text-xs md:col-span-1 md:h-9 md:w-auto md:rounded-lg ${filters.sm_info === "missing" ? "border border-primary/50 text-brand bg-brand-tint" : ""}`}>
-            Missing SM Info{missingSmInfoCount > 0 ? ` (${missingSmInfoCount})` : ""}
-          </Button>
-        )}
       </div>
       {chipEntries.length>0&&<div className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-x-2 gap-y-2 md:flex md:flex-wrap md:gap-1.5" aria-label="Active filters">
         <span className="text-xs font-medium text-muted-foreground md:mr-1 md:text-[11px]">Active Filters</span>

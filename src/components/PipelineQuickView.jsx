@@ -12,6 +12,7 @@ import { Maximize2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
 import { isActiveOpenStage } from "@/lib/openStagePolicy";
+import { missingPipelineCoreFields } from "@/lib/pipelineDataCompleteness";
 
 const NONE = "__none__";
 const textOrDash = (value) => value || "—";
@@ -203,6 +204,7 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
   if (!op) return null;
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
+  const missingFields = missingPipelineCoreFields(op);
   const canClose = op.status === "open" && (
     profile?.app_role === "admin" || profile?.app_role === "sm" || profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
@@ -258,6 +260,21 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
               <div><dt className="text-xs text-muted-foreground">AE Owner</dt><dd className="font-medium mt-1">{textOrDash(owner?.name)}</dd></div>
             </dl>
           </div>
+          {/* Deliberately last and subdued: never a card, banner, or status change. */}
+          {missingFields.length > 0 && (
+            <details className="border-t border-border/50 pt-2 text-[11px] text-muted-foreground" aria-label="Incomplete Pipeline data">
+              <summary className="cursor-pointer select-none py-1 hover:text-foreground">
+                ข้อมูลยังไม่ครบ {missingFields.length} รายการ · ดูรายละเอียด
+              </summary>
+              <div className="pb-1.5 pt-1 pl-4 space-y-1">
+                <ul className="list-disc pl-3 space-y-0.5">
+                  {missingFields.map((item) => <li key={item.key}>{item.label}</li>)}
+                </ul>
+                <button type="button" className="text-[11px] underline hover:text-foreground"
+                  onClick={requestExpand}>เปิด Full Detail เพื่อแก้ไข</button>
+              </div>
+            </details>
+          )}
         </div>
       </DialogContent>
     </Dialog>
