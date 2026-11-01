@@ -134,3 +134,12 @@ test("closed historical records with missing source finance remain Won/Lost and 
   assert.equal(reviewQueueRows([closed],{tab:"stage"}).length,0);
   assert.equal(closed.status,"won");
 });
+
+test("historical Won with unknown original close date stays in read-only Incomplete Data",()=>{
+  const historical={...complete,id:"WON-SOURCE",status:"won",
+    import_source_record_id:"SRC-WON-1",stage_id:"STG003",won_at:""};
+  assert.ok(missingPipelineCoreFields(historical).some(x=>x.key==="won_at"));
+  assert.deepEqual(reviewQueueRows([historical],{tab:"data"}).map(x=>x.id),["WON-SOURCE"]);
+  assert.equal(reviewQueueRows([historical],{tab:"stage"}).length,0);
+  assert.equal(historical.status,"won");
+});
