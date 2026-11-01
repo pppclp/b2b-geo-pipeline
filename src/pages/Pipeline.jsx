@@ -350,13 +350,13 @@ export default function Pipeline() {
       </div>
 
       {filters.status === "open" && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           {view === "list" ? (
-            <div className="flex min-w-0 max-w-full items-center gap-2 overflow-x-auto pb-1" role="group" aria-label="Quick filter by Stage">
+            <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="Quick filter by Stage">
               <span className="shrink-0 text-xs font-medium text-muted-foreground">Stage</span>
               <button type="button" onClick={() => onFilter("stage", "")} aria-pressed={!filters.stage}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${!filters.stage
-                  ? "border-foreground/25 bg-secondary text-foreground" : "border-border text-muted-foreground hover:bg-secondary"}`}>
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${!filters.stage
+                  ? "border-foreground/25 bg-secondary text-foreground hover:bg-secondary" : "border-border text-muted-foreground hover:bg-secondary"}`}>
                 All <span className="ml-1 tabular-nums">{filteredWithoutStage.length}</span>
               </button>
               {activeStages.map((stage) => {
@@ -364,7 +364,7 @@ export default function Pipeline() {
                 return (
                   <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
                     aria-pressed={filters.stage === stage.id}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tone} ${filters.stage === stage.id ? "shadow-[inset_0_0_0_1px_rgba(57,65,75,0.32)]" : ""}`}>
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tone} ${filters.stage === stage.id ? "shadow-[inset_0_0_0_1px_rgba(57,65,75,0.32)]" : ""}`}>
                     {stage.name} <span className="ml-1 tabular-nums">{stageCounts.get(stage.id) || 0}</span>
                   </button>
                 );
@@ -382,7 +382,7 @@ export default function Pipeline() {
       )}
 
       {hasRegionQuickFilter && (
-        <div className="mb-4" aria-label="Region filters for your access scope">
+        <div className="mb-3" aria-label="Region filters for your access scope">
           <RegionQuickFilter regions={quickRegions} value={filters.region || ""}
             appearance="neutral" onChange={(regionId) => onFilter("region", regionId)} />
         </div>
