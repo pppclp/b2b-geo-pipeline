@@ -46,8 +46,8 @@ test("Dashboard KPI copy is concise, English controls are retained, and queue em
   assert.ok(dashboard.includes('title="Pipeline เกินกำหนด"'));
   assert.ok(dashboard.includes('note="ต้องติดตาม"'));
   assert.ok(dashboard.includes('function Metric({ title, value, note, onClick })'));
-  assert.ok(dashboard.includes('fontSize: "12px"'));
-  assert.ok(dashboard.includes('lineHeight: "18px"'));
+  assert.ok(dashboard.includes('fontSize: "14px"'));
+  assert.ok(dashboard.includes('lineHeight: "20px"'));
   assert.ok(dashboard.includes('fontWeight: 600'));
   assert.ok(!dashboard.includes('subtitle="Total Pipeline Value"'));
   assert.ok(!dashboard.includes('subtitle="Open Pipeline Value"'));

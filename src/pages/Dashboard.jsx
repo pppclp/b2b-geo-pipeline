@@ -272,7 +272,7 @@ function Panel({ title, meta, children }) {
 
 function Metric({ title, value, note, onClick }) {
   const children = <>
-    <div className="geo-metric-label" style={{ fontSize: "12px", lineHeight: "18px", fontWeight: 600 }}>{title}</div>
+    <div className="geo-metric-label" style={{ fontSize: "14px", lineHeight: "20px", fontWeight: 600 }}>{title}</div>
     <div className="geo-metric-value">{value}</div>
     <div className="geo-metric-note">{note}</div>
   </>;
