@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatMonth } from "@/lib/pipeline";
 
 // Month picker returning "YYYY-MM". Lightweight popover. allowAll adds an "All Months" (clear) option.
-export default function MonthPicker({ value, onChange, placeholder = "Select month", allLabel = "All Months", className = "", allowAll = false }) {
+export default function MonthPicker({ value, onChange, placeholder = "Select month", className = "", allowAll = false }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(() => {
     const [y, m] = (value || currentMonthKey()).split("-").map(Number);
@@ -39,7 +39,7 @@ export default function MonthPicker({ value, onChange, placeholder = "Select mon
                 onClick={() => { onChange(""); setOpen(false); }}
                 className={`w-full text-left text-sm px-2 py-1.5 rounded mb-2 hover:bg-secondary ${!value ? "bg-secondary font-medium" : "text-muted-foreground"}`}
               >
-                {allLabel}
+                All Months
               </button>
             )}
             <div className="flex items-center justify-between mb-2">
