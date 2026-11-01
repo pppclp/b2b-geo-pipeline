@@ -4,6 +4,7 @@ import { monthOf, currentMonthKey } from "./pipeline.js";
 import { matchesPipelineSearch } from "./pipelineFilterUi.js";
 import { isWithMePipeline } from "./dashboardQueue.js";
 import { isPipelineCoreIncomplete } from "./pipelineDataCompleteness.js";
+import { normalizeSalesChannel } from "./salesChannel.js";
 
 // Filtering is presentation-only and always runs on backend-authorized records.
 // A single predicate keeps Quick View counts in sync with the list.
@@ -28,7 +29,8 @@ export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = 
     (o.status !== "open" || (o.scenario_id && o.ccp_check_result && o.ccp_check_result !== "pending")))
     return false;
   if (f.product_category && o.product_category_id !== f.product_category) return false;
-  if (f.sales_channel && o.sales_channel !== f.sales_channel) return false;
+  // Include historical aliases in canonical channel filters without rewriting records.
+  if (f.sales_channel && (normalizeSalesChannel(o.sales_channel) || o.sales_channel) !== f.sales_channel) return false;
   if (f.ccp_check_result && o.ccp_check_result !== f.ccp_check_result) return false;
   if (f.scenario && o.scenario_id !== f.scenario) return false;
   if (f.working_with) {

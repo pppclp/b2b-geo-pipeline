@@ -12,17 +12,17 @@ test("Create and Edit show the approved optional partner label", () => {
   }
 });
 
-test("Create keeps Partner Name optional and only submits it for premium partners", () => {
+test("Create keeps Partner Name optional and submits it for partner or dealer channels", () => {
   const source = load("src/components/CreatePipelineModal.jsx");
-  assert.match(source, /partner_name:\s*form\.sales_channel === "B2B Premium Partner" \? form\.partner_name\.trim\(\) : ""/);
+  assert.match(source, /partner_name:\s*\["Premium Partner", "Retail Partner"\]\.includes\(form\.sales_channel\) \? form\.partner_name\.trim\(\) : ""/);
   assert.doesNotMatch(source, /errors\.partner_name\s*=/);
 });
 
 test("Edit retains an existing Partner Name when the sales channel changes", () => {
   const source = load("src/components/OpportunityForm.jsx");
   assert.match(source, /partner_name:\s*String\(form\.partner_name \|\| ""\)\.trim\(\)/);
-  assert.match(source, /form\.sales_channel === "B2B Premium Partner" \|\| Boolean\(String\(opportunity\?\.partner_name \|\| ""\)\.trim\(\)\)/);
-  assert.doesNotMatch(source, /partner_name:\s*form\.sales_channel === "B2B Premium Partner" \?[^\n]*: ""/);
+  assert.match(source, /\["Premium Partner", "Retail Partner"\]\.includes\(form\.sales_channel\) \|\| Boolean\(String\(opportunity\?\.partner_name \|\| ""\)\.trim\(\)\)/);
+  assert.doesNotMatch(source, /partner_name:\s*form\.sales_channel === "Premium Partner" \?[^\n]*: ""/);
 });
 
 test("Detail label and Import mapping guidance keep AE versus Partner identities separate", () => {

@@ -12,6 +12,7 @@ import { Maximize2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
 import { isActiveOpenStage } from "@/lib/openStagePolicy";
+import { salesChannelDisplay } from "@/lib/salesChannel";
 import { missingPipelineCoreFields } from "@/lib/pipelineDataCompleteness";
 
 const NONE = "__none__";
@@ -254,7 +255,7 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 mt-3 text-sm">
               <div><dt className="text-xs text-muted-foreground">ลูกค้า</dt><dd className="font-medium mt-1">{op.customer_name}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Business ID</dt><dd className="font-medium tabular-nums mt-1">{textOrDash(op.business_id)}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">ช่องทางการขาย</dt><dd className="font-medium mt-1">{textOrDash(op.sales_channel)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">ช่องทางการขาย</dt><dd className="font-medium mt-1">{salesChannelDisplay(op.sales_channel)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">ผู้ติดต่อ</dt><dd className="font-medium mt-1">{textOrDash(op.contact_name)}{op.contact_phone ? ` · ${op.contact_phone}` : ""}</dd></div>
               <div><dt className="text-xs text-muted-foreground">เดือนที่คาดว่าจะปิดงาน</dt><dd className="font-medium mt-1">{formatMonth(op.expected_close_month)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">AE Owner</dt><dd className="font-medium mt-1">{textOrDash(owner?.name)}</dd></div>

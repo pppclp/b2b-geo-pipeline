@@ -2,6 +2,8 @@
 // and must never modify historical imports or block unrelated edits.
 // Business ID, contacts, price/quantity, OC, contract, partner and SM-only
 // Scenario/CCP+ are deliberately excluded (optional or separately reviewed).
+import { normalizeSalesChannel } from "./salesChannel.js";
+
 const CORE_FIELDS = Object.freeze([
   ["customer_name", "ชื่อลูกค้า"],
   ["customer_type", "ประเภทลูกค้า"],
@@ -17,7 +19,10 @@ const missing = (value) => value == null || String(value).trim() === "";
 
 export function missingPipelineCoreFields(opportunity) {
   if (!opportunity) return [];
-  return CORE_FIELDS.filter(([key]) => missing(opportunity[key]))
+  // Unknown/retired values like Other are not a fourth channel. They need review.
+  return CORE_FIELDS.filter(([key]) => key === "sales_channel"
+    ? !normalizeSalesChannel(opportunity[key])
+    : missing(opportunity[key]))
     .map(([key, label]) => ({ key, label }));
 }
 

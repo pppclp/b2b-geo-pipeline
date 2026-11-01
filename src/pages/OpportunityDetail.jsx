@@ -4,6 +4,7 @@ import { useData } from "@/lib/dataContext";
 import PipelineTaskPanel from "@/components/PipelineTaskPanel";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "@/lib/pipeline";
+import { salesChannelDisplay } from "@/lib/salesChannel";
 import HistoryTimeline from "@/components/HistoryTimeline";
 import OpportunityForm from "@/components/OpportunityForm";
 import { PipelineQuickActions } from "@/components/PipelineQuickView";
@@ -132,7 +133,7 @@ export default function OpportunityDetail() {
             <Field label="ชื่อลูกค้า" value={op.customer_name} />
             <Field label="รหัสธุรกิจ (Business ID)" value={<span className="inline-flex flex-wrap items-center gap-2"><span className="tabular-nums">{op.business_id}</span>{op.business_id && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Copy Business ID" title="Copy Business ID" onClick={() => navigator.clipboard?.writeText(String(op.business_id))}><Copy className="h-3.5 w-3.5"/></button>}</span>} />
             <Field label="ประเภทลูกค้า" value={op.customer_type} />
-            <Field label="ช่องทางการขาย" value={op.sales_channel} />
+            <Field label="ช่องทางการขาย" value={salesChannelDisplay(op.sales_channel)} />
             {op.partner_name && <Field label="ชื่อพาร์ทเนอร์ (ถ้ามี)" value={op.partner_name} />}
             <Field label="ชื่อผู้ติดต่อ" value={op.contact_name} />
             <Field label="เบอร์โทรผู้ติดต่อ" value={op.contact_phone ? <a className="hover:underline" href={`tel:${String(op.contact_phone).replace(/[^+0-9]/g,"")}`}>{op.contact_phone}</a> : "Not provided"} />
