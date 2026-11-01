@@ -240,7 +240,7 @@ export default function AppLayout() {
           </div>
           <div className="flex items-center gap-2.5">
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground" role="status" aria-live="polite">
-              <span title={lastLoadedAt ? new Date(lastLoadedAt).toLocaleString("th-TH") : "">{freshnessText}</span>
+              <span title={lastLoadedAt ? new Date(lastLoadedAt).toLocaleString("th-TH") : ""}>{freshnessText}</span>
               <Button variant="ghost" size="sm" disabled={loading} onClick={refresh} aria-label="Refresh Pipeline data" title="Refresh Pipeline data">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </Button>
