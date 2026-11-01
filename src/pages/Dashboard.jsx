@@ -223,9 +223,10 @@ export default function Dashboard() {
         <Panel title="มูลค่างานแยกตาม Stage" meta="Open · Net RC">
           <BarList rows={stageRows} onSelect={(id) => toPipeline({ status: "open", stage: id, ...(isAE ? { owner: profile.id } : {}) })} />
           {legacyStageOpen.length > 0 && (
-            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50/40 p-2 text-xs text-amber-900">
-              Historical Stage · รอตรวจสอบ: {legacyStageOpen.length} Pipelines · {formatTHB(sumValue(legacyStageOpen))} Net RC — รวมอยู่ในยอด Open แต่ไม่รวมใน Stage ที่ Active
-            </p>
+            <button type="button" onClick={() => navigate("/review-queue?tab=stage")}
+              className="mt-3 inline-flex min-h-8 items-center gap-1.5 text-left text-xs font-medium text-foreground hover:text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {legacyStageOpen.length} งานรอตรวจสอบ Stage <span aria-hidden="true">→</span>
+            </button>
           )}
         </Panel>
       </div>

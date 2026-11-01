@@ -13,7 +13,7 @@ test("all roles share a compact, single-line Pipeline table header", () => {
   assert.ok(header.includes("leading-4 whitespace-nowrap"), "consistent single-line labels");
   assert.ok(header.includes(">Pipeline</th>"), "user-facing Pipeline terminology");
   assert.ok(!header.includes(">Opportunity</th>"));
-  assert.ok(src.includes('className="group h-[64px]'), "compact rows still allow two-line handling");
+  assert.ok(src.includes('className="group h-[56px]'), "denser rows still allow two-line handling");
   // The table can be narrower than its scroll viewport: paint any trailing
   // gutter in the same neutral gray without affecting white data rows.
   assert.ok(src.includes('hsl(var(--secondary)) 0px'));

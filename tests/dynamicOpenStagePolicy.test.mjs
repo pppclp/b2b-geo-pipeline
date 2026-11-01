@@ -39,7 +39,8 @@ test("Board, Quick Update and Edit form use active master list without fixed Sta
  const edit=read("src/components/OpportunityForm.jsx");
  assert.ok(context.includes("activeOpenStages(master?.Stage)"));
  assert.ok(board.includes("activeStages.map((stage) =>"));
- assert.ok(board.includes("legacyOpenStageRecords(sorted, activeStages)"));
+ assert.ok(board.includes("requiresStageReview(op, activeStages)"));
+ assert.ok(board.includes('navigate("/review-queue?tab=stage")'));
  assert.ok(board.includes("closedBoardRecords"));
  assert.ok(quick.includes("activeStages.map((stage)"));
  assert.ok(edit.includes("activeStages.map((s)"));

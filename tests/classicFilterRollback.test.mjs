@@ -38,7 +38,8 @@ test("Pipeline board and list share one scoped filtered data set",()=>{
   assert.match(pipeline,/const filteredWithoutStage = useMemo/);
   assert.match(pipeline,/const filtered = useMemo\(\(\) => filters\.stage/);
   assert.match(pipeline,/sorted\.filter\(\(o\) => o\.status === "open" && o\.stage_id/);
-  assert.match(pipeline,/legacyOpenStageRecords\(sorted, activeStages\)/);
+  assert.match(pipeline,/requiresStageReview\(op, activeStages\)/);
+  assert.ok(pipeline.includes('navigate("/review-queue?tab=stage")'));
   assert.match(pipeline,/sorted\.map\(\(o\) =>/);
   assert.match(pipeline,/if \(loading \|\| error\) return \(/);
   assert.match(pipeline,/error&&<Button[^>]*onClick=\{refresh\}/);

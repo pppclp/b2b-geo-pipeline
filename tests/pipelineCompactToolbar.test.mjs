@@ -92,17 +92,20 @@ test("switching views preserves scope, search, stage, and independent advanced f
   assert.equal(activePipelineView(switchPipelineView(due,"all","MGMT1"),"MGMT1"),"all");
 });
 
-test("Pipeline UI keeps Region pills for multi-region roles and promotes Product Category", () => {
+test("Pipeline UI uses scoped Region dropdown in compact controls and retains Product Category", () => {
   const source=(path)=>fs.readFileSync(new URL("../"+path,import.meta.url),"utf8");
   const page=source("src/pages/Pipeline.jsx");
   const toolbar=source("src/components/FilterBar.jsx");
-  assert.ok(page.includes('const hasRegionQuickFilter = quickRegions.length > 1'));
-  assert.ok(page.includes("<RegionQuickFilter regions={quickRegions}"));
-  assert.ok(page.includes('showRegionControl={false}'),"No duplicate Region dropdown");
+  assert.ok(page.includes('compactLayout showStatusControl={false}'));
+  assert.ok(page.includes('stageChipsVisible={filters.status === "open"} showRegionControl'));
+  assert.ok(!page.includes('<RegionQuickFilter'));
+  assert.ok(toolbar.includes('showRegionControl = true'));
+  assert.ok(toolbar.includes('compact={compactLayout} className={compactLayout'));
+
   assert.ok(!page.includes("Quick Views · Open Pipelines within your access scope"));
   assert.ok(page.includes('activePipelineView(filters, profile?.id, profile?.app_role)'));
   assert.ok(page.includes('quickViewCounts(scopedOpportunities, filters, profile?.id, filterContext)'));
-  assert.ok(page.includes("switchPipelineView(filters, viewId, profile?.id, profile?.app_role)"));
+  assert.ok(page.includes("switchPipelineView(base, viewId, profile?.id, profile?.app_role)"));
   assert.ok(page.includes('title: "Overdue"'));
   assert.ok(page.includes('"Due This Month"'));
   assert.ok(page.includes('f.due_this_month = "1"'));
