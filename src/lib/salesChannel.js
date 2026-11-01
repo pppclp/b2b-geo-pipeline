@@ -1,14 +1,17 @@
 // Canonical Sales Channels. Retain historical names only as import/API aliases.
-export const SALES_CHANNELS = Object.freeze(["AE Self", "Premium Partner", "Dealer"]);
+export const SALES_CHANNELS = Object.freeze(["AE Self", "Premium Partner", "Retail Partner"]);
 
 const ALIASES = Object.freeze({
   "ae self": "AE Self",
   "ae b2b geo": "AE Self",
   "b2b premium partner": "Premium Partner",
   "premium partner": "Premium Partner",
-  "dealer": "Dealer",
-  "rp": "Dealer",
-  "ta dealer": "Dealer",
+  "retail partner": "Retail Partner",
+  "dealer": "Retail Partner",
+  "rp": "Retail Partner",
+  "ta dealer": "Retail Partner",
+  "true agent dealer": "Retail Partner",
+  "true partner": "Retail Partner",
 });
 
 // Unknown or empty source labels are not guessed into any sales channel.
