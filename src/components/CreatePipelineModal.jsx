@@ -12,12 +12,14 @@ import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES } from "@/lib/pipeline";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
+import { OVERLAPPING_NE_REGIONS, selectAuthorizedRegions, provinceCoverageOptions, provinceCoverageMatch } from "@/lib/aeProvinceCoverage";
 
 const EMPTY = {
   customer_name: "", business_id: "", customer_type: "", sales_channel: "",
   contact_name: "", contact_phone: "", remark: "", partner_name: "",
   product_category_id: "", product_details: "", quantity: "", price_per_sub: "",
   oc: "", contract_period: "", expected_close_month: "", owner_id: "",
+  region_id: "", customer_location_text: "",
   scenario_id: "", ccp_check_result: "",
 };
 
@@ -64,7 +66,15 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   }, [open, profile?.id, profile?.app_role]);
 
   const set = (key, value) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key !== "region_id") return { ...current, [key]: value };
+      // Changing Region does not assign another AE or infer any geographic
+      // province. Clear a mismatched SM-selected owner explicitly.
+      const owner = (master?.TeamMember || []).find(m => m.id === current.owner_id);
+      const keepOwner = profile?.app_role === "ae" || (owner?.region_ids || []).includes(value);
+      return { ...current, region_id: value,
+        owner_id: keepOwner ? current.owner_id : "", };
+    });
     setSaveError("");
   };
   const ownerIsAE = profile?.app_role === "ae";
@@ -72,14 +82,24 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   const selectedOwner = ownerIsAE
     ? profile
     : (master?.TeamMember || []).find((m) => m.id === form.owner_id);
-  const regionIds = selectedOwner?.region_ids || [];
   const nationwideRole = ["admin", "management"].includes(profile?.app_role);
-  const allowedOwnerRegions = nationwideRole ? regionIds :
-    regionIds.filter((id) => (profile?.region_ids || []).includes(id));
-  const regionId = allowedOwnerRegions.includes(selectedOwner?.default_region_id)
-    ? selectedOwner.default_region_id : allowedOwnerRegions[0] || "";
+  const regionOptions = useMemo(
+    () => selectAuthorizedRegions(master?.Region || [], profile),
+    [master, profile]
+  );
+  const regionId = form.region_id; // Explicit choice, never inferred from AE Owner
+  const ownerHasRegion = !!selectedOwner && (selectedOwner.region_ids || []).includes(regionId);
   const territoryIds = selectedOwner?.territory_ids || [];
-  const territoryId = selectedOwner?.default_territory_id || (territoryIds.length === 1 ? territoryIds[0] : "");
+  const territoryId = ownerHasRegion &&
+    (!selectedOwner?.default_territory_id || territoryIds.includes(selectedOwner.default_territory_id))
+    ? (selectedOwner?.default_territory_id || (territoryIds.length === 1 ? territoryIds[0] : ""))
+    : "";
+  const northeastSelected = OVERLAPPING_NE_REGIONS.includes(regionId);
+  const provinceOptions = useMemo(
+    () => provinceCoverageOptions(master?.TeamMember || []), [master]
+  );
+  const provinceMatch = northeastSelected
+    ? provinceCoverageMatch(provinceOptions, form.customer_location_text) : null;
 
   const categories = useMemo(
     () => (master?.ProductCategory || []).filter((c) => c.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -88,9 +108,10 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   const aeMembers = useMemo(
     () => (master?.TeamMember || []).filter((m) => m.active && m.app_role === "ae" &&
       (nationwideRole ||
-        (m.region_ids || []).some((id) => (profile?.region_ids || []).includes(id))))
+        (m.region_ids || []).some((id) => (profile?.region_ids || []).includes(id))) &&
+      (!regionId || (m.region_ids || []).includes(regionId)))
       .sort((a, b) => a.name.localeCompare(b.name)),
-    [master, profile, nationwideRole]
+    [master, profile, nationwideRole, regionId]
   );
 
   const netRc = useMemo(() => {
@@ -109,8 +130,9 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   if (form.price_per_sub === "" || !Number.isFinite(Number(form.price_per_sub)) || Number(form.price_per_sub) < 0) errors.price_per_sub = "Enter a valid price";
   if (form.oc !== "" && (!Number.isFinite(Number(form.oc)) || Number(form.oc) < 0)) errors.oc = "Enter a valid OC";
   if (!form.expected_close_month) errors.expected_close_month = "Required";
+  if (!regionId || !regionOptions.some(r => r.id === regionId)) errors.region_id = "Select an authorized Region";
   if (!selectedOwner) errors.owner_id = "Select an AE";
-  if (selectedOwner && !regionId) errors.owner_id = "Assigned AE needs a default Region in User Master";
+  if (selectedOwner && regionId && !ownerHasRegion) errors.owner_id = "Selected AE is not authorized for this Region";
   const hasErrors = Object.keys(errors).length > 0 || netRc === null;
 
   const dirty = Object.keys(EMPTY).some((key) =>
@@ -138,6 +160,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
         contact_phone: form.contact_phone.trim(),
         remark: form.remark.trim(),
         partner_name: ["Premium Partner", "Retail Partner"].includes(form.sales_channel) ? form.partner_name.trim() : "",
+        customer_location_text: form.customer_location_text.trim(),
         product_category_id: form.product_category_id,
         product_details: form.product_details.trim(),
         quantity: Number(form.quantity),
@@ -190,6 +213,30 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
           <div className="flex-1 min-h-0 overflow-y-auto px-6 md:px-7 py-5 space-y-5">
             <section aria-labelledby="section-1">
               <SectionHeading number="1">ข้อมูลลูกค้า</SectionHeading>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <Field label="Region · ภาค" required error={submitted && errors.region_id}>
+                  <Select value={form.region_id} onValueChange={v => set("region_id", v)}>
+                    <SelectTrigger aria-label="Region"><SelectValue placeholder="Select Region" /></SelectTrigger>
+                    <SelectContent>{regionOptions.map(r =>
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+                {northeastSelected && (
+                  <Field label="Province · จังหวัด">
+                    <Select value={form.customer_location_text} onValueChange={v => set("customer_location_text", v)}>
+                      <SelectTrigger aria-label="Province"><SelectValue placeholder="Select Province" /></SelectTrigger>
+                      <SelectContent>{provinceOptions.map(x =>
+                        <SelectItem key={x.province} value={x.province}>{x.province}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </Field>
+                )}
+              </div>
+              {northeastSelected && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  NE1 and NE2 overlap. Select the Region independently of AE.
+                  {provinceMatch && <> Province coverage: {provinceMatch.members.map(m => m.name).join(", ")}. AE Owner is not auto-assigned.</>}
+                </p>
+              )}
               {!ownerIsAE && (
                 <div className="mb-4 max-w-sm">
                   <Field label="AE Owner · เจ้าของงานขาย" required error={submitted && errors.owner_id}>
