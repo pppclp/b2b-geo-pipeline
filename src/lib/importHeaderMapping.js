@@ -76,3 +76,20 @@ export function needsExplicitCreatedMonthMapping(headers, mapping) {
     .map(normalizeImportHeader));
   return headers.some(header => accepted.has(normalizeImportHeader(header)));
 }
+
+
+/**
+ * Historical GEO files call the planned close month "Monthly Sale Plan".
+ * Preserve that source field while also mapping it to Expected Close Month.
+ * A separately supplied Expected Close Month takes precedence only when
+ * consistent with the source. Never silently overwrite conflicting evidence.
+ * Values must already be validated and normalized to YYYY-MM by the importer.
+ */
+export function resolveImportExpectedCloseMonth(sourceMonthlySalePlan = "", expectedCloseMonth = "") {
+  const source = String(sourceMonthlySalePlan || "").trim();
+  const explicit = String(expectedCloseMonth || "").trim();
+  if (source && explicit && source !== explicit) {
+    return { month: "", error: "Monthly Sale Plan and Expected Close Month disagree; review the source row" };
+  }
+  return { month: explicit || source, error: "" };
+}
