@@ -20,6 +20,7 @@ import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } f
 import { pipelineTaskViews, validDays } from "../src/lib/taskOverdue.js";
 import { approvedUndatedHistoricalCancel } from "../src/lib/approvedHistoricalCancel.js";
 import { approvedHistoricalStage3 } from "../src/lib/approvedHistoricalStage3.js";
+import { normalizeHistoricalDate, normalizeHistoricalMonth } from "../src/lib/historicalDateNormalization.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -664,13 +665,14 @@ export function createCore({ contract, store, now, uuid }) {
     const dates = {};
     for (const key of fields) {
       const value = item[key] == null ? "" : String(item[key]).trim();
-      const valid = validImportDate(value);
+      const normalized=normalizeHistoricalDate(value);
+      const valid=normalized===null?null:validImportDate(normalized);
       if (valid === null) throw new HttpError(400, key + " must be a real YYYY-MM-DD date (no guessed locale dates)");
       dates[key] = valid;
     }
-    const historicalMonth = String(item.source_created_month || "").trim();
-    if (historicalMonth && (!isMonthKey(historicalMonth) || Number(historicalMonth.slice(0, 4)) < 1900 ||
-        Number(historicalMonth.slice(0, 4)) > 2100)) throw new HttpError(400, "Invalid source_created_month");
+    const historicalMonth=normalizeHistoricalMonth(item.source_created_month);
+    if (historicalMonth === null || (historicalMonth && (!isMonthKey(historicalMonth) || Number(historicalMonth.slice(0, 4)) < 1900 ||
+        Number(historicalMonth.slice(0, 4)) > 2100))) throw new HttpError(400, "Invalid source_created_month");
     if (historicalMonth && dates.source_created_at && historicalMonth !== dates.source_created_at.slice(0, 7))
       throw new HttpError(400, "Source Created Date does not match Create Month");
     if (dates.source_created_at && dates.source_stage_entered_at &&
@@ -713,9 +715,13 @@ export function createCore({ contract, store, now, uuid }) {
     const sourceNetNumber = sourceNetRc.replace(/,/g, "");
     const numericNetRc = sourceNetRc && /^\d+(?:\.\d{1,2})?$/.test(sourceNetNumber)
       && Number.isFinite(Number(sourceNetNumber)) ? Number(sourceNetNumber) : null;
-    const sourceQuantity = item.quantity;
+    const sourceQuantity = item.source_subs === undefined ? item.quantity : item.source_subs;
     const validQuantity = sourceQuantity !== "" && sourceQuantity != null &&
       Number.isSafeInteger(Number(sourceQuantity)) && Number(sourceQuantity) > 0;
+    const originalOc = String(item.source_oc ?? item.oc ?? "").trim();
+    const validOc=originalOc.replace(/,/g,"");
+    const numericOc=originalOc && /^\d+(?:\.\d{1,2})?$/.test(validOc) &&
+      Number.isFinite(Number(validOc)) ? Number(validOc) : null;
     return {
       normalizedCustomerType,
       status: status.charAt(0).toUpperCase() + status.slice(1),
@@ -733,6 +739,19 @@ export function createCore({ contract, store, now, uuid }) {
       sourceNetRc,
       numericNetRc,
       historicalQuantity: validQuantity ? Number(sourceQuantity) : null,
+      numericOc,
+      originalSalesCode:String(item.source_original_sales_code ?? item.source_sales_code ?? ""),
+      originalSubs:String(sourceQuantity ?? ""),
+      originalOc,
+      originalBusinessId:String(item.source_business_id ?? item.business_id ?? ""),
+      originalChannel:String(item.source_sales_channel_raw ?? ""),
+      originalRegion:String(item.source_region_raw ?? ""),
+      originalStage:String(item.source_stage_raw ?? ""),
+      sourceWorkbook:String(item.source_workbook ?? ""),
+      originalCreatedDate:String(item.source_created_at_raw ?? item.source_created_at ?? ""),
+      originalCreatedMonth:String(item.source_created_month_raw ?? item.source_created_month ?? ""),
+      originalClosedDate:String(item.source_closed_at_raw ?? item.source_closed_at ?? ""),
+      originalStageEnteredDate:String(item.source_stage_entered_at_raw ?? item.source_stage_entered_at ?? ""),
       approvedHistoricalStage3: approvedHistoricalStage3(item),
       pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
@@ -773,8 +792,16 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(400,"Invalid import_batch_id");
     return {binding:b,items,batchId};
   }
+  const REQUIRED_HISTORICAL_EVIDENCE_HEADERS=[
+    "import_source_sales_code","import_source_subs","import_source_oc",
+    "import_source_business_id","import_source_sales_channel","import_source_region",
+    "import_source_stage","import_source_workbook",
+    "import_source_created_at_raw","import_source_created_month_raw",
+    "import_source_closed_at_raw","import_source_stage_entered_at_raw"
+  ];
   function inspectImportBatch(actor,input,requireBatchId=false) {
     const {binding:b,items,batchId}=validateImportEnvelope(actor,input,requireBatchId);
+    const missingHeaders=REQUIRED_HISTORICAL_EVIDENCE_HEADERS.filter(h=>!tableOf(b).headers.includes(h));
     const known=new Map();
     tableOf(b).rows.forEach(r=>{
       const key=sourceKey(r.import_source_system,r.import_source_record_id);
@@ -792,8 +819,13 @@ export function createCore({ contract, store, now, uuid }) {
       const key=sourceKey(system,recordId);
       const result={row:index+1,source_system:system,source_record_id:recordId,
         status:"HOLD",validation_errors:[],financial_warnings:[]};
-      if(!system||!recordId||!/-R[1-9]\d*$/i.test(recordId)){
+      if(!system||!recordId||
+         (system==="Legacy Spreadsheet" && !/^DOC-[a-f0-9]{32}-R[1-9]\d*$/i.test(recordId))){
         result.validation_errors.push("Stable Source System + Source File/Original Row ID are required");
+        return result;
+      }
+      if(system==="Legacy Spreadsheet"&&missingHeaders.length){
+        result.validation_errors.push("Import source-evidence columns not prepared: "+missingHeaders.join(", "));
         return result;
       }
       if(seen.has(key)){
@@ -833,6 +865,8 @@ export function createCore({ contract, store, now, uuid }) {
           result.financial_warnings.push("NET_RC_UNKNOWN");
         if(String(item.source_rc??"").trim()==="")
           result.financial_warnings.push("RC_UNKNOWN");
+        if(evidence.numericOc===null)
+          result.financial_warnings.push("OC_UNKNOWN_OR_NONNUMERIC");
         result.status="READY";
         prepared[index]={item,evidence};
       }catch(error){
@@ -1353,6 +1387,7 @@ export function createCore({ contract, store, now, uuid }) {
       const checked = uiEntity !== "Opportunity" ? data : importMeta
         ? { ...data, quantity: importMeta.historicalQuantity,
             price_per_sub: data.price_per_sub == null || data.price_per_sub === "" ? null : data.price_per_sub,
+            oc: importMeta.numericOc,
             pipeline_value: importMeta.numericNetRc }
         : normalizeOpportunityPricing(data);
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
@@ -1376,6 +1411,18 @@ export function createCore({ contract, store, now, uuid }) {
             import_source_monthly_sale_plan: importMeta.sourceMonthlySalePlan,
             import_source_net_rc: importMeta.sourceNetRc,
             import_source_customer_type: importMeta.sourceCustomerType,
+            import_source_sales_code: importMeta.originalSalesCode,
+            import_source_subs: importMeta.originalSubs,
+            import_source_oc: importMeta.originalOc,
+            import_source_business_id: importMeta.originalBusinessId,
+            import_source_sales_channel: importMeta.originalChannel,
+            import_source_region: importMeta.originalRegion,
+            import_source_stage: importMeta.originalStage,
+            import_source_workbook: importMeta.sourceWorkbook,
+            import_source_created_at_raw: importMeta.originalCreatedDate,
+            import_source_created_month_raw: importMeta.originalCreatedMonth,
+            import_source_closed_at_raw: importMeta.originalClosedDate,
+            import_source_stage_entered_at_raw: importMeta.originalStageEnteredDate,
           };
           for (const [key, value] of Object.entries(provenance)) if (value !== "") row[key] = value;
           if (importMeta.status === "Won") row.won_at = importMeta.sourceClosedAt;
