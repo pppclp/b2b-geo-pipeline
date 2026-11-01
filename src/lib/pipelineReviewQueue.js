@@ -19,7 +19,13 @@ export function requiresStageReview(op, activeStages = []) {
 }
 
 export function reviewSignals(op, activeStages, role = "") {
-  if (!op || op.status !== "open") return { core: [], sm: false, stage: false, any: false };
+  if (!op) return { core: [], sm: false, stage: false, any: false };
+  // Closed history must remain Won/Lost, but unknown channels must still appear
+  // as read-only Incomplete Data for an authorized user to verify later.
+  if (op.status !== "open") {
+    const core = missingPipelineCoreFields(op).filter(({ key }) => key === "sales_channel");
+    return { core, sm: false, stage: false, any: core.length > 0 };
+  }
   const core = missingPipelineCoreFields(op);
   const sm = role === "sm" && isMissingSmInfo(op);
   const stage = requiresStageReview(op, activeStages);
