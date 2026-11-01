@@ -601,7 +601,7 @@ export function createCore({ contract, store, now, uuid }) {
     const sourceNetRc = String(item.reference_net_rc ?? "").trim();
     if (sourceNetRc.length > 160) throw new HttpError(400, "Reference Net RC exceeds 160 characters");
     const sourceNetNumber = sourceNetRc.replace(/,/g, "");
-    const numericNetRc = sourceNetRc && /^\\d+(?:\\.\\d{1,2})?$/.test(sourceNetNumber)
+    const numericNetRc = sourceNetRc && /^\d+(?:\.\d{1,2})?$/.test(sourceNetNumber)
       && Number.isFinite(Number(sourceNetNumber)) ? Number(sourceNetNumber) : null;
     const sourceQuantity = item.quantity;
     const validQuantity = sourceQuantity !== "" && sourceQuantity != null &&
