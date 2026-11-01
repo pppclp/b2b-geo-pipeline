@@ -75,6 +75,24 @@ const input=(changes={})=>({
 });
 const rejected=(status)=>(error)=>error.status===status;
 
+test("Live Field_Options controls both the dropdown API and which Sales Channels may be saved",()=>{
+  const x=fixture();
+  const initial=x.call("AE1","GET","config/sales-channels").options;
+  assert.deepEqual(initial.map(option=>option.value),["AE Self","Premium Partner","Retail Partner"]);
+  const config=x.store.table(CONFIG,"Field_Options").rows;
+  config.find(row=>row.option_value==="AE Self").active="No";
+  config.push({field_key:"sales_channel",option_value:"Direct Agent",option_label:"Direct Agent",active:"Yes",sort_order:2.5});
+  const updated=x.call("AE1","GET","config/sales-channels").options;
+  assert.deepEqual(updated.map(option=>option.value),["Premium Partner","Direct Agent","Retail Partner"]);
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",input({sales_channel:"AE Self"})),e=>e.status===400&&/Invalid Sales Channel/.test(e.message));
+  const created=x.call("AE1","POST","entities/Opportunity",input({sales_channel:"Direct Agent"}));
+  assert.equal(created.sales_channel,"Direct Agent");
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Stage-independent metadata remains editable"});
+  config.splice(0,config.length);
+  assert.throws(()=>x.call("AE1","GET","config/sales-channels"),e=>e.status===503);
+  x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Other updates remain safe without channel config"});
+});
+
 test("Client cannot spoof attribution, system timers or arbitrary spreadsheet fields",()=>{
  const x=fixture();
  const initialEvents=x.events().length;
