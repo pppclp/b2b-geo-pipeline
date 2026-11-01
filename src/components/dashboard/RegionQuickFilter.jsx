@@ -3,13 +3,13 @@ import { cn } from "@/lib/utils";
 
 // Shared Dashboard/Pipeline quick filter. Never grants access beyond the
 // backend-scoped Region assignments passed in by the parent page.
-export default function RegionQuickFilter({ regions, value, onChange, appearance = "default", label = "Region", allLabel = "All Regions" }) {
+export default function RegionQuickFilter({ regions, value, onChange, appearance = "default" }) {
   if (!regions || regions.length <= 1) return null;
   const neutral = appearance === "neutral";
   return (
     <div className={cn("flex min-w-0 items-center overflow-x-auto", neutral ? "gap-1.5 pb-0.5" : "gap-2 pb-1")}
       role="group" aria-label="Quick filter by Region" tabIndex={0}>
-      <span className="shrink-0 text-[12px] font-medium uppercase tracking-wide text-muted-foreground mr-0.5">{label}</span>
+      <span className="shrink-0 text-[12px] font-medium uppercase tracking-wide text-muted-foreground mr-0.5">Region</span>
       <button
         type="button"
         aria-pressed={!value}
@@ -22,7 +22,7 @@ export default function RegionQuickFilter({ regions, value, onChange, appearance
             : neutral ? "border-border bg-card text-muted-foreground hover:border-[#B9C0C8] hover:bg-[#E9ECEF] hover:text-[#202832]" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
         )}
       >
-        {allLabel}
+        All Regions
       </button>
       {regions.map((region) => (
         <button
