@@ -43,7 +43,7 @@ const FIELDS = [
   { key: "source_rc", label: "Source RC" },
   { key: "source_discount_pct", label: "Source Discount %" },
   { key: "source_monthly_sale_plan", label: "Source Monthly Sale Plan" },
-  { key: "quantity", label: "Number of Subs", required: true, type: "number" },
+  { key: "quantity", label: "Number of Subs", type: "number" }, // historical blank remains blank
   { key: "price_per_sub", label: "Price per Sub", type: "number" },
   { key: "oc", label: "OC", type: "number" },
   { key: "reference_net_rc", label: "Reference Net RC" },
@@ -247,9 +247,9 @@ export default function Import() {
           return;
         }
         if (f.key === "source_rc" || f.key === "reference_net_rc") {
-          const amount = legacyNumber(val);
-          if (amount === null || amount < 0) errors.push(f.label + " must be a non-negative amount");
-          else rec[f.key] = String(amount);
+          // Historical Import: retain original RC / Net RC text, even when
+          // nonnumeric. Unknown numeric Pipeline Value is left blank server-side.
+          rec[f.key] = val;
           return;
         }
         if (f.key === "contract_period") {
@@ -292,7 +292,11 @@ export default function Import() {
           else rec.customer_type = canonical;
         } else if (f.type === "number") {
           const parsed = legacyNumber(val);
-          if (parsed === null) errors.push(`${f.label} must be a valid number`);
+          if (f.key === "quantity") {
+            // Never invent Subs=1/0. An invalid historical string remains in
+            // the original source workbook; active quantity stays unknown.
+            if (parsed !== null && Number.isSafeInteger(parsed) && parsed > 0) rec.quantity = parsed;
+          } else if (parsed === null) errors.push(`${f.label} must be a valid number`);
           else rec[f.key] = parsed;
         } else {
           rec[f.key] = val;
@@ -353,26 +357,20 @@ export default function Import() {
       if (!rec.source_system) rec.source_system = "Legacy Spreadsheet";
       if (!rec.source_record_id && documentId) rec.source_record_id = legacyRowSourceId(documentId, rowNumbers[i] || i + 2);
       if (!rec.source_record_id) errors.push("Source row identity missing");
-      if (mapping.oc != null && rec.oc == null) rec.oc = 0;
-      if (rec.price_per_sub == null && rec.source_rc !== undefined && rec.quantity > 0) {
-        const rc = Number(rec.source_rc);
-        if (rec.quantity === 1 || rcInterpretation === "per_sub") rec.price_per_sub = rc;
-        else if (rcInterpretation === "total") rec.price_per_sub = Math.round((rc / rec.quantity) * 100) / 100;
-        else errors.push("Sub > 1: choose RC interpretation before deriving unit price");
-      }
-      if (rec.price_per_sub == null) errors.push("Price per Sub missing: map unit price or verify RC meaning");
+      // Historical import must NOT derive unit pricing or invent OC, even when
+      // a reference RC exists. New Pipeline forms keep live price validation.
       if (!rec.stage_id) errors.push("Current Stage is required");
       if (!rec.current_handler_id && rec.owner_id) rec.current_handler_id = rec.owner_id;
       if (rec.support_needed) rec.support_needed = ["yes", "true", "1", "y"].includes(rec.support_needed.toLowerCase());
       if (rec.business_id && legacyBusinessId(rec.business_id) === null) errors.push("Invalid Legacy Business ID");
       const referenceNetRc = rec.reference_net_rc;
-      // Keep the reference value for independent backend reconciliation.
+      // Historical source discrepancy is advisory. Never block import solely
+      // due to a different RC formula or unavailable price / quantity.
       let reconciliation = { checked: false, matches: null };
-      if (referenceNetRc !== undefined) {
+      if (referenceNetRc !== undefined && rec.quantity && rec.price_per_sub != null) {
         let calculated = NaN;
-        try { calculated = calculateNetRc({ quantity: rec.quantity, pricePerSub: rec.price_per_sub, oc: rec.oc }); } catch { /* validation below handles missing price */ }
+        try { calculated = calculateNetRc({ quantity: rec.quantity, pricePerSub: rec.price_per_sub, oc: rec.oc }); } catch { /* source evidence remains authoritative */ }
         reconciliation = netRcReconciliation({ expected: referenceNetRc, calculated });
-        if (reconciliation.error) errors.push(reconciliation.error);
       }
       if (rec.sales_channel && !salesChannelOptions.some(option => option.value === rec.sales_channel)) errors.push("Sales Channel is inactive or invalid");
       if (rec.remark && rec.remark.length > 500) errors.push("Remark exceeds 500 characters");
