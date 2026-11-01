@@ -40,7 +40,9 @@ test("Client Pipeline filtering does not hide Server-authorized Management rows"
 test("Management may select an AE from any Region while SM remains Region-limited", () => {
   const creation = read("../src/components/CreatePipelineModal.jsx");
   assert.match(creation, /const nationwideRole = \["admin", "management"\]\.includes\(profile\?\.app_role\);/);
-  assert.match(creation, /const allowedOwnerRegions = nationwideRole \? regionIds/);
+  assert.match(creation, /selectAuthorizedRegions\(master\?\.Region \|\| \[\], profile\)/);
+  assert.match(creation, /const regionId = form\.region_id;/);
+  assert.doesNotMatch(creation, /const allowedOwnerRegions = nationwideRole/);
   assert.match(creation, /nationwideRole \|\|[\s\S]*?\.some\(\(id\) => \(profile\?\.region_ids/);
   const admin = read("../src/pages/Admin.jsx");
   assert.match(admin, /All Regions \(by role\)/);
