@@ -8,6 +8,7 @@ import {X, SlidersHorizontal, Search} from "lucide-react";
 import {Input} from "@/components/ui/input";
 import MonthPicker from "@/components/MonthPicker";
 import SearchableSelect from "@/components/SearchableSelect";
+import { SALES_CHANNELS } from "@/lib/salesChannel";
 import {
   PIPELINE_FILTER_LABELS as LABELS,
   advancedFilterCount, visibleActiveFilters, showQuickRegion,
@@ -177,7 +178,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
                   {scenarios.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectWrap>
                 <SelectWrap label={LABELS.sales_channel} value={filters.sales_channel} onChange={choice("sales_channel")}>
-                  {["AE B2B GEO","AE Self","B2B Premium Partner"].map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}
+                  {SALES_CHANNELS.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}
                 </SelectWrap>
                 <SelectWrap label={LABELS.ccp_check_result} value={filters.ccp_check_result} onChange={choice("ccp_check_result")}>
                   <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
