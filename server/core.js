@@ -865,7 +865,7 @@ export function createCore({ contract, store, now, uuid }) {
         status:"HOLD",validation_errors:[],financial_warnings:[]};
       if(!system||!recordId||
          (system==="Legacy Spreadsheet" &&
-          !(/^(?:DOC-[a-f0-9]{32}-R[1-9]\d*|ROW\|PIPELINE [A-Z0-9 -]+\|Pipeline\|[2-9]\d*)$/i.test(recordId)))){
+          !(/^(?:DOC-[a-f0-9]{32}-R[1-9]\d*|ROW\|PIPELINE [A-Z0-9 -]+\|Pipeline\|(?:[2-9]|[1-9]\d+))$/i.test(recordId)))){
         result.validation_errors.push("Stable Source System + Source File/Original Row ID are required");
         return result;
       }
