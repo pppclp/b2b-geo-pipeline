@@ -881,18 +881,21 @@ opportunity_entity:
       allowed:
         - "AE Self"
         - "Premium Partner"
-        - "Dealer"
+        - "Retail Partner"
       legacy_aliases:
         "AE B2B GEO": "AE Self"
         "B2B Premium Partner": "Premium Partner"
-        "RP": "Dealer"
-        "TA Dealer": "Dealer"
+        "Dealer": "Retail Partner"
+        "RP": "Retail Partner"
+        "TA Dealer": "Retail Partner"
+        "True Agent Dealer": "Retail Partner"
+        "True Partner": "Retail Partner"
 
     partner_name:
       source: "AE / SM input"
       optional: true
       visible_when:
-        "sales_channel = Premium Partner or Dealer"
+        "sales_channel = Premium Partner or Retail Partner"
 
     contact_name:
       source: "AE / SM input"
