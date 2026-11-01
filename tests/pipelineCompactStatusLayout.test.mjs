@@ -86,10 +86,10 @@ test("Compact UI retains four work tabs, primary controls, all status tabs, Boar
 });
 test("Stage review badge stays inside Stage cell and clear of AE Owner column",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
- assert.ok(src.includes('regionContext.showColumn ? "min-w-[1180px]" : "min-w-[1050px]"'));
- assert.ok(src.includes('<col className={regionContext.showColumn ? "w-[17%]" : "w-[18%]"} />'));
- assert.ok(src.includes('<col className={regionContext.showColumn ? "w-[23%]" : "w-[27%]"} />'));
- assert.ok(src.includes('<td className="min-w-0 overflow-hidden px-3 py-2 text-[13px]">'));
+ assert.ok(src.includes('regionContext.showColumn ? "min-w-[1350px]" : "min-w-[1210px]"'));
+ assert.ok(src.includes('<col className="w-[185px]" />'));
+ assert.ok(src.includes('<col className="w-[280px]" />'));
+ assert.ok(src.includes('<td className="min-w-0 overflow-hidden bg-card px-3 py-2 text-[13px] transition-colors group-hover:bg-secondary">'));
  assert.ok(src.includes('title={stageDisplay.label}'));
  assert.ok(src.includes('inline-flex max-w-full items-center rounded-full border'));
  assert.ok(src.includes('<span className="min-w-0 truncate">{stageDisplay.label}</span>'));
