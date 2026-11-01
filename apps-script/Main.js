@@ -1727,7 +1727,7 @@ SheetStore_.prototype.writeDirty_ = function (d) {
   }
   if (d.file === "B2B_GEO_Pipeline_DB.xlsx" && d.sheet === "Pipelines" &&
       t.rows.some(function(row){return Object.prototype.hasOwnProperty.call(row,"import_source_sales_code");}) &&
-      t.headers.indexOf("import_source_sales_code") < 0) {
+      before.headers.indexOf("import_source_sales_code") < 0) {
     throw geoSchemaError_("IMPORT_PROVENANCE_SCHEMA_NOT_PREPARED",
       "Run editor-only prepareGeoHistoricalImportProvenanceSchema before historical import");
   }
