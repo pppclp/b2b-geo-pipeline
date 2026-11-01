@@ -28,7 +28,7 @@ export function missingPipelineCoreFields(opportunity) {
   if (opportunity.import_batch_id || opportunity.import_source_record_id) {
     const sourceNumber = (raw) => {
       const value = String(raw ?? "").trim().replace(/,/g, "");
-      return value !== "" && /^\\d+(?:\\.\\d+)?$/.test(value) && Number.isFinite(Number(value));
+      return value !== "" && /^\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value));
     };
     if (!Number.isSafeInteger(Number(opportunity.quantity)) ||
         opportunity.quantity == null || opportunity.quantity === "" ||
