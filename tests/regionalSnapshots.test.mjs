@@ -50,7 +50,7 @@ test("regional projection maps all 30 display fields with preserved identity and
     owner_sale_name:"Synthetic AE",sales_channel:"AE B2B GEO",partner_name:"",
     region_id:"NE1",customer_location_text:"Sample Province",
     product_category_id:"CAT001",product_details:"SIM Only",quantity:4,
-    import_source_rc:399,import_source_net_rc:1496,pipeline_value:1496,oc:0,
+    import_source_rc:"399",import_source_net_rc:"1,496.00",import_source_system:"Legacy Spreadsheet",pipeline_value:1496,oc:0,
     contract_period_months:12,stage_id:"STG003",status:"Won",
     expected_close_month:"2026-10",scenario_id:"SC002",
     ccp_check_result:"Yes",current_handler_user_id:"U2",
@@ -63,14 +63,25 @@ test("regional projection maps all 30 display fields with preserved identity and
   assert.equal(output[8],"0812345678");
   assert.equal(output[9],"00123");
   assert.equal(output[13],"Northeast1");
-  assert.equal(output[18],399);
-  assert.equal(output[19],1496);
+  assert.equal(output[18],"399");
+  assert.equal(output[19],"1,496.00");
   assert.equal(output[22],"Stage 3");
   assert.equal(output[23],"Won");
   assert.equal(output[25],"S2");
   assert.equal(output[27],"Synthetic SM");
   assert.equal(output[28],"Management");
   assert.equal(output[29],"Synthetic test only");
+});
+
+test("legacy blank RC and Net RC stay blank instead of falling back to unit price",()=>{
+  const c=context();
+  const row={snapshot_period:"2026-10",opportunity_id:"OPP-RAW",
+    region_id:"N",import_source_system:"Legacy Spreadsheet",import_source_rc:"",
+    import_source_net_rc:"",price_per_sub:9999,pipeline_value:9999};
+  const lookups={users:{},products:{},stages:{},scenarios:{},teams:{}};
+  const output=c.geoProjectSnapshotRow_(row,lookups);
+  assert.equal(output[18],"");
+  assert.equal(output[19],"");
 });
 
 test("reporting workbook fail-closes if canonical technical Snapshots tab is missing",()=>{
