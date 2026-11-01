@@ -44,7 +44,7 @@ test("Selecting Won/Lost removes stale Open filters, retaining real independent 
  assert.equal(nextPipelineStatusFilters(f,"archived").status,"archived");
  assert.equal(nextPipelineStatusFilters(f,"all").status,"all");
 });
-test("Stage 1 soft green, Stage 2 soft blue; historical Open is a review, not Won",()=>{
+test("Stage 1 and Stage 2 use separate neutral tones, while Won and Working With keep their status colors",()=>{
  assert.deepEqual(pipelineStageDisplay(rows[0],stages,map),{label:"Stage 1",tone:"stage1"});
  assert.deepEqual(pipelineStageDisplay(rows[1],stages,map),{label:"Stage 2",tone:"stage2"});
  assert.deepEqual(pipelineStageDisplay(rows[2],stages,map),{label:"รอยืนยัน Stage",tone:"review"});
@@ -65,7 +65,9 @@ test("Compact UI retains four work tabs, primary controls, all status tabs, Boar
  assert.ok(page.includes('showStatusControl={false}'));
  assert.ok(page.includes("compactLayout"));
  assert.ok(page.includes("showRegionControl"));
- assert.ok(!page.includes("<RegionQuickFilter"));
+ assert.ok(page.includes("<RegionQuickFilter"));
+ assert.ok(page.includes('appearance="neutral"'));
+ assert.ok(page.includes('showRegionControl={!hasRegionQuickFilter}'));
  assert.ok(page.includes('onClick={() => navigate("/review-queue?tab=stage")}'));
  assert.ok(page.includes("งานรอตรวจสอบ Stage"));
  assert.ok(page.includes("Export Excel"));
@@ -81,7 +83,7 @@ test("Hover paints whole row and its sticky company cell the same surface; stage
  assert.ok(src.includes("cursor-pointer bg-card hover:bg-secondary transition-colors"));
  assert.ok(src.includes("bg-card px-3 py-2 transition-colors group-hover:bg-secondary"));
  assert.ok(!src.includes('group-hover:bg-secondary px-3 py-2'));
- assert.ok(src.includes("border-emerald-100 bg-emerald-50 text-emerald-800"));
- assert.ok(src.includes("border-sky-100 bg-sky-50 text-sky-800"));
+ assert.ok(src.includes("border-[#DFDAD4] bg-[#F0EFED] text-[#5A554F]"));
+ assert.ok(src.includes("border-[#CBD5DC] bg-[#E7EBEE] text-[#41515F]"));
  assert.ok(src.includes('className="group h-[56px]'));
 });
