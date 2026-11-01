@@ -28,13 +28,14 @@ test("Overdue work tab matches the other tabs; alert tags remain red",()=>{
   assert.ok(tags.includes('bg-red-50 px-1.5 py-0.5 font-medium text-red-700'));
 });
 
-test("Lost cocoa and Won emerald stay independent from Stage and alerts",()=>{
+test("Lost cocoa and solid forest-green Won stay independent from Stage and alerts",()=>{
   const detail=src("pages/OpportunityDetail.jsx");
   const close=src("components/PipelineCloseActions.jsx");
   assert.ok(page.includes('lost: "border-[#D4C5BE] bg-[#EDE6E2] text-[#675149]"'));
   assert.ok(detail.includes('lost: "bg-[#EDE6E2] text-[#675149] border border-[#D4C5BE]"'));
   assert.ok(close.includes('border-[#D4C5BE] text-[#675149] hover:bg-[#EDE6E2]'));
-  assert.ok(page.includes('won: "border-emerald-100 bg-emerald-50 text-emerald-800"'));
+  assert.ok(page.includes('won: "border-[#14532D] bg-[#166534] text-white"'));
+  assert.ok(detail.includes('won: "bg-[#166534] text-white border border-[#14532D]"'));
 });
 
 test("Original work views, actions, stage review, and calculations stay intact",()=>{
