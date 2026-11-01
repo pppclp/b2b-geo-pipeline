@@ -202,7 +202,7 @@ export default function Pipeline() {
     stage3: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]",
     stage4: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D]",
     review: "border-border bg-secondary text-foreground",
-    won: "border-[#14532D] bg-[#166534] text-white",
+    won: "border-emerald-100 bg-emerald-50 text-emerald-800",
     lost: "border-[#D4C5BE] bg-[#EDE6E2] text-[#675149]",
     neutral: "border-border bg-secondary text-foreground",
   };
