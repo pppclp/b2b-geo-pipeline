@@ -1269,7 +1269,7 @@ export function createCore({ contract, store, now, uuid }) {
       // workflow-only updates such as Stage / Handler / Support.
       if (uiEntity === "Opportunity") {
         if ("sales_channel" in data) data.sales_channel = normalizeSalesChannel(data.sales_channel) || data.sales_channel;
-        validateLatestOpportunityFields(data, { previousBusinessId: row.business_id, allowedSalesChannels: activeSalesChannelOptions().map(option => option.value) });
+        validateLatestOpportunityFields(data, { previousBusinessId: row.business_id, allowedSalesChannels: "sales_channel" in data ? activeSalesChannelOptions().map(option => option.value) : [] });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
 
