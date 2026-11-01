@@ -197,7 +197,7 @@ export default function Pipeline() {
 
   const closedBoardRecords = sorted.filter((o) => o.status !== "open");
   const stageBadgeTones = {
-    stage1: "border-[#99D5CF] bg-[#E6F6F3] text-[#0D9488]",
+    stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]",
     stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
     review: "border-border bg-secondary text-foreground",
     won: "border-emerald-100 bg-emerald-50 text-emerald-800",
@@ -295,7 +295,7 @@ export default function Pipeline() {
                 className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[3px] px-0.5 py-2 text-[13px] transition-colors sm:text-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active
                   ? "border-red-500 font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"}`}>
                 {item.title}
-                <span className={`tabular-nums ${active ? "font-semibold text-red-600" : "font-medium"}`}>{item.count}</span>
+                <span className={`tabular-nums ${active ? "font-semibold text-red-600" : "font-medium text-muted-foreground"}`}>{item.count}</span>
               </button>
             );
           })}
@@ -352,7 +352,7 @@ export default function Pipeline() {
               </button>
               {activeStages.map((stage) => {
                 const tone = stage.id === "STG001"
-                  ? "border-[#99D5CF] bg-[#E6F6F3] text-[#0D9488] hover:bg-[#D4F0EB]"
+                  ? "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A] hover:bg-[#DCFCE7]"
                   : stage.id === "STG002"
                     ? "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]"
                     : "border-border bg-secondary text-foreground hover:bg-secondary/80";

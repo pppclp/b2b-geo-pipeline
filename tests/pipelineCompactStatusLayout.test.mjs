@@ -78,12 +78,12 @@ test("Compact UI retains four work tabs, primary controls, all status tabs, Boar
  assert.ok(dashboard.includes('navigate("/review-queue?tab=stage")'));
  assert.ok(!dashboard.includes("Historical Stage · รอตรวจสอบ:"));
 });
-test("Hover paints whole row and its sticky company cell the same surface; stage hues follow approved teal and blue palette",()=>{
+test("Hover paints whole row and its sticky company cell the same surface; stage hues follow approved pastel green and blue palette",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
  assert.ok(src.includes("cursor-pointer bg-card hover:bg-secondary transition-colors"));
  assert.ok(src.includes("bg-card px-3 py-2 transition-colors group-hover:bg-secondary"));
  assert.ok(!src.includes('group-hover:bg-secondary px-3 py-2'));
- assert.ok(src.includes("border-[#99D5CF] bg-[#E6F6F3] text-[#0D9488]"));
+ assert.ok(src.includes("border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"));
  assert.ok(src.includes("border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"));
  assert.ok(src.includes('className="group h-[56px]'));
 });
