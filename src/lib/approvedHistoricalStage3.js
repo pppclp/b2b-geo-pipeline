@@ -1,4 +1,5 @@
-// User-approved historical Stage 3 / Open import: keep the original
+// Latest user approval: historical Stage 3 (opened service) imports as Won.
+// Preserve original
 // inactive STG003 value. Never reactivate the master Stage or change
 // validation of live Create/Edit or other imported source IDs.
 const DOCUMENT_PREFIX = "DOC-79e97612cde3acfee14cfb26a78e0ddd-R";
@@ -21,5 +22,5 @@ export const APPROVED_HISTORICAL_STAGE3_SOURCE_IDS = new Set([
 export function approvedHistoricalStage3(item = {}) {
   return APPROVED_HISTORICAL_STAGE3_SOURCE_IDS.has(String(item.source_record_id || "").trim()) &&
     String(item.stage_id || "").trim() === "STG003" &&
-    String(item.status || "open").toLowerCase() === "open";
+    String(item.status || "").toLowerCase() === "won";
 }
