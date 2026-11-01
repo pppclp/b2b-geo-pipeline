@@ -25,6 +25,35 @@ test("Region chip styling stays neutral on Pipeline without changing shared Dash
  assert.ok(region.includes('bg-[#E9ECEF] text-[#202832]'));
 });
 
+test("Pipeline Stage and Region chips are slightly denser and use matching hover palettes without changing Dashboard defaults",()=>{
+ assert.ok(pipeline.includes('className="flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="Quick filter by Stage"'));
+ assert.ok(pipeline.includes('rounded-full border px-2.5 py-1 text-xs font-medium'));
+ assert.ok(pipeline.includes('STG001: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A] hover:bg-[#DCFCE7]"'));
+ assert.ok(pipeline.includes('STG002: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]"'));
+ assert.ok(pipeline.includes('STG003: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C] hover:bg-[#FFEDD5]"'));
+ assert.ok(pipeline.includes('STG004: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D] hover:bg-[#FCE7F3]"'));
+ assert.ok(pipeline.includes('className="mb-3" aria-label="Region filters for your access scope"'));
+ assert.ok(region.includes('neutral ? "gap-1.5 pb-0.5" : "gap-2 pb-1"'));
+ assert.ok(region.includes('neutral ? "px-2.5 py-1" : "px-3 py-1.5"'));
+ assert.equal((region.match(/hover:bg-\[#E9ECEF\]/g)||[]).length,4);
+ assert.ok(region.includes('appearance = "default"'));
+ assert.ok(region.includes('bg-primary text-primary-foreground border-primary'));
+});
+ 
+test("Status controls wrap instead of overlapping and the selected Sort label stays compact",()=>{
+ assert.ok(pipeline.includes('gap-x-3 gap-y-2'));
+ assert.ok(pipeline.includes('className="flex min-w-0 max-w-full shrink-0 items-center gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter Pipelines by Status"'));
+ assert.ok(pipeline.includes('className="flex max-w-full shrink-0 items-center gap-1.5"'));
+ assert.ok(pipeline.includes('rounded-xl bg-secondary p-0.5'));
+ assert.ok(pipeline.includes('h-8 w-[145px] shrink-0'));
+ assert.ok(pipeline.includes('sm:w-[155px]'));
+ assert.ok(pipeline.includes('label: "Close Month ↑ · Net RC ↓", shortLabel: "Close Month ↑"'));
+ assert.ok(pipeline.includes('title={SORTS.find((item) => item.value === sort)?.label}'));
+ assert.ok(pipeline.includes('SORTS.find((item) => item.value === sort)?.shortLabel'));
+ assert.ok(pipeline.includes('onValueChange={setSort}'));
+ assert.ok(pipeline.includes('sortPipelineRows('));
+});
+
 test("All four pastel stages stay distinct from approved solid pastel Won and Lost",()=>{
  assert.ok(pipeline.includes('stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"'));
  assert.ok(pipeline.includes('stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"'));

@@ -7,18 +7,19 @@ export default function RegionQuickFilter({ regions, value, onChange, appearance
   if (!regions || regions.length <= 1) return null;
   const neutral = appearance === "neutral";
   return (
-    <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1"
+    <div className={cn("flex min-w-0 items-center overflow-x-auto", neutral ? "gap-1.5 pb-0.5" : "gap-2 pb-1")}
       role="group" aria-label="Quick filter by Region" tabIndex={0}>
-      <span className="shrink-0 text-[12px] font-medium uppercase tracking-wide text-muted-foreground mr-1">Region</span>
+      <span className="shrink-0 text-[12px] font-medium uppercase tracking-wide text-muted-foreground mr-0.5">Region</span>
       <button
         type="button"
         aria-pressed={!value}
         onClick={() => onChange("")}
         className={cn(
-          "shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "shrink-0 whitespace-nowrap rounded-full border text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          neutral ? "px-2.5 py-1" : "px-3 py-1.5",
           !value
-            ? neutral ? "border-[#B9C0C8] bg-[#E9ECEF] text-[#202832]" : "bg-primary text-primary-foreground border-primary font-medium"
-            : neutral ? "border-border bg-card text-muted-foreground hover:border-[#B9C0C8] hover:bg-secondary" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
+            ? neutral ? "border-[#B9C0C8] bg-[#E9ECEF] text-[#202832] hover:border-[#B9C0C8] hover:bg-[#E9ECEF]" : "bg-primary text-primary-foreground border-primary font-medium"
+            : neutral ? "border-border bg-card text-muted-foreground hover:border-[#B9C0C8] hover:bg-[#E9ECEF] hover:text-[#202832]" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
         )}
       >
         All Regions
@@ -30,10 +31,11 @@ export default function RegionQuickFilter({ regions, value, onChange, appearance
           aria-pressed={value === region.id}
           onClick={() => onChange(region.id)}
           className={cn(
-            "shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "shrink-0 whitespace-nowrap rounded-full border text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          neutral ? "px-2.5 py-1" : "px-3 py-1.5",
             value === region.id
-              ? neutral ? "border-[#B9C0C8] bg-[#E9ECEF] text-[#202832]" : "bg-primary text-primary-foreground border-primary font-medium"
-              : neutral ? "border-border bg-card text-muted-foreground hover:border-[#B9C0C8] hover:bg-secondary" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
+              ? neutral ? "border-[#B9C0C8] bg-[#E9ECEF] text-[#202832] hover:border-[#B9C0C8] hover:bg-[#E9ECEF]" : "bg-primary text-primary-foreground border-primary font-medium"
+              : neutral ? "border-border bg-card text-muted-foreground hover:border-[#B9C0C8] hover:bg-[#E9ECEF] hover:text-[#202832]" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
           )}
         >
           {region.name}
