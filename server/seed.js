@@ -227,7 +227,6 @@ export function seedData() {
       Scenarios: active(scenarios, ["scenario_id", "scenario_name"]),
       Lost_Reasons: active(lostReasons, ["reason_id", "reason_name"]),
       Working_With: active(workingWith, ["team_id", "team_name"]),
-      Support_Types: active(supportTypes, ["support_type_id", "support_type_name"]),
       Aging_Settings: [
         { setting_id: "AGE001", setting_name: "Stage Aging — Stuck Pipeline", threshold_days: 14, active: "Yes", notes: "" },
       ],
