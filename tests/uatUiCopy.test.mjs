@@ -10,9 +10,13 @@ test("approved UAT work view copy is shared", () => {
   assert.equal(WORK_VIEW_SUBTITLES.overdue, "งานเกินกำหนด");
   assert.equal(WORK_VIEW_SUBTITLES.due, "งานที่คาดว่าจะปิดเดือนนี้");
   assert.equal(selectedCloseMonthSubtitle, "งานที่คาดว่าจะปิดเดือนที่เลือก");
-  for (const path of ["src/pages/Dashboard.jsx", "src/pages/Pipeline.jsx"]) {
-    assert.ok(file(path).includes('from "@/lib/uiCopy"'));
-  }
+  // The Pipeline page still uses the approved shared UAT copy.
+  assert.ok(file("src/pages/Pipeline.jsx").includes('from "@/lib/uiCopy"'));
+  // Dashboard intentionally names records Pipeline instead of งาน.
+  const dashboard = file("src/pages/Dashboard.jsx");
+  assert.ok(dashboard.includes("DASHBOARD_VIEW_SUBTITLES"));
+  assert.ok(dashboard.includes('with: "Pipeline ที่ส่งให้ฉัน"'));
+  assert.ok(dashboard.includes('overdue: "Pipeline เกินกำหนด"'));
 });
 
 test("Dashboard cards keep concise Thai business headings and accurate Open + Won value context", () => {
