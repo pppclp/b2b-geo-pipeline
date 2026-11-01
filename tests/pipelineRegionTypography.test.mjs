@@ -25,6 +25,22 @@ test("Region chip styling stays neutral on Pipeline without changing shared Dash
  assert.ok(region.includes('bg-[#E9ECEF] text-[#202832]'));
 });
 
+test("Pipeline Stage and Region chips are slightly denser and use matching hover palettes without changing Dashboard defaults",()=>{
+ const stageArea=pipeline.split('aria-label="Quick filter by Stage"')[1]?.split('aria-label="Region filters for your access scope"')[0] || "";
+ assert.ok(stageArea.includes('gap-1.5 overflow-x-auto pb-0.5'));
+ assert.ok(stageArea.includes('rounded-full border px-2.5 py-1 text-xs font-medium'));
+ assert.ok(pipeline.includes('STG001: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A] hover:bg-[#DCFCE7]"'));
+ assert.ok(pipeline.includes('STG002: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]"'));
+ assert.ok(pipeline.includes('STG003: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C] hover:bg-[#FFEDD5]"'));
+ assert.ok(pipeline.includes('STG004: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D] hover:bg-[#FCE7F3]"'));
+ assert.ok(pipeline.includes('className="mb-3" aria-label="Region filters for your access scope"'));
+ assert.ok(region.includes('neutral ? "gap-1.5 pb-0.5" : "gap-2 pb-1"'));
+ assert.ok(region.includes('neutral ? "px-2.5 py-1" : "px-3 py-1.5"'));
+ assert.equal((region.match(/hover:bg-\[#E9ECEF\]/g)||[]).length,4);
+ assert.ok(region.includes('appearance = "default"'));
+ assert.ok(region.includes('bg-primary text-primary-foreground border-primary'));
+});
+ 
 test("All four pastel stages stay distinct from approved solid pastel Won and Lost",()=>{
  assert.ok(pipeline.includes('stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"'));
  assert.ok(pipeline.includes('stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"'));
