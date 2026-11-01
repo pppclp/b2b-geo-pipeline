@@ -14,14 +14,14 @@ test("Create and Edit show the approved optional partner label", () => {
 
 test("Create keeps Partner Name optional and submits it for partner or dealer channels", () => {
   const source = load("src/components/CreatePipelineModal.jsx");
-  assert.match(source, /partner_name:\s*\["Premium Partner", "Dealer"\]\.includes\(form\.sales_channel\) \? form\.partner_name\.trim\(\) : ""/);
+  assert.match(source, /partner_name:\s*\["Premium Partner", "Retail Partner"\]\.includes\(form\.sales_channel\) \? form\.partner_name\.trim\(\) : ""/);
   assert.doesNotMatch(source, /errors\.partner_name\s*=/);
 });
 
 test("Edit retains an existing Partner Name when the sales channel changes", () => {
   const source = load("src/components/OpportunityForm.jsx");
   assert.match(source, /partner_name:\s*String\(form\.partner_name \|\| ""\)\.trim\(\)/);
-  assert.match(source, /\["Premium Partner", "Dealer"\]\.includes\(form\.sales_channel\) \|\| Boolean\(String\(opportunity\?\.partner_name \|\| ""\)\.trim\(\)\)/);
+  assert.match(source, /\["Premium Partner", "Retail Partner"\]\.includes\(form\.sales_channel\) \|\| Boolean\(String\(opportunity\?\.partner_name \|\| ""\)\.trim\(\)\)/);
   assert.doesNotMatch(source, /partner_name:\s*form\.sales_channel === "Premium Partner" \?[^\n]*: ""/);
 });
 
