@@ -85,7 +85,7 @@ test("Pipeline-specific Thai and English use real font weights without changing 
 });
 
 test("Uniform hover and all original actions remain; no data/backend contract touched",()=>{
- assert.ok(pipeline.includes('cursor-pointer bg-card hover:bg-secondary transition-colors'));
+ assert.ok(pipeline.includes('cursor-pointer bg-card transition-colors'));
  assert.ok(pipeline.includes('bg-card px-3 py-2 transition-colors group-hover:bg-secondary'));
  for(const name of ['Export Excel','สร้าง Pipeline','Quick filter by Stage','งานรอตรวจสอบ Stage','Pipeline work views','Open','Won','Lost'])assert.ok(pipeline.includes(name),name);
 });
