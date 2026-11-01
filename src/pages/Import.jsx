@@ -10,6 +10,7 @@ import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType
 import { normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
 import { normalizeSalesChannel } from "@/lib/salesChannel";
 import { approvedUndatedHistoricalCancel, approvedRaw9DayMonthlyPlan } from "@/lib/approvedHistoricalCancel";
+import { approvedHistoricalStage3 } from "@/lib/approvedHistoricalStage3";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -325,8 +326,11 @@ export default function Import() {
         errors.push("Original Created Date does not match Create Month");
       if (rec.source_created_at && rec.source_stage_entered_at && rec.source_stage_entered_at < rec.source_created_at)
         errors.push("Original Stage Entered Date precedes Created Date");
+      // An approved historical Stage 3 explicitly means service opened = Won.
+      // Do not invent a historical closed date. This cannot be used in new forms.
+      if (approvedHistoricalStage3({ ...rec, status: "won" })) rec.status = "won";
       if (["won", "lost"].includes(rec.status) && !rec.source_closed_at &&
-          !approvedUndatedHistoricalCancel(rec))
+          !approvedUndatedHistoricalCancel(rec) && !approvedHistoricalStage3(rec))
         errors.push("Historical Won/Lost requires Original Closed Date");
       if (rec.status === "lost" && !rec.lost_reason_id)
         errors.push("Historical Lost requires Lost Reason");
