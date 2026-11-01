@@ -14,7 +14,7 @@ test("Dashboard and Pipeline reuse the same aligned heading and page padding", (
   assert.match(shared, /geo-page-description/);
   for (const source of [dashboard, pipeline]) {
     assert.match(source, /import PageHeader from "@\/components\/PageHeader"/);
-    assert.match(source, /className="geo-page"/);
+    assert.match(source, /className="geo-page(?: pipeline-typography)?"/);
     assert.match(source, /<PageHeader/);
     assert.doesNotMatch(source, /p-5 md:p-7 max-w-\[1400px\]/);
   }
