@@ -34,6 +34,7 @@ export function DataProvider({ children }) {
   const [opportunities, setOpportunities] = useState([]);
   const [history, setHistory] = useState([]);
   const [taskEntries, setTaskEntries] = useState([]);
+  const [salesChannelOptions, setSalesChannelOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
@@ -47,7 +48,7 @@ export function DataProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const { records: results, taskEntries } = await fetchStartupData(
+      const { records: results, taskEntries, salesChannelOptions: channels } = await fetchStartupData(
         [...MASTER_ENTITIES, "Opportunity"], db.batch
       );
       if (requestId !== dataRequestSequence.current) return;
@@ -56,6 +57,7 @@ export function DataProvider({ children }) {
       setMaster(masterObj);
       setOpportunities(results[MASTER_ENTITIES.length] || []);
       setTaskEntries(taskEntries);
+      setSalesChannelOptions(channels);
       setLastLoadedAt(new Date().toISOString());
     } catch (e) {
       if (requestId === dataRequestSequence.current) {
@@ -518,6 +520,7 @@ export function DataProvider({ children }) {
     history,
     historyFor,
     taskEntries,
+    salesChannelOptions,
     saveTask,
     refresh: loadAll,
     createMaster,
