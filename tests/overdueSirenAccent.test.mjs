@@ -33,8 +33,10 @@ test("Lost is distinct cocoa in list, details, and close action while Won stays 
 });
 
 test("Prior work views, actions and stage semantics survive visual-only edit",()=>{
- for(const label of ["All Open","With Me","Overdue","Due This Month","สร้าง Pipeline","Export Excel","Review Queue","Quick filter by Stage"])
+ for(const label of ["All Open","With Me","Overdue","Due This Month","สร้าง Pipeline","Export Excel","Quick filter by Stage"])
    assert.ok(page.includes(label),label);
  assert.ok(page.includes('selectQuickView(item.id)'));
  assert.ok(page.includes('workCounts["stage-overdue"]'));
+ assert.ok(page.includes('navigate("/review-queue?tab=stage")'));
+ assert.ok(src("components/FilterBar.jsx").includes("Review Queue"));
 });
