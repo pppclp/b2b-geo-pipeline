@@ -15,9 +15,10 @@ test("approved UAT work view copy is shared", () => {
   }
 });
 
-test("Dashboard cards use approved Thai headings and Net RC", () => {
+test("Dashboard cards keep concise Thai business headings and accurate Open + Won value context", () => {
   const source = file("src/pages/Dashboard.jsx");
-  assert.ok(source.includes('title="มูลค่างานที่คาดว่าจะปิด"'));
+  assert.ok(source.includes('title="มูลค่า Pipeline รวม"'));
+  assert.ok(source.includes('note="Net RC · Open + Won"'));
   assert.ok(source.includes('"มูลค่างานที่ยังเปิดอยู่ของฉัน"'));
   assert.ok(source.includes('note="Net RC"'));
   assert.ok(source.includes('"งานที่ต้องดำเนินการ"'));
