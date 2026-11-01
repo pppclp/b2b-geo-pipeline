@@ -103,7 +103,7 @@ export function createOutputs({ contract, store, now, uuid }) {
     while (existing.has(id)) id = base + "-" + i++;
     table.rows.push({
       audit_id: id, event_type: "SNAPSHOT_AUTO_CAPTURE",
-      source_file: AUDIT_FILE, source_sheet: "Snapshots", source_record_id: snapshotPeriod,
+      source_file: "B2B_GEO_Regional_Reporting_Snapshots.xlsx", source_sheet: "Snapshots", source_record_id: snapshotPeriod,
       field_name: "snapshot_period", previous_value: "", new_value: String(count),
       actor_user_id: actorId, actor_name: "Scheduled Snapshot", actor_role: "system",
       event_at: now(),
