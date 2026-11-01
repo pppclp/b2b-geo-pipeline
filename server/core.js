@@ -596,6 +596,28 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(409, "Original Sales Code does not match approved source evidence");
     return { ownerId: approvedId, originalSalesCode: originalCode };
   }
+  // Historical file name, not the AE's current Region, is authoritative.
+  // Unknown source workbooks are held rather than mapped by guesswork.
+  const APPROVED_SOURCE_WORKBOOKS=new Map([
+    ["pipeline bma east","BMA-E"],["pipeline bma west","BMA-W"],
+    ["pipeline cw","CW"],["pipeline east","E"],["pipeline north","N"],
+    ["pipeline ne1","NE1"],["pipeline ne2","NE2"],["pipeline south","S"]
+  ]);
+  function resolveHistoricalRegion(item) {
+    const filename=String(item.source_workbook||"").trim();
+    if(!filename)return item; // existing approved/staged rows may already have verified Region
+    const key=filename.replace(/\\/g,"/").split("/").pop().toLowerCase()
+      .replace(/\s*\(\d+\)(?=\.xlsx?$)/g,"").replace(/\.xlsx?$/,"")
+      .replace(/[\s_-]+/g," ").trim();
+    const authorized=APPROVED_SOURCE_WORKBOOKS.get(key);
+    if(!authorized)throw new HttpError(409,"Unrecognized original source workbook; verify Region against source filename");
+    const requested=String(item.region_id||"").trim();
+    if(requested && requested!==authorized)
+      throw new HttpError(409,"Historical Region differs from the authoritative source filename");
+    return {...item,region_id:authorized,
+      source_region_raw:item.source_region_raw??requested};
+  }
+
   // Employee-ID resolution is permitted only for a VERIFIED direct match.
   // Never force a historically approved source Sales Code to equal an Employee ID.
   function legacyImportOwner(code, actor) {
@@ -840,7 +862,7 @@ export function createCore({ contract, store, now, uuid }) {
         return result;
       }
       try{
-        const item=resolveLegacyImportOwner(raw,actor);
+        const item=resolveLegacyImportOwner(resolveHistoricalRegion(raw),actor);
         const evidence=validateImportEvidence(item,allowedTypes);
         const mappedType=evidence.normalizedCustomerType||item.customer_type;
         const mappedChannel=normalizeSalesChannel(item.sales_channel)||item.sales_channel;
