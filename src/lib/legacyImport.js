@@ -56,22 +56,15 @@ export function legacySourceMonth(value) {
   return mon&&y>=1900&&y<=2100?String(y)+"-"+String(mon).padStart(2,"0"):null;
 }
 
-// Import policy: if the source already exported an ID as scientific notation,
-// its original digits cannot be reconstructed reliably. Since Business ID is
-// optional, omit this value while retaining the untouched source workbook.
-// All other malformed values remain blocking so shifted columns are reviewed.
-export function legacyImportBusinessId(value) {
-  const id = legacyBusinessId(value);
-  if (id !== null) return id;
-  return /^\d+(?:\.\d+)?e\+\d+$/i.test(String(value ?? "").trim()) ? "" : null;
-}
-
+// Historical Business ID is opaque source evidence, not a tax-number validator.
+// It may be blank or 1-40 characters and may repeat across distinct customers.
+// Do not decode lossy scientific notation, trim, repair or normalize user values.
 export function legacyBusinessId(value) {
-  // Blank and non-13-digit numeric IDs are valid. Never decode lossy scientific notation.
-  const text=String(value ?? "").replace(/\u00a0/g," ").trim();
-  if (!text) return "";
-  return /^\d{1,40}$/.test(text)?text:null;
+  if (value === null || value === undefined || value === "") return "";
+  const text = String(value);
+  return text.length >= 1 && text.length <= 40 ? text : null;
 }
+export function legacyImportBusinessId(value) { return legacyBusinessId(value); }
 
 // The same workbook contents (including its row order) produce the same identity
 // on a fresh upload, without exposing personal data or relying on the filename.
