@@ -41,8 +41,8 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
       throw new HttpError(400, key + " is required");
     }
   }
-  if (legacyImport && data.business_id && !/^\d{1,40}$/.test(String(data.business_id)))
-    throw new HttpError(400, "Legacy Business ID must be 1-40 digits; preserve the original value");
+  if (legacyImport && data.business_id != null && String(data.business_id).length > 40)
+    throw new HttpError(400, "Historical Business ID must be 1-40 raw characters or blank");
   if (!legacyImport && "business_id" in data && data.business_id &&
       (previousBusinessId === null || String(data.business_id) !== String(previousBusinessId))) {
     const error = businessIdError(data.business_id);
@@ -563,9 +563,46 @@ export function createCore({ contract, store, now, uuid }) {
     return ae;
   }
 
+  // Approval data is read directly from the existing controlled review sheet.
+  // Do not give this tab write permissions or make it a user-editable entity.
+  function approvedSourceOwner(item, actor) {
+    const sourceId=String(item.source_record_id||"").trim();
+    const idMatch=/^DOC-79e97612cde3acfee14cfb26a78e0ddd-R(\d+)$/.exec(sourceId);
+    if (!idMatch) return null; // another source workbook needs its own explicit approval
+    const originalCode=String(item.source_original_sales_code ?? item.source_sales_code ?? "").trim();
+    const originalName=String(item.source_sale_name||"").trim();
+    const regionId=String(item.region_id||"");
+    const region=rows("regions").find(r=>String(r.region_id)===regionId);
+    if (!originalCode || !originalName || !region) return null;
+    const approved=store.table("B2B_GEO_Pipeline_DB.xlsx","AE_Owner_Approval_20261027").rows
+      .filter(r=>String(r.Decision||"").trim().toLowerCase()==="approved" &&
+        String(r["Source Sales Code"]||"").trim()===originalCode &&
+        String(r["Source Sale Name"]||"").trim().toLowerCase()===originalName.toLowerCase() &&
+        String(r["Source Region"]||"").trim().toLowerCase()===String(region.region_name||"").trim().toLowerCase() &&
+        String(r["Source Row Numbers"]||"").split(",").map(x=>x.trim()).includes(idMatch[1]) &&
+        String(r["Approved AE User ID"]||"").trim());
+    if (approved.length>1) throw new HttpError(409,"Multiple Approved AE mappings for one original source row");
+    if (!approved.length) return null;
+    const mappedId=String(approved[0]["Approved AE User ID"]).trim();
+    const ae=findUser(mappedId);
+    if(!ae || ae.role!=="ae" || !ae.region_ids.includes(regionId))
+      throw new HttpError(400,"Approved AE is not an active AE assigned to the historical Region");
+    if(actor.role!=="admin" && !actor.region_ids.includes(regionId))
+      throw new HttpError(403,"Approved AE source row is outside importer Region permissions");
+    return ae;
+  }
+
   function resolveLegacyImportOwner(item, actor) {
     if (validatePendingPartnerAssignment(item, actor)) return { ...item, owner_id: "" };
-    const code = String(item.source_sales_code ?? "").trim();
+    const approved = approvedSourceOwner(item,actor);
+    if(approved) {
+      if(item.owner_id && String(item.owner_id)!==String(approved.id))
+        throw new HttpError(409,"Owner differs from explicit approved source-row AE mapping");
+      return { ...item,owner_id:approved.id,
+        current_handler_id:item.current_handler_id||approved.id,
+        __approved_source_owner:true };
+    }
+    const code = String(item.source_original_sales_code ?? item.source_sales_code ?? "").trim();
     if (!code) return item;
     const ae = legacyImportOwner(code, actor);
     if (item.owner_id && String(item.owner_id) !== ae.id)
@@ -596,6 +633,8 @@ export function createCore({ contract, store, now, uuid }) {
   function validateImportEvidence(item, allowedTypes) {
     const status = String(item.status || "open").trim().toLowerCase();
     if (!["open", "won", "lost"].includes(status)) throw new HttpError(400, "Import Status must be Open, Won or Lost");
+    if(String(item.stage_id||"")==="STG003" && status!=="won")
+      throw new HttpError(400,"Historical Stage 3 must remain Stage 3 and import as Won");
     const fields = ["source_created_at", "source_stage_entered_at", "source_closed_at"];
     const dates = {};
     for (const key of fields) {
@@ -631,15 +670,15 @@ export function createCore({ contract, store, now, uuid }) {
     const normalizedCustomerType = allowedTypes.find((type) => type.toLowerCase() === requestedType.toLowerCase());
     if (item.customer_type && !normalizedCustomerType)
       throw new HttpError(400, "Unknown Customer Type. Use an existing legacy type or active Field_Options value");
-    if (String(item.business_id ?? "").trim() && !/^\d{1,40}$/.test(String(item.business_id).trim()))
-      throw new HttpError(400, "Legacy Business ID must contain 1-40 digits");
-    const sourceSalesCode = String(item.source_sales_code || "").trim();
-    if (sourceSalesCode && item.pending_ae_assignment !== true) {
+    if (item.business_id != null && String(item.business_id).length > 40)
+      throw new HttpError(400, "Historical Business ID exceeds 40 raw characters");
+    const sourceSalesCode = String(item.source_original_sales_code ?? item.source_sales_code ?? "").trim();
+    if (sourceSalesCode && item.pending_ae_assignment !== true && item.__approved_source_owner !== true) {
       const owner = rows("users").find((r) => String(r.user_id) === String(item.owner_id));
       if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
         throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
     }
-    for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_sale_name", "source_product_id", "source_rc",
+    for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_original_sales_code", "source_sale_name", "source_product_id", "source_rc",
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
     }
@@ -664,6 +703,7 @@ export function createCore({ contract, store, now, uuid }) {
       sourceRecordId: String(item.source_record_id || "").trim(),
       sourceSystem: String(item.source_system || "").trim(),
       sourceProductId: String(item.source_product_id || "").trim(),
+      originalSourceSalesCode: sourceSalesCode,
       sourceCustomerType: String(item.source_customer_type || item.customer_type || "").trim(),
       sourceRc: String(item.source_rc ?? "").trim(),
       sourceDiscountPct: String(item.source_discount_pct ?? "").trim(),
@@ -671,7 +711,9 @@ export function createCore({ contract, store, now, uuid }) {
       sourceNetRc,
       numericNetRc,
       historicalQuantity: validQuantity ? Number(sourceQuantity) : null,
-      approvedHistoricalStage3: approvedHistoricalStage3(item),
+      approvedHistoricalStage3: !!String(item.source_record_id||"").trim() &&
+        !!String(item.source_system||"").trim() &&
+        String(item.stage_id||"")==="STG003" && status==="won",
       pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
@@ -1229,6 +1271,7 @@ export function createCore({ contract, store, now, uuid }) {
             import_source_record_id: importMeta.sourceRecordId,
             import_source_system: importMeta.sourceSystem,
             import_source_product_id: importMeta.sourceProductId,
+            import_source_sales_code: importMeta.originalSourceSalesCode,
             import_source_rc: importMeta.sourceRc,
             import_source_discount_pct: importMeta.sourceDiscountPct,
             import_source_monthly_sale_plan: importMeta.sourceMonthlySalePlan,
