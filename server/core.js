@@ -7,6 +7,7 @@
 //   table(file, sheet) -> { headers: string[], rows: object[] }  (mutable)
 //   touch(file, sheet)  — mark the table as changed so the adapter saves it
 import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
+import { SALES_CHANNELS, normalizeSalesChannel } from "../src/lib/salesChannel.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
 import { businessIdError, normalizeCustomerType, netRcReconciliation } from "../src/lib/pipelineValidation.js";
@@ -48,7 +49,7 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
       !additionalCustomerTypes.includes(String(data.customer_type).trim())) {
     throw new HttpError(400, "Invalid Customer Type. Choose a supported value.");
   }
-  if ("sales_channel" in data && data.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(String(data.sales_channel))) {
+  if ("sales_channel" in data && data.sales_channel && !SALES_CHANNELS.includes(String(data.sales_channel))) {
     throw new HttpError(400, "Invalid Sales Channel");
   }
   // Bound each user-editable text field before Google Sheets receives the value.
@@ -1041,6 +1042,8 @@ export function createCore({ contract, store, now, uuid }) {
           throw new HttpError(400, "source_created_month must be a valid YYYY-MM from 1900 to 2100");
         }
         data = stripSystemFields(data);
+        // Legacy import and older clients may send retired labels; persist only canonical values.
+        if ("sales_channel" in data) data.sales_channel = normalizeSalesChannel(data.sales_channel) || data.sales_channel;
         if (!importMeta && !String(data.client_request_id || "").trim()) {
           throw new HttpError(400, "Client request ID is required");
         }
@@ -1243,6 +1246,7 @@ export function createCore({ contract, store, now, uuid }) {
       // Validate latest editable fields on partial updates without breaking
       // workflow-only updates such as Stage / Handler / Support.
       if (uiEntity === "Opportunity") {
+        if ("sales_channel" in data) data.sales_channel = normalizeSalesChannel(data.sales_channel) || data.sales_channel;
         validateLatestOpportunityFields(data, { previousBusinessId: row.business_id });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
