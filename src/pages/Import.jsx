@@ -24,6 +24,7 @@ const FIELDS = [
   { key: "source_system", label: "Source System" },
   { key: "source_record_id", label: "Source Opportunity ID" },
   { key: "source_sales_code", label: "Sales Code" },
+  { key: "source_original_sales_code", label: "Original Source Sales Code" },
   { key: "pending_ae_assignment", label: "Pending AE Assignment" },
   { key: "source_sale_name", label: "Sale Name" },
   { key: "customer_name", label: "Customer Name", required: true },
@@ -341,17 +342,25 @@ export default function Import() {
       if (rec.source_closed_at && rec.source_stage_entered_at && rec.source_closed_at < rec.source_stage_entered_at)
         errors.push("Closed Date precedes Stage Entered Date");
       const salesCode = String(rec.source_sales_code || "").trim();
-      if (salesCode && !rec.pending_ae_assignment) {
+      const originalCode = String(rec.source_original_sales_code || "").trim();
+      // Approved historical Source Sales Codes are evidence, NOT employee IDs.
+      // The backend checks the actual row-specific AE approval before accepting.
+      const hasExplicitApprovedOwnerCandidate = !!originalCode && !!rec.owner_id;
+      if (salesCode && !rec.pending_ae_assignment && !hasExplicitApprovedOwnerCandidate) {
         const owner = salesCodeLookup.byCode[salesCode];
-        if (!owner?.found) errors.push('Sales Code "' + salesCode + '" is unknown or outside your scope');
+        if (!owner?.found) errors.push('Sales Code "' + salesCode + '" is unknown or outside your scope; provide the approved AE Owner');
         else {
           if (rec.owner_id && rec.owner_id !== owner.id)
             errors.push("Sales Code conflicts with manually mapped Owner");
-          // Name spellings in old files may differ; verified Sales Code governs owner identity.
           if (rec.region_id && !owner.region_ids?.includes(rec.region_id))
             errors.push("Sales Code AE is not assigned to the source Region");
           rec.owner_id = owner.id;
         }
+      }
+      if (hasExplicitApprovedOwnerCandidate) {
+        const owner = master?.TeamMember?.find(m=>m.id===rec.owner_id);
+        if (!owner?.active || owner.app_role!=="ae" || !owner.region_ids?.includes(rec.region_id))
+          errors.push("Approved AE Owner must be an active AE assigned to the historical Region");
       }
       if (rec.pending_ae_assignment) {
         // Explicitly approved partner history: AE remains blank, regional SM
