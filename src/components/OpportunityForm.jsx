@@ -46,7 +46,7 @@ const empty = {
 };
 
 function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
-  const { maps, master, activeStages, profile, createOpportunity, updateWithHistory, salesChannelOptions } = useData();
+  const { maps, master, activeStages, profile, createOpportunity, updateWithHistory, salesChannelOptions, ccpCheckOptions } = useData();
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -336,16 +336,16 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
           <div>
             <Label>CCP+ Check</Label>
             {canReview ? (
-              <Select value={form.ccp_check_result || ""} onValueChange={(v) => set("ccp_check_result", v)}>
+              <Select value={ccpCheckOptions.some(option => option.value === form.ccp_check_result) ? form.ccp_check_result : ""} onValueChange={(v) => set("ccp_check_result", v)}>
                 <SelectTrigger><SelectValue placeholder="Pending SM Review" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
-                  <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
-                  <SelectItem value="pending">Pending Review</SelectItem>
+                  {ccpCheckOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             ) : (
-              <Input readOnly value={{ not_in_base: "Not in Base (New Customer)", enterprise_base: "Enterprise Existing Base", pending: "Pending Review" }[form.ccp_check_result] || "Pending SM Review"} className="bg-slate-50 text-slate-500" />
+              <Input readOnly value={ccpCheckOptions.find(option => option.value === form.ccp_check_result)?.label || "รอ SM ตรวจสอบ"} className="bg-slate-50 text-slate-500" />
             )}
           </div>
 
