@@ -595,15 +595,17 @@ export function createCore({ contract, store, now, uuid }) {
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
     }
-    let sourceNetRc = "";
-    if (item.reference_net_rc !== undefined && String(item.reference_net_rc).trim() !== "") {
-      let computed;
-      try { computed = calculateNetRc({ quantity:item.quantity, pricePerSub:item.price_per_sub, oc:item.oc }); }
-      catch (error) { throw new HttpError(400, error.message); }
-      const check = netRcReconciliation({ expected:item.reference_net_rc, calculated:computed });
-      if (!check.matches) throw new HttpError(400, check.error || "Reference Net RC mismatch");
-      sourceNetRc = String(item.reference_net_rc).trim();
-    }
+    // Historical source values are evidence, not a request to reprice the deal.
+    // Unknown/ambiguous figures remain empty in numeric Pipeline fields, and
+    // the raw text stays in provenance for reconciliation and later SM review.
+    const sourceNetRc = String(item.reference_net_rc ?? "").trim();
+    if (sourceNetRc.length > 160) throw new HttpError(400, "Reference Net RC exceeds 160 characters");
+    const sourceNetNumber = sourceNetRc.replace(/,/g, "");
+    const numericNetRc = sourceNetRc && /^\\d+(?:\\.\\d{1,2})?$/.test(sourceNetNumber)
+      && Number.isFinite(Number(sourceNetNumber)) ? Number(sourceNetNumber) : null;
+    const sourceQuantity = item.quantity;
+    const validQuantity = sourceQuantity !== "" && sourceQuantity != null &&
+      Number.isSafeInteger(Number(sourceQuantity)) && Number(sourceQuantity) > 0;
     return {
       normalizedCustomerType,
       status: status.charAt(0).toUpperCase() + status.slice(1),
@@ -619,6 +621,8 @@ export function createCore({ contract, store, now, uuid }) {
       sourceDiscountPct: String(item.source_discount_pct ?? "").trim(),
       sourceMonthlySalePlan: String(item.source_monthly_sale_plan ?? "").trim(),
       sourceNetRc,
+      numericNetRc,
+      historicalQuantity: validQuantity ? Number(sourceQuantity) : null,
       pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
@@ -1149,7 +1153,14 @@ export function createCore({ contract, store, now, uuid }) {
           additionalCustomerTypes: importMeta?.allowedTypes || [], allowedSalesChannels: activeSalesChannelOptions().map(option => option.value), legacyImport:!!importMeta });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
-      const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
+      // Only the trusted import API can bypass live price/quantity validation.
+      // Its financial value comes from verified numeric Net RC in the source,
+      // NEVER from a manufactured unit price, zero fallback or browser override.
+      const checked = uiEntity !== "Opportunity" ? data : importMeta
+        ? { ...data, quantity: importMeta.historicalQuantity,
+            price_per_sub: data.price_per_sub == null || data.price_per_sub === "" ? null : data.price_per_sub,
+            pipeline_value: importMeta.numericNetRc }
+        : normalizeOpportunityPricing(data);
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       if (b.entity === "opportunities") {
         row = keepOpportunityColumns(row);
