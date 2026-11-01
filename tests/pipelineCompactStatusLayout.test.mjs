@@ -84,6 +84,19 @@ test("Compact UI retains four work tabs, primary controls, all status tabs, Boar
  assert.ok(dashboard.includes('navigate("/review-queue?tab=stage")'));
  assert.ok(!dashboard.includes("Historical Stage · รอตรวจสอบ:"));
 });
+test("Stage review badge stays inside Stage cell and clear of AE Owner column",()=>{
+ const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
+ assert.ok(src.includes('regionContext.showColumn ? "min-w-[1180px]" : "min-w-[1050px]"'));
+ assert.ok(src.includes('<col className={regionContext.showColumn ? "w-[17%]" : "w-[18%]"} />'));
+ assert.ok(src.includes('<col className={regionContext.showColumn ? "w-[23%]" : "w-[27%]"} />'));
+ assert.ok(src.includes('<td className="min-w-0 overflow-hidden px-3 py-2 text-[13px]">'));
+ assert.ok(src.includes('title={stageDisplay.label}'));
+ assert.ok(src.includes('inline-flex max-w-full items-center rounded-full border'));
+ assert.ok(src.includes('<span className="min-w-0 truncate">{stageDisplay.label}</span>'));
+ assert.ok(src.includes('title={"AE Owner: " + ownerName}'));
+ assert.ok(src.includes('onClick={() => openQuickView(o.id)}'));
+});
+
 test("Hover paints whole row and its sticky company cell the same surface; Stage 1–4 use pastel palette",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
  assert.ok(src.includes("cursor-pointer bg-card hover:bg-secondary transition-colors"));
