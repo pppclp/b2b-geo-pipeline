@@ -522,8 +522,15 @@ export function createCore({ contract, store, now, uuid }) {
     const sourceSaleName = String(item.source_sale_name || "").trim();
     const extra = ADDITIONAL_PENDING_AE_CASES.get(String(item.source_record_id || "").trim());
     const isApprovedExistingGroup = PENDING_AE_PARTNER_GROUPS.has(sourceSaleName);
-    if (!isApprovedExistingGroup && !extra)
-      throw new HttpError(400, "Pending AE assignment is not approved for this source partner");
+    const reviewed = store.table("B2B_GEO_Pipeline_DB.xlsx","Partner_SM_Review_20261101").rows.find(r =>
+      String(r["Source Record ID"] || "").trim() === String(item.source_record_id || "").trim() &&
+      String(r["Partner Name"] || "").trim() === sourceSaleName &&
+      String(r["Temporary SM User ID"] || "").trim() === String(item.current_handler_id || "").trim() &&
+      String(r["Region"] || "").trim() === (rows("regions").find(x =>
+        x.region_id === String(item.region_id || ""))?.region_name || "") &&
+      String(r["Assignment Status"] || "").trim() === "SM_REVIEW_PENDING_AE");
+    if ((!isApprovedExistingGroup || !reviewed) && !extra)
+      throw new HttpError(400, "Pending AE assignment requires the approved exact source row and SM review record");
     if (extra && (sourceSaleName !== extra.name ||
         String(item.region_id || "") !== extra.region ||
         String(item.current_handler_id || "") !== extra.handler))
@@ -1072,7 +1079,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Validate changed references only, allowing historical rows with retired
   // codes to receive unrelated updates. New values must be real and active.
-  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false, allowApprovedHistoricalStage3 = false } = {}) {
+  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false, allowApprovedHistoricalStage3 = false, allowUnknownHistoricalRegion = false } = {}) {
     const changed = (col) => !prev || String(prev[col] ?? "") !== String(next[col] ?? "");
     const filled = (col) => String(next[col] ?? "").trim() !== "";
     const refs = [
@@ -1119,7 +1126,9 @@ export function createCore({ contract, store, now, uuid }) {
         !!String(next.import_batch_id || "").trim() &&
         !filledPrev(prev, "region_id") && !regionChanged &&
         !changed("owner_user_id") && !changed("current_handler_user_id");
-      if (!unchangedImportedRegion) throw new HttpError(400,
+      const authorizedUnknown = !prev && allowUnknownHistoricalRegion &&
+        actor?.role === "admin" && String(next.import_batch_id || "").trim();
+      if (!unchangedImportedRegion && !authorizedUnknown) throw new HttpError(400,
         "Region is required before assigning an Owner or Handler");
     }
     if (changed("owner_user_id") || regionChanged) {
@@ -1135,7 +1144,7 @@ export function createCore({ contract, store, now, uuid }) {
       } else {
         const owner = findUser(next.owner_user_id);
         if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
-        if (!owner.region_ids.includes(String(next.region_id))) {
+        if (filled("region_id") && !owner.region_ids.includes(String(next.region_id))) {
           throw new HttpError(400, "Owner AE is not assigned to this Pipeline's Region");
         }
       }
@@ -1153,7 +1162,7 @@ export function createCore({ contract, store, now, uuid }) {
             !handler.region_ids.includes(String(next.region_id))) {
           throw new HttpError(400, "Management Handler is not assigned to this Pipeline's Region");
         }
-      } else if (!["ae", "sm"].includes(handler.role) || !handler.region_ids.includes(String(next.region_id))) {
+      } else if (!["ae", "sm"].includes(handler.role) || (filled("region_id") && !handler.region_ids.includes(String(next.region_id)))) {
         throw new HttpError(400, "Current Handler AE/SM must be assigned to this Pipeline's Region");
       }
     }
@@ -1304,6 +1313,7 @@ export function createCore({ contract, store, now, uuid }) {
         validateOpportunityRefs(row, null, actor, {
           allowPendingPartnerAe: importMeta?.pendingPartnerAe === true,
           allowApprovedHistoricalStage3: importMeta?.approvedHistoricalStage3 === true,
+          allowUnknownHistoricalRegion: !!importMeta,
         });
       }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
