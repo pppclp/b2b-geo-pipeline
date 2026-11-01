@@ -17,14 +17,13 @@ import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipe
 import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
-import { legacyOpenStageRecords } from "@/lib/openStagePolicy";
 import { PIPELINE_STATUS_TABS, pipelineStatusCounts, nextPipelineStatusFilters, pipelineStageDisplay } from "@/lib/pipelineStatusTabs";
 import { requiresStageReview } from "@/lib/pipelineReviewQueue";
 import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KanbanSquare, List, Plus, Download, AlertTriangle, Layers3, UserRound, Clock3, CalendarDays, ChevronRight, ClipboardCheck } from "lucide-react";
+import { KanbanSquare, List, Plus, Download, AlertTriangle, ChevronRight, ClipboardCheck } from "lucide-react";
 
 const SORTS = [
   { value: "close_month", label: "Close Month ↑ · Net RC ↓" },
@@ -180,13 +179,20 @@ export default function Pipeline() {
   const openQuickView = (id) => setQuickView({ id, targetStageId: null });
   const selectedPipeline = quickView ? scopedOpportunities.find((item) => item.id === quickView.id) : null;
 
-  const legacyStageRecords = legacyOpenStageRecords(sorted, activeStages);
   const closedBoardRecords = sorted.filter((o) => o.status !== "open");
+  const stageBadgeTones = {
+    stage1: "border-emerald-100 bg-emerald-50 text-emerald-800",
+    stage2: "border-sky-100 bg-sky-50 text-sky-800",
+    review: "border-border bg-secondary text-foreground",
+    won: "border-emerald-100 bg-emerald-50 text-emerald-800",
+    lost: "border-rose-100 bg-rose-50 text-rose-800",
+    neutral: "border-border bg-secondary text-foreground",
+  };
   const quickViews = [
-    { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all, icon: Layers3 },
-    { id: "assigned-to-me", title: "With Me", subtitle: WORK_VIEW_SUBTITLES.with, count: workCounts["assigned-to-me"], icon: UserRound },
-    { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"], icon: Clock3 },
-    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"], icon: CalendarDays },
+    { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all },
+    { id: "assigned-to-me", title: "With Me", subtitle: WORK_VIEW_SUBTITLES.with, count: workCounts["assigned-to-me"] },
+    { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"] },
+    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"] },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id, profile?.app_role);
   const selectStatus = (status) => {
@@ -349,7 +355,7 @@ export default function Pipeline() {
 
       {sorted.length === 0 ? (
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
-      ) : view === "board" ? (
+      ) : view === "board" && filters.status === "open" ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="min-w-0 w-full">
             {/* Share available width across every active stage. When many stages
@@ -396,13 +402,6 @@ export default function Pipeline() {
               );
             })}
             </div>
-            {legacyStageRecords.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3 text-xs text-muted-foreground">
-                <span>Historical Stage · รอตรวจสอบ ({legacyStageRecords.length})</span>
-                <button type="button" className="font-medium text-brand hover:underline"
-                  onClick={() => navigate("/review-queue?tab=stage")}>Open Review Queue</button>
-              </div>
-            )}
             {closedBoardRecords.length > 0 && (
               <section className="mt-4 rounded-xl border border-border p-3" aria-label="Closed Pipeline statuses">
                 <h3 className="text-sm font-semibold">Closed Pipelines · Won / Lost</h3>
@@ -425,6 +424,7 @@ export default function Pipeline() {
             {sorted.map((o) => {
               const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
               const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any;
+              const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
               return (
                 <button key={o.id} type="button" role="listitem"
                   className="relative flex w-full min-w-0 flex-col gap-2 rounded-2xl border border-border bg-card px-3.5 py-4 text-left shadow-soft transition-colors hover:border-foreground/20 hover:bg-secondary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -435,7 +435,7 @@ export default function Pipeline() {
                     <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatTHB(o.pipeline_value)}</span>
                   </span>
                   <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1.5 pr-4 text-[11px] text-muted-foreground">
-                    <span className={`inline-flex rounded-md px-2 py-1 font-medium ${overdue ? "bg-brand-tint text-brand" : "bg-secondary text-foreground"}`}>{maps.stage[o.stage_id]?.name || "—"}</span>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 font-medium ${stageBadgeTones[stageDisplay.tone]}`}>{stageDisplay.label}</span>
                     <span aria-hidden="true">·</span>
                     <span>{formatMonth(o.expected_close_month)}</span>
                     {regionContext.showColumn && (
@@ -477,7 +477,7 @@ export default function Pipeline() {
               <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
                 <tr className="h-10">
                   <th scope="col" className="sticky left-0 z-20 bg-secondary px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
-                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Stage</th>
+                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">{filters.status === "open" ? "Stage" : "Status"}</th>
                   <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
                   {regionContext.showColumn && <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Region</th>}
                   <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
@@ -498,9 +498,10 @@ export default function Pipeline() {
                   // remain visible in Pipeline Quick View without adding rows.
                   const teamLabels = smWorkingWithTeamLabels(o, handler, master?.WorkingWithOption || []);
                   const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
+                  const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
                   return (
                     <tr key={o.id}
-                      className="group h-[64px] hover:bg-secondary/35 cursor-pointer transition-colors align-middle"
+                      className="group h-[56px] cursor-pointer bg-card hover:bg-secondary transition-colors align-middle"
                       onClick={() => openQuickView(o.id)}
                       tabIndex={0}
                       onKeyDown={(event) => {
@@ -509,7 +510,7 @@ export default function Pipeline() {
                         }
                       }}
                       aria-label={"Open opportunity " + o.customer_name}>
-                      <td className="sticky left-0 z-10 bg-card group-hover:bg-secondary px-3 py-2">
+                      <td className="sticky left-0 z-10 bg-card px-3 py-2 transition-colors group-hover:bg-secondary">
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="min-w-0 truncate font-medium text-[12px]" title={o.customer_name}>
                             {o.customer_name}
@@ -522,15 +523,15 @@ export default function Pipeline() {
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
                         <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
                       </td>
-                      <td className="px-3 py-3 text-[12px] whitespace-nowrap">
-                        <span className="inline-flex rounded-md bg-secondary/80 px-2 py-1 text-[11px] font-medium">
-                          {maps.stage[o.stage_id]?.name || "—"}
+                      <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${stageBadgeTones[stageDisplay.tone]}`}>
+                          {stageDisplay.label}
                         </span>
                       </td>
                       <td className="px-3 py-2 min-w-0">
                         {/* Fixed two-line owner/handler layout for every Pipeline.
                             Working With stays inline with the SM, never a third row. */}
-                        <div className="flex h-[40px] min-w-0 flex-col justify-center gap-0.5">
+                        <div className="flex min-h-[32px] min-w-0 flex-col justify-center gap-0.5">
                           <div className="min-w-0 truncate font-medium leading-[18px]"
                             title={"AE Owner: " + ownerName}>{ownerName}</div>
                           <div className="flex h-[18px] min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
