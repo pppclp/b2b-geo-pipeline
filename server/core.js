@@ -7,7 +7,7 @@
 //   table(file, sheet) -> { headers: string[], rows: object[] }  (mutable)
 //   touch(file, sheet)  — mark the table as changed so the adapter saves it
 import { ENTITIES, toUi, toSheet, sheetCol, bool } from "./entities.js";
-import { SALES_CHANNELS, normalizeSalesChannel } from "../src/lib/salesChannel.js";
+import { normalizeSalesChannel } from "../src/lib/salesChannel.js";
 import { createOutputs } from "./outputs.js";
 import { calculateNetRc } from "../src/lib/netRc.js";
 import { businessIdError, normalizeCustomerType, netRcReconciliation } from "../src/lib/pipelineValidation.js";
@@ -30,7 +30,7 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
-function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null, additionalCustomerTypes = [], legacyImport = false } = {}) {
+function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null, additionalCustomerTypes = [], allowedSalesChannels = [], legacyImport = false } = {}) {
   const required = ["customer_name", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
     // Historical blanks are preserved and surfaced in Incomplete Data.
@@ -50,7 +50,7 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
       !additionalCustomerTypes.includes(String(data.customer_type).trim())) {
     throw new HttpError(400, "Invalid Customer Type. Choose a supported value.");
   }
-  if ("sales_channel" in data && data.sales_channel && !SALES_CHANNELS.includes(String(data.sales_channel))) {
+  if ("sales_channel" in data && data.sales_channel && !allowedSalesChannels.includes(String(data.sales_channel))) {
     throw new HttpError(400, "Invalid Sales Channel");
   }
   // Bound each user-editable text field before Google Sheets receives the value.
@@ -446,6 +446,27 @@ export function createCore({ contract, store, now, uuid }) {
       .filter((r) => String(r.field_key || "").trim() === "customer_type" && isActive(r.active))
       .map((r) => String(r.option_value || "").trim()).filter(Boolean);
     return [...new Set([...legacy, ...active])];
+  }
+
+  // The only selectable / writable channel values come from active Config > Field_Options.
+  // Do not allow an unavailable/misconfigured master to silently use hard-coded options.
+  function activeSalesChannelOptions() {
+    const config = store.table("B2B_GEO_Pipeline_Config.xlsx", "Field_Options");
+    const matching = (config?.rows || [])
+      .filter(r => String(r.field_key || "").trim() === "sales_channel" && isActive(r.active))
+      .sort((a, b) => Number(a.sort_order || 9999) - Number(b.sort_order || 9999));
+    const seen = new Set();
+    const options = matching.map(r => {
+      const value = String(r.option_value || "").trim();
+      const label = String(r.option_label || "").trim() || value;
+      if (!value || seen.has(value)) {
+        throw new HttpError(503, "Sales Channel Config contains an empty or duplicate active option");
+      }
+      seen.add(value);
+      return { value, label };
+    });
+    if (!options.length) throw new HttpError(503, "No active Sales Channel options in Pipeline Config");
+    return options;
   }
 
   // Import-only owner lookup. Search by the authoritative employee code,
@@ -1081,7 +1102,7 @@ export function createCore({ contract, store, now, uuid }) {
           throw new HttpError(403, "AE must create Pipelines owned by their own account");
         }
         validateLatestOpportunityFields(data, { requireRequired: !!importMeta || "sales_channel" in data,
-          additionalCustomerTypes: importMeta?.allowedTypes || [], legacyImport:!!importMeta });
+          additionalCustomerTypes: importMeta?.allowedTypes || [], allowedSalesChannels: activeSalesChannelOptions().map(option => option.value), legacyImport:!!importMeta });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
       const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
@@ -1248,7 +1269,7 @@ export function createCore({ contract, store, now, uuid }) {
       // workflow-only updates such as Stage / Handler / Support.
       if (uiEntity === "Opportunity") {
         if ("sales_channel" in data) data.sales_channel = normalizeSalesChannel(data.sales_channel) || data.sales_channel;
-        validateLatestOpportunityFields(data, { previousBusinessId: row.business_id });
+        validateLatestOpportunityFields(data, { previousBusinessId: row.business_id, allowedSalesChannels: activeSalesChannelOptions().map(option => option.value) });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
 
@@ -1513,6 +1534,12 @@ export function createCore({ contract, store, now, uuid }) {
       const r = actor.real;
       return { id: r.id, email: r.email, full_name: r.name, role: r.role,
         api_contract_version: API_CONTRACT_VERSION, capabilities: [...REQUIRED_CAPABILITIES, UAT_EMAIL_ACTIVATION_CAPABILITY] };
+    }
+
+    if (parts[0] === "config" && parts[1] === "sales-channels" && parts.length === 2) {
+      if (method !== "GET") throw new HttpError(405, "Sales Channel Config is read-only");
+      need(actor, binding("Opportunity"), "read");
+      return { options: activeSalesChannelOptions() };
     }
 
     if (parts[0] === "access" && method === "GET") {
