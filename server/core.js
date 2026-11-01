@@ -826,6 +826,13 @@ export function createCore({ contract, store, now, uuid }) {
         ![importFingerprint(items[n-1]),oldImportFingerprint(items[n-1]),
           importCommercialFingerprint(items[n-1])].includes(String(r.import_row_signature||""));
     })) throw new HttpError(409,"Import batch ID already used for a different payload");
+    // Backward-compatible replay of old historical batches which predate the
+    // stable Source ID field. Do not append their records again.
+    if(previous.length===items.length && previous.length>0) {
+      return {imported:0,skipped:previous.length,already_imported:true,total:items.length,
+        opportunity_ids:previous.slice().sort((a,b)=>Number(a.import_row_number)-Number(b.import_row_number))
+          .map(r=>r.opportunity_id)};
+    }
 
     const allowedTypes=importCustomerTypes(),known=new Map(
       sheet.map(r=>[sourceKey(r.import_source_system,r.import_source_record_id),r]).filter(x=>x[0])
