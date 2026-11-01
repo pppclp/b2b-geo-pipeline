@@ -2043,7 +2043,8 @@ var GEO_HISTORICAL_IMPORT_EVIDENCE_COLUMNS_ = [
   "import_source_business_id","import_source_sales_channel","import_source_region",
   "import_source_stage","import_source_workbook",
   "import_source_created_at_raw","import_source_created_month_raw",
-  "import_source_closed_at_raw","import_source_stage_entered_at_raw"
+  "import_source_closed_at_raw","import_source_stage_entered_at_raw",
+  "import_source_legacy_record_id","import_source_row"
 ];
 function debugGeoHistoricalImportSchema() {
   var file="B2B_GEO_Pipeline_DB.xlsx";
