@@ -879,15 +879,20 @@ opportunity_entity:
       source: "AE / SM input"
       required_on_new_record: true
       allowed:
-        - "AE B2B GEO"
         - "AE Self"
-        - "B2B Premium Partner"
+        - "Premium Partner"
+        - "Dealer"
+      legacy_aliases:
+        "AE B2B GEO": "AE Self"
+        "B2B Premium Partner": "Premium Partner"
+        "RP": "Dealer"
+        "TA Dealer": "Dealer"
 
     partner_name:
       source: "AE / SM input"
       optional: true
       visible_when:
-        "sales_channel = B2B Premium Partner"
+        "sales_channel = Premium Partner or Dealer"
 
     contact_name:
       source: "AE / SM input"
