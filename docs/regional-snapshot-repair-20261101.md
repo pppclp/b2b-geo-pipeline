@@ -45,8 +45,8 @@ Physical regional tabs:
 | 16 | Product Category | `product_category_id` -> Config Product_Categories.category_name |
 | 17 | Product Details | `product_details` |
 | 18 | Subs | `quantity` |
-| 19 | RC | `import_source_rc` when present, else `price_per_sub`; historical raw Net RC kept separately |
-| 20 | Net RC | `pipeline_value` (canonical calculated amount at capture) |
+| 19 | RC | Frozen `import_source_rc`; blank if not captured, never substitute price_per_sub |
+| 20 | Net RC | Historical: frozen raw `import_source_net_rc` (may be blank); standard Pipeline: `pipeline_value` |
 | 21 | OC | `oc` |
 | 22 | Contract Period (Months) | `contract_period_months` |
 | 23 | Stage | `stage_id` -> Config Stages.stage_name (historical disabled stage remains displayable) |
@@ -58,7 +58,9 @@ Physical regional tabs:
 | 29 | Working With | `working_with_id` -> Config Working_With.team_name, captured at snapshot time |
 | 30 | Remark | `remark` |
 
-**Important semantics:** RC of migrated records can mean a historical source amount, while new records use per-sub pricing. Labeling should be reviewed by Finance before using the regional report as a financial reconciliation; canonical `pipeline_value`, `import_source_rc`, `import_source_net_rc` remain separate. No source value is inferred from a later state.
+**Important semantics:** An imported raw RC or raw Net RC is not the same field as unit price or the calculated live Pipeline Value. The report leaves unknown historical values blank. Standard non-imported Pipelines may have no separate historical RC in this report; do not fill it with price_per_sub. Keep `pipeline_value`, `import_source_rc`, and `import_source_net_rc` independently available in the technical snapshot.
+
+**Migration release blocker:** The 58-column live `Pipelines` sheet does not currently expose independent `import_source_sales_code`, raw Subs, or raw OC provenance columns. `owner_sales_code` in the old technical Snapshot is the *AE employee ID frozen from Users Master*, **not** proof of the original Excel Sales Code. The visible 30-column Sales Code label must not be represented as the raw original code until the separate import-provenance implementation and controlled schema migration are approved and deployed. No existing row is rewritten to fabricate provenance.
 
 ## Preparation — do NOT run against production without backup/authorization
 1. Confirm the two workbook IDs and names above, and verify current Pipeline + Audit backups. Do not recreate/delete the DB, do not run `setup()`.
@@ -75,6 +77,24 @@ Physical regional tabs:
 8. Test with all access roles, especially AE forbidden and SM region-scope, and verify Pipeline CRUD, Event append-only, login, loss/won workflow, historical import. Only after proving read paths should an authorized Admin trigger a **genuine approved new month** capture.
 9. Verify counts in `Snapshots` and all 8 tabs, and that every `(Snapshot Period, Opportunity ID)` appears at most once per regional tab. Rows with unrecognized Region remain in canonical history and are **not assigned to a guessed region**.
 10. If a valid technical capture exists but a derived region write fails, run `repairGeoRegionalSnapshotProjections()` manually after fixing the cause. This appends only missing pairs; it does not recapture history or overwrite existing rows. The snapshot/audit transaction spans two workbooks and is **not ACID**; reconcile `Admin_Audit` separately if an interrupted scheduled capture leaves an unmatched audit row.
+
+
+## Historical Import 412-candidate no-damage gate (added from user-approved checklist)
+
+**The Snapshot fix is independent of the Historical Import backend. Passing the Snapshot tests does not authorize importing historical rows.** Historical Import validation is evaluated separately from normal Opportunity Create/Edit. Treat these as blocking acceptance criteria before any production import:
+
+- **AE Owner:** Read the live `AE_Owner_Approval_20261027` and latest approved case records, then bind a source row/code/region/name to a real active AE User ID. Current backend *incorrectly* requires `source_sales_code == Users.employee_id`; sample approved AE-001 and AE-002 deliberately differ. Original code must be recorded unchanged, no synthetic Owner/SM-as-Owner.
+- **Business ID:** Accept optional raw 1–40 character values, including repeated IDs across separate customers; the present frontend `legacyBusinessId` and backend import validator still use a digit-only regex. Preserve specific reviewed shifted-column exceptions without silently rewriting source.
+- **Stage/status/closure:** Stage 1/2 -> Open, Stage 3 -> Won; approved Cancel -> Lost with exact approved reason. Inactive `STG003` is valid only for verified historical import, not normal Create/Edit. Leave missing approved historical close dates empty; do not date the imported closure to the import timestamp. Original Created Date, Created Month, Stage Entered Date, Monthly Sale Plan and Expected Close Month remain separate.
+- **Identity:** One original file row = one Opportunity. Use stable *source file + original row* ID, not customer/product/business-ID similarity. Reconcile collisions against existing Production and within batch before assigning IDs. Existing source identities are skipped; never updated. Run only batches <=200.
+- **Preview & authorization:** Require authenticated, permission-scoped, read-only server preflight (statuses `READY`, `ALREADY_IMPORTED`, `HOLD`, `POTENTIAL_DUPLICATE`) and row-specific validation. No Preview writes to Pipelines/Events/Audit; Commit revalidates under lock.
+- **P1:** Approved sales-channel/partner, historical region from source workbook filename (not owner), source territory text, mapped customer/product category from live Config plus original raw text, raw Subs/RC/Net RC/OC, numeric warnings separate from blockers, valid Thai/English month and Excel serial conversion at normalization only.
+- **412-case reconciliation:** Baseline all **412** migration candidate source identities (416 source rows less four explicitly excluded BMA-West template rows), compare against live technical keys and report `already_imported / ready / hold / collision`, verify pre/post `Pipelines`, `Pipeline_Events`, `Admin_Audit`, statuses/owners/handlers/financials, and final imported/skipped/failed totals. Do not conclude that all 412 need importing or have been imported; some may already be in Production.
+
+### Verified current blockers (2026-11-01)
+`server/core.js` still hardcodes the Sales Code-to-Employee ID equality and rejects Business ID characters other than digits. Its import endpoint is an all-or-nothing 409 on known Source IDs; there is no complete read-only server preview with all four statuses. Client `Import.jsx` also enforces Sales Code equality and digit-only Business ID. Approved Historical Stage3/Cancel exemptions are currently bounded by specific Source IDs. These are genuine, separate migration defects; **do not merge this snapshot-only PR as an import fix**.
+
+No data was imported, overwritten, or normalized by this snapshot PR.
 
 ## Release safety
 - **DO NOT** merge/deploy this branch without CI success and a controlled read-only smoke test.
