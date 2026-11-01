@@ -15,9 +15,9 @@ import {
 } from "@/lib/pipelineFilterUi";
 
 // Stable identity is essential: never define dropdown components inside FilterBar.
-const SelectWrap = ({label, value, onChange, children, className = "", allText = "All"}) => (
+const SelectWrap = ({label, value, onChange, children, className = "", allText = "All", compact = false}) => (
   <div className={`flex min-w-0 flex-col gap-1 ${className}`}>
-    <span className="geo-filter-label">{label}</span>
+    <span className={compact ? "sr-only" : "geo-filter-label"}>{label}</span>
     <Select value={value || "all"} onValueChange={onChange}>
       <SelectTrigger aria-label={label}
         className={`h-9 w-full rounded-lg ${isActiveFilter(label === "Status" ? "status" : "",value) ? "border-primary/60" : ""}`}>
@@ -31,15 +31,15 @@ const SelectWrap = ({label, value, onChange, children, className = "", allText =
   </div>
 );
 
-const MonthFilter = ({label, value, onChange}) => (
+const MonthFilter = ({label, value, onChange, compact = false}) => (
   <div className="flex min-w-0 flex-col gap-1">
-    <span className="geo-filter-label">{label}</span>
+    <span className={compact ? "sr-only" : "geo-filter-label"}>{label}</span>
     <MonthPicker value={value || ""} onChange={onChange} placeholder="All Months" allowAll className="w-full"/>
   </div>
 );
 
 // Presentation only. Never change user scope or derive access from selected filters.
-export default function FilterBar({filters, onFilter, showCreatedMonth = true, stageChipsVisible = false, showRegionControl = true}) {
+export default function FilterBar({filters, onFilter, showCreatedMonth = true, stageChipsVisible = false, showRegionControl = true, showStatusControl = true, compactLayout = false}) {
   const {master, profile, scopedOpportunities} = useData();
   const navigate = useNavigate();
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -85,41 +85,45 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   const choice = (key) => (v) => onFilter(key,v==="all" ? "" : v);
   return (
     <div className="space-y-3">
-      <div className="grid min-w-0 grid-cols-2 items-end gap-x-2.5 gap-y-3 md:flex md:flex-wrap md:gap-y-2.5">
-        <div className="col-span-2 min-w-0 space-y-1 md:w-[250px] md:flex-1 md:max-w-[340px]">
-          <label htmlFor="pipeline-search" className="geo-filter-label block">Search</label>
+      <div className={compactLayout
+        ? "grid min-w-0 grid-cols-2 items-center gap-2 rounded-xl border border-border/80 bg-card p-2.5 sm:grid-cols-3 lg:flex lg:flex-nowrap"
+        : "grid min-w-0 grid-cols-2 items-end gap-x-2.5 gap-y-3 md:flex md:flex-wrap md:gap-y-2.5"}>
+        <div className={compactLayout
+          ? "col-span-2 min-w-0 space-y-1 sm:col-span-3 lg:col-span-1 lg:min-w-[180px] lg:flex-[2]"
+          : "col-span-2 min-w-0 space-y-1 md:w-[250px] md:flex-1 md:max-w-[340px]"}>
+          <label htmlFor="pipeline-search" className={compactLayout ? "sr-only" : "geo-filter-label block"}>Search</label>
           <div className="relative">
             <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"/>
             <Input id="pipeline-search" aria-label="Search customer, Business ID or Pipeline ID"
               value={filters.search || ""} onChange={e=>onFilter("search",e.target.value)}
-              placeholder="Customer, Business ID or Pipeline ID"
+              placeholder={compactLayout ? "Search customer or Pipeline ID" : "Customer, Business ID or Pipeline ID"}
               className="h-10 rounded-xl pl-9 pr-8 text-[13px] md:h-9 md:rounded-lg"/>
             {filters.search && <button type="button" aria-label="Clear search"
               className="absolute right-2 top-2 rounded-md p-1 hover:bg-secondary"
               onClick={()=>onFilter("search","")}><X className="h-3.5 w-3.5"/></button>}
           </div>
         </div>
-        <div className="min-w-0 md:w-[158px]">
-          <MonthFilter label={LABELS.close_month} value={filters.close_month} onChange={v=>onFilter("close_month",v)}/>
+        <div className={compactLayout ? "min-w-0 lg:flex-[1]" : "min-w-0 md:w-[158px]"}>
+          <MonthFilter label={LABELS.close_month} value={filters.close_month} onChange={v=>onFilter("close_month",v)} compact={compactLayout}/>
         </div>
         {showRegion && showRegionControl && <SelectWrap label={LABELS.region} value={filters.region} onChange={choice("region")}
-          className="w-[130px]">
+          compact={compactLayout} className={compactLayout ? "min-w-0 lg:flex-[1]" : "w-[130px]"}>
           {regionOptions.filter(r=>["admin","management"].includes(profile?.app_role) ||
             (profile?.region_ids||[]).includes(r.id)).map(r=><SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
         </SelectWrap>}
         <SelectWrap label={LABELS.product_category}
           value={filters.product_category} onChange={choice("product_category")}
-          className="min-w-0 md:w-[185px]" allText="All Categories">
+          className={compactLayout ? "min-w-0 lg:flex-[1]" : "min-w-0 md:w-[185px]"} compact={compactLayout} allText="All Categories">
           {categories.map((category) =>
             <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
           )}
         </SelectWrap>
-        <SelectWrap label={LABELS.status} value={filters.status || "all"}
+        {showStatusControl && <SelectWrap label={LABELS.status} value={filters.status || "all"}
           onChange={v=>onFilter("status",v)} className="min-w-0 md:w-[132px]" allText="All Statuses">
           {["open","won","lost","archived"].map(v=><SelectItem key={v} value={v}>
             {v.charAt(0).toUpperCase()+v.slice(1)}
           </SelectItem>)}
-        </SelectWrap>
+        </SelectWrap>}
         <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" aria-label="More Filters"
@@ -153,9 +157,9 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
                     }))]}/>
                 </div>}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <SelectWrap label={LABELS.stage} value={filters.stage} onChange={choice("stage")}>
+                  {!stageChipsVisible && <SelectWrap label={LABELS.stage} value={filters.stage} onChange={choice("stage")}>
                     {stages.map(s=><SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectWrap>
+                  </SelectWrap>}
                   <SelectWrap label={LABELS.handler} value={filters.handler} onChange={choice("handler")}>
                     {visibleHandlers.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
                   </SelectWrap>
@@ -166,6 +170,9 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
               </section>
               <section className="space-y-2">
                 <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Other Details</h4>
+                {!showStatusControl && <SelectWrap label={LABELS.status} value={filters.status || "all"} onChange={v=>onFilter("status",v)} allText="All Statuses">
+                  {["open","won","lost","archived"].map(v=><SelectItem key={v} value={v}>{v.charAt(0).toUpperCase()+v.slice(1)}</SelectItem>)}
+                </SelectWrap>}
                 <SelectWrap label={LABELS.scenario} value={filters.scenario} onChange={choice("scenario")}>
                   {scenarios.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectWrap>
