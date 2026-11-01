@@ -137,7 +137,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
         contact_name: form.contact_name.trim(),
         contact_phone: form.contact_phone.trim(),
         remark: form.remark.trim(),
-        partner_name: ["Premium Partner", "Dealer"].includes(form.sales_channel) ? form.partner_name.trim() : "",
+        partner_name: ["Premium Partner", "Retail Partner"].includes(form.sales_channel) ? form.partner_name.trim() : "",
         product_category_id: form.product_category_id,
         product_details: form.product_details.trim(),
         quantity: Number(form.quantity),
@@ -229,7 +229,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                   <Textarea rows={2} maxLength={500} value={form.remark} onChange={(e) => set("remark", e.target.value)} placeholder="Customer needs, next steps, details" className="resize-none" />
                   <div className="text-right text-[11px] text-muted-foreground">{form.remark.length}/500</div>
                 </Field>
-                {["Premium Partner", "Dealer"].includes(form.sales_channel) && (
+                {["Premium Partner", "Retail Partner"].includes(form.sales_channel) && (
                   <Field label="ชื่อพาร์ทเนอร์ (ถ้ามี)" className="sm:col-span-2">
                     <Input maxLength={200} value={form.partner_name} onChange={(e) => set("partner_name", e.target.value)} placeholder="Enter partner name"/>
                   </Field>
