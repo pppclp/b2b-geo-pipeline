@@ -18,7 +18,7 @@ import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
 
 const sumValue = (items) => items.reduce((total, item) => total + (Number(item.pipeline_value) || 0), 0);
 const isOpen = (item) => item.status === "open";
-const compactDate = (month) => month || "All Months";
+
 
 export default function Dashboard() {
   const { scopedOpportunities, maps, master, activeStages, profile, config, taskEntries, loading, error, refresh } = useData();
@@ -119,9 +119,9 @@ export default function Dashboard() {
         <div role={error ? "alert" : "status"} className="rounded-xl border border-border bg-card p-4 flex gap-3 items-center">
           <AlertCircle className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <div className="flex-1 text-sm">
-            {error ? actionableErrorMessage(error, "load") : "Loading Pipeline data…"}
+            {error ? actionableErrorMessage(error, "load") : "กำลังโหลดข้อมูล Pipeline…"}
           </div>
-          {error && <Button type="button" variant="outline" onClick={refresh}>Retry</Button>}
+          {error && <Button type="button" variant="outline" onClick={refresh}>ลองอีกครั้ง</Button>}
         </div>
       </div>
     );
@@ -130,20 +130,20 @@ export default function Dashboard() {
   if (isAdmin) {
     return (
       <div className="geo-page space-y-4">
-        <PageHeader title="Dashboard" description="Data & Access" />
-        {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
+        <PageHeader title="Dashboard" description="จัดการข้อมูลและสิทธิ์การเข้าถึง" />
+        {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} label="ภาค" allLabel="ทุกภาค" />}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Panel title="User & Organization"><p className="text-xs text-muted-foreground mb-3">Manage users and authorized Region mappings.</p>
-            <Button type="button" variant="outline" onClick={() => navigate("/admin")}><Settings2 className="h-4 w-4 mr-2" />Open Admin</Button></Panel>
-          <Panel title="Pipeline Import"><p className="text-xs text-muted-foreground mb-3">Review and import Pipeline records.</p>
-            <Button type="button" variant="outline" onClick={() => navigate("/import")}><Upload className="h-4 w-4 mr-2" />Open Import</Button></Panel>
+          <Panel title="ผู้ใช้งานและโครงสร้างองค์กร"><p className="text-xs text-muted-foreground mb-3">จัดการผู้ใช้งานและสิทธิ์เข้าถึงข้อมูลตามภาค</p>
+            <Button type="button" variant="outline" onClick={() => navigate("/admin")}><Settings2 className="h-4 w-4 mr-2" />ไปที่ Admin</Button></Panel>
+          <Panel title="นำเข้าข้อมูล Pipeline"><p className="text-xs text-muted-foreground mb-3">ตรวจสอบและนำเข้าข้อมูล Pipeline</p>
+            <Button type="button" variant="outline" onClick={() => navigate("/import")}><Upload className="h-4 w-4 mr-2" />ไปที่ Import</Button></Panel>
         </div>
-        <Panel title="Business Overview">
-          <p className="text-sm text-muted-foreground">You can review {cohort.length} Pipelines for {regionContext.label}. Region breakdown below shows Open Pipeline Net RC.</p>
-          <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>Open Pipeline</Button>
+        <Panel title="ภาพรวม Pipeline">
+          <p className="text-sm text-muted-foreground">ดูข้อมูล Pipeline ได้ {cohort.length} งานใน {regionContext.label} โดยสรุปมูลค่า Net RC ของงาน Open แยกตามภาค</p>
+          <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>ดู Pipeline</Button>
         </Panel>
         <Panel title="มูลค่างานที่ยังเปิดอยู่แยกตามภาค" meta="Open · Net RC">
-          <BreakdownTable rows={regionRows} label="Region"
+          <BreakdownTable rows={regionRows} label="ภาค"
             onSelect={(id) => toPipeline({ status: "open", region: id })} />
         </Panel>
       </div>
@@ -154,22 +154,22 @@ export default function Dashboard() {
     <div className="geo-page space-y-4">
       <PageHeader
         title="Dashboard"
-        description={isAE ? "My overview" : isSM ? "Regional overview" : "Management overview"}
+        description={isAE ? "ภาพรวมงานขายของฉัน" : isSM ? "ภาพรวมงานขายในภาค" : "ภาพรวมการบริหารงานขาย"}
         actions={
           <div className="flex min-w-0 flex-wrap items-end gap-3">
           <div className="w-[150px]">
             <label className="geo-filter-label block mb-1.5">เดือนที่สร้างงาน</label>
-            <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
+            <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="ทุกเดือน" allLabel="ทุกเดือน" allowAll />
           </div>
           <div className="w-[150px]">
             <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
-            <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
+            <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="ทุกเดือน" allLabel="ทุกเดือน" allowAll />
           </div>
-            {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
+            {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />ล้างตัวกรอง</Button>}
           </div>
         }
       />
-      {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
+      {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} label="ภาค" allLabel="ทุกภาค" />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Metric title="มูลค่างานที่คาดว่าจะปิด" value={formatTHB(closeValue)} note="Net RC" />
         <Metric title={isAE ? "มูลค่างานที่ยังเปิดอยู่ของฉัน" : isSM ? "มูลค่างานที่ยังเปิดอยู่ในภาค" : "มูลค่างานที่ยังเปิดอยู่"}
@@ -177,7 +177,7 @@ export default function Dashboard() {
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
         <Metric title="With Me"
           value={String(assigned.length)}
-          note={isManagement ? "งานที่ส่งให้ฉัน · รวมทีม Management" : WORK_VIEW_SUBTITLES.with}
+          note={isManagement ? "งานที่ส่งให้ฉันและงานร่วมกับทีม Management" : WORK_VIEW_SUBTITLES.with}
           onClick={() => toPipeline({ status: "open", ...withMeQuery })} />
         <Metric title={isManagement ? "Overdue" : "Overdue With Me"}
           value={String(isManagement ? overdue.length : assignedOverdue.length)} note={WORK_VIEW_SUBTITLES.overdue}
@@ -187,8 +187,8 @@ export default function Dashboard() {
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
       <div className={`grid grid-cols-1 gap-4 ${isManagement ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"}`}>
-        <Panel title={isManagement ? "งานที่ต้องดำเนินการ" : "งานที่ฉันรับผิดชอบ"} meta={queue.length + " Pipelines"}>
-          <div className="flex flex-wrap gap-1.5 mb-3" aria-label="Work queue filters">
+        <Panel title={isManagement ? "งานที่ต้องดำเนินการ" : "งานที่ฉันรับผิดชอบ"} meta={queue.length + " งาน"}>
+          <div className="flex flex-wrap gap-1.5 mb-3" aria-label="ตัวกรองงานที่ต้องดำเนินการ">
             {tabs.map(([id, label]) =>
               <button key={id} type="button" onClick={() => setQueueTab(id)}
                 aria-pressed={selectedTab === id}
@@ -202,7 +202,7 @@ export default function Dashboard() {
           </div>
           {isManagement && selectedTab === "with" && (
             <p className="mb-2 text-[11px] text-muted-foreground">
-              Current Handler assignments and Pipelines involving the Management team in your authorized Regions.
+              แสดงงานที่มอบหมายให้คุณเป็น Current Handler หรืองานที่มีทีม Management ร่วมดำเนินการ เฉพาะภาคที่คุณมีสิทธิ์เข้าถึง
             </p>
           )}
           <OpportunityTable rows={queueItems} maps={maps}
@@ -217,7 +217,7 @@ export default function Dashboard() {
                 ...(selectedTab === "overdue" ? { stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) } : {}),
                 ...(selectedTab === "due" ? { due_this_month: "1" } : {}),
               })
-            }>View All</Button>
+            }>ดูทั้งหมด</Button>
           </div>
         </Panel>
         <Panel title="มูลค่างานแยกตาม Stage" meta="Open · Net RC">
@@ -243,7 +243,7 @@ export default function Dashboard() {
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">
-        Metrics use the intersection of Created Month, Expected Close and permitted Region. Won is filtered by Expected Close, not by the actual Won date.
+        ข้อมูลสรุปใช้ตัวกรองเดือนที่สร้างงาน เดือนที่คาดว่าจะปิด และภาคที่มีสิทธิ์เข้าถึงร่วมกัน โดย Won อ้างอิงเดือนที่คาดว่าจะปิด ไม่ใช่วันที่ปิดงานจริง
       </p>
     </div>
   );
@@ -280,7 +280,7 @@ function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
     <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-4">
       <div className="min-w-[155px]">
         <div className="text-[12px] font-semibold">สรุปการปิดงาน</div>
-        <div className="text-[10px] text-muted-foreground">{closeMonth ? "Selected Expected Close Month" : "All Expected Close Months"}</div>
+        <div className="text-[10px] text-muted-foreground">{closeMonth ? "เฉพาะเดือนที่คาดว่าจะปิดที่เลือก" : "ทุกเดือนที่คาดว่าจะปิด"}</div>
       </div>
       <div className="flex-1 min-w-[160px]">
         <div className="flex gap-3 justify-between text-[11px] mb-2">
@@ -320,7 +320,7 @@ function BreakdownTable({ rows, label, onSelect }) {
     <table className="w-full text-[12px]">
       <thead><tr className="text-muted-foreground border-b border-border">
         <th className="text-left font-medium py-2">{label}</th>
-        <th className="text-right font-medium py-2">Deals</th>
+        <th className="text-right font-medium py-2">จำนวนงาน</th>
         <th className="text-right font-medium py-2">Net RC</th>
       </tr></thead>
       <tbody>{rows.map((row) =>
@@ -346,8 +346,8 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
         <col style={{ width: regionColumn ? "24%" : "27%" }} />
       </colgroup>
       <thead><tr className="text-muted-foreground border-b border-border">
-        <th className="text-left font-medium py-2">Customer</th>
-        {regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}
+        <th className="text-left font-medium py-2">ลูกค้า</th>
+        {regionColumn && <th className="text-left font-medium py-2 pr-2">ภาค</th>}
         <th className="text-left font-medium py-2">Stage</th>
         <th className="text-right font-medium py-2">Net RC</th>
       </tr></thead>
@@ -360,15 +360,15 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
               <div className="mt-0.5 flex min-h-[16px] flex-nowrap items-center gap-x-2 overflow-hidden whitespace-nowrap text-[10px] leading-4">
                 {showRegion && !regionColumn && (
                   <span className="min-w-0 truncate text-muted-foreground">
-                    {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
+                    {maps.region[o.region_id]?.name || o.region_id || "ยังไม่ระบุภาค"}
                   </span>
                 )}
                 </div>
             </div>
           </td>
           {regionColumn && <td className="py-2 pr-2 align-middle text-[11px] text-muted-foreground">
-            <span className="block truncate" title={maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}>
-              {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
+            <span className="block truncate" title={maps.region[o.region_id]?.name || o.region_id || "ยังไม่ระบุภาค"}>
+              {maps.region[o.region_id]?.name || o.region_id || "ยังไม่ระบุภาค"}
             </span>
           </td>}
           <td className="py-2 align-middle text-muted-foreground whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
@@ -380,5 +380,5 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
 }
 
 function EmptyRow() {
-  return <div className="text-[12px] text-muted-foreground py-7 text-center">No matching opportunities</div>;
+  return <div className="text-[12px] text-muted-foreground py-7 text-center">ไม่มีงานในรายการนี้</div>;
 }
