@@ -471,6 +471,27 @@ export function createCore({ contract, store, now, uuid }) {
     return options;
   }
 
+  // CCP+ labels come from Config > Field_Options; inactive "pending" is legacy only.
+  function activeCcpCheckOptions() {
+    const config = store.table("B2B_GEO_Pipeline_Config.xlsx", "Field_Options");
+    const matching = (config?.rows || [])
+      .filter(row => String(row.field_key || "").trim() === "ccp_check_result" && isActive(row.active))
+      .sort((a, b) => Number(a.sort_order || 9999) - Number(b.sort_order || 9999));
+    const seen = new Set();
+    const options = matching.map(row => {
+      const value = String(row.option_value || "").trim();
+      const label = String(row.option_label || "").trim();
+      if (!value || !label || seen.has(value)) {
+        throw new HttpError(503, "CCP+ Field_Options has missing or duplicate active values");
+      }
+      seen.add(value);
+      return { value, label };
+    });
+    if (!options.length) throw new HttpError(503, "CCP+ has no active Field_Options");
+    return options;
+  }
+
+
   // The six approved historical partner groups have no verified AE. They may
   // enter the Review Queue under a real, region-authorized SM only, never a
   // fabricated AE owner. This does not waive other import/financial checks.
@@ -1620,6 +1641,13 @@ export function createCore({ contract, store, now, uuid }) {
       if (method !== "GET") throw new HttpError(405, "Sales Channel Config is read-only");
       need(actor, binding("Opportunity"), "read");
       return { options: activeSalesChannelOptions() };
+    }
+
+    if (parts[0] === "config" && parts[1] === "field-options" &&
+        parts[2] === "ccp_check_result" && parts.length === 3) {
+      if (method !== "GET") throw new HttpError(405, "CCP+ Config is read-only");
+      need(actor, binding("Opportunity"), "read");
+      return { options: activeCcpCheckOptions() };
     }
 
     if (parts[0] === "access" && method === "GET") {

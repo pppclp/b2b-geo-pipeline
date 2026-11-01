@@ -44,6 +44,7 @@ test("Part 3: startup fetches entities and Tasks in exactly one existing Core ba
   const requestsExpected=entities.map(entity=>({path:"entities/"+entity,query:{sort:"-created_date"}}));
   requestsExpected.push({path:"tasks"});
   requestsExpected.push({path:"config/sales-channels"});
+  requestsExpected.push({path:"config/field-options/ccp_check_result"});
   const payload=[
     {status:200,body:[{id:"REG1"}]},
     {status:200,body:[{id:"AE1"}]},
@@ -51,6 +52,7 @@ test("Part 3: startup fetches entities and Tasks in exactly one existing Core ba
     {status:200,body:[{id:"OPP1",region_id:"R1"}]},
     {status:200,body:{items:[{opportunity_id:"OPP1",task_id:"T1",status:"not_started"}]}},
     {status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}},
+    {status:200,body:{options:[{value:"enterprise_base",label:"มีใน CCP+"},{value:"not_in_base",label:"ไม่มีใน CCP+"}]}},
   ];
   const result=await fetchStartupData(entities, async(requests)=>{
     invocations++;
@@ -58,9 +60,10 @@ test("Part 3: startup fetches entities and Tasks in exactly one existing Core ba
     return payload;
   });
   assert.equal(invocations,1,"Task read must not acquire a second Apps Script lock");
-  assert.deepEqual(result.records,[...payload.slice(0,-2).map(row=>row.body)]);
-  assert.deepEqual(result.taskEntries,payload.at(-2).body.items);
-  assert.deepEqual(result.salesChannelOptions,payload.at(-1).body.options);
+  assert.deepEqual(result.records,[...payload.slice(0,-3).map(row=>row.body)]);
+  assert.deepEqual(result.taskEntries,payload.at(-3).body.items);
+  assert.deepEqual(result.salesChannelOptions,payload.at(-2).body.options);
+  assert.deepEqual(result.ccpCheckOptions,payload.at(-1).body.options);
 });
 
 test("Part 3: startup fails closed on Tasks errors, missing data and critical scope failure",async()=>{
@@ -73,7 +76,7 @@ test("Part 3: startup fails closed on Tasks errors, missing data and critical sc
     {status:200,body:{items:{unexpected:"shape"}}},
   ]) {
     await assert.rejects(
-      fetchStartupData(entities,async()=>[rows,reply,{status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}}]),
+      fetchStartupData(entities,async()=>[rows,reply,{status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}},{status:200,body:{options:[{value:"enterprise_base",label:"มีใน CCP+"}]}}]),
       /Cannot load Tasks/
     );
   }
@@ -82,6 +85,7 @@ test("Part 3: startup fails closed on Tasks errors, missing data and critical sc
     {status:503,body:{message:"Pipeline sheet unavailable"}},
     {status:200,body:{items:[]}},
     {status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}},
+    {status:200,body:{options:[{value:"enterprise_base",label:"มีใน CCP+"}]}},
   ]),/Cannot load Opportunity \(503\)/);
 });
 
@@ -91,15 +95,24 @@ test("Sales Channel Config is required and fails closed when old Apps Script lac
    {status:404,body:{message:"Not Found"}},{status:503,body:{code:"CONFIG_ERROR"}},
    {status:200,body:{options:[]}}, {status:200,body:{options:[{value:"",label:"Empty"}]}}
  ]) {
-   await assert.rejects(fetchStartupData(["Opportunity"],async()=>[...good,reply]),/Cannot load Sales Channel Config/);
+   await assert.rejects(fetchStartupData(["Opportunity"],async()=>[...good,reply,{status:200,body:{options:[{value:"enterprise_base",label:"มีใน CCP+"}]}}]),/Cannot load Sales Channel Config/);
  }
+});
+
+test("CCP+ Config must have an active option, never fall back to stale hard-coded labels",async()=>{
+  await assert.rejects(fetchStartupData(["Opportunity"],async()=>[
+    {status:200,body:[]},
+    {status:200,body:{items:[]}},
+    {status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}},
+    {status:200,body:{options:[]}},
+  ]),/Cannot load CCP\+ Config/);
 });
 
 test("Part 3: no startup task cache, stale fallback or identity-based shortcut is introduced",async()=>{
   let requests=0;
   const fetchBatch=async()=>{
     requests++;
-    return [{status:200,body:[]},{status:200,body:{items:[{task_id:"T"+requests}]}},{status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}}];
+    return [{status:200,body:[]},{status:200,body:{items:[{task_id:"T"+requests}]}},{status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}},{status:200,body:{options:[{value:"enterprise_base",label:"มีใน CCP+"}]}}];
   };
   const first=await fetchStartupData(["Opportunity"],fetchBatch);
   const second=await fetchStartupData(["Opportunity"],fetchBatch);
@@ -107,4 +120,5 @@ test("Part 3: no startup task cache, stale fallback or identity-based shortcut i
   assert.deepEqual(first.taskEntries,[{task_id:"T1"}]);
   assert.deepEqual(second.taskEntries,[{task_id:"T2"}]);
   assert.deepEqual(second.salesChannelOptions,[{value:"AE Self",label:"AE Self"}]);
+  assert.deepEqual(second.ccpCheckOptions,[{value:"enterprise_base",label:"มีใน CCP+"}]);
 });

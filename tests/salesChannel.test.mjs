@@ -56,6 +56,18 @@ test("Import Preview also validates Sales Channels against the active runtime Co
  assert.ok(!file.includes('SALES_CHANNELS.includes'));
 });
 
+test("Create/Edit CCP+ labels come from live Config, not hard-coded English choices",()=>{
+ const forms=["src/components/CreatePipelineModal.jsx","src/components/OpportunityForm.jsx"];
+ for(const file of forms){
+   const s=readFileSync(new URL("../"+file,import.meta.url),"utf8");
+   assert.match(s,/ccpCheckOptions\.map/);
+   assert.doesNotMatch(s,/<SelectItem value="pending">/);
+   assert.doesNotMatch(s,/Not in Base \(New Customer\)|Enterprise Existing Base/);
+ }
+ const context=readFileSync(new URL("../src/lib/dataContext.jsx",import.meta.url),"utf8");
+ assert.match(context,/ccpCheckOptions/);
+});
+
 test("Create/Edit/Filter use Pipeline Config runtime options; backend validates against the same master",()=>{
  const read=(p)=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
  const ctx=read("src/lib/dataContext.jsx"),batch=read("src/lib/entityBatch.js"),core=read("server/core.js");

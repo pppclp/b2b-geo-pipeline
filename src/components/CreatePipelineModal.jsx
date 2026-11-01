@@ -46,7 +46,7 @@ function Field({ label, required, error, children, className = "" }) {
 }
 
 export default function CreatePipelineModal({ open, onClose, onSaved }) {
-  const { master, activeStages, profile, createOpportunity, salesChannelOptions } = useData();
+  const { master, activeStages, profile, createOpportunity, salesChannelOptions, ccpCheckOptions } = useData();
   const [form, setForm] = useState(EMPTY);
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -338,11 +338,11 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                 <Field label="CCP+ Check">
                   {smCanReview ? (
                     <Select value={form.ccp_check_result || ""} onValueChange={(v) => set("ccp_check_result", v)}>
-                      <SelectTrigger aria-label="CCP+ Check"><SelectValue placeholder="Not set" /></SelectTrigger>
+                      <SelectTrigger aria-label="CCP+ Check"><SelectValue placeholder="รอ SM ตรวจสอบ" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="not_in_base">Not in Base (New Customer)</SelectItem>
-                        <SelectItem value="enterprise_base">Enterprise Existing Base</SelectItem>
-                        <SelectItem value="pending">Pending Review</SelectItem>
+                        {ccpCheckOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   ) : <Input value="To be completed by SM" readOnly aria-readonly="true"

@@ -35,6 +35,7 @@ export function DataProvider({ children }) {
   const [history, setHistory] = useState([]);
   const [taskEntries, setTaskEntries] = useState([]);
   const [salesChannelOptions, setSalesChannelOptions] = useState([]);
+  const [ccpCheckOptions, setCcpCheckOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
@@ -48,7 +49,7 @@ export function DataProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const { records: results, taskEntries, salesChannelOptions: channels } = await fetchStartupData(
+      const { records: results, taskEntries, salesChannelOptions: channels, ccpCheckOptions: ccpOptions } = await fetchStartupData(
         [...MASTER_ENTITIES, "Opportunity"], db.batch
       );
       if (requestId !== dataRequestSequence.current) return;
@@ -58,6 +59,7 @@ export function DataProvider({ children }) {
       setOpportunities(results[MASTER_ENTITIES.length] || []);
       setTaskEntries(taskEntries);
       setSalesChannelOptions(channels);
+      setCcpCheckOptions(ccpOptions);
       setLastLoadedAt(new Date().toISOString());
     } catch (e) {
       if (requestId === dataRequestSequence.current) {
@@ -521,6 +523,7 @@ export function DataProvider({ children }) {
     historyFor,
     taskEntries,
     salesChannelOptions,
+    ccpCheckOptions,
     saveTask,
     refresh: loadAll,
     createMaster,

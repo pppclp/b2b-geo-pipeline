@@ -43,6 +43,7 @@ export async function fetchStartupData(entities, fetchBatch) {
   }));
   requests.push({ path: "tasks" });
   requests.push({ path: "config/sales-channels" });
+  requests.push({ path: "config/field-options/ccp_check_result" });
   const replies = await fetchBatch(requests);
   if (!Array.isArray(replies) || replies.length !== requests.length) {
     throw new Error("Data synchronization failed: incomplete backend batch response");
@@ -62,5 +63,14 @@ export async function fetchStartupData(entities, fetchBatch) {
     const status = channelReply?.status ?? "invalid";
     throw new Error(`Cannot load Sales Channel Config (${status}). Deploy compatible Apps Script and verify Field_Options.`);
   }
-  return { records, taskEntries: taskReply.body.items, salesChannelOptions: channelReply.body.options };
+  const ccpReply = replies[entities.length + 2];
+  if (ccpReply?.status !== 200 || !Array.isArray(ccpReply.body?.options) ||
+      !ccpReply.body.options.length ||
+      ccpReply.body.options.some(option => !option || typeof option.value !== "string" || !option.value.trim() ||
+        typeof option.label !== "string" || !option.label.trim())) {
+    const status = ccpReply?.status ?? "invalid";
+    throw new Error(`Cannot load CCP+ Config (${status}). Deploy compatible Apps Script and verify Field_Options.`);
+  }
+  return { records, taskEntries: taskReply.body.items,
+    salesChannelOptions: channelReply.body.options, ccpCheckOptions: ccpReply.body.options };
 }
