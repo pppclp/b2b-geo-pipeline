@@ -175,7 +175,7 @@ export default function OpportunityDetail() {
             <div className="col-span-full border-t pt-4">
               <h3 className="mb-2 text-sm font-semibold">Working With <span className="text-xs font-normal text-muted-foreground">· ทีมที่ร่วมดำเนินงาน</span></h3>
               <div className="flex flex-wrap gap-2">
-                {workingTeams.length ? workingTeams.map((team) => <span key={team} className="rounded-md border border-[#D9C7EB] bg-[#F0EAF8] px-2.5 py-1 text-xs font-medium text-[#634D86]">{team}</span>)
+                {workingTeams.length ? workingTeams.map((team) => <span key={team} className="rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-2.5 py-1 text-xs font-medium text-[#7C3AED]">{team}</span>)
                 : <span className="text-sm text-muted-foreground">{op.working_with || "Not assigned"}</span>}
               </div>
             </div>
