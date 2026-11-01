@@ -28,7 +28,8 @@ var GEO_TECHNICAL_SNAPSHOT_HEADERS_ = [
   "support_type_id","support_note","won_at","lost_at","lost_reason_id","created_month",
   "owner_sales_code","owner_sale_name","customer_location_text","import_source_customer_type",
   "import_source_rc","import_source_net_rc","import_source_monthly_sale_plan",
-  "import_source_system","import_source_record_id","import_batch_id","working_with_id"
+  "import_source_system","import_source_record_id","import_batch_id","working_with_id",
+  "import_source_sales_code"
 ];
 function geoReportBook_(store) {
   if (!store._geoReportBook) {
@@ -138,7 +139,9 @@ function geoProjectSnapshotRow_(r,lookups) {
   return [
     geoText_(r.snapshot_period),geoText_(r.captured_at),geoText_(r.opportunity_id),created,
     geoText_(r.business_id),geoText_(r.customer_type),geoText_(r.customer_name),
-    geoText_(r.contact_name),geoText_(r.contact_phone),geoText_(r.owner_sales_code),
+    geoText_(r.contact_name),geoText_(r.contact_phone),
+    geoNonblank_(r.import_source_system) ? geoText_(r.import_source_sales_code)
+      : geoText_(r.owner_sales_code),
     geoText_(r.owner_sale_name),geoText_(r.sales_channel),geoText_(r.partner_name),
     GEO_REGION_SHEETS_[String(r.region_id)] || geoText_(r.region_id),
     geoNonblank_(r.customer_location_text)?r.customer_location_text:geoText_(r.territory_id),
