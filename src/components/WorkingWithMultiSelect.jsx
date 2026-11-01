@@ -47,7 +47,7 @@ export default function WorkingWithMultiSelect({ teams = [], teamIds = "", disab
           className="min-h-10 h-auto w-full justify-between gap-2 rounded-lg px-3 py-2 text-left font-normal">
           <span className="min-w-0 flex flex-wrap items-center gap-1.5">
             {selected.length ? selected.map((team) =>
-              <span key={team.id} className="rounded-md bg-secondary px-2 py-1 text-xs font-medium">{team.name}</span>
+              <span key={team.id} className="rounded-md border border-[#D9C7EB] bg-[#F0EAF8] px-2 py-1 text-xs font-medium text-[#634D86]">{team.name}</span>
             ) : <span className="text-muted-foreground">เพิ่มทีม</span>}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />

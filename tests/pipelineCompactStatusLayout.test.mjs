@@ -44,7 +44,7 @@ test("Selecting Won/Lost removes stale Open filters, retaining real independent 
  assert.equal(nextPipelineStatusFilters(f,"archived").status,"archived");
  assert.equal(nextPipelineStatusFilters(f,"all").status,"all");
 });
-test("Stage 1 and Stage 2 use separate neutral tones, while Won and Working With keep their status colors",()=>{
+test("Stage 1 and Stage 2 semantic mapping remains intact independently of new color palette",()=>{
  assert.deepEqual(pipelineStageDisplay(rows[0],stages,map),{label:"Stage 1",tone:"stage1"});
  assert.deepEqual(pipelineStageDisplay(rows[1],stages,map),{label:"Stage 2",tone:"stage2"});
  assert.deepEqual(pipelineStageDisplay(rows[2],stages,map),{label:"รอยืนยัน Stage",tone:"review"});
@@ -83,7 +83,7 @@ test("Hover paints whole row and its sticky company cell the same surface; stage
  assert.ok(src.includes("cursor-pointer bg-card hover:bg-secondary transition-colors"));
  assert.ok(src.includes("bg-card px-3 py-2 transition-colors group-hover:bg-secondary"));
  assert.ok(!src.includes('group-hover:bg-secondary px-3 py-2'));
- assert.ok(src.includes("border-[#DFDAD4] bg-[#F0EFED] text-[#5A554F]"));
- assert.ok(src.includes("border-[#CBD5DC] bg-[#E7EBEE] text-[#41515F]"));
+ assert.ok(src.includes("border-[#BDD0A7] bg-[#E8F1DC] text-[#435F30]"));
+ assert.ok(src.includes("border-[#B6CDEA] bg-[#E3EEFB] text-[#265C8C]"));
  assert.ok(src.includes('className="group h-[56px]'));
 });

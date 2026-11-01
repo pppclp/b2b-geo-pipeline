@@ -25,14 +25,16 @@ test("Region chip styling stays neutral on Pipeline without changing shared Dash
  assert.ok(region.includes('bg-[#E9ECEF] text-[#202832]'));
 });
 
-test("New Stage 1 and Stage 2 colors use subdued Stone/Slate, not Won green or Working With sky",()=>{
- assert.ok(pipeline.includes('stage1: "border-[#DFDAD4] bg-[#F0EFED] text-[#5A554F]"'));
- assert.ok(pipeline.includes('stage2: "border-[#CBD5DC] bg-[#E7EBEE] text-[#41515F]"'));
- assert.ok(pipeline.includes('hover:bg-[#E9E6E2]'));
- assert.ok(pipeline.includes('hover:bg-[#DDE3E8]'));
+test("Stage 1 Sage differs from Won Emerald, Stage 2 Blue and Working With Lavender",()=>{
+ assert.ok(pipeline.includes('stage1: "border-[#BDD0A7] bg-[#E8F1DC] text-[#435F30]"'));
+ assert.ok(pipeline.includes('stage2: "border-[#B6CDEA] bg-[#E3EEFB] text-[#265C8C]"'));
+ assert.ok(pipeline.includes('hover:bg-[#DFEACC]'));
+ assert.ok(pipeline.includes('hover:bg-[#D7E6F8]'));
  assert.ok(!pipeline.includes('ring-2 ring-offset-1 ring-foreground/20'));
  assert.ok(pipeline.includes('won: "border-emerald-100 bg-emerald-50 text-emerald-800"'));
- assert.ok(pipeline.includes('border-sky-100 bg-sky-50') || pipeline.includes('border-sky-100 bg-sky-50 px-1.5'));
+ assert.ok(pipeline.includes('border-[#D9C7EB] bg-[#F0EAF8]'));
+ assert.ok(read('components/PipelineCard.jsx').includes('border-[#D9C7EB] bg-[#F0EAF8]'));
+ assert.ok(read('pages/OpportunityDetail.jsx').includes('border-[#D9C7EB] bg-[#F0EAF8]'));
 });
 
 test("Pipeline-specific Thai and English use real font weights without changing app-wide font stack",()=>{
