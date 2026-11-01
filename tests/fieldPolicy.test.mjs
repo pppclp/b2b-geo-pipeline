@@ -935,3 +935,40 @@ test("only approved historical Cancel rows may import Lost with blank actual clo
   assert.equal(row.expected_close_month,"2026-11");
   assert.ok(x.events().some(e=>e.opportunity_id===row.opportunity_id&&e.event_type==="historical_import_status"));
 });
+
+test("only approved historical Stage 3 source IDs may use inactive STG003 during import",()=>{
+  const x=fixture("2026-11-01T10:00:00.000Z");
+  x.store.table(CONFIG,"Stages").rows.push({stage_id:"STG003",active:"No"});
+  const base=input({client_request_id:undefined,
+    source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R7",
+    source_system:"Legacy Spreadsheet", source_created_month:"2026-10",
+    source_created_at:"2026-10-03",stage_id:"STG003",status:"open",
+    source_sales_code:"1001",reference_net_rc:"350"});
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",
+    input({client_request_id:"stage3_live_20261101_1",stage_id:"STG003"})),rejected(400));
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+    batch_id:"historical_stage3_forbidden_1",
+    items:[{...base,source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R300"}]}),rejected(400));
+  const done=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"historical_stage3_approved_1",items:[base]});
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===done.opportunity_ids[0]);
+  assert.equal(row.stage_id,"STG003");
+  assert.equal(row.status,"Open");
+  assert.equal(x.store.table(CONFIG,"Stages").rows.find(r=>r.stage_id==="STG003").active,"No");
+});
+test("approved historical Cancel can retain unknown Stage and Original Closed Date",()=>{
+  const x=fixture("2026-11-01T10:00:00.000Z");
+  const data=input({client_request_id:undefined,
+    source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R240",
+    source_system:"Legacy Spreadsheet",source_created_month:"2026-10",
+    source_created_at:"2026-10-14",source_closed_at:"",stage_id:"",
+    status:"lost",lost_reason_id:"LR1",source_sales_code:"1001",
+    source_monthly_sale_plan:"9 Day",expected_close_month:"2026-11"});
+  const done=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"historical_cancel_blank_stage_1",items:[data]});
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===done.opportunity_ids[0]);
+  assert.equal(row.status,"Lost");
+  assert.equal(row.stage_id,"");
+  assert.equal(row.lost_at,"");
+  assert.equal(row.import_source_monthly_sale_plan,"9 Day");
+});
