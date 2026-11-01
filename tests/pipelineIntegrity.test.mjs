@@ -130,17 +130,19 @@ test("server-side import writes once and a retry is idempotent",()=>{
   assert.deepEqual(second.opportunity_ids,first.opportunity_ids);
   assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.length,2);
   assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
-    ...payload,items:[{...newPipeline,business_id:"0000000100003"},payload.items[1]]
+    ...payload,items:[{...payload.items[0],business_id:"0000000100003"},payload.items[1]]
   }),e=>e.status===409);
-  assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
+  const skipped=x.call("ADMIN","POST","imports/opportunities",{
     batch_id:"uat-import-batch-00000002",items:payload.items
-  }),e=>e.status===409);
+  });
+  assert.equal(skipped.imported,0);
+  assert.equal(skipped.skipped,2);
 });
 test("batch import rejects unauthorized roles and duplicates before writing",()=>{
   const x=fixture();
   const input={batch_id:"uat-import-batch-00000003",items:[
-    {...newPipeline,business_id:"0000000100004"},
-    {...newPipeline,business_id:"0000000100004"}
+    {...newPipeline,business_id:"0000000100004",source_system:"Legacy CRM",source_record_id:"LEG-4"},
+    {...newPipeline,business_id:"0000000100004",source_system:"Legacy CRM",source_record_id:"LEG-4"}
   ]};
   assert.throws(()=>x.call("AE1","POST","imports/opportunities",input),e=>e.status===403);
   assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",input),e=>e.status===409);
