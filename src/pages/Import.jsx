@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useData } from "@/lib/dataContext";
 import { db } from "@/api/client";
-import { mapImportHeaders, needsExplicitCreatedMonthMapping } from "@/lib/importHeaderMapping";
+import { mapImportHeaders, needsExplicitCreatedMonthMapping, resolveImportExpectedCloseMonth } from "@/lib/importHeaderMapping";
 import { normalizeHistoricalGeoSource } from "@/lib/historicalGeoSource";
 import { makeHistoricalImportBatches } from "@/lib/importBatches";
 import { readImportFile, parseImportCreatedMonth, parseImportSourceDate } from "@/lib/importWorkbook";
@@ -224,10 +224,10 @@ export default function Import() {
           else rec.business_id = id;
           return;
         }
-        if (f.key === "source_monthly_sale_plan") {
+        if (f.key === "source_monthly_sale_plan" || f.key === "expected_close_month") {
           const month = legacySourceMonth(val);
-          if (!month) errors.push("Monthly Sale Plan must be YYYY-MM or Oct-26 (not Expected Close)");
-          else rec.source_monthly_sale_plan = month;
+          if (!month) errors.push(f.label + " must be a valid month, e.g. YYYY-MM or Oct-26");
+          else rec[f.key] = month;
           return;
         }
         if (f.key === "source_rc" || f.key === "reference_net_rc") {
@@ -282,6 +282,14 @@ export default function Import() {
           rec[f.key] = val;
         }
       });
+      // For legacy GEO sources, Monthly Sale Plan means Expected Close Month.
+      // Retain the provenance field and do not guess/replace conflicting values.
+      const resolvedCloseMonth = resolveImportExpectedCloseMonth(
+        rec.source_monthly_sale_plan, rec.expected_close_month
+      );
+      if (resolvedCloseMonth.error) errors.push(resolvedCloseMonth.error);
+      else if (resolvedCloseMonth.month) rec.expected_close_month = resolvedCloseMonth.month;
+
       FIELDS.filter((f) => f.required).forEach((f) => {
         const idx = mapping[f.key];
         const val = idx != null ? (row[idx] || "").trim() : "";
