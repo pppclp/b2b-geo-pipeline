@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+/* Exact 400/500/600 Thai weights for Pipeline-only bilingual typography. */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600&display=swap');
 
 /*
  * Thai UI: LINE Seed Sans TH (SIL OFL 1.1), with a version-pinned webfont URL.
@@ -225,4 +227,10 @@
   .geo-page-title {
     font-size: 24px;
   }
+}
+
+/* Pipeline-only: matched real Thai/Latin weights, no global app typography rewrite. */
+.pipeline-typography {
+  font-family: "Inter", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
 }
