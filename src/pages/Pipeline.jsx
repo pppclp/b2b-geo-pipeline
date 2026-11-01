@@ -11,7 +11,6 @@ import { overdueReasons } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
-import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import PageHeader from "@/components/PageHeader";
 import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
 import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipelineView } from "@/lib/pipelineListFilters";
@@ -19,11 +18,13 @@ import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from 
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import { legacyOpenStageRecords } from "@/lib/openStagePolicy";
+import { PIPELINE_STATUS_TABS, pipelineStatusCounts, nextPipelineStatusFilters, pipelineStageDisplay } from "@/lib/pipelineStatusTabs";
+import { requiresStageReview } from "@/lib/pipelineReviewQueue";
 import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KanbanSquare, List, Plus, Download, AlertTriangle, Layers3, UserRound, Clock3, CalendarDays, ChevronRight } from "lucide-react";
+import { KanbanSquare, List, Plus, Download, AlertTriangle, Layers3, UserRound, Clock3, CalendarDays, ChevronRight, ClipboardCheck } from "lucide-react";
 
 const SORTS = [
   { value: "close_month", label: "Close Month ↑ · Net RC ↓" },
@@ -126,6 +127,13 @@ export default function Pipeline() {
     quickViewCounts(scopedOpportunities, filters, profile?.id, filterContext),
     [scopedOpportunities, filters, profile?.id, filterContext]
   );
+  const statusCounts = useMemo(() =>
+    pipelineStatusCounts(scopedOpportunities, filters, filterContext),
+    [scopedOpportunities, filters, filterContext]
+  );
+  const stageReviewCount = useMemo(() => filteredWithoutStage.filter(
+    (op) => requiresStageReview(op, activeStages)
+  ).length, [filteredWithoutStage, activeStages]);
   const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
   // This is a presentation-only selector, never a replacement for server RBAC.
   // Match Dashboard's region choices: Admin and Management see all active
@@ -137,7 +145,6 @@ export default function Pipeline() {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [master?.Region, profile?.app_role, profile?.region_ids]
   );
-  const hasRegionQuickFilter = quickRegions.length > 1;
   const stageCounts = useMemo(() => {
     const counts = new Map();
     filteredWithoutStage.forEach(o => counts.set(o.stage_id, (counts.get(o.stage_id) || 0) + 1));
@@ -173,7 +180,6 @@ export default function Pipeline() {
   const openQuickView = (id) => setQuickView({ id, targetStageId: null });
   const selectedPipeline = quickView ? scopedOpportunities.find((item) => item.id === quickView.id) : null;
 
-  const totalValue = sorted.reduce((a, o) => a + (o.pipeline_value || 0), 0);
   const legacyStageRecords = legacyOpenStageRecords(sorted, activeStages);
   const closedBoardRecords = sorted.filter((o) => o.status !== "open");
   const quickViews = [
@@ -183,6 +189,17 @@ export default function Pipeline() {
     { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"], icon: CalendarDays },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id, profile?.app_role);
+  const selectStatus = (status) => {
+    const next = nextPipelineStatusFilters(filters, status);
+    setFilters(next);
+    // Keep URL deep links and independent filters consistent with the visible tabs.
+    const nextParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(next)) {
+      if (value && !(key === "status" && value === "open")) nextParams.set(key, value);
+    }
+    setParams(nextParams, { replace: true });
+    if (status !== "open") setView("list");
+  };
   const selectQuickView = (viewId) => {
     const next = switchPipelineView(filters, viewId, profile?.id, profile?.app_role);
     setFilters(next);
@@ -213,7 +230,7 @@ export default function Pipeline() {
     <div className="geo-page">
       <PageHeader
         title="Pipeline"
-        description={`${sorted.length} Pipelines · ${formatTHB(totalValue)} Net RC`}
+        description={`${sorted.length} ${filters.status === "open" ? "Open " : filters.status === "won" ? "Won " : filters.status === "lost" ? "Lost " : ""}Pipelines`}
         className="mb-4"
         actions={
           <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
