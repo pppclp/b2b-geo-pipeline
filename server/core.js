@@ -477,10 +477,33 @@ export function createCore({ contract, store, now, uuid }) {
     "มณฑล รักศิริกิจ", "บริษัท บลูไวโอเล็ต จำกัด", "บริษัท 8 ริ้ว สมาร์ท จำกัด",
   ]);
 
+  // User explicitly approved these eleven historical Source IDs on 2026-11-01.
+  // New approvals are source-record-specific: no name-based blanket exemption.
+  const ADDITIONAL_PENDING_AE_CASES = new Map([
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R8", { name: "บริษัท มายเซ็นเตอร์ จำกัด", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R19", { name: "หจก.โฟล์ อิน ซัพพลาย", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R20", { name: "น.ส.วรรณภา ฟ้าประทานชัย", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R22", { name: "บริษัท พีเอฟดี เทค จำกัด", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R23", { name: "บริษัท มายเซ็นเตอร์ จำกัด", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R87", { name: "นางสาวทิพย์วรรณ เกาะทอง", region: "CW", handler: "U0030" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R92", { name: "พรพิมล วชิรมิตร", region: "CW", handler: "U0030" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R220", { name: "พีพี บริการ", region: "NE1", handler: "U0029" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R221", { name: "พีพี บริการ", region: "NE1", handler: "U0029" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R222", { name: "พีพี บริการ", region: "NE1", handler: "U0029" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R234", { name: "น.ส.กิ่งทอง มะโนวรรณ์", region: "NE2", handler: "U0029" }],
+  ]);
+
   function validatePendingPartnerAssignment(item, actor) {
     if (item.pending_ae_assignment !== true) return false;
-    if (!PENDING_AE_PARTNER_GROUPS.has(String(item.source_sale_name || "").trim()))
+    const sourceSaleName = String(item.source_sale_name || "").trim();
+    const extra = ADDITIONAL_PENDING_AE_CASES.get(String(item.source_record_id || "").trim());
+    const isApprovedExistingGroup = PENDING_AE_PARTNER_GROUPS.has(sourceSaleName);
+    if (!isApprovedExistingGroup && !extra)
       throw new HttpError(400, "Pending AE assignment is not approved for this source partner");
+    if (extra && (sourceSaleName !== extra.name ||
+        String(item.region_id || "") !== extra.region ||
+        String(item.current_handler_id || "") !== extra.handler))
+      throw new HttpError(400, "Pending AE assignment does not match approved Source, Region and SM");
     if (!["Premium Partner", "Retail Partner"].includes(normalizeSalesChannel(item.sales_channel)))
       throw new HttpError(400, "Pending AE assignment requires a verified Partner sales channel");
     if (String(item.owner_id || "").trim())
