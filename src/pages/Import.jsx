@@ -22,6 +22,7 @@ const FIELDS = [
   { key: "source_system", label: "Source System" },
   { key: "source_record_id", label: "Source Opportunity ID" },
   { key: "source_sales_code", label: "Sales Code" },
+  { key: "pending_ae_assignment", label: "Pending AE Assignment" },
   { key: "source_sale_name", label: "Sale Name" },
   { key: "customer_name", label: "Customer Name", required: true },
   { key: "business_id", label: "Business ID" },
@@ -219,6 +220,12 @@ export default function Import() {
           return;
         }
         if (!val) return;
+        if (f.key === "pending_ae_assignment") {
+          if (!/^(yes|true|1|no|false|0)$/i.test(val))
+            errors.push('Pending AE Assignment must be Yes or No');
+          else rec.pending_ae_assignment = /^(yes|true|1)$/i.test(val);
+          return;
+        }
         if (f.key === "sales_channel") {
           const canonical = normalizeSalesChannel(val) ||
             salesChannelOptions.find(option => option.value.toLowerCase() === val.toLowerCase())?.value;
@@ -320,7 +327,7 @@ export default function Import() {
       if (rec.source_closed_at && rec.source_stage_entered_at && rec.source_closed_at < rec.source_stage_entered_at)
         errors.push("Closed Date precedes Stage Entered Date");
       const salesCode = String(rec.source_sales_code || "").trim();
-      if (salesCode) {
+      if (salesCode && !rec.pending_ae_assignment) {
         const owner = salesCodeLookup.byCode[salesCode];
         if (!owner?.found) errors.push('Sales Code "' + salesCode + '" is unknown or outside your scope');
         else {
@@ -332,7 +339,17 @@ export default function Import() {
           rec.owner_id = owner.id;
         }
       }
-      if (!rec.owner_id) errors.push("Sales Code or Opportunity Owner is required");
+      if (rec.pending_ae_assignment) {
+        // Explicitly approved partner history: AE remains blank, regional SM
+        // receives the work only until an authorized AE is assigned later.
+        if (!["Premium Partner", "Retail Partner"].includes(rec.sales_channel))
+          errors.push("Pending AE Assignment requires Premium Partner or Retail Partner");
+        if (rec.owner_id) errors.push("Pending AE Assignment must leave AE Owner blank");
+        const handler = master?.TeamMember?.find(m => m.id === rec.current_handler_id);
+        if (!handler?.active || handler.app_role !== "sm" ||
+            !handler.region_ids?.includes(rec.region_id))
+          errors.push("Pending AE Assignment requires a regional SM as Current Handler");
+      } else if (!rec.owner_id) errors.push("Sales Code or Opportunity Owner is required");
       if (!rec.source_system) rec.source_system = "Legacy Spreadsheet";
       if (!rec.source_record_id && documentId) rec.source_record_id = legacyRowSourceId(documentId, rowNumbers[i] || i + 2);
       if (!rec.source_record_id) errors.push("Source row identity missing");
@@ -364,7 +381,7 @@ export default function Import() {
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation, salesCodeLookup, layoutErrors, salesChannelOptions]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation, salesCodeLookup, layoutErrors, salesChannelOptions, master]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
