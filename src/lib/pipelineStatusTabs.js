@@ -42,5 +42,8 @@ export function pipelineStageDisplay(op, activeStages = [], stageMap = {}) {
   }
   if (op.stage_id === "STG001") return { label: stageMap[op.stage_id]?.name || "Stage 1", tone: "stage1" };
   if (op.stage_id === "STG002") return { label: stageMap[op.stage_id]?.name || "Stage 2", tone: "stage2" };
+  // Visual-only tones for future active stages; status and permissions remain unchanged.
+  if (op.stage_id === "STG003") return { label: stageMap[op.stage_id]?.name || "Stage 3", tone: "stage3" };
+  if (op.stage_id === "STG004") return { label: stageMap[op.stage_id]?.name || "Stage 4", tone: "stage4" };
   return { label: stageMap[op.stage_id]?.name || op.stage_id, tone: "neutral" };
 }

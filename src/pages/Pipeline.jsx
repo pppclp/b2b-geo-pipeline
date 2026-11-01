@@ -199,10 +199,19 @@ export default function Pipeline() {
   const stageBadgeTones = {
     stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]",
     stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
+    stage3: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]",
+    stage4: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D]",
     review: "border-border bg-secondary text-foreground",
-    won: "border-emerald-100 bg-emerald-50 text-emerald-800",
-    lost: "border-[#D4C5BE] bg-[#EDE6E2] text-[#675149]",
+    won: "border-transparent bg-[#AFE0C2] text-[#166534]",
+    lost: "border-transparent bg-[#F3C4C4] text-[#9A3340]",
     neutral: "border-border bg-secondary text-foreground",
+  };
+  // Shared Stage quick-filter palette follows the same visual semantics as list badges.
+  const stageFilterTones = {
+    STG001: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A] hover:bg-[#DCFCE7]",
+    STG002: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]",
+    STG003: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C] hover:bg-[#FFEDD5]",
+    STG004: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D] hover:bg-[#FCE7F3]",
   };
   const quickViews = [
     { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all, icon: Layers3 },
@@ -351,11 +360,7 @@ export default function Pipeline() {
                 All <span className="ml-1 tabular-nums">{filteredWithoutStage.length}</span>
               </button>
               {activeStages.map((stage) => {
-                const tone = stage.id === "STG001"
-                  ? "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A] hover:bg-[#DCFCE7]"
-                  : stage.id === "STG002"
-                    ? "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]"
-                    : "border-border bg-secondary text-foreground hover:bg-secondary/80";
+                const tone = stageFilterTones[stage.id] || "border-border bg-secondary text-foreground hover:bg-secondary/80";
                 return (
                   <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
                     aria-pressed={filters.stage === stage.id}
