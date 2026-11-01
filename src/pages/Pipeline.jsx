@@ -27,13 +27,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KanbanSquare, List, Plus, Download, AlertTriangle, ChevronRight, ClipboardCheck, Layers3, UserRound, CalendarDays } from "lucide-react";
 
 const SORTS = [
-  { value: "close_month", label: "Close Month ↑ · Net RC ↓", shortLabel: "Close Month ↑" }
-  { value: "value_desc", label: "Value — High to Low", shortLabel: "Value ↓" }
-  { value: "value_asc", label: "Value — Low to High", shortLabel: "Value ↑" }
-  { value: "stage_aging_desc", label: "Stage Aging — Longest First", shortLabel: "Stage Aging ↓" }
-  { value: "handler_aging_desc", label: "Handler Aging — Longest First", shortLabel: "Handler Aging ↓" }
-  { value: "updated_desc", label: "Recently Updated", shortLabel: "Updated ↓" }
-  { value: "created_desc", label: "Created Date", shortLabel: "Created Date" }
+  { value: "close_month", label: "Close Month ↑ · Net RC ↓", shortLabel: "Close Month ↑" },
+  { value: "value_desc", label: "Value — High to Low", shortLabel: "Value ↓" },
+  { value: "value_asc", label: "Value — Low to High", shortLabel: "Value ↑" },
+  { value: "stage_aging_desc", label: "Stage Aging — Longest First", shortLabel: "Stage Aging ↓" },
+  { value: "handler_aging_desc", label: "Handler Aging — Longest First", shortLabel: "Handler Aging ↓" },
+  { value: "updated_desc", label: "Recently Updated", shortLabel: "Updated ↓" },
+  { value: "created_desc", label: "Created Date", shortLabel: "Created Date" },
   { value: "customer_asc", label: "Customer Name A-Z", shortLabel: "Customer A–Z" }
 ];
 
