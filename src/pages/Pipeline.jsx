@@ -96,6 +96,20 @@ export default function Pipeline() {
   }, [profile?.id, profile?.app_role, profile?.isDemo]);
 
   const onFilter = (key, value) => {
+    if (key === "status") {
+      // Close-status tabs and the archived advanced option share one transition.
+      // This clears Open-only work view flags and Stage, never the independent filters.
+      const next = nextPipelineStatusFilters(filters, value || "all");
+      setFilters(next);
+      const nextParams = new URLSearchParams();
+      for (const [filterKey, filterValue] of Object.entries(next)) {
+        if (filterValue && !(filterKey === "status" && filterValue === "open"))
+          nextParams.set(filterKey, filterValue);
+      }
+      setParams(nextParams, { replace: true });
+      if (value !== "open") setView("list");
+      return;
+    }
     if (key === "clear") {
       setFilters({ status: "open" });
       setParams({});
@@ -195,19 +209,10 @@ export default function Pipeline() {
     { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"] },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id, profile?.app_role);
-  const selectStatus = (status) => {
-    const next = nextPipelineStatusFilters(filters, status);
-    setFilters(next);
-    // Keep URL deep links and independent filters consistent with the visible tabs.
-    const nextParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(next)) {
-      if (value && !(key === "status" && value === "open")) nextParams.set(key, value);
-    }
-    setParams(nextParams, { replace: true });
-    if (status !== "open") setView("list");
-  };
+  const selectStatus = (status) => onFilter("status", status);
   const selectQuickView = (viewId) => {
-    const next = switchPipelineView(filters, viewId, profile?.id, profile?.app_role);
+    const base = filters.status === "open" ? filters : nextPipelineStatusFilters(filters, "open");
+    const next = switchPipelineView(base, viewId, profile?.id, profile?.app_role);
     setFilters(next);
     // Mirror the view and active filters into the URL so refreshing or
     // opening a saved link will keep the same scope. Do not reset sort.
