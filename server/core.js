@@ -647,7 +647,19 @@ export function createCore({ contract, store, now, uuid }) {
     if (approvalCasesFor(item).length)
       throw new HttpError(409, "Historical AE mapping has no approved case for this source row");
     const code = String(item.source_sales_code ?? "").trim();
-    if (!code) throw new HttpError(409, "Missing verified AE Owner (unless approved Pending AE partner)");
+    if (!code) {
+      // Backward-compatible import from other authenticated source systems:
+      // a selected *existing active AE* is acceptable if it is in scope.
+      // The approved Legacy Spreadsheet migration still requires verified evidence.
+      if (String(item.source_system || "") === "Legacy Spreadsheet")
+        throw new HttpError(409, "Historical Spreadsheet row requires approved AE mapping or verified Employee ID");
+      const ae=findUser(item.owner_id);
+      if(!ae||ae.role!=="ae"||
+         (actor.role!=="admin"&&!ae.region_ids.some(id=>actor.region_ids.includes(id))))
+        throw new HttpError(409, "No verified active AE Owner");
+      return {...item,current_handler_id:item.current_handler_id||ae.id,
+        source_original_sales_code:String(item.source_original_sales_code||"")};
+    }
     const ae = legacyImportOwner(code, actor);
     if (item.owner_id && String(item.owner_id) !== ae.id)
       throw new HttpError(400, "Source Employee ID conflicts with selected AE Owner");
@@ -774,7 +786,8 @@ export function createCore({ contract, store, now, uuid }) {
       originalCreatedMonth:String(item.source_created_month_raw ?? item.source_created_month ?? ""),
       originalClosedDate:String(item.source_closed_at_raw ?? item.source_closed_at ?? ""),
       originalStageEnteredDate:String(item.source_stage_entered_at_raw ?? item.source_stage_entered_at ?? ""),
-      approvedHistoricalStage3: approvedHistoricalStage3(item),
+      approvedHistoricalStage3: stage === "STG003" && status === "won" &&
+        !!String(item.source_system || "").trim() && !!String(item.source_record_id || "").trim(),
       pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
@@ -954,9 +967,9 @@ export function createCore({ contract, store, now, uuid }) {
         backup.t.headers=backup.headers;
         // Clearing any dirtied tables before returning the exception is essential:
         // the outer GAS transaction must never flush a failed batch's scratch rows.
-        delete store.dirty[backup.name];
       });
-      // Prevent the outer handler from writing partial memory modifications.
+      // The outer request throws and must never call flush(). The original
+      // tables are restored in memory; pre-existing commit logic handles errors.
       for(const backup of backups)store.touch("B2B_GEO_Pipeline_DB.xlsx",backup.name);
       throw error;
     }
