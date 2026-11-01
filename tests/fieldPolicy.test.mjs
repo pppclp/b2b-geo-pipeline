@@ -55,7 +55,8 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
     "import_source_business_id","import_source_sales_channel","import_source_region",
     "import_source_stage","import_source_workbook",
     "import_source_created_at_raw","import_source_created_month_raw",
-    "import_source_closed_at_raw","import_source_stage_entered_at_raw"
+    "import_source_closed_at_raw","import_source_stage_entered_at_raw",
+    "import_source_legacy_record_id","import_source_row"
   ];
   provenanceHeaders.forEach(h=>{seed[DB+"/Pipelines"][0][h]="";});
   const tables={};
