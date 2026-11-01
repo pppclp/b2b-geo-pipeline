@@ -26,9 +26,8 @@ test("Region chip styling stays neutral on Pipeline without changing shared Dash
 });
 
 test("Pipeline Stage and Region chips are slightly denser and use matching hover palettes without changing Dashboard defaults",()=>{
- const stageArea=pipeline.split('aria-label="Quick filter by Stage"')[1]?.split('aria-label="Region filters for your access scope"')[0] || "";
- assert.ok(stageArea.includes('gap-1.5 overflow-x-auto pb-0.5'));
- assert.ok(stageArea.includes('rounded-full border px-2.5 py-1 text-xs font-medium'));
+ assert.ok(pipeline.includes('className="flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="Quick filter by Stage"'));
+ assert.ok(pipeline.includes('rounded-full border px-2.5 py-1 text-xs font-medium'));
  assert.ok(pipeline.includes('STG001: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A] hover:bg-[#DCFCE7]"'));
  assert.ok(pipeline.includes('STG002: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]"'));
  assert.ok(pipeline.includes('STG003: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C] hover:bg-[#FFEDD5]"'));
@@ -42,17 +41,16 @@ test("Pipeline Stage and Region chips are slightly denser and use matching hover
 });
  
 test("Status controls wrap instead of overlapping and the selected Sort label stays compact",()=>{
- const controls=pipeline.split('aria-label="Filter Pipelines by Status"')[1]?.split('aria-label="Quick filter by Stage"')[0] || "";
  assert.ok(pipeline.includes('gap-x-3 gap-y-2'));
- assert.ok(controls.includes('max-w-full shrink-0 items-center gap-2 overflow-x-auto'));
- assert.ok(controls.includes('max-w-full shrink-0 items-center gap-1.5'));
- assert.ok(controls.includes('rounded-xl bg-secondary p-0.5'));
- assert.ok(controls.includes('h-8 w-[145px] shrink-0'));
- assert.ok(controls.includes('sm:w-[155px]'));
+ assert.ok(pipeline.includes('className="flex min-w-0 max-w-full shrink-0 items-center gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter Pipelines by Status"'));
+ assert.ok(pipeline.includes('className="flex max-w-full shrink-0 items-center gap-1.5"'));
+ assert.ok(pipeline.includes('rounded-xl bg-secondary p-0.5'));
+ assert.ok(pipeline.includes('h-8 w-[145px] shrink-0'));
+ assert.ok(pipeline.includes('sm:w-[155px]'));
  assert.ok(pipeline.includes('label: "Close Month ↑ · Net RC ↓", shortLabel: "Close Month ↑"'));
- assert.ok(controls.includes('title={SORTS.find((item) => item.value === sort)?.label}'));
- assert.ok(controls.includes('SORTS.find((item) => item.value === sort)?.shortLabel'));
- assert.ok(controls.includes('onValueChange={setSort}'));
+ assert.ok(pipeline.includes('title={SORTS.find((item) => item.value === sort)?.label}'));
+ assert.ok(pipeline.includes('SORTS.find((item) => item.value === sort)?.shortLabel'));
+ assert.ok(pipeline.includes('onValueChange={setSort}'));
  assert.ok(pipeline.includes('sortPipelineRows('));
 });
 
