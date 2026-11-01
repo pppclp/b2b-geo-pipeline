@@ -25,13 +25,18 @@ test("Region chip styling stays neutral on Pipeline without changing shared Dash
  assert.ok(region.includes('bg-[#E9ECEF] text-[#202832]'));
 });
 
-test("Stage 1 pastel green differs from Won Emerald, Stage 2 Blue and Working With Purple",()=>{
+test("All four pastel stages differ from solid forest-green Won and purple Working With",()=>{
  assert.ok(pipeline.includes('stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"'));
  assert.ok(pipeline.includes('stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"'));
+ assert.ok(pipeline.includes('stage3: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"'));
+ assert.ok(pipeline.includes('stage4: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D]"'));
+ assert.ok(pipeline.includes('STG003: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C] hover:bg-[#FFEDD5]"'));
+ assert.ok(pipeline.includes('STG004: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D] hover:bg-[#FCE7F3]"'));
  assert.ok(pipeline.includes('hover:bg-[#DCFCE7]'));
  assert.ok(pipeline.includes('hover:bg-[#DBEAFE]'));
  assert.ok(!pipeline.includes('ring-2 ring-offset-1 ring-foreground/20'));
- assert.ok(pipeline.includes('won: "border-emerald-100 bg-emerald-50 text-emerald-800"'));
+ assert.ok(pipeline.includes('won: "border-[#14532D] bg-[#166534] text-white"'));
+ assert.ok(read('pages/OpportunityDetail.jsx').includes('won: "bg-[#166534] text-white border border-[#14532D]"'));
  assert.ok(pipeline.includes('border-[#DDD6FE] bg-[#F5F3FF]'));
  assert.ok(read('components/PipelineCard.jsx').includes('border-[#DDD6FE] bg-[#F5F3FF]'));
  assert.ok(read('pages/OpportunityDetail.jsx').includes('border-[#DDD6FE] bg-[#F5F3FF]'));
