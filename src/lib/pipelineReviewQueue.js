@@ -23,7 +23,8 @@ export function reviewSignals(op, activeStages, role = "") {
   // Closed historical pipelines retain Won/Lost. Missing AE Owner or Channel
   // remains visible read-only for future authorized review; never auto-reopen.
   if (op.status !== "open") {
-    const core = missingPipelineCoreFields(op).filter(({ key }) => ["sales_channel", "owner_id"].includes(key));
+    const core = missingPipelineCoreFields(op).filter(({ key }) =>
+      ["sales_channel", "owner_id", "quantity", "import_source_rc", "import_source_net_rc"].includes(key));
     return { core, sm: false, stage: false, any: core.length > 0 };
   }
   const core = missingPipelineCoreFields(op);
