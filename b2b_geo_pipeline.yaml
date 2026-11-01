@@ -2240,7 +2240,6 @@ initial_load_order:
       - "scenarios"
       - "lost_reasons"
       - "working_with_options"
-      - "support_types"
       - "pipeline_settings"
 
   step_4_optional:
@@ -2504,14 +2503,6 @@ access_control:
         Working_With:
           entity: "working_with_options"
           primary_key: "team_id"
-          permissions:
-            read: ["AE", "SM", "Management", "Admin"]
-            create: ["Admin"]
-            update: ["Admin"]
-            delete: ["Admin"]
-        Support_Types:
-          entity: "support_types"
-          primary_key: "support_type_id"
           permissions:
             read: ["AE", "SM", "Management", "Admin"]
             create: ["Admin"]
