@@ -623,9 +623,6 @@ test("real YAML contract roundtrip: Create Edit Stage Handler Working With Won R
    {team_id:"TEAM1",team_name:"Presales",active:"Yes"},
    {team_id:"TEAM2",team_name:"Pricing",active:"Yes"}
  );
- x.store.table(config,"Support_Types").rows.push(
-   {support_type_id:"SUP1",support_type_name:"Pricing",active:"Yes"}
- );
  const created=x.call("AE1","POST","entities/Opportunity",input({
    client_request_id:"e2e_approved_legacy_req_002",
    customer_name:"E2E Synthetic",
