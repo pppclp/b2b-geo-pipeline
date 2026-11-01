@@ -29,6 +29,9 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
     [ORG + "/Territories"]: [{territory_id:"T1",region_id:"R1",active:"Yes"}],
     [CONFIG + "/Stages"]: [{stage_id:"S1",active:"Yes"},{stage_id:"S2",active:"Yes"},{stage_id:"OFF",active:"No"}],
     [CONFIG + "/Field_Options"]: [
+      { field_key:"sales_channel",option_value:"AE Self",option_label:"AE Self",sort_order:1,active:"Yes" },
+      { field_key:"sales_channel",option_value:"Premium Partner",option_label:"Premium Partner",sort_order:2,active:"Yes" },
+      { field_key:"sales_channel",option_value:"Retail Partner",option_label:"Retail Partner",sort_order:3,active:"Yes" },
       { field_key:"customer_type",option_value:"SERVICE AND RETAIL",active:"Yes" },
       { field_key:"customer_type",option_value:"INACTIVE CLASS",active:"No" },
     ],
