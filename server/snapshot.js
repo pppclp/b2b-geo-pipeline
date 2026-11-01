@@ -67,6 +67,7 @@ export function buildSnapshotRows(opportunities, snapshotPeriod, capturedAt, new
         import_source_system: o.import_source_system || "",
         import_source_record_id: o.import_source_record_id || "",
         import_batch_id: o.import_batch_id || "",
+        working_with_id: o.working_with_id || "",
       };
     });
 }
