@@ -236,7 +236,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
               </p>
             )}
           </div>
-          {(["Premium Partner", "Dealer"].includes(form.sales_channel) || Boolean(String(opportunity?.partner_name || "").trim())) && (
+          {(["Premium Partner", "Retail Partner"].includes(form.sales_channel) || Boolean(String(opportunity?.partner_name || "").trim())) && (
             <div>
               <Label>ชื่อพาร์ทเนอร์ (ถ้ามี)</Label>
               <Input maxLength={200} value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
