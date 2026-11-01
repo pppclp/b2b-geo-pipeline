@@ -1,3 +1,4 @@
+import { SALES_CHANNELS, normalizeSalesChannel } from "@/lib/salesChannel";
 import React, { useState, useMemo, useEffect } from "react";
 import CreatePipelineModal from "@/components/CreatePipelineModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -56,6 +57,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   useEffect(() => {
     if (opportunity) {
       setForm({ ...empty, ...opportunity,
+        sales_channel: normalizeSalesChannel(opportunity.sales_channel) || "",
         working_with_team_ids: opportunity.working_with_team_ids ||
           (master?.WorkingWithOption || []).find(t=>t.name===opportunity.working_with)?.id || "",
       });
@@ -226,10 +228,10 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
             <Label>ช่องทางการขาย *</Label>
             <Select value={form.sales_channel || ""} onValueChange={(v) => set("sales_channel", v)}>
               <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
-              <SelectContent>{["AE B2B GEO", "AE Self", "B2B Premium Partner"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+              <SelectContent>{SALES_CHANNELS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          {(form.sales_channel === "B2B Premium Partner" || Boolean(String(opportunity?.partner_name || "").trim())) && (
+          {(["Premium Partner", "Dealer"].includes(form.sales_channel) || Boolean(String(opportunity?.partner_name || "").trim())) && (
             <div>
               <Label>ชื่อพาร์ทเนอร์ (ถ้ามี)</Label>
               <Input maxLength={200} value={form.partner_name || ""} onChange={(e) => set("partner_name", e.target.value)} />
