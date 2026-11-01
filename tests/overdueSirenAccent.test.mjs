@@ -22,7 +22,7 @@ test("Overdue tabs have no emoji; only the record warning tag contains ⚠",()=>
 
 test("Overdue work tab matches the other tabs; alert tags remain red",()=>{
   assert.ok(page.includes('className="text-xl font-semibold leading-none tabular-nums"'));
-  assert.ok(page.includes('className={`tabular-nums ${active ? "font-semibold text-red-600" : "font-medium"}`}'));
+  assert.ok(page.includes('className={`tabular-nums ${active ? "font-semibold text-red-600" : "font-medium text-muted-foreground"}`}'));
   assert.ok(page.includes('border-red-500 font-semibold text-foreground'));
   assert.ok(!page.includes("text-red-700") || !page.includes("item.urgent"));
   assert.ok(tags.includes('bg-red-50 px-1.5 py-0.5 font-medium text-red-700'));
