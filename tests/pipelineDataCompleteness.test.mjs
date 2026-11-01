@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {missingPipelineCoreFields,isPipelineCoreIncomplete} from "../src/lib/pipelineDataCompleteness.js";
+import {reviewQueueRows,reviewQueueCounts,reviewSignals} from "../src/lib/pipelineReviewQueue.js";
 import {matchesPipelineFilters,quickViewCounts,switchPipelineView} from "../src/lib/pipelineListFilters.js";
 import {advancedFilterCount,visibleActiveFilters} from "../src/lib/pipelineFilterUi.js";
 
@@ -69,4 +70,28 @@ test("Quick View has tiny missing data footer at absolute bottom, not a card",()
  assert.ok(!filter.includes('variant={filters.sm_info === "missing" ? "secondary"'));
  assert.match(pipeline,/params\.get\("incomplete"\)/);
  assert.doesNotMatch(dashboard,/Incomplete Data|missingPipelineCoreFields/);
+});
+
+test("blank and unknown historical Sales Channel are Incomplete Data; other records stay unchanged",()=>{
+  for(const value of ["", null, "Other", "PTT : Thanyaburi, Nong Suea, Lam Luk Ka"]){
+    const row={...complete,sales_channel:value};
+    assert.deepEqual(missingPipelineCoreFields(row).map(f=>f.key),["sales_channel"]);
+    assert.equal(isPipelineCoreIncomplete(row),true);
+  }
+  assert.equal(isPipelineCoreIncomplete({...complete,sales_channel:"RP"}),false);
+  assert.equal(isPipelineCoreIncomplete({...complete,sales_channel:"Retail Partner"}),false);
+  assert.equal(complete.sales_channel,"AE Self");
+});
+
+test("closed historical Pipeline with missing Sales Channel appears in read-only Review Queue",()=>{
+  const won={...complete,id:"WON-1",status:"won",sales_channel:""};
+  const lost={...complete,id:"LOST-1",status:"lost",sales_channel:"Other"};
+  const closedClean={...complete,id:"WON-2",status:"won",sales_channel:"Premium Partner"};
+  const rows=[won,lost,closedClean,complete];
+  assert.deepEqual(reviewQueueRows(rows,{tab:"data"}).map(x=>x.id),["WON-1","LOST-1"]);
+  assert.deepEqual(reviewQueueRows(rows,{tab:"stage"}).map(x=>x.id),[]);
+  assert.deepEqual(reviewSignals(won,[]).core.map(x=>x.key),["sales_channel"]);
+  assert.equal(reviewQueueCounts(rows,[]).data,2);
+  assert.equal(won.status,"won");
+  assert.equal(lost.status,"lost");
 });
