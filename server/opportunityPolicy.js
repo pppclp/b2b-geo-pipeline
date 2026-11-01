@@ -18,6 +18,12 @@ export const OPPORTUNITY_COLUMNS = new Set([
   "import_source_system", "import_source_record_id", "import_source_product_id", "import_source_rc",
   "import_source_discount_pct", "import_source_monthly_sale_plan", "import_source_net_rc",
   "import_source_customer_type", "customer_location_text",
+  // Additive import-only evidence columns, NEVER normal browser-editable.
+  "import_source_sales_code", "import_source_subs", "import_source_oc",
+  "import_source_business_id", "import_source_sales_channel", "import_source_region",
+  "import_source_stage", "import_source_workbook",
+  "import_source_created_at_raw", "import_source_created_month_raw",
+  "import_source_closed_at_raw", "import_source_stage_entered_at_raw",
 ]);
 
 // UI names AND sheet names of fields the browser must never control.
@@ -35,6 +41,15 @@ export const SYSTEM_OPPORTUNITY_FIELDS = new Set([
   "import_source_system", "import_source_record_id", "import_source_product_id", "import_source_rc",
   "import_source_discount_pct", "import_source_monthly_sale_plan", "import_source_net_rc",
   "import_source_customer_type", "import_batch_id", "import_row_number", "import_row_signature",
+  "import_source_sales_code", "import_source_subs", "import_source_oc",
+  "import_source_business_id", "import_source_sales_channel", "import_source_region",
+  "import_source_stage", "import_source_workbook",
+  "import_source_created_at_raw", "import_source_created_month_raw",
+  "import_source_closed_at_raw", "import_source_stage_entered_at_raw",
+  "source_original_sales_code", "source_subs", "source_oc", "source_business_id",
+  "source_sales_channel_raw", "source_region_raw", "source_stage_raw", "source_workbook",
+  "source_created_at_raw", "source_created_month_raw",
+  "source_closed_at_raw", "source_stage_entered_at_raw",
 ]);
 
 export function stripSystemFields(data) {
