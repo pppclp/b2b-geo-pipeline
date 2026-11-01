@@ -26,7 +26,7 @@ test("Management Action Queue preserves With Me and Region after Support retirem
   assert.ok(s.includes('const assigned = withMePipelines(cohort, profile?.id, {'));
   assert.ok(s.includes('title="With Me"'));
   assert.ok(s.includes('regionColumn={isManagement}'));
-  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}'));
+  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">ภาค</th>}'));
   assert.ok(s.includes('className="h-[76px] border-b border-border last:border-0"'));
   assert.ok(s.includes('min-h-[16px]'));
   assert.ok(s.includes('selectedTab === "with" ? "handler_since"'));
