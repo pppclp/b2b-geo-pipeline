@@ -1064,3 +1064,49 @@ test("P0 missing additive provenance schema blocks Legacy Spreadsheet capture in
   assert.match(res.results[0].validation_errors.join(","),/Import source-evidence columns not prepared/);
   assert.equal(x.touched.length,before);
 });
+
+
+test("P0 two approved original Excel rows with the same old Source ID import as two separate Opportunities",()=>{
+  const x=fixture();
+  const region={region_id:"BMA-E",region_name:"BMA-East",active:"Yes"};
+  x.store.table(ORG,"Regions").rows.push(region);
+  x.store.table(ORG,"User_Region").rows.push(
+    {user_region_id:"UR1-BMAE",user_id:"AE1",region_id:"BMA-E",active:"Yes"},
+    {user_region_id:"UR2-BMAE",user_id:"SM1",region_id:"BMA-E",active:"Yes"}
+  );
+  x.store.table(CONFIG,"Stages").rows.push({stage_id:"STG001",active:"Yes",stage_name:"Stage 1"});
+  x.store.table(DB,"AE_Owner_Approval_20261027").rows.push({
+    "Source Row Numbers":"124","Source Region":"BMA-East",
+    "Source Sales Code":"12700124","Decision":"Approved","Approved AE User ID":"AE1"
+  });
+  const common=input({client_request_id:undefined,
+    source_system:"Legacy Spreadsheet",source_workbook:"Pipeline BMA East-2(1).xlsx",
+    source_sheet:"Pipeline",source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R124",
+    source_original_sales_code:"12700124",source_sales_code:"12700124",
+    source_created_at:"2026-08-01",source_created_month:"2026-08",
+    region_id:"BMA-E",owner_id:"AE1",current_handler_id:"AE1",
+    stage_id:"STG001",status:"open"
+  });
+  const first={...common,source_row:4,customer_name:"Synthetic Company A"};
+  const second={...common,source_row:29,customer_name:"Synthetic Company B"};
+  const before=x.store.table(DB,"Pipelines").rows.length;
+  const eventCount=x.events().length;
+  const payload={batch_id:"distinct_original_excel_rows_20261101",items:[first,second]};
+  const preview=x.call("SM1","POST","imports/preview",payload);
+  assert.deepEqual(preview.results.map(r=>r.status),["READY","READY"]);
+  assert.notEqual(preview.results[0].source_record_id,preview.results[1].source_record_id);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,before);
+  assert.equal(x.events().length,eventCount);
+  const imported=x.call("SM1","POST","imports/opportunities",payload);
+  assert.equal(imported.imported,2);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,before+2);
+  const added=imported.opportunity_ids.map(id=>x.store.table(DB,"Pipelines").rows.find(p=>p.opportunity_id===id));
+  assert.notEqual(added[0].import_source_record_id,added[1].import_source_record_id);
+  assert.equal(added[0].import_source_legacy_record_id,added[1].import_source_legacy_record_id);
+  assert.deepEqual(added.map(p=>String(p.import_source_row)),["4","29"]);
+  const next=x.call("SM1","POST","imports/preview",payload);
+  assert.deepEqual(next.results.map(r=>r.status),["ALREADY_IMPORTED","ALREADY_IMPORTED"]);
+  const retry=x.call("SM1","POST","imports/opportunities",payload);
+  assert.equal(retry.imported,0);
+  assert.equal(retry.skipped,2);
+});
