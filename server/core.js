@@ -21,6 +21,7 @@ import { pipelineTaskViews, validDays } from "../src/lib/taskOverdue.js";
 import { approvedUndatedHistoricalCancel } from "../src/lib/approvedHistoricalCancel.js";
 import { approvedHistoricalStage3 } from "../src/lib/approvedHistoricalStage3.js";
 import { normalizeHistoricalDate, normalizeHistoricalMonth } from "../src/lib/historicalDateNormalization.js";
+import { historicalRegionForWorkbook, originalSourceIdentity } from "../src/lib/historicalSourceIdentity.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -521,10 +522,11 @@ export function createCore({ contract, store, now, uuid }) {
   function validatePendingPartnerAssignment(item, actor) {
     if (item.pending_ae_assignment !== true) return false;
     const sourceSaleName = String(item.source_sale_name || "").trim();
-    const extra = ADDITIONAL_PENDING_AE_CASES.get(String(item.source_record_id || "").trim());
+    const originalId=String(item.source_legacy_record_id||item.source_record_id||"").trim();
+    const extra = ADDITIONAL_PENDING_AE_CASES.get(originalId);
     const isApprovedExistingGroup = PENDING_AE_PARTNER_GROUPS.has(sourceSaleName);
     const reviewed = store.table("B2B_GEO_Pipeline_DB.xlsx","Partner_SM_Review_20261101").rows.find(r =>
-      String(r["Source Record ID"] || "").trim() === String(item.source_record_id || "").trim() &&
+      String(r["Source Record ID"] || "").trim() === originalId &&
       String(r["Partner Name"] || "").trim() === sourceSaleName &&
       String(r["Temporary SM User ID"] || "").trim() === String(item.current_handler_id || "").trim() &&
       String(r["Region"] || "").trim() === (rows("regions").find(x =>
@@ -559,7 +561,7 @@ export function createCore({ contract, store, now, uuid }) {
   // accessed only by authenticated import/preview and is NEVER edited here.
   const HISTORICAL_APPROVAL_PREFIX = "DOC-79e97612cde3acfee14cfb26a78e0ddd-R";
   function approvalCasesFor(item) {
-    const id = String(item.source_record_id || "").trim();
+    const id = String(item.source_legacy_record_id || item.source_record_id || "").trim();
     if (!id.startsWith(HISTORICAL_APPROVAL_PREFIX)) return [];
     const rowNumber = id.slice(HISTORICAL_APPROVAL_PREFIX.length);
     if (!/^[1-9]\d*$/.test(rowNumber)) return [];
@@ -575,7 +577,7 @@ export function createCore({ contract, store, now, uuid }) {
     const cases = approvalCasesFor(item);
     // Reject a source-row identity which belongs to an existing approval case
     // but is mislabeled with another Region. Never bypass via Employee ID.
-    const rawId=String(item.source_record_id||"").trim();
+    const rawId=String(item.source_legacy_record_id||item.source_record_id||"").trim();
     if(rawId.startsWith(HISTORICAL_APPROVAL_PREFIX)){
       const suffix=rawId.slice(HISTORICAL_APPROVAL_PREFIX.length);
       const anyRow=store.table("B2B_GEO_Pipeline_DB.xlsx","AE_Owner_Approval_20261027").rows
@@ -605,26 +607,16 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(409, "Original Sales Code does not match approved source evidence");
     return { ownerId: approvedId, originalSalesCode: originalCode };
   }
-  // Historical file name, not the AE's current Region, is authoritative.
-  // Unknown source workbooks are held rather than mapped by guesswork.
-  const APPROVED_SOURCE_WORKBOOKS=new Map([
-    ["pipeline bma east","BMA-E"],["pipeline bma west","BMA-W"],
-    ["pipeline cw","CW"],["pipeline east","E"],["pipeline north","N"],
-    ["pipeline ne1","NE1"],["pipeline ne2","NE2"],["pipeline south","S"]
-  ]);
+  // Original workbook filename, NOT owner Region, is authoritative.
   function resolveHistoricalRegion(item) {
     const filename=String(item.source_workbook||"").trim();
-    if(!filename)return item; // existing approved/staged rows may already have verified Region
-    const key=filename.replace(/\\/g,"/").split("/").pop().toLowerCase()
-      .replace(/\s*\(\d+\)(?=\.xlsx?$)/g,"").replace(/\.xlsx?$/,"")
-      .replace(/[\s_-]+/g," ").trim();
-    const authorized=APPROVED_SOURCE_WORKBOOKS.get(key);
-    if(!authorized)throw new HttpError(409,"Unrecognized original source workbook; verify Region against source filename");
+    if(!filename)return item;
+    const authorized=historicalRegionForWorkbook(filename);
+    if(!authorized)throw new HttpError(409,"Unrecognized original source workbook");
     const requested=String(item.region_id||"").trim();
-    if(requested && requested!==authorized)
-      throw new HttpError(409,"Historical Region differs from the authoritative source filename");
-    return {...item,region_id:authorized,
-      source_region_raw:item.source_region_raw??requested};
+    if(requested&&requested!==authorized)
+      throw new HttpError(409,"Historical Region conflicts with original source workbook");
+    return {...item,region_id:authorized,source_region_raw:item.source_region_raw??requested};
   }
 
   // Employee-ID resolution is permitted only for a VERIFIED direct match.
@@ -722,7 +714,8 @@ export function createCore({ contract, store, now, uuid }) {
         dates.source_stage_entered_at < dates.source_created_at)
       throw new HttpError(400, "Stage Entered Date cannot precede Created Date");
     if (status !== "open") {
-      if (!dates.source_closed_at && !approvedUndatedHistoricalCancel(item) && !approvedHistoricalStage3(item))
+      if (!dates.source_closed_at && !approvedUndatedHistoricalCancel({...item,source_record_id:item.source_legacy_record_id||item.source_record_id}) &&
+          !approvedHistoricalStage3({...item,source_record_id:item.source_legacy_record_id||item.source_record_id}))
         throw new HttpError(400, "Historical Won/Lost requires an original Closed Date unless explicitly approved historical Cancel or Stage 3 service opening");
       if (dates.source_closed_at && dates.source_created_at && dates.source_closed_at < dates.source_created_at)
         throw new HttpError(400, "Closed Date cannot precede Created Date");
@@ -773,6 +766,8 @@ export function createCore({ contract, store, now, uuid }) {
       sourceClosedAt: dates.source_closed_at,
       createdMonth: historicalMonth || (dates.source_created_at ? dates.source_created_at.slice(0, 7) : ""),
       sourceRecordId: String(item.source_record_id || "").trim(),
+      sourceLegacyRecordId:String(item.source_legacy_record_id || ""),
+      sourceRow:String(item.source_row ?? ""),
       sourceSystem: String(item.source_system || "").trim(),
       sourceProductId: String(item.source_product_id || "").trim(),
       sourceCustomerType: String(item.source_customer_type || item.customer_type || "").trim(),
@@ -841,7 +836,8 @@ export function createCore({ contract, store, now, uuid }) {
     "import_source_business_id","import_source_sales_channel","import_source_region",
     "import_source_stage","import_source_workbook",
     "import_source_created_at_raw","import_source_created_month_raw",
-    "import_source_closed_at_raw","import_source_stage_entered_at_raw"
+    "import_source_closed_at_raw","import_source_stage_entered_at_raw",
+    "import_source_legacy_record_id","import_source_row"
   ];
   function inspectImportBatch(actor,input,requireBatchId=false) {
     const {binding:b,items,batchId}=validateImportEnvelope(actor,input,requireBatchId);
@@ -858,13 +854,18 @@ export function createCore({ contract, store, now, uuid }) {
     const activeChannels=activeSalesChannelOptions().map(o=>o.value);
     const prepared=[];
     const results=items.map((raw,index)=>{
-      const system=String(raw.source_system??"").trim();
-      const recordId=String(raw.source_record_id??"").trim();
+      let normalized;
+      try { normalized=originalSourceIdentity(raw); }
+      catch(err){ return {row:index+1,status:"HOLD",source_system:String(raw.source_system||""),
+        source_record_id:String(raw.source_record_id||""),validation_errors:[err.message],financial_warnings:[]}; }
+      const system=String(normalized.source_system??"").trim();
+      const recordId=String(normalized.source_record_id??"").trim();
       const key=sourceKey(system,recordId);
       const result={row:index+1,source_system:system,source_record_id:recordId,
         status:"HOLD",validation_errors:[],financial_warnings:[]};
       if(!system||!recordId||
-         (system==="Legacy Spreadsheet" && !/^DOC-[a-f0-9]{32}-R[1-9]\d*$/i.test(recordId))){
+         (system==="Legacy Spreadsheet" &&
+          !(/^(?:DOC-[a-f0-9]{32}-R[1-9]\d*|ROW\|PIPELINE [A-Z0-9 -]+\|Pipeline\|[2-9]\d*)$/i.test(recordId)))){
         result.validation_errors.push("Stable Source System + Source File/Original Row ID are required");
         return result;
       }
@@ -884,8 +885,27 @@ export function createCore({ contract, store, now, uuid }) {
         result.opportunity_id=known.get(key);
         return result;
       }
+      // Legacy aliases may collide across distinct Excel rows. Only a
+      // separately reviewed Production ID can prove a prior import for this row.
+      const legacyKey=normalized.source_legacy_record_id
+        ? sourceKey(system,normalized.source_legacy_record_id) : "";
+      if(legacyKey&&known.has(legacyKey)){
+        const confirmed=String(raw.matched_production_opportunity_id||"").trim();
+        const existing=String(known.get(legacyKey));
+        if(confirmed&&confirmed===existing){
+          result.status="ALREADY_IMPORTED";result.opportunity_id=existing;return result;
+        }
+        result.status="POTENTIAL_DUPLICATE";
+        result.validation_errors.push("Legacy Source ID matches Production but exact original row lacks verified Production identity");
+        return result;
+      }
+      if(raw.matched_production_opportunity_id){
+        result.status="HOLD";
+        result.validation_errors.push("Reviewed matched Production ID has no matching existing technical source key");
+        return result;
+      }
       try{
-        const item=resolveLegacyImportOwner(resolveHistoricalRegion(raw),actor);
+        const item=resolveLegacyImportOwner(resolveHistoricalRegion(normalized),actor);
         const evidence=validateImportEvidence(item,allowedTypes);
         const mappedType=evidence.normalizedCustomerType||item.customer_type;
         const mappedChannel=normalizeSalesChannel(item.sales_channel)||item.sales_channel;
@@ -941,6 +961,7 @@ export function createCore({ contract, store, now, uuid }) {
     }
     const existingBatch=tableOf(b).rows.filter(r=>String(r.import_batch_id||"")===batchId);
     const signatures=items.map(importFingerprint);
+    const sourceIdentities=items.map(i=>originalSourceIdentity(i));
     // A batch ID may safely be retried only with identical row signatures.
     existingBatch.forEach(r=>{
       const i=Number(r.import_row_number)-1;
@@ -948,7 +969,7 @@ export function createCore({ contract, store, now, uuid }) {
         ![signatures[i],oldImportFingerprint(items[i]),importCommercialFingerprint(items[i])]
           .includes(String(r.import_row_signature||"")) ||
         sourceKey(r.import_source_system,r.import_source_record_id)!==
-          sourceKey(items[i].source_system,items[i].source_record_id))
+          sourceKey(sourceIdentities[i].source_system,sourceIdentities[i].source_record_id))
         throw new HttpError(409,"Import Batch ID already used for different source rows");
     });
     if(!inspected.summary.READY)
@@ -1456,6 +1477,8 @@ export function createCore({ contract, store, now, uuid }) {
         if (importMeta) {
           const provenance = {
             import_source_record_id: importMeta.sourceRecordId,
+            import_source_legacy_record_id: importMeta.sourceLegacyRecordId,
+            import_source_row: importMeta.sourceRow,
             import_source_system: importMeta.sourceSystem,
             import_source_product_id: importMeta.sourceProductId,
             import_source_rc: importMeta.sourceRc,
