@@ -11,14 +11,20 @@ import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import PageHeader from "@/components/PageHeader";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
 import { withMePipelines } from "@/lib/dashboardQueue";
-import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
+
 import { legacyOpenStageRecords } from "@/lib/openStagePolicy";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RotateCcw, Settings2, Upload } from "lucide-react";
 
 const sumValue = (items) => items.reduce((total, item) => total + (Number(item.pipeline_value) || 0), 0);
 const isOpen = (item) => item.status === "open";
-const compactDate = (month) => month || "All Months";
+// Dashboard-only copy. Shared Pipeline quick-view labels are intentionally unchanged.
+const DASHBOARD_VIEW_SUBTITLES = {
+  with: "Pipeline ที่ส่งให้ฉัน",
+  overdue: "Pipeline เกินกำหนด",
+  due: "Pipeline ที่คาดว่าจะปิดเดือนนี้",
+};
+const DASHBOARD_SELECTED_CLOSE_MONTH_SUBTITLE = "Pipeline ที่คาดว่าจะปิดเดือนที่เลือก";
 
 export default function Dashboard() {
   const { scopedOpportunities, maps, master, activeStages, profile, config, taskEntries, loading, error, refresh } = useData();
@@ -99,9 +105,9 @@ export default function Dashboard() {
   const queue = selectedTab === "with" ? assigned
     : selectedTab === "overdue" ? (isManagement ? overdue : assignedOverdue)
     : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
-  const queueEmptyMessage = selectedTab === "with" ? "ไม่มีงานที่ส่งให้ฉัน"
-    : selectedTab === "overdue" ? "ไม่มีงานเกินกำหนด"
-    : closeMonth ? "ไม่มีงานในเดือนที่เลือก" : "ไม่มีงานที่คาดว่าจะปิดเดือนนี้";
+  const queueEmptyMessage = selectedTab === "with" ? "ไม่มี Pipeline ที่ส่งให้ฉัน"
+    : selectedTab === "overdue" ? "ไม่มี Pipeline เกินกำหนด"
+    : closeMonth ? "ไม่มี Pipeline ที่คาดว่าจะปิดเดือนที่เลือก" : "ไม่มี Pipeline ที่คาดว่าจะปิดเดือนนี้";
   const queueItems = queue.slice().sort((a, b) => {
     const agingKey = selectedTab === "with" ? "handler_since" : "stage_entered_at";
     // Never rank an unknown timestamp as 1970 (oldest); handler aging
@@ -122,7 +128,7 @@ export default function Dashboard() {
         <div role={error ? "alert" : "status"} className="rounded-xl border border-border bg-card p-4 flex gap-3 items-center">
           <AlertCircle className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <div className="flex-1 text-sm">
-            {error ? actionableErrorMessage(error, "load") : "กำลังโหลดข้อมูลงาน…"}
+            {error ? actionableErrorMessage(error, "load") : "กำลังโหลดข้อมูล Pipeline…"}
           </div>
           {error && <Button type="button" variant="outline" onClick={refresh}>Retry</Button>}
         </div>
@@ -138,14 +144,14 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Panel title="User & Organization"><p className="text-xs text-muted-foreground mb-3">Manage users and authorized Region mappings.</p>
             <Button type="button" variant="outline" onClick={() => navigate("/admin")}><Settings2 className="h-4 w-4 mr-2" />Open Admin</Button></Panel>
-          <Panel title="นำเข้างาน"><p className="text-xs text-muted-foreground mb-3">ตรวจสอบและนำเข้าข้อมูลงาน</p>
+          <Panel title="นำเข้า Pipeline"><p className="text-xs text-muted-foreground mb-3">ตรวจสอบและนำเข้าข้อมูล Pipeline</p>
             <Button type="button" variant="outline" onClick={() => navigate("/import")}><Upload className="h-4 w-4 mr-2" />Open Import</Button></Panel>
         </div>
-        <Panel title="ภาพรวมงาน">
-          <p className="text-sm text-muted-foreground">ดูงานได้ {cohort.length} รายการใน {regionContext.label} โดยด้านล่างแสดง Net RC ของงานที่ยังเปิดอยู่แยกตามภาค</p>
-          <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>ดูรายการงาน</Button>
+        <Panel title="ภาพรวม Pipeline">
+          <p className="text-sm text-muted-foreground">ดู Pipeline ได้ {cohort.length} รายการใน {regionContext.label} โดยด้านล่างแสดง Net RC ของ Pipeline ที่ยังเปิดอยู่แยกตามภาค</p>
+          <Button type="button" variant="outline" className="mt-3" onClick={() => navigate("/pipeline")}>ดู Pipeline</Button>
         </Panel>
-        <Panel title="มูลค่างานที่ยังเปิดอยู่แยกตามภาค" meta="Open · Net RC">
+        <Panel title="มูลค่า Pipeline ที่ยังเปิดอยู่แยกตามภาค" meta="Open · Net RC">
           <BreakdownTable rows={regionRows} label="Region"
             onSelect={(id) => toPipeline({ status: "open", region: id })} />
         </Panel>
@@ -161,11 +167,11 @@ export default function Dashboard() {
         actions={
           <div className="flex min-w-0 flex-wrap items-end gap-3">
           <div className="w-[150px]">
-            <label className="geo-filter-label block mb-1.5">เดือนที่สร้างงาน</label>
+            <label className="geo-filter-label block mb-1.5">เดือนที่สร้าง</label>
             <MonthPicker value={createdMonth} onChange={setCreatedMonth} placeholder="All Months" allowAll />
           </div>
           <div className="w-[150px]">
-            <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิดงาน</label>
+            <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิด</label>
             <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
           </div>
             {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
@@ -174,15 +180,15 @@ export default function Dashboard() {
       />
       {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric title="มูลค่างานรวม" value={formatTHB(closeValue)} note="Net RC · Open + Won" />
-        <Metric title={isAE ? "มูลค่างานที่ยังเปิดอยู่ของฉัน" : isSM ? "มูลค่างานที่ยังเปิดอยู่ในภาค" : "มูลค่างานที่ยังเปิดอยู่"}
+        <Metric title="มูลค่า Pipeline รวม" value={formatTHB(closeValue)} note="Net RC · Open + Won" />
+        <Metric title={isAE ? "มูลค่า Pipeline ที่ยังเปิดอยู่ของฉัน" : isSM ? "มูลค่า Pipeline ที่ยังเปิดอยู่ในภาค" : "มูลค่า Pipeline ที่ยังเปิดอยู่"}
           value={formatTHB(sumValue(open))} note="Net RC"
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
-        <Metric title="งานที่ส่งให้ฉัน"
+        <Metric title="Pipeline ที่ส่งให้ฉัน"
           value={String(assigned.length)}
-          note={isManagement ? "งานของฉัน / ทีม Management" : "งานที่รับผิดชอบ"}
+          note={isManagement ? "ของฉัน / ทีม Management" : "อยู่ในความรับผิดชอบ"}
           onClick={() => toPipeline({ status: "open", ...withMeQuery })} />
-        <Metric title="งานเกินกำหนด"
+        <Metric title="Pipeline เกินกำหนด"
           value={String(isManagement ? overdue.length : assignedOverdue.length)} note="ต้องติดตาม"
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
       </div>
@@ -190,7 +196,7 @@ export default function Dashboard() {
         onWon={() => toPipeline({ status: "won", ...(isAE ? { owner: profile.id } : {}) })}
         onOpen={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
       <div className={`grid grid-cols-1 gap-4 ${isManagement ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"}`}>
-        <Panel title={isManagement ? "งานที่ต้องดำเนินการ" : "งานที่ฉันรับผิดชอบ"} meta={queue.length + " งาน"}>
+        <Panel title={isManagement ? "Pipeline ที่ต้องดำเนินการ" : "Pipeline ที่ฉันรับผิดชอบ"} meta={queue.length + " Pipelines"}>
           <div className="flex flex-wrap gap-1.5 mb-3" aria-label="Work queue filters">
             {tabs.map(([id, label]) =>
               <button key={id} type="button" onClick={() => setQueueTab(id)}
@@ -199,7 +205,7 @@ export default function Dashboard() {
                   ? "px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
                   : "px-2.5 py-1.5 text-[11px] rounded-lg border border-border hover:bg-secondary"}>
                 <span className="block">{label}</span>
-                <span className="block text-[10px] font-normal opacity-75">{id === "due" && closeMonth ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES[id]}</span>
+                <span className="block text-[10px] font-normal opacity-75">{id === "due" && closeMonth ? DASHBOARD_SELECTED_CLOSE_MONTH_SUBTITLE : DASHBOARD_VIEW_SUBTITLES[id]}</span>
               </button>
             )}
           </div>
@@ -223,24 +229,24 @@ export default function Dashboard() {
             }>View All</Button>
           </div>
         </Panel>
-        <Panel title="มูลค่างานแยกตาม Stage" meta="Open · Net RC">
+        <Panel title="มูลค่า Pipeline แยกตาม Stage" meta="Open · Net RC">
           <BarList rows={stageRows} onSelect={(id) => toPipeline({ status: "open", stage: id, ...(isAE ? { owner: profile.id } : {}) })} />
           {legacyStageOpen.length > 0 && (
             <button type="button" onClick={() => navigate("/review-queue?tab=stage")}
               className="mt-3 inline-flex min-h-8 items-center gap-1.5 text-left text-xs font-medium text-foreground hover:text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {legacyStageOpen.length} งานรอตรวจสอบ Stage <span aria-hidden="true">→</span>
+              {legacyStageOpen.length} Pipeline รอตรวจสอบ Stage <span aria-hidden="true">→</span>
             </button>
           )}
         </Panel>
       </div>
       {(isSM || isManagement) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Panel title={(isManagement || isSM) && !region && regions.length > 1 ? "มูลค่างานแยกตามภาค" : "มูลค่างานแยกตาม AE"} meta="Open · Net RC">
+          <Panel title={(isManagement || isSM) && !region && regions.length > 1 ? "มูลค่า Pipeline แยกตามภาค" : "มูลค่า Pipeline แยกตาม AE"} meta="Open · Net RC">
             <BreakdownTable rows={(isManagement || isSM) && !region && regions.length > 1 ? regionRows : ownerRows}
               label={(isManagement || isSM) && !region && regions.length > 1 ? "Region" : "AE Owner"}
               onSelect={(id) => (isManagement || isSM) && !region && regions.length > 1 ? setRegionFilter(id) : toPipeline({ status: "open", owner: id })} />
           </Panel>
-          <Panel title="มูลค่างานแยกตามประเภทผลิตภัณฑ์" meta="Open · Net RC">
+          <Panel title="มูลค่า Pipeline แยกตามประเภทผลิตภัณฑ์" meta="Open · Net RC">
             <BarList rows={categoryRows} onSelect={(id) => toPipeline({ status: "open", product_category: id, ...(isAE ? { owner: profile.id } : {}) })} />
           </Panel>
         </div>
@@ -266,7 +272,7 @@ function Panel({ title, meta, children }) {
 
 function Metric({ title, value, note, onClick }) {
   const children = <>
-    <div className="geo-metric-label" style={{ fontSize: "16px", lineHeight: "24px", fontWeight: 600 }}>{title}</div>
+    <div className="geo-metric-label" style={{ fontSize: "12px", lineHeight: "18px", fontWeight: 600 }}>{title}</div>
     <div className="geo-metric-value">{value}</div>
     <div className="geo-metric-note">{note}</div>
   </>;
@@ -282,7 +288,7 @@ function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-4">
       <div className="min-w-[155px]">
-        <div className="text-[12px] font-semibold">สถานะงาน</div>
+        <div className="text-[12px] font-semibold">สถานะ Pipeline</div>
         <div className="text-[10px] text-muted-foreground">{closeMonth ? "Expected Close · Selected Month" : "Expected Close · All Months"}</div>
       </div>
       <div className="flex-1 min-w-[160px]">
@@ -323,7 +329,7 @@ function BreakdownTable({ rows, label, onSelect }) {
     <table className="w-full text-[12px]">
       <thead><tr className="text-muted-foreground border-b border-border">
         <th className="text-left font-medium py-2">{label}</th>
-        <th className="text-right font-medium py-2">งาน</th>
+        <th className="text-right font-medium py-2">Pipelines</th>
         <th className="text-right font-medium py-2">Net RC</th>
       </tr></thead>
       <tbody>{rows.map((row) =>
@@ -338,7 +344,7 @@ function BreakdownTable({ rows, label, onSelect }) {
   </div>;
 }
 
-function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false, emptyMessage = "ไม่มีงานในรายการนี้", onOpen }) {
+function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false, emptyMessage = "ไม่มี Pipeline ในรายการนี้", onOpen }) {
   if (!rows.length) return <EmptyRow message={emptyMessage} />;
   return <div className="overflow-x-auto">
     <table className={`w-full table-fixed text-[12px] ${regionColumn ? "min-w-[510px]" : "min-w-[390px]"}`}>
@@ -382,6 +388,6 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
   </div>;
 }
 
-function EmptyRow({ message = "ไม่มีงานในรายการนี้" }) {
+function EmptyRow({ message = "ไม่มี Pipeline ในรายการนี้" }) {
   return <div className="text-[12px] text-muted-foreground py-7 text-center">{message}</div>;
 }
