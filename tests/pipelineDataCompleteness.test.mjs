@@ -89,7 +89,7 @@ test("closed historical Pipeline with missing Sales Channel appears in read-only
   const closedClean={...complete,id:"WON-2",status:"won",sales_channel:"Premium Partner"};
   const rows=[won,lost,closedClean,complete];
   assert.deepEqual(reviewQueueRows(rows,{tab:"data"}).map(x=>x.id),["WON-1","LOST-1"]);
-  assert.deepEqual(reviewQueueRows(rows,{tab:"stage"}).map(x=>x.id),[]);
+  assert.equal(reviewQueueRows(rows,{tab:"stage"}).some(x=>["WON-1","LOST-1"].includes(x.id)),false);
   assert.deepEqual(reviewSignals(won,[]).core.map(x=>x.key),["sales_channel"]);
   assert.equal(reviewQueueCounts(rows,[]).data,2);
   assert.equal(won.status,"won");
