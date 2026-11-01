@@ -48,6 +48,14 @@ test("canonical filters include legacy aliases but never guess Other", () => {
   assert.equal(matchesPipelineFilters({ sales_channel: "Other" }, {}, context), true);
 });
 
+test("Import Preview also validates Sales Channels against the active runtime Config",()=>{
+ const file=readFileSync(new URL("../src/pages/Import.jsx",import.meta.url),"utf8");
+ assert.ok(file.includes('salesChannelOptions.find'));
+ assert.ok(file.includes('salesChannelOptions.some'));
+ assert.ok(file.includes('Unknown or inactive Sales Channel'));
+ assert.ok(!file.includes('SALES_CHANNELS.includes'));
+});
+
 test("Create/Edit/Filter use Pipeline Config runtime options; backend validates against the same master",()=>{
  const read=(p)=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
  const ctx=read("src/lib/dataContext.jsx"),batch=read("src/lib/entityBatch.js"),core=read("server/core.js");
