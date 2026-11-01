@@ -258,6 +258,9 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
               <div><dt className="text-xs text-muted-foreground">ช่องทางการขาย</dt><dd className="font-medium mt-1">{salesChannelDisplay(op.sales_channel)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">ผู้ติดต่อ</dt><dd className="font-medium mt-1">{textOrDash(op.contact_name)}{op.contact_phone ? ` · ${op.contact_phone}` : ""}</dd></div>
               <div><dt className="text-xs text-muted-foreground">เดือนที่คาดว่าจะปิดงาน</dt><dd className="font-medium mt-1">{formatMonth(op.expected_close_month)}</dd></div>
+              {op.import_source_monthly_sale_plan === "9 Day" && (
+                <div><dt className="text-xs text-muted-foreground">Monthly Sale Plan (Source)</dt><dd className="font-medium mt-1">9 Day</dd></div>
+              )}
               <div><dt className="text-xs text-muted-foreground">AE Owner</dt><dd className="font-medium mt-1">{textOrDash(owner?.name)}</dd></div>
             </dl>
           </div>
