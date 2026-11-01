@@ -817,38 +817,40 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(400, "Import must contain 1-200 Pipeline rows");
     }
     const sheet = tableOf(b).rows;
-    const previous = sheet.filter((r) => String(r.import_batch_id || "") === batchId);
-    if (previous.length) {
-      if (previous.length !== items.length ||
-          previous.some((r) => {
-            const n = Number(r.import_row_number);
-            return !Number.isInteger(n) || n < 1 || n > items.length ||
-              ![importFingerprint(items[n - 1]), oldImportFingerprint(items[n - 1]),
-                importCommercialFingerprint(items[n - 1])].includes(String(r.import_row_signature || ""));
-          })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
-      return { imported: 0, already_imported: true, total: previous.length,
-        opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
-          .map((r) => r.opportunity_id) };
-    }
+    const previous = sheet.filter(r=>String(r.import_batch_id||"")===batchId);
+    // Fail closed if a batch ID has already been used for a DIFFERENT row payload.
+    // A partially imported repeat may resume: matching rows are skipped, not rewritten.
+    if(previous.some(r=>{
+      const n=Number(r.import_row_number);
+      return !Number.isInteger(n)||n<1||n>items.length ||
+        ![importFingerprint(items[n-1]),oldImportFingerprint(items[n-1]),
+          importCommercialFingerprint(items[n-1])].includes(String(r.import_row_signature||""));
+    })) throw new HttpError(409,"Import batch ID already used for a different payload");
 
-    const allowedTypes = importCustomerTypes();
-    const preparedItems = items.map(item => resolveLegacyImportOwner(item, actor));
-    const known = new Set(sheet.map((r) => sourceKey(r.import_source_system, r.import_source_record_id)).filter(Boolean));
-    const seen = new Set();
-    // Validate the complete batch and reconcile finance BEFORE any mutation.
-    const validated = preparedItems.map((item) => {
-      const evidence = validateImportEvidence(item, allowedTypes);
-      const key = sourceKey(evidence.sourceSystem, evidence.sourceRecordId);
-      if (key && (known.has(key) || seen.has(key))) {
-        throw new HttpError(409, "Source System + Source Opportunity ID already imported");
+    const allowedTypes=importCustomerTypes(),known=new Map(
+      sheet.map(r=>[sourceKey(r.import_source_system,r.import_source_record_id),r]).filter(x=>x[0])
+    );
+    const seen=new Set(),signatures=items.map(importFingerprint);
+    if(new Set(signatures).size!==signatures.length)
+      throw new HttpError(409,"Different original Excel rows require different stable Source Record IDs");
+    const toImport=[],skipped=[];
+    // Entire batch is evaluated before any entity mutation. Production technical
+    // identities win; they are never edited merely because a retry submitted them.
+    items.forEach((sourceItem,index)=>{
+      const key=sourceKey(sourceItem.source_system,sourceItem.source_record_id);
+      if(String(sourceItem.source_system||"").trim()==="Legacy Spreadsheet" && !key)
+        throw new HttpError(400,"Legacy source row requires Source System and stable Source Record ID");
+      if(key && seen.has(key))
+        throw new HttpError(409,"Source Record ID collision within this batch; keep each original Excel row separate");
+      if(key) seen.add(key);
+      if(key && known.has(key)){
+        skipped.push({index,opportunity_id:known.get(key).opportunity_id});
+        return;
       }
-      if (key) seen.add(key);
-      return evidence;
+      const item=resolveLegacyImportOwner(sourceItem,actor);
+      const evidence=validateImportEvidence(item,allowedTypes);
+      toImport.push({index,item,evidence});
     });
-    const signatures = items.map(importFingerprint);
-    if (new Set(signatures).size !== signatures.length) {
-      throw new HttpError(409, "Identical source rows in one batch need distinct Source Opportunity IDs");
-    }
     // In-memory rollback for validation errors on later rows. Google Sheets
     // persists only after the full request succeeds; local adapters stay clean.
     const transactionSheets = ["Pipelines", "Pipeline_Events", "Handoff_Notifications"];
@@ -860,11 +862,17 @@ export function createCore({ contract, store, now, uuid }) {
       return { name, t, rows: t.rows.slice(), headers: t.headers.slice() };
     });
     try {
-      const results = preparedItems.map((item, index) => entityApi.create("Opportunity", actor, item, {
-        batchId, rowNumber:index + 1, signature:signatures[index], ...validated[index], allowedTypes,
+      const results=toImport.map(({item,index,evidence})=>({
+        index, result:entityApi.create("Opportunity",actor,item,{
+          batchId,rowNumber:index+1,signature:signatures[index],...evidence,allowedTypes
+        })
       }));
-      return { imported: results.length, already_imported: false, total: results.length,
-        opportunity_ids: results.map((r) => r.id) };
+      const opportunityIds=Array(items.length);
+      skipped.forEach(x=>{opportunityIds[x.index]=x.opportunity_id;});
+      results.forEach(x=>{opportunityIds[x.index]=x.result.id;});
+      return {imported:results.length,skipped:skipped.length,
+        already_imported:results.length===0 && skipped.length===items.length,
+        total:items.length,opportunity_ids:opportunityIds};
     } catch (error) {
       for (const backup of backups) {
         backup.t.rows = backup.rows;
