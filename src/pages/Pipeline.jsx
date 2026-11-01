@@ -499,15 +499,15 @@ export default function Pipeline() {
               background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 40px, hsl(var(--card)) 40px, hsl(var(--card)) 100%)",
             }}
           >
-            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1080px]" : "min-w-[950px]"}`}>
+            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1180px]" : "min-w-[1050px]"}`}>
               <colgroup>
-                <col className={regionContext.showColumn ? "w-[25%]" : "w-[28%]"} />
-                <col className="w-[10%]" />
-                <col className={regionContext.showColumn ? "w-[25%]" : "w-[30%]"} />
-                {regionContext.showColumn && <col className="w-[10%]" />}
-                <col className={regionContext.showColumn ? "w-[11%]" : "w-[12%]"} />
-                <col className={regionContext.showColumn ? "w-[12%]" : "w-[12%]"} />
-                <col className={regionContext.showColumn ? "w-[7%]" : "w-[8%]"} />
+                <col className={regionContext.showColumn ? "w-[23%]" : "w-[26%]"} />
+                <col className={regionContext.showColumn ? "w-[17%]" : "w-[18%]"} />
+                <col className={regionContext.showColumn ? "w-[23%]" : "w-[27%]"} />
+                {regionContext.showColumn && <col className="w-[9%]" />}
+                <col className="w-[11%]" />
+                <col className="w-[11%]" />
+                <col className={regionContext.showColumn ? "w-[6%]" : "w-[7%]"} />
               </colgroup>
               <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
                 <tr className="h-10">
@@ -558,9 +558,9 @@ export default function Pipeline() {
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
                         <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
                       </td>
-                      <td className="px-3 py-2 text-[13px] whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[12px] font-medium ${stageBadgeTones[stageDisplay.tone]}`}>
-                          {stageDisplay.label}
+                      <td className="min-w-0 overflow-hidden px-3 py-2 text-[13px]">
+                        <span title={stageDisplay.label} className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-0.5 text-[12px] font-medium ${stageBadgeTones[stageDisplay.tone]}`}>
+                          <span className="min-w-0 truncate">{stageDisplay.label}</span>
                         </span>
                       </td>
                       <td className="px-3 py-2 min-w-0">
