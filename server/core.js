@@ -18,6 +18,7 @@ import { buildTeamActivityLog } from "./activityLog.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
 import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } from "./opportunityPolicy.js";
 import { pipelineTaskViews, validDays } from "../src/lib/taskOverdue.js";
+import { approvedUndatedHistoricalCancel } from "../src/lib/approvedHistoricalCancel.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -590,7 +591,8 @@ export function createCore({ contract, store, now, uuid }) {
         dates.source_stage_entered_at < dates.source_created_at)
       throw new HttpError(400, "Stage Entered Date cannot precede Created Date");
     if (status !== "open") {
-      if (!dates.source_closed_at) throw new HttpError(400, "Historical Won/Lost requires an original Closed Date");
+      if (!dates.source_closed_at && !approvedUndatedHistoricalCancel(item))
+        throw new HttpError(400, "Historical Won/Lost requires an original Closed Date unless this is an approved undated Cancel");
       if (dates.source_created_at && dates.source_closed_at < dates.source_created_at)
         throw new HttpError(400, "Closed Date cannot precede Created Date");
       if (dates.source_stage_entered_at && dates.source_closed_at < dates.source_stage_entered_at)
