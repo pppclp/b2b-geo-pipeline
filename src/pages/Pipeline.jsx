@@ -23,7 +23,7 @@ import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KanbanSquare, List, Plus, Download, AlertTriangle, ChevronRight, ClipboardCheck } from "lucide-react";
+import { KanbanSquare, List, Plus, Download, AlertTriangle, ChevronRight, ClipboardCheck, Layers3, UserRound, Clock3, CalendarDays } from "lucide-react";
 
 const SORTS = [
   { value: "close_month", label: "Close Month ↑ · Net RC ↓" },
@@ -203,10 +203,10 @@ export default function Pipeline() {
     neutral: "border-border bg-secondary text-foreground",
   };
   const quickViews = [
-    { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all },
-    { id: "assigned-to-me", title: "With Me", subtitle: WORK_VIEW_SUBTITLES.with, count: workCounts["assigned-to-me"] },
-    { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"] },
-    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"] },
+    { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all, icon: Layers3 },
+    { id: "assigned-to-me", title: "With Me", subtitle: WORK_VIEW_SUBTITLES.with, count: workCounts["assigned-to-me"], icon: UserRound },
+    { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"], icon: Clock3 },
+    { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"], icon: CalendarDays },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id, profile?.app_role);
   const selectStatus = (status) => onFilter("status", status);
@@ -265,8 +265,24 @@ export default function Pipeline() {
             : "No Pipelines are available for this account. If you expect records, check the deployment and access settings."}
         </p>
       )}
+      {/* Compact work-view cards on phones; same filters/counts as desktop tabs. */}
+      <nav aria-label="Pipeline work views" className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-card p-2.5 shadow-soft md:hidden">
+        {quickViews.map((item) => {
+          const Icon = item.icon;
+          const active = activeQuickView === item.id;
+          return (
+            <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
+              aria-current={active ? "page" : undefined} aria-pressed={active}
+              className={`relative flex min-h-[94px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
+              <span className="max-w-[calc(100%-20px)] text-current"><span className="block text-[12px] font-semibold leading-4">{item.title}</span><span className="block mt-0.5 text-[11px] leading-4 opacity-75">{item.subtitle}</span></span>
+              <span className="text-xl font-semibold leading-none tabular-nums">{item.count}</span>
+              <Icon className={`absolute right-2.5 top-2.5 h-4 w-4 ${active ? "text-brand" : "text-muted-foreground"}`} aria-hidden="true" />
+            </button>
+          );
+        })}
+      </nav>
       {/* Work views remain the four existing Open actions, without extra cards. */}
-      <nav aria-label="Pipeline work views" className="mb-4 border-b border-border/70">
+      <nav aria-label="Pipeline work views" className="mb-4 hidden border-b border-border/70 md:block">
         <div className="flex min-w-0 items-center gap-4 overflow-x-auto sm:gap-6">
           {quickViews.map((item) => {
             const active = activeQuickView === item.id;
