@@ -7,7 +7,7 @@
 - `503 REQUIRED_SHEET_MISSING` originates from the old Apps Script `SheetStore_.table()` lookup for `B2B_GEO_Pipeline_DB.xlsx / Snapshots`, not from a client-side UI bug.
 
 ## Safe architecture
-Keep **one canonical technical `Snapshots` tab** in the reporting workbook, with the former 49 technical headers and one appended `working_with_id` field (50 total). Keep eight existing 30-column region tabs as derived, append-only views.
+Keep **one canonical technical `Snapshots` tab** in the reporting workbook, with the former 49 technical headers and two appended fields, `working_with_id` and `import_source_sales_code` (51 total). Keep eight existing 30-column region tabs as derived, append-only views.
 
 Logical contract `MonthlySnapshot -> B2B_GEO_Pipeline_DB.xlsx / Snapshots` remains unchanged to preserve frontend compatibility. Only the Apps Script SheetStore physical routing for that one table changes. **Pipeline, Pipeline_Events, Admin_Audit, Auth and existing import workbooks remain bound to their original files**. Local Node development remains on its existing file store.
 
@@ -36,7 +36,7 @@ Physical regional tabs:
 | 7 | Customer Name | `customer_name` |
 | 8 | Contact Name | `contact_name` |
 | 9 | Contact Phone | `contact_phone`, preserved as text |
-| 10 | Sales Code | `owner_sales_code`, preserved as text |
+| 10 | Sales Code | Historical import: frozen raw `import_source_sales_code` (blank if unavailable); standard Pipeline: frozen `owner_sales_code` (AE Employee ID). Preserve as text |
 | 11 | AE Name | `owner_sale_name` |
 | 12 | Sales Channel | `sales_channel` |
 | 13 | Partner Name | `partner_name` |
@@ -60,7 +60,7 @@ Physical regional tabs:
 
 **Important semantics:** An imported raw RC or raw Net RC is not the same field as unit price or the calculated live Pipeline Value. The report leaves unknown historical values blank. Standard non-imported Pipelines may have no separate historical RC in this report; do not fill it with price_per_sub. Keep `pipeline_value`, `import_source_rc`, and `import_source_net_rc` independently available in the technical snapshot.
 
-**Migration release blocker:** The 58-column live `Pipelines` sheet does not currently expose independent `import_source_sales_code`, raw Subs, or raw OC provenance columns. `owner_sales_code` in the old technical Snapshot is the *AE employee ID frozen from Users Master*, **not** proof of the original Excel Sales Code. The visible 30-column Sales Code label must not be represented as the raw original code until the separate import-provenance implementation and controlled schema migration are approved and deployed. No existing row is rewritten to fabricate provenance.
+**Migration release blocker:** The 58-column live `Pipelines` sheet does not yet expose independent `import_source_sales_code`, raw Subs, or raw OC provenance columns. `owner_sales_code` in the old technical Snapshot is the *AE employee ID frozen from Users Master*, not proof of the original Excel Sales Code. This patch appends a separate `import_source_sales_code` technical field (51 columns total), and displays it for imported rows **only if genuinely captured**. It stays blank until the separate Historical Import provenance schema is approved and deployed in PR #152. No existing row is rewritten to fabricate provenance.
 
 ## Preparation — do NOT run against production without backup/authorization
 1. Confirm the two workbook IDs and names above, and verify current Pipeline + Audit backups. Do not recreate/delete the DB, do not run `setup()`.
