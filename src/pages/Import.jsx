@@ -26,7 +26,7 @@ const FIELDS = [
   { key: "customer_name", label: "Customer Name", required: true },
   { key: "business_id", label: "Business ID" },
   { key: "customer_type", label: "Customer Type", required: true },
-  { key: "sales_channel", label: "Sales Channel", required: true },
+  { key: "sales_channel", label: "Sales Channel" }, // Historical source may be blank; queue for Incomplete Data review
   { key: "partner_name", label: "Partner Name" },
   { key: "contact_name", label: "Contact Name" },
   { key: "contact_phone", label: "Contact Phone" },
