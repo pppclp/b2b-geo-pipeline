@@ -49,6 +49,15 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
       quantity:1,price_per_sub:100,pipeline_value:100,
     }],
   };
+  // Synthetic only: the manual additive provenance schema was prepared first.
+  const provenanceHeaders=[
+    "import_source_sales_code","import_source_subs","import_source_oc",
+    "import_source_business_id","import_source_sales_channel","import_source_region",
+    "import_source_stage","import_source_workbook",
+    "import_source_created_at_raw","import_source_created_month_raw",
+    "import_source_closed_at_raw","import_source_stage_entered_at_raw"
+  ];
+  provenanceHeaders.forEach(h=>{seed[DB+"/Pipelines"][0][h]="";});
   const tables={};
   const touched=[];
   const store={
@@ -70,7 +79,9 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
   };
   return {call,store,touched,row:()=>store.table(DB,"Pipelines").rows[0],events:()=>store.table(DB,"Pipeline_Events").rows};
 }
+let testSourceRow=0;
 const input=(changes={})=>({
+  source_system:"Synthetic Test",source_record_id:"SYNTHETIC-R"+(++testSourceRow),
   customer_name:"Shop",business_id:"0000000000123",customer_type:"SME",sales_channel:"AE Self",
   contact_name:"Jane",contact_phone:"0812345678",product_category_id:"CAT1",
   expected_close_month:"2026-11",owner_id:"AE1",region_id:"R1",stage_id:"S1",
@@ -250,9 +261,11 @@ test("import batch retry rejects changed source month; explicit source ID preven
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
     ...batch,items:[{...item,source_created_month:"2026-08"}]
   }),rejected(409));
-  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+  const duplicate=x.call("SM1","POST","imports/opportunities",{
     batch_id:"part4_legacy_import_00003",items:[{...item,source_created_month:"2026-09"}]
-  }),rejected(409));
+  });
+  assert.equal(duplicate.skipped,1);
+  assert.equal(duplicate.imported,0);
   assert.equal(x.store.table(DB,"Pipelines").rows.length,count);
   assert.equal(x.events().length,events);
 });
@@ -307,7 +320,7 @@ test("invalid source month and unauthorized import fail before any Pipeline or e
   const beforeRows=x.store.table(DB,"Pipelines").rows.length;
   const beforeEvents=x.events().length;
   const item=input({business_id:"0000000000222",client_request_id:undefined});
-  for(const invalid of ["2026-13","2026-00","0000-01","2101-01","2026/07","2026-07-01","01/07/2026"]){
+  for(const invalid of ["2026-13","2026-00","0000-01","2101-01","2026/07","2026-07-01","31/02/2026"]){
     assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
       batch_id:"part4_invalid_"+invalid.replace(/[^a-zA-Z0-9]/g,"_")+"0000",
       items:[{...item,source_created_month:invalid}]
@@ -350,14 +363,15 @@ test("import accepts active Config Customer Types but preserves old taxonomy on 
 
 test("historical Won/Lost imports retain source calendar dates without forging audit event dates",()=>{
   const x=fixture("2026-10-25T10:00:00.000Z");
+  x.store.table(CONFIG,"Stages").rows.push({stage_id:"STG003",active:"No"});
   const common={source_system:"CRM",source_created_at:"2026-07-10",
     source_stage_entered_at:"2026-08-01",source_closed_at:"2026-09-09",
     client_request_id:undefined};
   const imported=x.call("SM1","POST","imports/opportunities",{
     batch_id:"historical_closed_00001",
     items:[
-      input({...common,status:"won",source_record_id:"H-1",business_id:"0000000070001"}),
-      input({...common,status:"lost",lost_reason_id:"LR1",source_record_id:"H-2",business_id:"0000000070002"}),
+      input({...common,status:"won",stage_id:"STG003",source_record_id:"H-1",business_id:"0000000070001"}),
+      input({...common,status:"lost",stage_id:"",lost_reason_id:"LR1",source_record_id:"H-2",business_id:"0000000070002"}),
     ],
   });
   assert.equal(imported.imported,2);
@@ -425,14 +439,16 @@ test("commercially similar deals are distinct unless source ID matches; identica
   assert.equal(x.call("SM1","POST","imports/opportunities",
     {batch_id:"similar_ledger_one_01",items:[inputRow]}).imported,1);
   assert.equal(x.call("SM1","POST","imports/opportunities",
-    {batch_id:"similar_ledger_two_02",items:[inputRow]}).imported,1);
+    {batch_id:"similar_ledger_two_02",items:[{...inputRow,source_record_id:"SYNTHETIC-R99999"}]}).imported,1);
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",
     {batch_id:"similar_ledger_three_03",items:[inputRow,inputRow]}),rejected(409));
   const linked={...inputRow,source_system:"CRM",source_record_id:"REF-001"};
   assert.equal(x.call("SM1","POST","imports/opportunities",
     {batch_id:"similar_ledger_four_04",items:[linked]}).imported,1);
-  assert.throws(()=>x.call("SM1","POST","imports/opportunities",
-    {batch_id:"similar_ledger_five_05",items:[linked]}),rejected(409));
+  const skip=x.call("SM1","POST","imports/opportunities",
+    {batch_id:"similar_ledger_five_05",items:[linked]});
+  assert.equal(skip.imported,0);
+  assert.equal(skip.skipped,1);
 });
 
 test("real legacy imports preserve source facts and never forge Stage Aging or audit time",()=>{
@@ -493,11 +509,12 @@ test("legacy import and normal Create accept short or blank Business IDs",()=>{
   assert.equal(stored.find(r=>r.opportunity_id===blank.id)?.business_id,"");
   assert.throws(()=>x.call("AE1","POST","entities/Opportunity",
     input({business_id:"12-34",client_request_id:"invalid_business_id_2026"})),rejected(400));
-  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+  const raw=x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_bad_business_2026",
     items:[input({business_id:"12-34",client_request_id:undefined,source_system:"Legacy",
       source_record_id:"SHORT-2"})],
-  }),rejected(400));
+  });
+  assert.equal(x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===raw.opportunity_ids[0]).business_id,"12-34");
 });
 
 test("legacy Sales Code must match authoritative owner even when source name looks similar",()=>{
@@ -515,7 +532,7 @@ test("Sales Code alone resolves owner, name variations are advisory, and events 
   const payload=input({
     business_id:"",client_request_id:undefined,
     source_sales_code:"1001",source_sale_name:"AE ONE (legacy spelling)",
-    source_system:"Legacy Spreadsheet",source_record_id:"SALES-CODE-ONLY-1",
+    source_system:"Legacy Spreadsheet",source_record_id:"DOC-"+ "a".repeat(32)+"-R221",
     owner_id:undefined,current_handler_id:undefined,
     source_created_at:"2026-07-08",source_created_month:"2026-07",
     source_rc:"12000",reference_net_rc:"12000",quantity:1,price_per_sub:12000,oc:0,
@@ -535,7 +552,7 @@ test("Sales Code alone resolves owner, name variations are advisory, and events 
   assert.deepEqual(resolved.owners.map(v=>[v.code,v.found]),[["1001",true],["1002",false],["9999",false]]);
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_source_salescode_conflict_2",
-    items:[{...payload,source_record_id:"SALES-CODE-ONLY-2",owner_id:"AE2"}],
+    items:[{...payload,source_record_id:"DOC-"+ "a".repeat(32)+"-R222",owner_id:"AE2"}],
   }),rejected(400));
 });
 
@@ -912,7 +929,7 @@ test("approved historical Partner source R8 imports with unassigned AE and corre
 test("only approved historical Cancel rows may import Lost with blank actual closed date",()=>{
   const x=fixture("2026-11-01T10:00:00.000Z");
   const base=input({business_id:"0000000097311",client_request_id:undefined,
-    status:"lost",lost_reason_id:"LR1",
+    status:"lost",stage_id:"",lost_reason_id:"LR1",
     source_system:"Legacy Spreadsheet",source_created_at:"2026-10-14",
     source_created_month:"2026-10",source_closed_at:"",
     source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R240",
@@ -948,7 +965,7 @@ test("approved historical Stage 3 service opened imports Won with blank original
     input({client_request_id:"stage3_live_20261101_1",stage_id:"STG003"})),rejected(400));
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
     batch_id:"historical_stage3_forbidden_1",
-    items:[{...base,source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R300"}]}),rejected(400));
+    items:[{...base,status:"open",source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R300"}]}),rejected(400));
   const done=x.call("SM1","POST","imports/opportunities",{
     batch_id:"historical_stage3_approved_1",items:[base]});
   const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===done.opportunity_ids[0]);
