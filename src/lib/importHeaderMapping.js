@@ -88,6 +88,14 @@ export function needsExplicitCreatedMonthMapping(headers, mapping) {
 export function resolveImportExpectedCloseMonth(sourceMonthlySalePlan = "", expectedCloseMonth = "") {
   const source = String(sourceMonthlySalePlan || "").trim();
   const explicit = String(expectedCloseMonth || "").trim();
+  // One explicitly approved legacy record contains raw "9 Day" in the
+  // Monthly Sale Plan column. This is not a month: preserve it only as
+  // source provenance and require a separate explicit Expected Close Month.
+  if (source === "9 Day") {
+    return explicit
+      ? { month: explicit, error: "" }
+      : { month: "", error: "9 Day is not a close month; map the verified Expected Close Month separately" };
+  }
   if (source && explicit && source !== explicit) {
     return { month: "", error: "Monthly Sale Plan and Expected Close Month disagree; review the source row" };
   }
