@@ -1836,9 +1836,15 @@ SheetStore_.prototype.flush = function () {
   var derived = dirty.filter(function (d) { return d.file !== "B2B_GEO_Pipeline_DB.xlsx"; });
   // Reject cross-workbook multi-table transactions: there is no atomic commit
   // between the Pipeline DB and the separate regional Reporting workbook.
-  if (snapshots.length > 1 || (snapshots.length && (critical.length || derived.length))) {
-    throw geoSchemaError_("SNAPSHOT_MULTIWORKBOOK_WRITE","Snapshot capture requires an isolated commit");
+  var snapshotWithAuditOnly = critical.length === 1 && critical[0].sheet === "Admin_Audit";
+  if (snapshots.length > 1 ||
+      (snapshots.length && (derived.length || (critical.length && !snapshotWithAuditOnly)))) {
+    throw geoSchemaError_("SNAPSHOT_MULTIWORKBOOK_WRITE",
+      "Snapshot capture supports only the separate immutable Admin_Audit provenance append");
   }
+  // The scheduled job also appends an audit event to the DB. Commit the
+  // immutable Snapshot first, then audit with its independent DB transaction.
+  // A crash between those commits needs explicit Admin_Audit reconciliation.
   if (snapshots.length) geoCommitCanonicalSnapshots_(this,snapshots[0]);
   if (critical.length) {
     var book = this.book_("B2B_GEO_Pipeline_DB.xlsx");
