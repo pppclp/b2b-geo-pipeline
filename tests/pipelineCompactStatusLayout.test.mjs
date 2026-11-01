@@ -97,9 +97,22 @@ test("Stage review badge stays inside Stage cell and clear of AE Owner column",(
  assert.ok(src.includes('onClick={() => openQuickView(o.id)}'));
 });
 
+test("Responsive table reserves legible width per column and all hover cells match",()=>{
+ const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
+ for (const px of [300,185,280,125,115,150,195,145]) assert.ok(src.includes(`w-[${px}px]`),px);
+ assert.ok(src.includes('min-w-[1350px]'));
+ assert.ok(src.includes('min-w-[1210px]'));
+ assert.ok(src.includes('min-w-0 overflow-hidden bg-card px-3 py-2'));
+ assert.ok(src.includes('px-3 py-3 text-right transition-colors group-hover:bg-secondary'));
+ assert.equal((src.match(/group-hover:bg-secondary/g)||[]).length,7);
+ assert.ok(src.includes('age === null ? "—"'));
+ assert.ok(src.includes('ไม่มีข้อมูลวันที่เข้า Stage'));
+ assert.ok(!src.includes('age === null ? "Unknown"'));
+});
+
 test("Hover paints whole row and its sticky company cell the same surface; Stage 1–4 use pastel palette",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
- assert.ok(src.includes("cursor-pointer bg-card hover:bg-secondary transition-colors"));
+ assert.ok(src.includes("cursor-pointer bg-card transition-colors"));
  assert.ok(src.includes("bg-card px-3 py-2 transition-colors group-hover:bg-secondary"));
  assert.ok(!src.includes('group-hover:bg-secondary px-3 py-2'));
  assert.ok(src.includes("border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"));
