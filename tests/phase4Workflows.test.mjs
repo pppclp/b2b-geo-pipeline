@@ -38,6 +38,9 @@ function harness(){
  ];
  table["Config.xlsx|Support_Types"].rows=[{support_type_id:"SUP1",support_type_name:"Pricing",active:"Yes"}];
  table["Config.xlsx|Working_With"].rows=[{team_id:"TEAM1",team_name:"Presales",active:"Yes"},{team_id:"TEAM2",team_name:"Pricing",active:"Yes"}];
+  table["B2B_GEO_Pipeline_Config.xlsx|Field_Options"]={headers:["field_key","option_value","option_label","active","sort_order"],rows:[
+    {field_key:"sales_channel",option_value:"AE Self",option_label:"AE Self",active:"Yes",sort_order:1}
+  ]};
  const touched=[];
  const store={table:(f,s)=>table[f+"|"+s],touch:(f,s)=>touched.push(f+"|"+s)};
  const core=createCore({contract:{access,columns:{}},store,now:()=>"2026-10-19T05:30:00.000Z",uuid:()=>String(++n).padStart(4,"0")});

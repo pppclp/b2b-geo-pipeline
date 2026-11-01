@@ -33,6 +33,9 @@ function fixture() {
     {user_region_id:"UR2",user_id:"M1",region_id:"R1",active:"Yes"},
   ];
   all["Org.xlsx|Lost_Reasons"].rows=[{reason_id:"R1",active:"Yes",reason_name:"Price"}];
+   all["B2B_GEO_Pipeline_Config.xlsx|Field_Options"]={headers:["field_key","option_value","active"],rows:[
+     {field_key:"sales_channel",option_value:"AE Self",option_label:"AE Self",active:"Yes",sort_order:1}
+   ]};
   const touched=[];
   const store={table(file,sheet){return all[file+"|"+sheet];},touch(file,sheet){touched.push(file+"|"+sheet);}};
   let n=100;

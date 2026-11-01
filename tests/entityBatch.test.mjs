@@ -43,12 +43,14 @@ test("Part 3: startup fetches entities and Tasks in exactly one existing Core ba
   const entities=["Region","TeamMember","Stage","Opportunity"];
   const requestsExpected=entities.map(entity=>({path:"entities/"+entity,query:{sort:"-created_date"}}));
   requestsExpected.push({path:"tasks"});
+  requestsExpected.push({path:"config/sales-channels"});
   const payload=[
     {status:200,body:[{id:"REG1"}]},
     {status:200,body:[{id:"AE1"}]},
     {status:200,body:[{id:"STG1"}]},
     {status:200,body:[{id:"OPP1",region_id:"R1"}]},
     {status:200,body:{items:[{opportunity_id:"OPP1",task_id:"T1",status:"not_started"}]}},
+    {status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}},
   ];
   const result=await fetchStartupData(entities, async(requests)=>{
     invocations++;
@@ -56,8 +58,9 @@ test("Part 3: startup fetches entities and Tasks in exactly one existing Core ba
     return payload;
   });
   assert.equal(invocations,1,"Task read must not acquire a second Apps Script lock");
-  assert.deepEqual(result.records,[...payload.slice(0,-1).map(row=>row.body)]);
-  assert.deepEqual(result.taskEntries,payload.at(-1).body.items);
+  assert.deepEqual(result.records,[...payload.slice(0,-2).map(row=>row.body)]);
+  assert.deepEqual(result.taskEntries,payload.at(-2).body.items);
+  assert.deepEqual(result.salesChannelOptions,payload.at(-1).body.options);
 });
 
 test("Part 3: startup fails closed on Tasks errors, missing data and critical scope failure",async()=>{
@@ -70,7 +73,7 @@ test("Part 3: startup fails closed on Tasks errors, missing data and critical sc
     {status:200,body:{items:{unexpected:"shape"}}},
   ]) {
     await assert.rejects(
-      fetchStartupData(entities,async()=>[rows,reply]),
+      fetchStartupData(entities,async()=>[rows,reply,{status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}}]),
       /Cannot load Tasks/
     );
   }
@@ -78,18 +81,30 @@ test("Part 3: startup fails closed on Tasks errors, missing data and critical sc
   await assert.rejects(fetchStartupData(entities,async()=>[
     {status:503,body:{message:"Pipeline sheet unavailable"}},
     {status:200,body:{items:[]}},
+    {status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}},
   ]),/Cannot load Opportunity \(503\)/);
+});
+
+test("Sales Channel Config is required and fails closed when old Apps Script lacks the endpoint", async()=>{
+ const good=[{status:200,body:[{id:"OPP1"}]},{status:200,body:{items:[]}}];
+ for(const reply of [
+   {status:404,body:{message:"Not Found"}},{status:503,body:{code:"CONFIG_ERROR"}},
+   {status:200,body:{options:[]}}, {status:200,body:{options:[{value:"",label:"Empty"}]}}
+ ]) {
+   await assert.rejects(fetchStartupData(["Opportunity"],async()=>[...good,reply]),/Cannot load Sales Channel Config/);
+ }
 });
 
 test("Part 3: no startup task cache, stale fallback or identity-based shortcut is introduced",async()=>{
   let requests=0;
   const fetchBatch=async()=>{
     requests++;
-    return [{status:200,body:[]},{status:200,body:{items:[{task_id:"T"+requests}]}}];
+    return [{status:200,body:[]},{status:200,body:{items:[{task_id:"T"+requests}]}},{status:200,body:{options:[{value:"AE Self",label:"AE Self"}]}}];
   };
   const first=await fetchStartupData(["Opportunity"],fetchBatch);
   const second=await fetchStartupData(["Opportunity"],fetchBatch);
   assert.equal(requests,2);
   assert.deepEqual(first.taskEntries,[{task_id:"T1"}]);
   assert.deepEqual(second.taskEntries,[{task_id:"T2"}]);
+  assert.deepEqual(second.salesChannelOptions,[{value:"AE Self",label:"AE Self"}]);
 });

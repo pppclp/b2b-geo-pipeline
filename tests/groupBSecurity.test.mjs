@@ -26,6 +26,7 @@ function fixture() {
     ],
     [ORG+"/Regions"]:[{region_id:"R1",active:"Yes"},{region_id:"R2",active:"Yes"}],
     [CONFIG+"/Stages"]:[{stage_id:"S1",active:"Yes"}],
+    [CONFIG+"/Field_Options"]:[{field_key:"sales_channel",option_value:"AE Self",option_label:"AE Self",active:"Yes",sort_order:1}],
     [CONFIG+"/Lost_Reasons"]:[{reason_id:"LR1",active:"Yes",reason_name:"Price"}],
     [CONFIG + "/Product_Categories"]:[{category_id:"CAT",active:"Yes"}],
     [DB+"/Pipelines"]:[

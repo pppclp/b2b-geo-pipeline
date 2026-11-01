@@ -1,4 +1,4 @@
-import { SALES_CHANNELS } from "@/lib/salesChannel";
+
 import React, { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { actionableErrorMessage } from "@/lib/actionFeedback";
@@ -14,7 +14,7 @@ import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 
 const EMPTY = {
-  customer_name: "", business_id: "", customer_type: "", sales_channel: "AE Self",
+  customer_name: "", business_id: "", customer_type: "", sales_channel: "",
   contact_name: "", contact_phone: "", remark: "", partner_name: "",
   product_category_id: "", product_details: "", quantity: "", price_per_sub: "",
   oc: "", contract_period: "", expected_close_month: "", owner_id: "",
@@ -44,7 +44,7 @@ function Field({ label, required, error, children, className = "" }) {
 }
 
 export default function CreatePipelineModal({ open, onClose, onSaved }) {
-  const { master, activeStages, profile, createOpportunity } = useData();
+  const { master, activeStages, profile, createOpportunity, salesChannelOptions } = useData();
   const [form, setForm] = useState(EMPTY);
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -103,7 +103,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
   if (!form.customer_name.trim()) errors.customer_name = "Required";
   if (!/^\d+$/.test(form.business_id)) errors.business_id = "Enter digits only";
   if (!form.customer_type) errors.customer_type = "Required";
-  if (!form.sales_channel) errors.sales_channel = "Required";
+  if (!salesChannelOptions.some(option => option.value === form.sales_channel)) errors.sales_channel = "Select an active Sales Channel";
   if (!form.product_category_id) errors.product_category_id = "Required";
   if (form.quantity === "" || !Number.isSafeInteger(Number(form.quantity)) || Number(form.quantity) <= 0) errors.quantity = "Enter a positive whole number";
   if (form.price_per_sub === "" || !Number.isFinite(Number(form.price_per_sub)) || Number(form.price_per_sub) < 0) errors.price_per_sub = "Enter a valid price";
@@ -214,9 +214,9 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                   </Select>
                 </Field>
                 <Field label="ช่องทางการขาย" required>
-                  <Select value={form.sales_channel} onValueChange={(v) => set("sales_channel", v)}>
-                    <SelectTrigger aria-label="ช่องทางการขาย"><SelectValue /></SelectTrigger>
-                    <SelectContent>{SALES_CHANNELS.map((channel) => <SelectItem key={channel} value={channel}>{channel}</SelectItem>)}</SelectContent>
+                  <Select value={form.sales_channel || ""} onValueChange={(v) => set("sales_channel", v)}>
+                    <SelectTrigger aria-label="ช่องทางการขาย"><SelectValue placeholder="เลือกช่องทางการขาย" /></SelectTrigger>
+                    <SelectContent>{salesChannelOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="ชื่อผู้ติดต่อ">
