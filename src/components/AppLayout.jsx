@@ -101,7 +101,7 @@ export default function AppLayout() {
   }, [open]);
 
   const minutesSinceLoad = lastLoadedAt ? Math.max(0, Math.floor((clock - Date.parse(lastLoadedAt)) / 60000)) : null;
-  const freshnessText = error ? "อัปเดตข้อมูลไม่สำเร็จ" : loading ? "กำลังโหลดข้อมูล…" : !lastLoadedAt ? "ยังไม่ได้อัปเดตข้อมูล" : minutesSinceLoad === 0 ? "อัปเดตล่าสุดเมื่อสักครู่" : `อัปเดตเมื่อ ${minutesSinceLoad} นาทีที่แล้ว`;
+  const freshnessText = error ? "Refresh failed" : loading ? "Loading data…" : !lastLoadedAt ? "Not yet refreshed" : minutesSinceLoad === 0 ? "Updated just now" : `Updated ${minutesSinceLoad} min ago`;
 
   const items = navFor(profile?.app_role || "ae");
   const displayName = profile?.name || user?.full_name || "User";
@@ -138,9 +138,9 @@ export default function AppLayout() {
 
   const NavList = () => {
     const sections = [
-      { title: "เมนูหลัก", links: items.filter((it) =>
+      { title: "WORKSPACE", links: items.filter((it) =>
         ["/", "/pipeline", "/pipeline?view=assigned-to-me", "/activity-log"].includes(it.to)) },
-      { title: "เครื่องมือ", links: items.filter((it) =>
+      { title: "TOOLS", links: items.filter((it) =>
         ["/admin", "/import"].includes(it.to)) },
     ].filter((section) => section.links.length > 0);
     return (
@@ -189,7 +189,7 @@ export default function AppLayout() {
         <DemoAsBar variant="trigger" />
       )}
       <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-foreground" onClick={handleLogout}>
-        <LogOut className="w-4 h-4 mr-2" /> ออกจากระบบ
+        <LogOut className="w-4 h-4 mr-2" /> Sign out
       </Button>
     </div>
   );
@@ -240,7 +240,7 @@ export default function AppLayout() {
           </div>
           <div className="flex items-center gap-2.5">
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground" role="status" aria-live="polite">
-              <span title={lastLoadedAt ? new Date(lastLoadedAt).toLocaleString("th-TH") : ""}>{freshnessText}</span>
+              <span title={lastLoadedAt ? new Date(lastLoadedAt).toLocaleString("en-US") : ""}>{freshnessText}</span>
               <Button variant="ghost" size="sm" disabled={loading} onClick={refresh} aria-label="Refresh Pipeline data" title="Refresh Pipeline data">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </Button>
