@@ -5,14 +5,15 @@ import { SALES_CHANNELS, normalizeSalesChannel, salesChannelDisplay } from "../s
 import { matchesPipelineFilters } from "../src/lib/pipelineListFilters.js";
 
 test("exactly three canonical sales channels", () => {
-  assert.deepEqual(SALES_CHANNELS, ["AE Self", "Premium Partner", "Dealer"]);
+  assert.deepEqual(SALES_CHANNELS, ["AE Self", "Premium Partner", "Retail Partner"]);
 });
 
 test("legacy source channels map to canonical values", () => {
   const aliases = new Map([
     ["AE B2B GEO", "AE Self"], ["AE Self", "AE Self"],
     ["B2B Premium Partner", "Premium Partner"], ["Premium Partner", "Premium Partner"],
-    ["Dealer", "Dealer"], ["RP", "Dealer"], ["TA Dealer", "Dealer"],
+    ["Retail Partner", "Retail Partner"], ["Dealer", "Retail Partner"], ["RP", "Retail Partner"], ["TA Dealer", "Retail Partner"],
+    ["True Agent Dealer", "Retail Partner"], ["True Partner", "Retail Partner"],
   ]);
   for (const [source, expected] of aliases) {
     assert.equal(normalizeSalesChannel(source), expected);
@@ -31,7 +32,7 @@ test("historical channels display canonical labels without changing stored value
   assert.equal(salesChannelDisplay(raw.sales_channel), "Premium Partner");
   assert.equal(raw.sales_channel, "B2B Premium Partner", "stored source is unchanged");
   assert.equal(salesChannelDisplay("AE B2B GEO"), "AE Self");
-  assert.equal(salesChannelDisplay("RP"), "Dealer");
+  assert.equal(salesChannelDisplay("RP"), "Retail Partner");
   assert.equal(salesChannelDisplay("Other"), "Other (รอตรวจสอบ)");
   assert.equal(salesChannelDisplay(""), "—");
 });
@@ -42,7 +43,7 @@ test("canonical filters include legacy aliases but never guess Other", () => {
   assert.equal(matchesPipelineFilters(historical, { sales_channel: "Premium Partner" }, context), true);
   assert.equal(matchesPipelineFilters(historical, { sales_channel: "AE Self" }, context), false);
   assert.equal(matchesPipelineFilters({ sales_channel: "AE B2B GEO" }, { sales_channel: "AE Self" }, context), true);
-  assert.equal(matchesPipelineFilters({ sales_channel: "RP" }, { sales_channel: "Dealer" }, context), true);
+  assert.equal(matchesPipelineFilters({ sales_channel: "RP" }, { sales_channel: "Retail Partner" }, context), true);
   assert.equal(matchesPipelineFilters({ sales_channel: "Other" }, { sales_channel: "AE Self" }, context), false);
   assert.equal(matchesPipelineFilters({ sales_channel: "Other" }, {}, context), true);
 });
@@ -67,8 +68,8 @@ test("contract documents only the three active channel options, preserving legac
   const source = readFileSync(new URL("../b2b_geo_pipeline.yaml", import.meta.url), "utf8");
   const section = source.split("    sales_channel:\n      source: \"AE / SM input\"")[1]?.split("    contact_name:")[0];
   assert.ok(section, "Opportunity sales channel field must exist in the contract");
-  assert.match(section, /allowed:\s+- "AE Self"\s+- "Premium Partner"\s+- "Dealer"/);
+  assert.match(section, /allowed:\s+- "AE Self"\s+- "Premium Partner"\s+- "Retail Partner"/);
   assert.match(section, /"AE B2B GEO": "AE Self"/);
   assert.match(section, /"B2B Premium Partner": "Premium Partner"/);
-  assert.match(section, /sales_channel = Premium Partner or Dealer/);
+  assert.match(section, /sales_channel = Premium Partner or Retail Partner/);
 });
