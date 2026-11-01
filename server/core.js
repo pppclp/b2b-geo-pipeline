@@ -41,8 +41,8 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
       throw new HttpError(400, key + " is required");
     }
   }
-  if (legacyImport && data.business_id && !/^\d{1,40}$/.test(String(data.business_id)))
-    throw new HttpError(400, "Legacy Business ID must be 1-40 digits; preserve the original value");
+  if (legacyImport && data.business_id != null && String(data.business_id).length > 40)
+    throw new HttpError(400, "Historical Business ID must be 1-40 raw characters or blank");
   if (!legacyImport && "business_id" in data && data.business_id &&
       (previousBusinessId === null || String(data.business_id) !== String(previousBusinessId))) {
     const error = businessIdError(data.business_id);
@@ -563,9 +563,46 @@ export function createCore({ contract, store, now, uuid }) {
     return ae;
   }
 
+  // Approval data is read directly from the existing controlled review sheet.
+  // Do not give this tab write permissions or make it a user-editable entity.
+  function approvedSourceOwner(item, actor) {
+    const sourceId=String(item.source_record_id||"").trim();
+    const idMatch=/^DOC-79e97612cde3acfee14cfb26a78e0ddd-R(\d+)$/.exec(sourceId);
+    if (!idMatch) return null; // another source workbook needs its own explicit approval
+    const originalCode=String(item.source_original_sales_code ?? item.source_sales_code ?? "").trim();
+    const originalName=String(item.source_sale_name||"").trim();
+    const regionId=String(item.region_id||"");
+    const region=rows("regions").find(r=>String(r.region_id)===regionId);
+    if (!originalCode || !originalName || !region) return null;
+    const approved=store.table("B2B_GEO_Pipeline_DB.xlsx","AE_Owner_Approval_20261027").rows
+      .filter(r=>String(r.Decision||"").trim().toLowerCase()==="approved" &&
+        String(r["Source Sales Code"]||"").trim()===originalCode &&
+        String(r["Source Sale Name"]||"").trim().toLowerCase()===originalName.toLowerCase() &&
+        String(r["Source Region"]||"").trim().toLowerCase()===String(region.region_name||"").trim().toLowerCase() &&
+        String(r["Source Row Numbers"]||"").split(",").map(x=>x.trim()).includes(idMatch[1]) &&
+        String(r["Approved AE User ID"]||"").trim());
+    if (approved.length>1) throw new HttpError(409,"Multiple Approved AE mappings for one original source row");
+    if (!approved.length) return null;
+    const mappedId=String(approved[0]["Approved AE User ID"]).trim();
+    const ae=findUser(mappedId);
+    if(!ae || ae.role!=="ae" || !ae.region_ids.includes(regionId))
+      throw new HttpError(400,"Approved AE is not an active AE assigned to the historical Region");
+    if(actor.role!=="admin" && !actor.region_ids.includes(regionId))
+      throw new HttpError(403,"Approved AE source row is outside importer Region permissions");
+    return ae;
+  }
+
   function resolveLegacyImportOwner(item, actor) {
     if (validatePendingPartnerAssignment(item, actor)) return { ...item, owner_id: "" };
-    const code = String(item.source_sales_code ?? "").trim();
+    const approved = approvedSourceOwner(item,actor);
+    if(approved) {
+      if(item.owner_id && String(item.owner_id)!==String(approved.id))
+        throw new HttpError(409,"Owner differs from explicit approved source-row AE mapping");
+      return { ...item,owner_id:approved.id,
+        current_handler_id:item.current_handler_id||approved.id,
+        __approved_source_owner:true };
+    }
+    const code = String(item.source_original_sales_code ?? item.source_sales_code ?? "").trim();
     if (!code) return item;
     const ae = legacyImportOwner(code, actor);
     if (item.owner_id && String(item.owner_id) !== ae.id)
@@ -596,6 +633,8 @@ export function createCore({ contract, store, now, uuid }) {
   function validateImportEvidence(item, allowedTypes) {
     const status = String(item.status || "open").trim().toLowerCase();
     if (!["open", "won", "lost"].includes(status)) throw new HttpError(400, "Import Status must be Open, Won or Lost");
+    if(String(item.stage_id||"")==="STG003" && status!=="won")
+      throw new HttpError(400,"Historical Stage 3 must remain Stage 3 and import as Won");
     const fields = ["source_created_at", "source_stage_entered_at", "source_closed_at"];
     const dates = {};
     for (const key of fields) {
@@ -631,15 +670,15 @@ export function createCore({ contract, store, now, uuid }) {
     const normalizedCustomerType = allowedTypes.find((type) => type.toLowerCase() === requestedType.toLowerCase());
     if (item.customer_type && !normalizedCustomerType)
       throw new HttpError(400, "Unknown Customer Type. Use an existing legacy type or active Field_Options value");
-    if (String(item.business_id ?? "").trim() && !/^\d{1,40}$/.test(String(item.business_id).trim()))
-      throw new HttpError(400, "Legacy Business ID must contain 1-40 digits");
-    const sourceSalesCode = String(item.source_sales_code || "").trim();
-    if (sourceSalesCode && item.pending_ae_assignment !== true) {
+    if (item.business_id != null && String(item.business_id).length > 40)
+      throw new HttpError(400, "Historical Business ID exceeds 40 raw characters");
+    const sourceSalesCode = String(item.source_original_sales_code ?? item.source_sales_code ?? "").trim();
+    if (sourceSalesCode && item.pending_ae_assignment !== true && item.__approved_source_owner !== true) {
       const owner = rows("users").find((r) => String(r.user_id) === String(item.owner_id));
       if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
         throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
     }
-    for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_sale_name", "source_product_id", "source_rc",
+    for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_original_sales_code", "source_sale_name", "source_product_id", "source_rc",
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
     }
@@ -664,6 +703,7 @@ export function createCore({ contract, store, now, uuid }) {
       sourceRecordId: String(item.source_record_id || "").trim(),
       sourceSystem: String(item.source_system || "").trim(),
       sourceProductId: String(item.source_product_id || "").trim(),
+      originalSourceSalesCode: sourceSalesCode,
       sourceCustomerType: String(item.source_customer_type || item.customer_type || "").trim(),
       sourceRc: String(item.source_rc ?? "").trim(),
       sourceDiscountPct: String(item.source_discount_pct ?? "").trim(),
@@ -671,7 +711,9 @@ export function createCore({ contract, store, now, uuid }) {
       sourceNetRc,
       numericNetRc,
       historicalQuantity: validQuantity ? Number(sourceQuantity) : null,
-      approvedHistoricalStage3: approvedHistoricalStage3(item),
+      approvedHistoricalStage3: !!String(item.source_record_id||"").trim() &&
+        !!String(item.source_system||"").trim() &&
+        String(item.stage_id||"")==="STG003" && status==="won",
       pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
@@ -695,6 +737,73 @@ export function createCore({ contract, store, now, uuid }) {
     ? JSON.stringify([String(system || "").trim().toLowerCase(), String(id).trim().toLowerCase()])
     : "";
 
+  // Server-side read-only preview. No entityApi.create(), store.touch(), or audit writes.
+  // The UI's local preview is advisory; commit must revalidate under the GAS lock.
+  function previewHistoricalImport(actor, input) {
+    const b=binding("Opportunity");
+    need(actor,b,"import");need(actor,b,"create");
+    if(!["sm","admin"].includes(actor.role))
+      throw new HttpError(403,"Only SM or Admin may preview historical imports");
+    const items=input?.items;
+    if(!Array.isArray(items)||items.length<1||items.length>200 ||
+       items.some(x=>!x||typeof x!=="object"||Array.isArray(x)))
+      throw new HttpError(400,"Preview requires 1-200 source rows");
+    const known=new Map(tableOf(b).rows.map(r=>[
+      sourceKey(r.import_source_system,r.import_source_record_id),r
+    ]).filter(x=>x[0]));
+    const seen=new Set(),types=importCustomerTypes(),channels=activeSalesChannelOptions().map(x=>x.value);
+    const rowsOut=items.map((original,index)=>{
+      const key=sourceKey(original.source_system,original.source_record_id);
+      const label={row:index+1,source_record_id:String(original.source_record_id||""),
+        status:"READY",errors:[],warnings:[]};
+      // New source workbooks must carry a stable original file-row technical identity.
+      if(!key){label.status="HOLD";label.errors.push("Source System and stable Source Record ID required");return label;}
+      if(seen.has(key)){
+        label.status="POTENTIAL_DUPLICATE";
+        label.errors.push("Same Source System + Source Record ID occurs twice in this batch");
+        return label;
+      }
+      seen.add(key);
+      if(known.has(key)){
+        const match=known.get(key);
+        label.status="ALREADY_IMPORTED";
+        label.opportunity_id=match.opportunity_id;
+        // A different name for the same technical key is not a reason to merge
+        // or mutate. It may be a source collision or a legitimate later edit.
+        if(original.customer_name && String(original.customer_name)!==String(match.customer_name))
+          label.warnings.push("Source ID already in Production; review changed customer name before retry");
+        return label;
+      }
+      try{
+        const item=resolveLegacyImportOwner(original,actor);
+        const evidence=validateImportEvidence(item,types);
+        validateLatestOpportunityFields({
+          ...item,customer_type:evidence.normalizedCustomerType||item.customer_type
+        },{requireRequired:true,legacyImport:true,
+           additionalCustomerTypes:types,allowedSalesChannels:channels});
+        const preflight=keepOpportunityColumns(toSheet("Opportunity",b.primary_key,
+          namesToIds("Opportunity",item)));
+        preflight.status=evidence.status;
+        preflight.import_batch_id="PREVIEW_ONLY_NOT_PERSISTED";
+        preflight.original_owner_user_id=preflight.owner_user_id||"";
+        preflight.current_handler_user_id=preflight.current_handler_user_id||preflight.owner_user_id||"";
+        validateOpportunityRefs(preflight,null,actor,{
+          allowPendingPartnerAe:evidence.pendingPartnerAe,
+          allowApprovedHistoricalStage3:evidence.approvedHistoricalStage3
+        });
+        if(item.reference_net_rc && evidence.numericNetRc===null)
+          label.warnings.push("Raw Net RC is not a validated numeric Pipeline Value");
+      }catch(error){
+        label.status=error.status===409?"POTENTIAL_DUPLICATE":"HOLD";
+        label.errors.push(String(error.message||"Import validation failed"));
+      }
+      return label;
+    });
+    const counts={READY:0,ALREADY_IMPORTED:0,HOLD:0,POTENTIAL_DUPLICATE:0};
+    rowsOut.forEach(x=>counts[x.status]++);
+    return {read_only:true,total:rowsOut.length,counts,rows:rowsOut};
+  }
+
   function importOpportunities(actor, input) {
     const b = binding("Opportunity");
     need(actor, b, "import");
@@ -708,38 +817,47 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(400, "Import must contain 1-200 Pipeline rows");
     }
     const sheet = tableOf(b).rows;
-    const previous = sheet.filter((r) => String(r.import_batch_id || "") === batchId);
-    if (previous.length) {
-      if (previous.length !== items.length ||
-          previous.some((r) => {
-            const n = Number(r.import_row_number);
-            return !Number.isInteger(n) || n < 1 || n > items.length ||
-              ![importFingerprint(items[n - 1]), oldImportFingerprint(items[n - 1]),
-                importCommercialFingerprint(items[n - 1])].includes(String(r.import_row_signature || ""));
-          })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
-      return { imported: 0, already_imported: true, total: previous.length,
-        opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
-          .map((r) => r.opportunity_id) };
+    const previous = sheet.filter(r=>String(r.import_batch_id||"")===batchId);
+    // Fail closed if a batch ID has already been used for a DIFFERENT row payload.
+    // A partially imported repeat may resume: matching rows are skipped, not rewritten.
+    if(previous.some(r=>{
+      const n=Number(r.import_row_number);
+      return !Number.isInteger(n)||n<1||n>items.length ||
+        ![importFingerprint(items[n-1]),oldImportFingerprint(items[n-1]),
+          importCommercialFingerprint(items[n-1])].includes(String(r.import_row_signature||""));
+    })) throw new HttpError(409,"Import batch ID already used for a different payload");
+    // Backward-compatible replay of old historical batches which predate the
+    // stable Source ID field. Do not append their records again.
+    if(previous.length===items.length && previous.length>0) {
+      return {imported:0,skipped:previous.length,already_imported:true,total:items.length,
+        opportunity_ids:previous.slice().sort((a,b)=>Number(a.import_row_number)-Number(b.import_row_number))
+          .map(r=>r.opportunity_id)};
     }
 
-    const allowedTypes = importCustomerTypes();
-    const preparedItems = items.map(item => resolveLegacyImportOwner(item, actor));
-    const known = new Set(sheet.map((r) => sourceKey(r.import_source_system, r.import_source_record_id)).filter(Boolean));
-    const seen = new Set();
-    // Validate the complete batch and reconcile finance BEFORE any mutation.
-    const validated = preparedItems.map((item) => {
-      const evidence = validateImportEvidence(item, allowedTypes);
-      const key = sourceKey(evidence.sourceSystem, evidence.sourceRecordId);
-      if (key && (known.has(key) || seen.has(key))) {
-        throw new HttpError(409, "Source System + Source Opportunity ID already imported");
+    const allowedTypes=importCustomerTypes(),known=new Map(
+      sheet.map(r=>[sourceKey(r.import_source_system,r.import_source_record_id),r]).filter(x=>x[0])
+    );
+    const seen=new Set(),signatures=items.map(importFingerprint);
+    if(new Set(signatures).size!==signatures.length)
+      throw new HttpError(409,"Different original Excel rows require different stable Source Record IDs");
+    const toImport=[],skipped=[];
+    // Entire batch is evaluated before any entity mutation. Production technical
+    // identities win; they are never edited merely because a retry submitted them.
+    items.forEach((sourceItem,index)=>{
+      const key=sourceKey(sourceItem.source_system,sourceItem.source_record_id);
+      if(String(sourceItem.source_system||"").trim()==="Legacy Spreadsheet" && !key)
+        throw new HttpError(400,"Legacy source row requires Source System and stable Source Record ID");
+      if(key && seen.has(key))
+        throw new HttpError(409,"Source Record ID collision within this batch; keep each original Excel row separate");
+      if(key) seen.add(key);
+      if(key && known.has(key)){
+        skipped.push({index,opportunity_id:known.get(key).opportunity_id});
+        return;
       }
-      if (key) seen.add(key);
-      return evidence;
+      const item=resolveLegacyImportOwner(sourceItem,actor);
+      const evidence=validateImportEvidence(item,allowedTypes);
+      toImport.push({index,item,evidence});
     });
-    const signatures = items.map(importFingerprint);
-    if (new Set(signatures).size !== signatures.length) {
-      throw new HttpError(409, "Identical source rows in one batch need distinct Source Opportunity IDs");
-    }
     // In-memory rollback for validation errors on later rows. Google Sheets
     // persists only after the full request succeeds; local adapters stay clean.
     const transactionSheets = ["Pipelines", "Pipeline_Events", "Handoff_Notifications"];
@@ -751,11 +869,17 @@ export function createCore({ contract, store, now, uuid }) {
       return { name, t, rows: t.rows.slice(), headers: t.headers.slice() };
     });
     try {
-      const results = preparedItems.map((item, index) => entityApi.create("Opportunity", actor, item, {
-        batchId, rowNumber:index + 1, signature:signatures[index], ...validated[index], allowedTypes,
+      const results=toImport.map(({item,index,evidence})=>({
+        index, result:entityApi.create("Opportunity",actor,item,{
+          batchId,rowNumber:index+1,signature:signatures[index],...evidence,allowedTypes
+        })
       }));
-      return { imported: results.length, already_imported: false, total: results.length,
-        opportunity_ids: results.map((r) => r.id) };
+      const opportunityIds=Array(items.length);
+      skipped.forEach(x=>{opportunityIds[x.index]=x.opportunity_id;});
+      results.forEach(x=>{opportunityIds[x.index]=x.result.id;});
+      return {imported:results.length,skipped:skipped.length,
+        already_imported:results.length===0 && skipped.length===items.length,
+        total:items.length,opportunity_ids:opportunityIds};
     } catch (error) {
       for (const backup of backups) {
         backup.t.rows = backup.rows;
@@ -1229,6 +1353,7 @@ export function createCore({ contract, store, now, uuid }) {
             import_source_record_id: importMeta.sourceRecordId,
             import_source_system: importMeta.sourceSystem,
             import_source_product_id: importMeta.sourceProductId,
+            import_source_sales_code: importMeta.originalSourceSalesCode,
             import_source_rc: importMeta.sourceRc,
             import_source_discount_pct: importMeta.sourceDiscountPct,
             import_source_monthly_sale_plan: importMeta.sourceMonthlySalePlan,
@@ -1709,6 +1834,9 @@ export function createCore({ contract, store, now, uuid }) {
     if (parts[0] === "imports" && parts[1] === "customer-types" && method === "GET") {
       if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Import options require SM or Admin");
       return { values: importCustomerTypes() };
+    }
+    if (parts[0] === "imports" && parts[1] === "preview" && method === "POST") {
+      return previewHistoricalImport(actor,req.body);
     }
     if (parts[0] === "imports" && parts[1] === "opportunities") {
       if (method !== "POST") throw new HttpError(405, "Import requires POST");

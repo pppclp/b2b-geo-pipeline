@@ -49,10 +49,10 @@ test("strict transformations retain true sales semantics",()=>{
   assert.equal(legacyBusinessId(""),"");
   assert.equal(legacyBusinessId("8123"),"8123");
   assert.equal(legacyBusinessId("0001"),"0001");
-  assert.equal(legacyBusinessId("12-13"),null);
-  assert.equal(legacyImportBusinessId("2.05565E+11"),"");
+  assert.equal(legacyBusinessId("12-13"),"12-13");
+  assert.equal(legacyImportBusinessId("2.05565E+11"),"2.05565E+11");
   assert.equal(legacyImportBusinessId("0000123"),"0000123");
-  assert.equal(legacyImportBusinessId("Geovernment"),null);
-  assert.equal(legacyImportBusinessId("12-34"),null);
+  assert.equal(legacyImportBusinessId("Geovernment"),"Geovernment");
+  assert.equal(legacyImportBusinessId("12-34"),"12-34");
   assert.equal(legacyRowSourceId("a".repeat(32),2),"DOC-"+"a".repeat(32)+"-R2");
 });

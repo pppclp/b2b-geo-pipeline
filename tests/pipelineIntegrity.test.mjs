@@ -132,9 +132,12 @@ test("server-side import writes once and a retry is idempotent",()=>{
   assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
     ...payload,items:[{...newPipeline,business_id:"0000000100003"},payload.items[1]]
   }),e=>e.status===409);
-  assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
+  const replay=x.call("ADMIN","POST","imports/opportunities",{
     batch_id:"uat-import-batch-00000002",items:payload.items
-  }),e=>e.status===409);
+  });
+  assert.equal(replay.imported,0);
+  assert.equal(replay.skipped,2);
+  assert.deepEqual(replay.opportunity_ids,first.opportunity_ids);
 });
 test("batch import rejects unauthorized roles and duplicates before writing",()=>{
   const x=fixture();

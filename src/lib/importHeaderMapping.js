@@ -8,6 +8,7 @@ export const IMPORT_HEADER_ALIASES = {
   source_record_id: ["Legacy Opportunity ID", "Source Opportunity ID", "Original Opportunity ID", "CRM Opportunity ID"],
   source_system: ["Source System", "Source System Name", "ระบบต้นทาง"],
   source_sales_code: ["Sales Code", "Sale Code", "รหัสพนักงานขาย"],
+  source_original_sales_code: ["Original Source Sales Code", "Original Sales Code", "Historical Sales Code"],
   source_sale_name: ["Sale Name", "Sales Name", "ชื่อพนักงานขาย"],
   customer_location_text: ["Province", "Province / Area", "Customer Location", "พื้นที่ลูกค้า"],
   customer_name: ["ชื่อลูกค้า", "ชื่อบริษัท", "ชื่อนิติบุคคล", "ลูกค้า"],
