@@ -42,6 +42,7 @@ export async function fetchStartupData(entities, fetchBatch) {
     path: `entities/${entity}`, query: { sort: "-created_date" },
   }));
   requests.push({ path: "tasks" });
+  requests.push({ path: "config/sales-channels" });
   const replies = await fetchBatch(requests);
   if (!Array.isArray(replies) || replies.length !== requests.length) {
     throw new Error("Data synchronization failed: incomplete backend batch response");
@@ -53,5 +54,13 @@ export async function fetchStartupData(entities, fetchBatch) {
     const code = typeof taskReply?.body?.code === "string" ? taskReply.body.code : "DATA_SOURCE_ERROR";
     throw new Error(`Cannot load Tasks (${status}, ${code}). Check Apps Script deployment and task configuration.`);
   }
-  return { records, taskEntries: taskReply.body.items };
+  const channelReply = replies[entities.length + 1];
+  if (channelReply?.status !== 200 || !Array.isArray(channelReply.body?.options) ||
+      !channelReply.body.options.length ||
+      channelReply.body.options.some(option => !option || typeof option.value !== "string" || !option.value.trim() ||
+        typeof option.label !== "string" || !option.label.trim())) {
+    const status = channelReply?.status ?? "invalid";
+    throw new Error(`Cannot load Sales Channel Config (${status}). Deploy compatible Apps Script and verify Field_Options.`);
+  }
+  return { records, taskEntries: taskReply.body.items, salesChannelOptions: channelReply.body.options };
 }
