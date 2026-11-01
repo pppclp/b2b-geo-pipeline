@@ -23,7 +23,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 const statusColor = {
   open: "bg-blue-100 text-blue-700 border border-blue-200",
   won: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-  lost: "bg-rose-100 text-rose-700 border border-rose-200",
+  lost: "bg-[#EDE6E2] text-[#675149] border border-[#D4C5BE]",
   archived: "bg-secondary text-muted-foreground border border-border",
 };
 
