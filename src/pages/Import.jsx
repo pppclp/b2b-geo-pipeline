@@ -9,6 +9,7 @@ import { calculateNetRc } from "@/lib/netRc";
 import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType, legacyProductCategory, legacySourceMonth, legacyBusinessId, legacyImportBusinessId, legacySourceDocumentId, legacyRowSourceId } from "@/lib/legacyImport";
 import { normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
 import { normalizeSalesChannel } from "@/lib/salesChannel";
+import { approvedUndatedHistoricalCancel, approvedRaw9DayMonthlyPlan } from "@/lib/approvedHistoricalCancel";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -242,7 +243,11 @@ export default function Import() {
         }
         if (f.key === "source_monthly_sale_plan" || f.key === "expected_close_month") {
           const month = legacySourceMonth(val);
-          if (!month) errors.push(f.label + " must be a valid month, e.g. YYYY-MM or Oct-26");
+          if (f.key === "source_monthly_sale_plan" && approvedRaw9DayMonthlyPlan(rec, val)) {
+            // Approved raw value is NOT a month or a verified Contract Period.
+            // Expected Close Month must be independently mapped from the source.
+            rec.source_monthly_sale_plan = val;
+          } else if (!month) errors.push(f.label + " must be a valid month, e.g. YYYY-MM or Oct-26");
           else rec[f.key] = month;
           return;
         }
@@ -320,7 +325,8 @@ export default function Import() {
         errors.push("Original Created Date does not match Create Month");
       if (rec.source_created_at && rec.source_stage_entered_at && rec.source_stage_entered_at < rec.source_created_at)
         errors.push("Original Stage Entered Date precedes Created Date");
-      if (["won", "lost"].includes(rec.status) && !rec.source_closed_at)
+      if (["won", "lost"].includes(rec.status) && !rec.source_closed_at &&
+          !approvedUndatedHistoricalCancel(rec))
         errors.push("Historical Won/Lost requires Original Closed Date");
       if (rec.status === "lost" && !rec.lost_reason_id)
         errors.push("Historical Lost requires Lost Reason");

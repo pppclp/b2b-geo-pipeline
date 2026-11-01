@@ -26,6 +26,11 @@ export function missingPipelineCoreFields(opportunity) {
     : missing(opportunity[key]))
     .map(([key, label]) => ({ key, label }));
   if (opportunity.import_batch_id || opportunity.import_source_record_id) {
+    // Historical Cancel may be Lost without a proven original closed date.
+    // Keep the missing date visible as Incomplete Data; never forge lost_at.
+    if (String(opportunity.status || "").toLowerCase() === "lost" &&
+        missing(opportunity.lost_at))
+      base.push({ key: "lost_at", label: "Original Closed Date" });
     const sourceNumber = (raw) => {
       const value = String(raw ?? "").trim().replace(/,/g, "");
       return value !== "" && /^\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value));

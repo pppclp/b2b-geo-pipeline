@@ -895,3 +895,30 @@ test("approved historical Partner source R8 imports with unassigned AE and corre
   x.call("ADMIN","PUT","entities/Opportunity/"+stored.opportunity_id,{owner_id:"E-AE1"});
   assert.equal(stored.owner_user_id,"E-AE1");
 });
+
+test("only approved historical Cancel rows may import Lost with blank actual closed date",()=>{
+  const x=fixture("2026-11-01T10:00:00.000Z");
+  const base=input({business_id:"0000000097311",client_request_id:undefined,
+    status:"lost",lost_reason_id:"LR1",
+    source_system:"Legacy Spreadsheet",source_created_at:"2026-10-14",
+    source_created_month:"2026-10",source_closed_at:"",
+    source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R240",
+    source_monthly_sale_plan:"9 Day",expected_close_month:"2026-11",
+    quantity:1,oc:189865,reference_net_rc:"",source_rc:""});
+  for(const wrong of [
+    {...base,source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R777"},
+    {...base,status:"won"},
+    {...base,lost_reason_id:""},
+  ])assert.throws(()=>x.call("SM1","POST","imports/opportunities",
+    {batch_id:"historical_cancel_disallowed_1",items:[wrong]}),rejected(400));
+  const result=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"historical_cancel_allowed_01",items:[base]});
+  const row=x.store.table(DB,"Pipelines").rows.find(r=>r.opportunity_id===result.opportunity_ids[0]);
+  assert.equal(row.status,"Lost");
+  assert.equal(row.lost_at,"");
+  assert.equal(row.lost_reason_id,"LR1");
+  assert.equal(row.import_source_monthly_sale_plan,"9 Day");
+  assert.equal(row.pipeline_value,null);
+  assert.equal(row.expected_close_month,"2026-11");
+  assert.ok(x.events().some(e=>e.opportunity_id===row.opportunity_id&&e.event_type==="historical_import_status"));
+});
