@@ -15,6 +15,7 @@ import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import { isActiveOpenStage } from "@/lib/openStagePolicy";
+import { OVERLAPPING_NE_REGIONS, selectAuthorizedRegions, provinceCoverageOptions, provinceCoverageMatch } from "@/lib/aeProvinceCoverage";
 
 const empty = {
   customer_name: "",
@@ -26,6 +27,7 @@ const empty = {
   contact_phone: "",
   remark: "",
   product_details: "",
+  customer_location_text: "",
   ccp_check_result: "",
   region_id: "",
   territory_id: "",
@@ -79,9 +81,13 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   useEffect(() => { if (open) setSaveError(""); }, [open]);
 
   const regionOptions = useMemo(
-    () => (master?.Region || []).filter((r) => r.active).sort((a, b) => a.order - b.order).map((r) => ({ value: r.id, label: r.name })),
-    [master]
+    () => selectAuthorizedRegions(master?.Region || [], profile).map(r => ({ value: r.id, label: r.name })),
+    [master, profile]
   );
+  const northeastSelected = OVERLAPPING_NE_REGIONS.includes(form.region_id);
+  const provinceOptions = useMemo(() => provinceCoverageOptions(master?.TeamMember || []), [master]);
+  const provinceMatch = northeastSelected
+    ? provinceCoverageMatch(provinceOptions, form.customer_location_text) : null;
   const territoryOptions = useMemo(
     () => (master?.Territory || []).filter((t) => t.active && t.region_id === form.region_id).map((t) => ({ value: t.id, label: t.name })),
     [master, form.region_id]
@@ -158,6 +164,7 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         current_handler_id: form.current_handler_id || form.owner_id,
         product_category_id: form.product_category_id,
         product_details: String(form.product_details || "").trim(),
+        customer_location_text: String(form.customer_location_text || "").trim(),
         stage_id: form.stage_id,
         expected_close_month: form.expected_close_month,
         scenario_id: form.scenario_id || "",
@@ -258,6 +265,25 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
               </SelectContent>
             </Select>
           </div>
+          {northeastSelected && (
+            <div>
+              <Label>Province · จังหวัด</Label>
+              <Select value={form.customer_location_text || ""} onValueChange={v => set("customer_location_text", v)}>
+                <SelectTrigger aria-label="Province"><SelectValue placeholder="Select Province" /></SelectTrigger>
+                <SelectContent>
+                  {form.customer_location_text && !provinceMatch && (
+                    <SelectItem value={form.customer_location_text}>Existing: {form.customer_location_text}</SelectItem>
+                  )}
+                  {provinceOptions.map(x =>
+                    <SelectItem key={x.province} value={x.province}>{x.province}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                NE1/NE2 overlap. Region is independent of AE.
+                {provinceMatch && <> Province coverage: {provinceMatch.members.map(m => m.name).join(", ")}</>}
+              </p>
+            </div>
+          )}
           <div>
             <Label>พื้นที่ขาย</Label>
             <Select value={form.territory_id} onValueChange={(v) => set("territory_id", v)} disabled={!form.region_id}>
