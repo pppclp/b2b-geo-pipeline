@@ -11,6 +11,7 @@ import { overdueReasons } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
+import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import PageHeader from "@/components/PageHeader";
 import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
 import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipelineView } from "@/lib/pipelineListFilters";
@@ -158,6 +159,7 @@ export default function Pipeline() {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [master?.Region, profile?.app_role, profile?.region_ids]
   );
+  const hasRegionQuickFilter = quickRegions.length > 1;
   const stageCounts = useMemo(() => {
     const counts = new Map();
     filteredWithoutStage.forEach(o => counts.set(o.stage_id, (counts.get(o.stage_id) || 0) + 1));
@@ -195,8 +197,8 @@ export default function Pipeline() {
 
   const closedBoardRecords = sorted.filter((o) => o.status !== "open");
   const stageBadgeTones = {
-    stage1: "border-emerald-100 bg-emerald-50 text-emerald-800",
-    stage2: "border-sky-100 bg-sky-50 text-sky-800",
+    stage1: "border-[#DFDAD4] bg-[#F0EFED] text-[#5A554F]",
+    stage2: "border-[#CBD5DC] bg-[#E7EBEE] text-[#41515F]",
     review: "border-border bg-secondary text-foreground",
     won: "border-emerald-100 bg-emerald-50 text-emerald-800",
     lost: "border-rose-100 bg-rose-50 text-rose-800",
@@ -226,7 +228,7 @@ export default function Pipeline() {
 
   // Never present stale totals after a failed batch read as current data.
   if (loading || error) return (
-    <div className="geo-page">
+    <div className="geo-page pipeline-typography">
       <PageHeader title="Pipeline" className="mb-4" />
       <div role={error?"alert":"status"} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
         <AlertTriangle className="w-4 h-4 text-muted-foreground" aria-hidden="true"/>
@@ -238,7 +240,7 @@ export default function Pipeline() {
 
 
   return (
-    <div className="geo-page">
+    <div className="geo-page pipeline-typography">
       <PageHeader
         title="Pipeline"
         description={`${sorted.length} ${filters.status === "open" ? "Open " : filters.status === "won" ? "Won " : filters.status === "lost" ? "Lost " : ""}Pipelines`}
@@ -303,7 +305,7 @@ export default function Pipeline() {
       <div className="mb-4">
         <FilterBar filters={filters} onFilter={onFilter}
           compactLayout showStatusControl={false}
-          stageChipsVisible={filters.status === "open"} showRegionControl />
+          stageChipsVisible={filters.status === "open"} showRegionControl={!hasRegionQuickFilter} />
       </div>
 
       <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-3">
@@ -350,14 +352,14 @@ export default function Pipeline() {
               </button>
               {activeStages.map((stage) => {
                 const tone = stage.id === "STG001"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  ? "border-[#DFDAD4] bg-[#F0EFED] text-[#5A554F] hover:bg-[#E9E6E2]"
                   : stage.id === "STG002"
-                    ? "border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100"
+                    ? "border-[#CBD5DC] bg-[#E7EBEE] text-[#41515F] hover:bg-[#DDE3E8]"
                     : "border-border bg-secondary text-foreground hover:bg-secondary/80";
                 return (
                   <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
                     aria-pressed={filters.stage === stage.id}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${tone} ${filters.stage === stage.id ? "ring-2 ring-offset-1 ring-foreground/20" : ""}`}>
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tone} ${filters.stage === stage.id ? "shadow-[inset_0_0_0_1px_rgba(57,65,75,0.32)]" : ""}`}>
                     {stage.name} <span className="ml-1 tabular-nums">{stageCounts.get(stage.id) || 0}</span>
                   </button>
                 );
@@ -371,6 +373,13 @@ export default function Pipeline() {
               {stageReviewCount} งานรอตรวจสอบ Stage <span aria-hidden="true">→</span>
             </button>
           )}
+        </div>
+      )}
+
+      {hasRegionQuickFilter && (
+        <div className="mb-4" aria-label="Region filters for your access scope">
+          <RegionQuickFilter regions={quickRegions} value={filters.region || ""}
+            appearance="neutral" onChange={(regionId) => onFilter("region", regionId)} />
         </div>
       )}
 
@@ -485,7 +494,7 @@ export default function Pipeline() {
               background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 40px, hsl(var(--card)) 40px, hsl(var(--card)) 100%)",
             }}
           >
-            <table className={`w-full table-fixed text-[12px] ${regionContext.showColumn ? "min-w-[1190px]" : "min-w-[1030px]"}`}>
+            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1080px]" : "min-w-[950px]"}`}>
               <colgroup>
                 <col className={regionContext.showColumn ? "w-[25%]" : "w-[28%]"} />
                 <col className="w-[10%]" />
@@ -533,7 +542,7 @@ export default function Pipeline() {
                       aria-label={"Open opportunity " + o.customer_name}>
                       <td className="sticky left-0 z-10 bg-card px-3 py-2 transition-colors group-hover:bg-secondary">
                         <div className="flex min-w-0 items-center gap-2">
-                          <span className="min-w-0 truncate font-medium text-[12px]" title={o.customer_name}>
+                          <span className="min-w-0 truncate font-medium text-[13px] leading-5" title={o.customer_name}>
                             {o.customer_name}
                           </span>
                           {categoryName && <span title={[categoryName, o.product_details].filter(Boolean).join(" · ")}
@@ -544,8 +553,8 @@ export default function Pipeline() {
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
                         <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
                       </td>
-                      <td className="px-3 py-2 text-[12px] whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${stageBadgeTones[stageDisplay.tone]}`}>
+                      <td className="px-3 py-2 text-[13px] whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[12px] font-medium ${stageBadgeTones[stageDisplay.tone]}`}>
                           {stageDisplay.label}
                         </span>
                       </td>
@@ -574,17 +583,17 @@ export default function Pipeline() {
                           </div>
                         </div>
                       </td>
-                      {regionContext.showColumn && <td className="px-3 py-3 text-[11px] text-muted-foreground" title={regionName}>
+                      {regionContext.showColumn && <td className="px-3 py-2 text-[12px] font-normal text-muted-foreground" title={regionName}>
                         <span className="line-clamp-2">{regionName}</span>
                       </td>}
-                      <td className="px-3 py-3 text-[11px] text-muted-foreground whitespace-nowrap">
+                      <td className="px-3 py-2 text-[12px] font-normal text-muted-foreground whitespace-nowrap">
                         {formatMonth(o.expected_close_month)}
                       </td>
-                      <td className="px-3 py-3 text-right font-semibold tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-2 text-right font-medium tabular-nums whitespace-nowrap">
                         {formatTHB(o.pipeline_value)}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <div className="font-medium tabular-nums text-[11px] whitespace-nowrap"
+                        <div className="font-normal tabular-nums text-[11px] whitespace-nowrap"
                           title={age === null ? "Original stage-entered date unavailable (legacy import)" : "Days in current Stage: " + age}>{age === null ? "Unknown" : `${age}d` }</div>
                         <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} /></div>
                       </td>
