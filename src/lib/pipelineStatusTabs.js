@@ -25,7 +25,7 @@ export function pipelineStatusCounts(scopedRows = [], filters = {}, context = {}
 // Selecting a closed status cannot silently retain an Open work view or
 // an active Stage filter; independent filters remain untouched.
 export function nextPipelineStatusFilters(filters = {}, nextStatus = "open") {
-  if (!["open", "won", "lost"].includes(nextStatus)) return { ...filters };
+  if (!["open", "won", "lost", "archived", "all"].includes(nextStatus)) return { ...filters };
   return {
     ...filters, status: nextStatus, stage: "", handler: "", with_me: "",
     stuck: "", due_this_month: "", internal_overdue: "",
