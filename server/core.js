@@ -593,9 +593,9 @@ export function createCore({ contract, store, now, uuid }) {
     if (status !== "open") {
       if (!dates.source_closed_at && !approvedUndatedHistoricalCancel(item))
         throw new HttpError(400, "Historical Won/Lost requires an original Closed Date unless this is an approved undated Cancel");
-      if (dates.source_created_at && dates.source_closed_at < dates.source_created_at)
+      if (dates.source_closed_at && dates.source_created_at && dates.source_closed_at < dates.source_created_at)
         throw new HttpError(400, "Closed Date cannot precede Created Date");
-      if (dates.source_stage_entered_at && dates.source_closed_at < dates.source_stage_entered_at)
+      if (dates.source_closed_at && dates.source_stage_entered_at && dates.source_closed_at < dates.source_stage_entered_at)
         throw new HttpError(400, "Closed Date cannot precede Stage Entered Date");
       if (status === "lost") {
         const id = String(item.lost_reason_id || "").trim();
