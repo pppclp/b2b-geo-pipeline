@@ -17,12 +17,12 @@ test("approved UAT work view copy is shared", () => {
 
 test("Dashboard cards keep concise Thai business headings and accurate Open + Won value context", () => {
   const source = file("src/pages/Dashboard.jsx");
-  assert.ok(source.includes('title="มูลค่า Pipeline รวม" subtitle="Total Pipeline Value"'));
+  assert.ok(source.includes('title="มูลค่า Pipeline รวม"'));
   assert.ok(source.includes('note="Net RC · Open + Won"'));
   assert.ok(source.includes('"มูลค่างานที่ยังเปิดอยู่ของฉัน"'));
-  assert.ok(source.includes('subtitle="Open Pipeline Value"'));
-  assert.ok(source.includes('title="งานที่ส่งให้ฉัน" subtitle="With Me"'));
-  assert.ok(source.includes('title="งานเกินกำหนด" subtitle="Overdue"'));
+  assert.ok(!source.includes('subtitle="Open Pipeline Value"'));
+  assert.ok(source.includes('title="งานที่ส่งให้ฉัน"'));
+  assert.ok(source.includes('title="งานเกินกำหนด"'));
   assert.ok(source.includes('note="ต้องติดตาม"'));
   assert.ok(source.includes('note="Net RC"'));
   assert.ok(source.includes('"งานที่ต้องดำเนินการ"'));
