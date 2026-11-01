@@ -71,7 +71,7 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
           onClick={() => openAction("won")}>
           <Trophy className="h-4 w-4 mr-1.5" /> ปิดงานสำเร็จ
         </Button>
-        <Button type="button" variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50"
+        <Button type="button" variant="outline" size="sm" className="border-[#D4C5BE] text-[#675149] hover:bg-[#EDE6E2]"
           onClick={() => openAction("lost")}>
           <XCircle className="h-4 w-4 mr-1.5" /> ปิดงานไม่สำเร็จ
         </Button>
@@ -110,7 +110,7 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
           <DialogFooter>
             <Button type="button" variant="outline" disabled={saving} onClick={closeDialog}>ยกเลิก</Button>
             <Button type="button" disabled={saving || (choice === "lost" && !lostReasons.some((r) => r.id === reasonId))}
-              onClick={submit} className={choice === "lost" ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-emerald-700 text-white hover:bg-emerald-800"}>
+              onClick={submit} className={choice === "lost" ? "bg-[#675149] text-white hover:bg-[#56423A]" : "bg-emerald-700 text-white hover:bg-emerald-800"}>
               {saving ? "กำลังบันทึก…" : choice === "lost" ? "ยืนยันปิดงานไม่สำเร็จ" : "ยืนยันปิดงานสำเร็จ"}
             </Button>
           </DialogFooter>
