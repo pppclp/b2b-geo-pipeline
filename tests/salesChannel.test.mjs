@@ -48,6 +48,21 @@ test("canonical filters include legacy aliases but never guess Other", () => {
   assert.equal(matchesPipelineFilters({ sales_channel: "Other" }, {}, context), true);
 });
 
+test("Create/Edit/Filter use Pipeline Config runtime options; backend validates against the same master",()=>{
+ const read=(p)=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
+ const ctx=read("src/lib/dataContext.jsx"),batch=read("src/lib/entityBatch.js"),core=read("server/core.js");
+ assert.ok(batch.includes('config/sales-channels'));
+ assert.ok(ctx.includes('salesChannelOptions'));
+ assert.ok(core.includes('function activeSalesChannelOptions()'));
+ assert.ok(core.includes('store.table("B2B_GEO_Pipeline_Config.xlsx", "Field_Options")'));
+ assert.ok(core.includes('allowedSalesChannels: activeSalesChannelOptions().map(option => option.value)'));
+ for(const file of ["src/components/CreatePipelineModal.jsx","src/components/OpportunityForm.jsx","src/components/FilterBar.jsx"]){
+   const s=read(file);
+   assert.ok(s.includes('salesChannelOptions.map'),file);
+   assert.ok(!s.includes('SALES_CHANNELS.map'),file);
+ }
+});
+
 test("Create/Edit and Filter have exactly three options, while read views show legacy labels safely", () => {
   const files = [
     "src/components/CreatePipelineModal.jsx",
@@ -58,7 +73,7 @@ test("Create/Edit and Filter have exactly three options, while read views show l
   ];
   for (const file of files) {
     const source = readFileSync(new URL("../" + file, import.meta.url), "utf8");
-    assert.match(source, /salesChannelDisplay|SALES_CHANNELS/, file);
+    assert.match(source, /salesChannelDisplay|salesChannelOptions/, file);
   }
   const form = readFileSync(new URL("../src/components/OpportunityForm.jsx", import.meta.url), "utf8");
   assert.match(form, /กรุณายืนยันช่องทางการขายก่อนบันทึก/);
