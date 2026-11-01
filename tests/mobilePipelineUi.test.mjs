@@ -10,7 +10,7 @@ test("mobile work views display four cards in balanced two-column rows", () => {
   assert.doesNotMatch(pipeline, /index < 3/);
   assert.match(pipeline, /onClick=\{\(\) => selectQuickView\(item.id\)\}/);
   assert.match(pipeline, /aria-pressed=\{active\}/);
-  assert.match(pipeline, /hidden border-b border-border\/70 pb-2 md:block/);
+  assert.match(pipeline, /hidden border-b border-border\/70 md:block/);
 });
 
 test("mobile filter layout uses two columns without changing data filters", () => {
