@@ -99,6 +99,9 @@ export default function Dashboard() {
   const queue = selectedTab === "with" ? assigned
     : selectedTab === "overdue" ? (isManagement ? overdue : assignedOverdue)
     : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
+  const queueEmptyMessage = selectedTab === "with" ? "No Pipelines in With Me"
+    : selectedTab === "overdue" ? "No overdue Pipelines"
+    : closeMonth ? "No Pipelines for selected month" : "No Pipelines due this month";
   const queueItems = queue.slice().sort((a, b) => {
     const agingKey = selectedTab === "with" ? "handler_since" : "stage_entered_at";
     // Never rank an unknown timestamp as 1970 (oldest); handler aging
@@ -171,16 +174,16 @@ export default function Dashboard() {
       />
       {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric title="มูลค่างานที่คาดว่าจะปิด" value={formatTHB(closeValue)} note="Net RC" />
+        <Metric title="มูลค่า Pipeline รวม" subtitle="Total Pipeline Value" value={formatTHB(closeValue)} note="Net RC · Open + Won" />
         <Metric title={isAE ? "มูลค่างานที่ยังเปิดอยู่ของฉัน" : isSM ? "มูลค่างานที่ยังเปิดอยู่ในภาค" : "มูลค่างานที่ยังเปิดอยู่"}
-          value={formatTHB(sumValue(open))} note="Net RC"
+          subtitle="Open Pipeline Value" value={formatTHB(sumValue(open))} note="Net RC"
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
-        <Metric title="With Me"
+        <Metric title="งานที่ส่งให้ฉัน" subtitle="With Me"
           value={String(assigned.length)}
-          note={isManagement ? "งานที่ส่งให้ฉัน · รวมทีม Management" : WORK_VIEW_SUBTITLES.with}
+          note={isManagement ? "งานของฉัน / ทีม Management" : "งานที่รับผิดชอบ"}
           onClick={() => toPipeline({ status: "open", ...withMeQuery })} />
-        <Metric title={isManagement ? "Overdue" : "Overdue With Me"}
-          value={String(isManagement ? overdue.length : assignedOverdue.length)} note={WORK_VIEW_SUBTITLES.overdue}
+        <Metric title="งานเกินกำหนด" subtitle="Overdue"
+          value={String(isManagement ? overdue.length : assignedOverdue.length)} note="ต้องติดตาม"
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
       </div>
       <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
@@ -202,10 +205,10 @@ export default function Dashboard() {
           </div>
           {isManagement && selectedTab === "with" && (
             <p className="mb-2 text-[11px] text-muted-foreground">
-              Current Handler assignments and Pipelines involving the Management team in your authorized Regions.
+              Assigned to you or involving the Management team.
             </p>
           )}
-          <OpportunityTable rows={queueItems} maps={maps}
+          <OpportunityTable rows={queueItems} maps={maps} emptyMessage={queueEmptyMessage}
             showRegion={isManagement || regionContext.showColumn}
             regionColumn={isManagement}
             onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />
@@ -261,9 +264,10 @@ function Panel({ title, meta, children }) {
   );
 }
 
-function Metric({ title, value, note, onClick }) {
+function Metric({ title, subtitle, value, note, onClick }) {
   const children = <>
     <div className="geo-metric-label">{title}</div>
+    {subtitle && <div className="text-[12px] leading-5 text-muted-foreground mt-0.5">{subtitle}</div>}
     <div className="geo-metric-value">{value}</div>
     <div className="geo-metric-note">{note}</div>
   </>;
@@ -279,8 +283,8 @@ function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-4">
       <div className="min-w-[155px]">
-        <div className="text-[12px] font-semibold">สรุปการปิดงาน</div>
-        <div className="text-[10px] text-muted-foreground">{closeMonth ? "Selected Expected Close Month" : "All Expected Close Months"}</div>
+        <div className="text-[12px] font-semibold">สถานะ Pipeline</div>
+        <div className="text-[10px] text-muted-foreground">{closeMonth ? "Expected Close · Selected Month" : "Expected Close · All Months"}</div>
       </div>
       <div className="flex-1 min-w-[160px]">
         <div className="flex gap-3 justify-between text-[11px] mb-2">
@@ -335,8 +339,8 @@ function BreakdownTable({ rows, label, onSelect }) {
   </div>;
 }
 
-function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false, onOpen }) {
-  if (!rows.length) return <EmptyRow />;
+function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false, emptyMessage = "No matching Pipelines", onOpen }) {
+  if (!rows.length) return <EmptyRow message={emptyMessage} />;
   return <div className="overflow-x-auto">
     <table className={`w-full table-fixed text-[12px] ${regionColumn ? "min-w-[510px]" : "min-w-[390px]"}`}>
       <colgroup>
@@ -379,6 +383,6 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
   </div>;
 }
 
-function EmptyRow() {
-  return <div className="text-[12px] text-muted-foreground py-7 text-center">No matching opportunities</div>;
+function EmptyRow({ message = "No matching opportunities" }) {
+  return <div className="text-[12px] text-muted-foreground py-7 text-center">{message}</div>;
 }
