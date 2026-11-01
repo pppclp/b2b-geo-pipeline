@@ -24,7 +24,8 @@ test("Management Action Queue preserves With Me and Region after Support retirem
   assert.ok(s.includes('["with", "With Me"], ["overdue", "Overdue"]'));
   assert.ok(!s.includes('["support", "Needs Support"]'));
   assert.ok(s.includes('const assigned = withMePipelines(cohort, profile?.id, {'));
-  assert.ok(s.includes('title="With Me"'));
+  assert.ok(s.includes('["with", "With Me"]'), "The With Me quick-view tab remains in English");
+  assert.ok(s.includes('title="งานที่ส่งให้ฉัน"'), "The KPI card title is Thai-only");
   assert.ok(s.includes('regionColumn={isManagement}'));
   assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}'));
   assert.ok(s.includes('className="h-[76px] border-b border-border last:border-0"'));
