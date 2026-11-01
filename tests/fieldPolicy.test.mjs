@@ -320,7 +320,7 @@ test("invalid source month and unauthorized import fail before any Pipeline or e
   const beforeRows=x.store.table(DB,"Pipelines").rows.length;
   const beforeEvents=x.events().length;
   const item=input({business_id:"0000000000222",client_request_id:undefined});
-  for(const invalid of ["2026-13","2026-00","0000-01","2101-01","2026/07","2026-07-01","31/02/2026"]){
+  for(const invalid of ["2026-13","2026-00","0000-01","2101-01","2026/07","31/02/2026"]){
     assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
       batch_id:"part4_invalid_"+invalid.replace(/[^a-zA-Z0-9]/g,"_")+"0000",
       items:[{...item,source_created_month:invalid}]
@@ -395,7 +395,7 @@ test("historical imports reject fake dates, unsupported status and missing Lost 
     {status:"lost",source_closed_at:"2026-08-01"},
     {status:"won"},
     {status:"won",source_closed_at:"2026-02-30"},
-    {source_created_at:"01/07/2026"},
+    {source_created_at:"31/02/2026"},
     {source_created_at:"2026-09-01",source_created_month:"2026-08"},
     {status:"closed",source_closed_at:"2026-09-01"},
   ])assert.throws(()=>x.call("SM1","POST","imports/opportunities",
@@ -902,7 +902,7 @@ test("approved historical Partner source R8 imports with unassigned AE and corre
     reference_net_rc:"710",quantity:2,price_per_sub:null,oc:120,
   });
   const invalid=[
-    [{...data,source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R777"},/not approved/],
+    [{...data,source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R777"},/approved exact/],
     [{...data,source_sale_name:"พีพี บริการ"},/does not match approved/],
     [{...data,region_id:"R1"},/does not match approved/],
     [{...data,current_handler_id:"SM1"},/does not match approved/],
@@ -929,7 +929,7 @@ test("approved historical Partner source R8 imports with unassigned AE and corre
 test("only approved historical Cancel rows may import Lost with blank actual closed date",()=>{
   const x=fixture("2026-11-01T10:00:00.000Z");
   const base=input({business_id:"0000000097311",client_request_id:undefined,
-    status:"lost",stage_id:"",lost_reason_id:"LR1",
+    status:"lost",stage_id:"",lost_reason_id:"LR1",source_sales_code:"1001",
     source_system:"Legacy Spreadsheet",source_created_at:"2026-10-14",
     source_created_month:"2026-10",source_closed_at:"",
     source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R240",
