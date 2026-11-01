@@ -67,11 +67,11 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
   return (
     <>
       <div className={compact ? "flex items-center gap-2" : "flex flex-wrap items-center gap-2"}>
-        <Button type="button" variant="outline" size="sm" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+        <Button type="button" variant="outline" size="sm" className="border-transparent bg-[#AFE0C2] text-[#166534] hover:bg-[#96D5B0] hover:text-[#166534]"
           onClick={() => openAction("won")}>
           <Trophy className="h-4 w-4 mr-1.5" /> ปิดงานสำเร็จ
         </Button>
-        <Button type="button" variant="outline" size="sm" className="border-[#D4C5BE] text-[#675149] hover:bg-[#EDE6E2]"
+        <Button type="button" variant="outline" size="sm" className="border-transparent bg-[#F3C4C4] text-[#9A3340] hover:bg-[#ECAFAF] hover:text-[#9A3340]"
           onClick={() => openAction("lost")}>
           <XCircle className="h-4 w-4 mr-1.5" /> ปิดงานไม่สำเร็จ
         </Button>
@@ -110,7 +110,7 @@ export default function PipelineCloseActions({ op, onClosed, beforeOpen, compact
           <DialogFooter>
             <Button type="button" variant="outline" disabled={saving} onClick={closeDialog}>ยกเลิก</Button>
             <Button type="button" disabled={saving || (choice === "lost" && !lostReasons.some((r) => r.id === reasonId))}
-              onClick={submit} className={choice === "lost" ? "bg-[#675149] text-white hover:bg-[#56423A]" : "bg-emerald-700 text-white hover:bg-emerald-800"}>
+              onClick={submit} className={choice === "lost" ? "bg-[#F3C4C4] text-[#9A3340] hover:bg-[#ECAFAF]" : "bg-[#AFE0C2] text-[#166534] hover:bg-[#96D5B0]"}>
               {saving ? "กำลังบันทึก…" : choice === "lost" ? "ยืนยันปิดงานไม่สำเร็จ" : "ยืนยันปิดงานสำเร็จ"}
             </Button>
           </DialogFooter>
