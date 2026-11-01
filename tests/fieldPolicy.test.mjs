@@ -29,6 +29,9 @@ function fixture(now = "2026-10-18T10:00:00.000Z") {
     [ORG + "/Territories"]: [{territory_id:"T1",region_id:"R1",active:"Yes"}],
     [CONFIG + "/Stages"]: [{stage_id:"S1",active:"Yes"},{stage_id:"S2",active:"Yes"},{stage_id:"OFF",active:"No"}],
     [CONFIG + "/Field_Options"]: [
+      { field_key:"ccp_check_result",option_value:"enterprise_base",option_label:"มีใน CCP+",sort_order:1,active:"Yes" },
+      { field_key:"ccp_check_result",option_value:"not_in_base",option_label:"ไม่มีใน CCP+",sort_order:2,active:"Yes" },
+      { field_key:"ccp_check_result",option_value:"pending",option_label:"รอตรวจสอบ",sort_order:3,active:"No" },
       { field_key:"sales_channel",option_value:"AE Self",option_label:"AE Self",sort_order:1,active:"Yes" },
       { field_key:"sales_channel",option_value:"Premium Partner",option_label:"Premium Partner",sort_order:2,active:"Yes" },
       { field_key:"sales_channel",option_value:"Retail Partner",option_label:"Retail Partner",sort_order:3,active:"Yes" },
@@ -74,6 +77,16 @@ const input=(changes={})=>({
   quantity:1,price_per_sub:100,client_request_id:"field_policy_req_000001",...changes
 });
 const rejected=(status)=>(error)=>error.status===status;
+
+test("CCP+ serves exactly active Thai labels from Field_Options",()=>{
+ const x=fixture();
+ assert.deepEqual(x.call("AE1","GET","config/field-options/ccp_check_result").options,[
+   {value:"enterprise_base",label:"มีใน CCP+"},
+   {value:"not_in_base",label:"ไม่มีใน CCP+"},
+ ]);
+ x.store.table(CONFIG,"Field_Options").rows.find(r=>r.option_value==="enterprise_base").option_label="มีใน CCP+ (test)";
+ assert.equal(x.call("SM1","GET","config/field-options/ccp_check_result").options[0].label,"มีใน CCP+ (test)");
+});
 
 test("Live Field_Options controls both the dropdown API and which Sales Channels may be saved",()=>{
   const x=fixture();
