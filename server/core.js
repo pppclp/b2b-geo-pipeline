@@ -757,73 +757,151 @@ export function createCore({ contract, store, now, uuid }) {
     ? JSON.stringify([String(system || "").trim().toLowerCase(), String(id).trim().toLowerCase()])
     : "";
 
-  function importOpportunities(actor, input) {
+  // One immutable Excel source row is one Opportunity. Business ID, customer name,
+  // product and stage similarity are NOT duplicate keys.
+  function validateImportEnvelope(actor, input, requireBatchId) {
     const b = binding("Opportunity");
-    need(actor, b, "import");
-    need(actor, b, "create");
-    if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Only SM or Admin may import Pipelines");
-    const batchId = String(input?.batch_id || "");
-    const items = input?.items;
-    if (!/^[A-Za-z0-9_-]{16,80}$/.test(batchId)) throw new HttpError(400, "Invalid import_batch_id");
-    if (!Array.isArray(items) || items.length < 1 || items.length > 200 ||
-      items.some((i) => !i || typeof i !== "object" || Array.isArray(i))) {
-      throw new HttpError(400, "Import must contain 1-200 Pipeline rows");
-    }
-    const sheet = tableOf(b).rows;
-    const previous = sheet.filter((r) => String(r.import_batch_id || "") === batchId);
-    if (previous.length) {
-      if (previous.length !== items.length ||
-          previous.some((r) => {
-            const n = Number(r.import_row_number);
-            return !Number.isInteger(n) || n < 1 || n > items.length ||
-              ![importFingerprint(items[n - 1]), oldImportFingerprint(items[n - 1]),
-                importCommercialFingerprint(items[n - 1])].includes(String(r.import_row_signature || ""));
-          })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
-      return { imported: 0, already_imported: true, total: previous.length,
-        opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
-          .map((r) => r.opportunity_id) };
-    }
-
-    const allowedTypes = importCustomerTypes();
-    const preparedItems = items.map(item => resolveLegacyImportOwner(item, actor));
-    const known = new Set(sheet.map((r) => sourceKey(r.import_source_system, r.import_source_record_id)).filter(Boolean));
-    const seen = new Set();
-    // Validate the complete batch and reconcile finance BEFORE any mutation.
-    const validated = preparedItems.map((item) => {
-      const evidence = validateImportEvidence(item, allowedTypes);
-      const key = sourceKey(evidence.sourceSystem, evidence.sourceRecordId);
-      if (key && (known.has(key) || seen.has(key))) {
-        throw new HttpError(409, "Source System + Source Opportunity ID already imported");
+    need(actor,b,"import");
+    need(actor,b,"create");
+    if (!["sm","admin"].includes(actor.role)) throw new HttpError(403,"Only SM or Admin may import Pipelines");
+    const items=input?.items;
+    if(!Array.isArray(items)||items.length<1||items.length>200||
+       items.some(i=>!i||typeof i!=="object"||Array.isArray(i)))
+      throw new HttpError(400,"Historical import requires 1-200 source rows");
+    const batchId=String(input?.batch_id||"");
+    if((requireBatchId||batchId) && !/^[A-Za-z0-9_-]{16,80}$/.test(batchId))
+      throw new HttpError(400,"Invalid import_batch_id");
+    return {binding:b,items,batchId};
+  }
+  function inspectImportBatch(actor,input,requireBatchId=false) {
+    const {binding:b,items,batchId}=validateImportEnvelope(actor,input,requireBatchId);
+    const known=new Map();
+    tableOf(b).rows.forEach(r=>{
+      const key=sourceKey(r.import_source_system,r.import_source_record_id);
+      if(key){
+        if(known.has(key))throw new HttpError(503,"Existing Production source key collision; reconcile before import");
+        known.set(key,r.opportunity_id);
       }
-      if (key) seen.add(key);
-      return evidence;
     });
-    const signatures = items.map(importFingerprint);
-    if (new Set(signatures).size !== signatures.length) {
-      throw new HttpError(409, "Identical source rows in one batch need distinct Source Opportunity IDs");
-    }
-    // In-memory rollback for validation errors on later rows. Google Sheets
-    // persists only after the full request succeeds; local adapters stay clean.
-    const transactionSheets = ["Pipelines", "Pipeline_Events", "Handoff_Notifications"];
-    const backups = transactionSheets.filter((name) => {
-      const rule = contract.access.files["B2B_GEO_Pipeline_DB.xlsx"]?.sheets?.[name];
-      return !!rule;
-    }).map((name) => {
-      const t = store.table("B2B_GEO_Pipeline_DB.xlsx", name);
-      return { name, t, rows: t.rows.slice(), headers: t.headers.slice() };
-    });
-    try {
-      const results = preparedItems.map((item, index) => entityApi.create("Opportunity", actor, item, {
-        batchId, rowNumber:index + 1, signature:signatures[index], ...validated[index], allowedTypes,
-      }));
-      return { imported: results.length, already_imported: false, total: results.length,
-        opportunity_ids: results.map((r) => r.id) };
-    } catch (error) {
-      for (const backup of backups) {
-        backup.t.rows = backup.rows;
-        backup.t.headers = backup.headers;
-        store.touch("B2B_GEO_Pipeline_DB.xlsx", backup.name);
+    const seen=new Set(),allowedTypes=importCustomerTypes();
+    const activeChannels=activeSalesChannelOptions().map(o=>o.value);
+    const prepared=[];
+    const results=items.map((raw,index)=>{
+      const system=String(raw.source_system??"").trim();
+      const recordId=String(raw.source_record_id??"").trim();
+      const key=sourceKey(system,recordId);
+      const result={row:index+1,source_system:system,source_record_id:recordId,
+        status:"HOLD",validation_errors:[],financial_warnings:[]};
+      if(!system||!recordId||!/-R[1-9]\d*$/i.test(recordId)){
+        result.validation_errors.push("Stable Source System + Source File/Original Row ID are required");
+        return result;
       }
+      if(seen.has(key)){
+        result.status="POTENTIAL_DUPLICATE";
+        result.validation_errors.push("Duplicate technical source key within this batch; use distinct original source rows");
+        return result;
+      }
+      seen.add(key);
+      if(known.has(key)){
+        result.status="ALREADY_IMPORTED";
+        result.opportunity_id=known.get(key);
+        return result;
+      }
+      try{
+        const item=resolveLegacyImportOwner(raw,actor);
+        const evidence=validateImportEvidence(item,allowedTypes);
+        const mappedType=evidence.normalizedCustomerType||item.customer_type;
+        const mappedChannel=normalizeSalesChannel(item.sales_channel)||item.sales_channel;
+        validateLatestOpportunityFields({...item,customer_type:mappedType,sales_channel:mappedChannel},
+          {requireRequired:true,additionalCustomerTypes:allowedTypes,allowedSalesChannels:activeChannels,legacyImport:true});
+        const row=toSheet("Opportunity","opportunity_id",namesToIds("Opportunity",
+          {...item,customer_type:mappedType,sales_channel:mappedChannel}));
+        row.import_batch_id=batchId||"PREVIEW_READ_ONLY";
+        row.status=evidence.status;
+        row.current_handler_user_id=row.current_handler_user_id||row.owner_user_id;
+        validateOpportunityRefs(row,null,actor,{
+          allowPendingPartnerAe:evidence.pendingPartnerAe,
+          allowApprovedHistoricalStage3:evidence.approvedHistoricalStage3,
+          allowUnknownHistoricalRegion:true
+        });
+        validateCollaborators(row,row.region_id);
+        if(!scopedFilter(b,actor)(row))
+          throw new HttpError(403,"Historical Pipeline is outside your authorized Region");
+        if(evidence.historicalQuantity===null)
+          result.financial_warnings.push("SUBS_UNKNOWN");
+        if(evidence.numericNetRc===null)
+          result.financial_warnings.push("NET_RC_UNKNOWN");
+        if(String(item.source_rc??"").trim()==="")
+          result.financial_warnings.push("RC_UNKNOWN");
+        result.status="READY";
+        prepared[index]={item,evidence};
+      }catch(error){
+        result.validation_errors.push(String(error.message||"Unknown import validation error"));
+      }
+      return result;
+    });
+    const summary={READY:0,ALREADY_IMPORTED:0,HOLD:0,POTENTIAL_DUPLICATE:0};
+    results.forEach(r=>{summary[r.status]++});
+    return {total:items.length,summary,results,prepared};
+  }
+  function previewImportOpportunities(actor,input) {
+    const inspected=inspectImportBatch(actor,input,false);
+    // This function never calls touch(), creates Events, writes Audit, or flushes.
+    return {read_only:true,total:inspected.total,summary:inspected.summary,results:inspected.results};
+  }
+  function importOpportunities(actor,input) {
+    const inspected=inspectImportBatch(actor,input,true);
+    const {binding:b,items,batchId}=validateImportEnvelope(actor,input,true);
+    if(inspected.summary.HOLD||inspected.summary.POTENTIAL_DUPLICATE)
+      throw new HttpError(409,"Historical import preflight failed; review row-level /imports/preview results");
+    const existingBatch=tableOf(b).rows.filter(r=>String(r.import_batch_id||"")===batchId);
+    const signatures=items.map(importFingerprint);
+    // A batch ID may safely be retried only with identical row signatures.
+    existingBatch.forEach(r=>{
+      const i=Number(r.import_row_number)-1;
+      if(!Number.isInteger(i)||i<0||i>=items.length||
+        ![signatures[i],oldImportFingerprint(items[i]),importCommercialFingerprint(items[i])]
+          .includes(String(r.import_row_signature||"")) ||
+        sourceKey(r.import_source_system,r.import_source_record_id)!==
+          sourceKey(items[i].source_system,items[i].source_record_id))
+        throw new HttpError(409,"Import Batch ID already used for different source rows");
+    });
+    if(!inspected.summary.READY)
+      return {imported:0,skipped:inspected.summary.ALREADY_IMPORTED,failed:0,
+        already_imported:true,total:items.length,results:inspected.results};
+    // Every READY row passed the same evidence/ref checks as commit. No preflight
+    // operation touched the canonical Pipeline/Event/Audit data.
+    const transactionSheets=["Pipelines","Pipeline_Events","Handoff_Notifications"];
+    const backups=transactionSheets.filter(name=>
+      !!contract.access.files["B2B_GEO_Pipeline_DB.xlsx"]?.sheets?.[name])
+      .map(name=>{
+        const t=store.table("B2B_GEO_Pipeline_DB.xlsx",name);
+        return {name,t,rows:t.rows.slice(),headers:t.headers.slice()};
+      });
+    try{
+      const results=inspected.results.map((status,index)=>{
+        if(status.status!=="READY")return status;
+        const p=inspected.prepared[index];
+        const created=entityApi.create("Opportunity",actor,p.item,{
+          batchId,rowNumber:index+1,signature:signatures[index],
+          ...p.evidence,allowedTypes:importCustomerTypes()
+        });
+        return {...status,opportunity_id:created.id,status:"IMPORTED"};
+      });
+      return {imported:results.filter(r=>r.status==="IMPORTED").length,
+        skipped:results.filter(r=>r.status==="ALREADY_IMPORTED").length,
+        failed:0,already_imported:false,total:items.length,results,
+        opportunity_ids:results.filter(r=>r.status==="IMPORTED").map(r=>r.opportunity_id)};
+    }catch(error){
+      backups.forEach(backup=>{
+        backup.t.rows=backup.rows;
+        backup.t.headers=backup.headers;
+        // Clearing any dirtied tables before returning the exception is essential:
+        // the outer GAS transaction must never flush a failed batch's scratch rows.
+        delete store.dirty[backup.name];
+      });
+      // Prevent the outer handler from writing partial memory modifications.
+      for(const backup of backups)store.touch("B2B_GEO_Pipeline_DB.xlsx",backup.name);
       throw error;
     }
   }
@@ -1774,6 +1852,10 @@ export function createCore({ contract, store, now, uuid }) {
     if (parts[0] === "imports" && parts[1] === "customer-types" && method === "GET") {
       if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Import options require SM or Admin");
       return { values: importCustomerTypes() };
+    }
+    if (parts[0] === "imports" && parts[1] === "preview") {
+      if (method !== "POST") throw new HttpError(405, "Import preview requires POST");
+      return previewImportOpportunities(actor,req.body||{});
     }
     if (parts[0] === "imports" && parts[1] === "opportunities") {
       if (method !== "POST") throw new HttpError(405, "Import requires POST");
