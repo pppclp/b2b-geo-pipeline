@@ -619,6 +619,7 @@ export function createCore({ contract, store, now, uuid }) {
       sourceDiscountPct: String(item.source_discount_pct ?? "").trim(),
       sourceMonthlySalePlan: String(item.source_monthly_sale_plan ?? "").trim(),
       sourceNetRc,
+      pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
   }
@@ -963,7 +964,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Validate changed references only, allowing historical rows with retired
   // codes to receive unrelated updates. New values must be real and active.
-  function validateOpportunityRefs(next, prev = null, actor = null) {
+  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false } = {}) {
     const changed = (col) => !prev || String(prev[col] ?? "") !== String(next[col] ?? "");
     const filled = (col) => String(next[col] ?? "").trim() !== "";
     const refs = [
@@ -1013,7 +1014,7 @@ export function createCore({ contract, store, now, uuid }) {
     if (changed("owner_user_id") || regionChanged) {
       // Only a trusted historical import may start without a commercial owner.
       // Its current handler MUST be an active SM in the Pipeline's Region.
-      if (!prev && String(next.import_batch_id || "").trim() &&
+      if (!prev && allowPendingPartnerAe && String(next.import_batch_id || "").trim() &&
           !String(next.owner_user_id || "").trim()) {
         const custodian = findUser(next.current_handler_user_id);
         if (!custodian || custodian.role !== "sm" ||
@@ -1182,7 +1183,7 @@ export function createCore({ contract, store, now, uuid }) {
         if (bool.toUi(row.support_needed) &&
             (!String(row.support_type_id || "").trim() || !String(row.support_note || "").trim()))
           throw new HttpError(400,"Select Support Type and enter Support Note");
-        validateOpportunityRefs(row, null, actor);
+        validateOpportunityRefs(row, null, actor, { allowPendingPartnerAe: importMeta?.pendingPartnerAe === true });
       }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
       if (b.entity === "users") validateUserMasterChange(row);
