@@ -130,7 +130,7 @@ test("server-side import writes once and a retry is idempotent",()=>{
   assert.deepEqual(second.opportunity_ids,first.opportunity_ids);
   assert.equal(x.all["B2B_GEO_Pipeline_DB.xlsx|Pipelines"].rows.length,2);
   assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
-    ...payload,items:[{...newPipeline,business_id:"0000000100003"},payload.items[1]]
+    ...payload,items:[{...payload.items[0],business_id:"0000000100003"},payload.items[1]]
   }),e=>e.status===409);
   const skipped=x.call("ADMIN","POST","imports/opportunities",{
     batch_id:"uat-import-batch-00000002",items:payload.items
