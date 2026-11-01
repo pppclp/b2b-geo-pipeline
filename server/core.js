@@ -573,6 +573,15 @@ export function createCore({ contract, store, now, uuid }) {
   }
   function verifiedApprovedOwner(item, actor) {
     const cases = approvalCasesFor(item);
+    // Reject a source-row identity which belongs to an existing approval case
+    // but is mislabeled with another Region. Never bypass via Employee ID.
+    const rawId=String(item.source_record_id||"").trim();
+    if(rawId.startsWith(HISTORICAL_APPROVAL_PREFIX)){
+      const suffix=rawId.slice(HISTORICAL_APPROVAL_PREFIX.length);
+      const anyRow=store.table("B2B_GEO_Pipeline_DB.xlsx","AE_Owner_Approval_20261027").rows
+        .some(r=>String(r["Source Row Numbers"]||"").split(/[,\s]+/).includes(suffix));
+      if(anyRow&&!cases.length)throw new HttpError(409,"Approval Source Row / Region mismatch");
+    }
     if (!cases.length) return null;
     const approved = cases.filter(c => String(c.Decision || "").trim().toLowerCase() === "approved" &&
       String(c["Approved AE User ID"] || "").trim());
@@ -861,6 +870,7 @@ export function createCore({ contract, store, now, uuid }) {
       }
       if(system==="Legacy Spreadsheet"&&missingHeaders.length){
         result.validation_errors.push("Import source-evidence columns not prepared: "+missingHeaders.join(", "));
+        result.validation_error_status=503;
         return result;
       }
       if(seen.has(key)){
@@ -906,6 +916,7 @@ export function createCore({ contract, store, now, uuid }) {
         prepared[index]={item,evidence};
       }catch(error){
         result.validation_errors.push(String(error.message||"Unknown import validation error"));
+        result.validation_error_status=error.status||400;
       }
       return result;
     });
@@ -921,8 +932,13 @@ export function createCore({ contract, store, now, uuid }) {
   function importOpportunities(actor,input) {
     const inspected=inspectImportBatch(actor,input,true);
     const {binding:b,items,batchId}=validateImportEnvelope(actor,input,true);
-    if(inspected.summary.HOLD||inspected.summary.POTENTIAL_DUPLICATE)
-      throw new HttpError(409,"Historical import preflight failed; review row-level /imports/preview results");
+    if(inspected.summary.POTENTIAL_DUPLICATE)
+      throw new HttpError(409,"Multiple original Excel rows share a technical Source ID in this batch");
+    if(inspected.summary.HOLD){
+      const first=inspected.results.find(r=>r.status==="HOLD");
+      throw new HttpError(first.validation_error_status||400,
+        "Historical import row "+first.row+": "+first.validation_errors.join("; "));
+    }
     const existingBatch=tableOf(b).rows.filter(r=>String(r.import_batch_id||"")===batchId);
     const signatures=items.map(importFingerprint);
     // A batch ID may safely be retried only with identical row signatures.
