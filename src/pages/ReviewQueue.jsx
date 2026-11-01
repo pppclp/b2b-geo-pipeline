@@ -90,7 +90,7 @@ export default function ReviewQueue() {
         className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-3.5 w-3.5" /> Pipeline
       </button>
-      <PageHeader title="Review Queue" description="รายการ Open ที่ต้องตรวจสอบและดำเนินการ" className="mb-4" />
+      <PageHeader title="Review Queue" description="รายการที่ต้องตรวจสอบข้อมูลหรือ Stage รวมถึงข้อมูลช่องทางขายของงานที่ปิดแล้ว" className="mb-4" />
       <nav aria-label="Review Queue categories" className="flex w-full min-w-0 gap-1 overflow-x-auto rounded-xl bg-secondary p-1 sm:w-fit">
         {MAIN_TABS.map(item => (
           <button key={item.value} type="button" onClick={() => changeTab(item.value)}
@@ -145,6 +145,7 @@ export default function ReviewQueue() {
                     {maps.region?.[op.region_id]?.name ? ` · ${maps.region[op.region_id].name}` : ""}
                   </span>
                   <span className="mt-1.5 flex flex-wrap gap-1">
+                    {op.status !== "open" && <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">{op.status === "won" ? "Won" : op.status === "lost" ? "Lost" : op.status} · ดูอย่างเดียว</span>}
                     {signals.core.length > 0 && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-800">Core Data</span>}
                     {signals.sm && <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-foreground">SM Info</span>}
                     {signals.stage && <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-foreground">Stage Review</span>}
