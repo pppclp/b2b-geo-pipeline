@@ -2033,3 +2033,61 @@ function runGeoMonthEndSnapshot() {
 function backfillGeoPhase4SupportFlags() {
   throw Error("Retired: Needs Support is now a Pipeline toggle; do not backfill tickets.");
 }
+
+
+// ---- Approved historical import source-evidence schema (MANUAL ONLY) ----
+// Add columns at the right edge; do not rewrite any existing Pipeline/Events rows.
+// A production backup and explicit workbook verification are prerequisites.
+var GEO_HISTORICAL_IMPORT_EVIDENCE_COLUMNS_ = [
+  "import_source_sales_code","import_source_subs","import_source_oc",
+  "import_source_business_id","import_source_sales_channel","import_source_region",
+  "import_source_stage","import_source_workbook",
+  "import_source_created_at_raw","import_source_created_month_raw",
+  "import_source_closed_at_raw","import_source_stage_entered_at_raw"
+];
+function debugGeoHistoricalImportSchema() {
+  var file="B2B_GEO_Pipeline_DB.xlsx";
+  var id=sheetIdFor_(file);
+  if(!id)throw Error("Pipeline DB binding missing");
+  var book=SpreadsheetApp.openById(id);
+  if(book.getName()!=="B2B_GEO_Pipeline_DB")throw Error("Unexpected Pipeline DB title");
+  var sheet=book.getSheetByName("Pipelines");
+  if(!sheet)throw Error("Pipelines tab missing");
+  var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(String);
+  var missing=GEO_HISTORICAL_IMPORT_EVIDENCE_COLUMNS_.filter(h=>headers.indexOf(h)<0);
+  return {ok:missing.length===0,columns:headers.length,missing:missing,
+    pipeline_rows:Math.max(0,sheet.getLastRow()-1)};
+}
+function prepareGeoHistoricalImportColumns() {
+  var props=PropertiesService.getScriptProperties();
+  if(props.getProperty("GEO_HISTORICAL_IMPORT_SCHEMA_APPROVED")!=="YES")
+    throw Error("Explicit GEO_HISTORICAL_IMPORT_SCHEMA_APPROVED=YES required");
+  var id=sheetIdFor_("B2B_GEO_Pipeline_DB.xlsx");
+  if(!id||props.getProperty("GEO_APPROVED_PIPELINE_DB_ID")!==id)
+    throw Error("Explicit approved Production DB identity is required");
+  var lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    var book=SpreadsheetApp.openById(id);
+    if(book.getName()!=="B2B_GEO_Pipeline_DB")throw Error("Wrong workbook");
+    var ws=book.getSheetByName("Pipelines");
+    if(!ws||ws.getLastRow()<1)throw Error("Pipelines or header missing");
+    var headers=ws.getRange(1,1,1,ws.getLastColumn()).getValues()[0].map(h=>String(h).trim());
+    if(headers.some(h=>!h)||new Set(headers).size!==headers.length)
+      throw Error("Existing Pipeline headers invalid; no changes made");
+    var required=["opportunity_id","customer_name","region_id","owner_user_id",
+      "stage_id","status","import_source_record_id","import_source_system"];
+    if(required.some(h=>headers.indexOf(h)<0))
+      throw Error("Critical Pipeline columns missing; no changes made");
+    var missing=GEO_HISTORICAL_IMPORT_EVIDENCE_COLUMNS_.filter(h=>headers.indexOf(h)<0);
+    if(!missing.length)return {ok:true,alreadyPrepared:true,columns:headers.length};
+    var first=headers.length+1,last=first+missing.length-1;
+    if(ws.getMaxColumns()<last)ws.insertColumnsAfter(ws.getMaxColumns(),last-ws.getMaxColumns());
+    // Only new, empty cells in row 1. All existing customer cells remain untouched.
+    ws.getRange(1,first,1,missing.length).setValues([missing]);
+    ws.setFrozenRows(1);
+    SpreadsheetApp.flush();
+    var result=debugGeoHistoricalImportSchema();
+    if(!result.ok)throw Error("Provenance header verification failed; check the workbook");
+    return {ok:true,added:missing,columns:result.columns,pipeline_rows:result.pipeline_rows};
+  } finally {lock.releaseLock();}
+}
