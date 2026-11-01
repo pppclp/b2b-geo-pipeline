@@ -41,6 +41,21 @@ test("Pipeline Stage and Region chips are slightly denser and use matching hover
  assert.ok(region.includes('bg-primary text-primary-foreground border-primary'));
 });
  
+test("Status controls wrap instead of overlapping and the selected Sort label stays compact",()=>{
+ const controls=pipeline.split('aria-label="Filter Pipelines by Status"')[1]?.split('aria-label="Quick filter by Stage"')[0] || "";
+ assert.ok(pipeline.includes('gap-x-3 gap-y-2'));
+ assert.ok(controls.includes('max-w-full shrink-0 items-center gap-2 overflow-x-auto'));
+ assert.ok(controls.includes('max-w-full shrink-0 items-center gap-1.5'));
+ assert.ok(controls.includes('rounded-xl bg-secondary p-0.5'));
+ assert.ok(controls.includes('h-8 w-[145px] shrink-0'));
+ assert.ok(controls.includes('sm:w-[155px]'));
+ assert.ok(pipeline.includes('label: "Close Month ↑ · Net RC ↓", shortLabel: "Close Month ↑"'));
+ assert.ok(controls.includes('title={SORTS.find((item) => item.value === sort)?.label}'));
+ assert.ok(controls.includes('SORTS.find((item) => item.value === sort)?.shortLabel'));
+ assert.ok(controls.includes('onValueChange={setSort}'));
+ assert.ok(pipeline.includes('sortPipelineRows('));
+});
+
 test("All four pastel stages stay distinct from approved solid pastel Won and Lost",()=>{
  assert.ok(pipeline.includes('stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"'));
  assert.ok(pipeline.includes('stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"'));
