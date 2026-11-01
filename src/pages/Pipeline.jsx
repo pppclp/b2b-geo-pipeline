@@ -202,8 +202,8 @@ export default function Pipeline() {
     stage3: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]",
     stage4: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D]",
     review: "border-border bg-secondary text-foreground",
-    won: "border-emerald-100 bg-emerald-50 text-emerald-800",
-    lost: "border-[#D4C5BE] bg-[#EDE6E2] text-[#675149]",
+    won: "border-transparent bg-[#AFE0C2] text-[#166534]",
+    lost: "border-transparent bg-[#F3C4C4] text-[#9A3340]",
     neutral: "border-border bg-secondary text-foreground",
   };
   // Shared Stage quick-filter palette follows the same visual semantics as list badges.
