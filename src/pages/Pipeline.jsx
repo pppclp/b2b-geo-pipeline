@@ -480,7 +480,7 @@ export default function Pipeline() {
                       </>
                     )}
                     <span aria-hidden="true">·</span>
-                    <span className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "Stage age unknown" : `${age}d in stage`}</span>
+                    <span title={age === null ? "ไม่มีข้อมูลวันที่เข้า Stage" : `Days in current Stage: ${age}`} className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "—" : `${age}d in stage`}</span>
                     <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} />
                   </span>
                   <ChevronRight className="pointer-events-none absolute right-2.5 bottom-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -499,15 +499,15 @@ export default function Pipeline() {
               background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 40px, hsl(var(--card)) 40px, hsl(var(--card)) 100%)",
             }}
           >
-            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1180px]" : "min-w-[1050px]"}`}>
+            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1350px]" : "min-w-[1210px]"}`}>
               <colgroup>
-                <col className={regionContext.showColumn ? "w-[23%]" : "w-[26%]"} />
-                <col className={regionContext.showColumn ? "w-[17%]" : "w-[18%]"} />
-                <col className={regionContext.showColumn ? "w-[23%]" : "w-[27%]"} />
-                {regionContext.showColumn && <col className="w-[9%]" />}
-                <col className="w-[11%]" />
-                <col className="w-[11%]" />
-                <col className={regionContext.showColumn ? "w-[6%]" : "w-[7%]"} />
+                <col className="w-[300px]" />
+                <col className="w-[185px]" />
+                <col className="w-[280px]" />
+                {regionContext.showColumn && <col className="w-[125px]" />}
+                <col className={regionContext.showColumn ? "w-[115px]" : "w-[115px]"} />
+                <col className={regionContext.showColumn ? "w-[150px]" : "w-[145px]"} />
+                <col className={regionContext.showColumn ? "w-[195px]" : "w-[185px]"} />
               </colgroup>
               <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
                 <tr className="h-10">
@@ -536,7 +536,7 @@ export default function Pipeline() {
                   const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
                   return (
                     <tr key={o.id}
-                      className="group h-[56px] cursor-pointer bg-card hover:bg-secondary transition-colors align-middle"
+                      className="group h-[56px] cursor-pointer bg-card transition-colors align-middle"
                       onClick={() => openQuickView(o.id)}
                       tabIndex={0}
                       onKeyDown={(event) => {
@@ -558,12 +558,12 @@ export default function Pipeline() {
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
                         <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
                       </td>
-                      <td className="min-w-0 overflow-hidden px-3 py-2 text-[13px]">
+                      <td className="min-w-0 overflow-hidden bg-card px-3 py-2 text-[13px] transition-colors group-hover:bg-secondary">
                         <span title={stageDisplay.label} className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-0.5 text-[12px] font-medium ${stageBadgeTones[stageDisplay.tone]}`}>
                           <span className="min-w-0 truncate">{stageDisplay.label}</span>
                         </span>
                       </td>
-                      <td className="px-3 py-2 min-w-0">
+                      <td className="min-w-0 bg-card px-3 py-2 transition-colors group-hover:bg-secondary">
                         {/* Fixed two-line owner/handler layout for every Pipeline.
                             Working With stays inline with the SM, never a third row. */}
                         <div className="flex min-h-[32px] min-w-0 flex-col justify-center gap-0.5">
@@ -588,18 +588,18 @@ export default function Pipeline() {
                           </div>
                         </div>
                       </td>
-                      {regionContext.showColumn && <td className="px-3 py-2 text-[12px] font-normal text-muted-foreground" title={regionName}>
+                      {regionContext.showColumn && <td className="bg-card px-3 py-2 text-[12px] font-normal text-muted-foreground transition-colors group-hover:bg-secondary" title={regionName}>
                         <span className="line-clamp-2">{regionName}</span>
                       </td>}
-                      <td className="px-3 py-2 text-[12px] font-normal text-muted-foreground whitespace-nowrap">
+                      <td className="bg-card px-3 py-2 text-[12px] font-normal text-muted-foreground whitespace-nowrap transition-colors group-hover:bg-secondary">
                         {formatMonth(o.expected_close_month)}
                       </td>
-                      <td className="px-3 py-2 text-right font-medium tabular-nums whitespace-nowrap">
+                      <td className="bg-card px-3 py-2 text-right font-medium tabular-nums whitespace-nowrap transition-colors group-hover:bg-secondary">
                         {formatTHB(o.pipeline_value)}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="bg-card px-3 py-3 text-right transition-colors group-hover:bg-secondary">
                         <div className="font-normal tabular-nums text-[11px] whitespace-nowrap"
-                          title={age === null ? "Original stage-entered date unavailable (legacy import)" : "Days in current Stage: " + age}>{age === null ? "Unknown" : `${age}d` }</div>
+                          title={age === null ? "ไม่มีข้อมูลวันที่เข้า Stage" : "Days in current Stage: " + age}>{age === null ? "—" : `${age}d` }</div>
                         <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} /></div>
                       </td>
                     </tr>
