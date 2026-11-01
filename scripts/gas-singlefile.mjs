@@ -4,7 +4,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const dir = path.join(root, "apps-script");
-const parts = ["SheetIds.js", "Contract.js", "GeoCore.js", "Main.js"];
+const parts = ["SheetIds.js", "Contract.js", "GeoCore.js", "Main.js", "RegionalSnapshots.js"];
 
 for (const name of parts) {
   const p = path.join(dir, name);
