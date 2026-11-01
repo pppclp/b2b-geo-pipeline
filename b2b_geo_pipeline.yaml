@@ -1211,6 +1211,10 @@ opportunity_entity:
       source: "TRUSTED HISTORICAL IMPORT"
       user_editable: false
       description: "Original Others preserved even after normalization to Other"
+    import_source_sales_code:
+      source: "TRUSTED HISTORICAL IMPORT"
+      user_editable: false
+      description: "Original legacy Sales Code exactly as entered; may differ from mapped AE employee ID"
     customer_location_text:
       source: "TRUSTED HISTORICAL IMPORT"
       description: "Original Province/area text; never guessed into territory_id"
