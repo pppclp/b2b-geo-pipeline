@@ -41,8 +41,8 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
       throw new HttpError(400, key + " is required");
     }
   }
-  if (legacyImport && data.business_id && !/^\d{1,40}$/.test(String(data.business_id)))
-    throw new HttpError(400, "Legacy Business ID must be 1-40 digits; preserve the original value");
+  if (legacyImport && data.business_id != null && String(data.business_id).length > 40)
+    throw new HttpError(400, "Historical Business ID must be at most 40 characters; preserve raw value");
   if (!legacyImport && "business_id" in data && data.business_id &&
       (previousBusinessId === null || String(data.business_id) !== String(previousBusinessId))) {
     const error = businessIdError(data.business_id);
@@ -547,54 +547,111 @@ export function createCore({ contract, store, now, uuid }) {
     return true;
   }
 
-  // Import-only owner lookup. Search by the authoritative employee code,
-  // never by an approximate spelling of the person's display name.
+  // The live approval sheet is authoritative for historical source rows. It is
+  // accessed only by authenticated import/preview and is NEVER edited here.
+  const HISTORICAL_APPROVAL_PREFIX = "DOC-79e97612cde3acfee14cfb26a78e0ddd-R";
+  function approvalCasesFor(item) {
+    const id = String(item.source_record_id || "").trim();
+    if (!id.startsWith(HISTORICAL_APPROVAL_PREFIX)) return [];
+    const rowNumber = id.slice(HISTORICAL_APPROVAL_PREFIX.length);
+    if (!/^[1-9]\d*$/.test(rowNumber)) return [];
+    const candidates = store.table("B2B_GEO_Pipeline_DB.xlsx", "AE_Owner_Approval_20261027").rows;
+    const regionName = rows("regions").find(r => r.region_id === String(item.region_id || ""))?.region_name || "";
+    return candidates.filter(r => {
+      const rowNumbers = String(r["Source Row Numbers"] || "").split(/[,\s]+/).filter(Boolean);
+      return rowNumbers.includes(rowNumber) &&
+        String(r["Source Region"] || "").trim() === regionName;
+    });
+  }
+  function verifiedApprovedOwner(item, actor) {
+    const cases = approvalCasesFor(item);
+    if (!cases.length) return null;
+    const approved = cases.filter(c => String(c.Decision || "").trim().toLowerCase() === "approved" &&
+      String(c["Approved AE User ID"] || "").trim());
+    const ids = new Set(approved.map(c => String(c["Approved AE User ID"]).trim()));
+    if (ids.size !== 1) throw new HttpError(409, "Historical AE approval is pending or conflicting for this source row");
+    const approvedId = [...ids][0];
+    if (item.owner_id && String(item.owner_id) !== approvedId)
+      throw new HttpError(409, "Selected AE differs from the approved source-row mapping");
+    const ae = findUser(approvedId);
+    if (!ae || ae.role !== "ae") throw new HttpError(409, "Approved AE is not an active AE");
+    if (item.region_id && !ae.region_ids.includes(String(item.region_id)))
+      throw new HttpError(409, "Approved AE is not assigned to the source Region");
+    if (actor.role !== "admin" && (!item.region_id || !actor.region_ids.includes(String(item.region_id))))
+      throw new HttpError(403, "Source row is outside importer Region");
+    const approvedSourceCodes = new Set(approved.map(c => String(c["Source Sales Code"] ?? "").trim()));
+    if (approvedSourceCodes.size > 1)
+      throw new HttpError(409, "Source Sales Code differs across approved mapping cases");
+    const originalCode = [...approvedSourceCodes][0] || "";
+    if (String(item.source_original_sales_code ?? "").trim() &&
+        String(item.source_original_sales_code).trim() !== originalCode)
+      throw new HttpError(409, "Original Sales Code does not match approved source evidence");
+    return { ownerId: approvedId, originalSalesCode: originalCode };
+  }
+  // Employee-ID resolution is permitted only for a VERIFIED direct match.
+  // Never force a historically approved source Sales Code to equal an Employee ID.
   function legacyImportOwner(code, actor) {
     const value = String(code ?? "").trim();
-    if (!/^\d{1,40}$/.test(value)) throw new HttpError(400, "Sales Code must contain 1-40 digits");
-    const matches = rows("users").filter((r) => String(r.employee_id ?? "").trim() === value &&
+    if (!value || value.length > 40) throw new HttpError(400, "Sales Code must be 1-40 characters");
+    const matches = rows("users").filter(r => String(r.employee_id ?? "").trim() === value &&
       normalizeRole(r.role) === "ae" && String(r.status || "Active").toLowerCase() === "active");
-    if (matches.length !== 1) throw new HttpError(400, "Sales Code has no unique active AE match in Users Master: " + value);
+    if (matches.length !== 1) throw new HttpError(409, "Sales Code needs an approved AE mapping");
     const ae = findUser(matches[0].user_id);
-    if (!ae || (actor.role !== "admin" && !ae.region_ids.some((id) => actor.region_ids.includes(id)))) {
-      // Do not expose identities or regions outside the importer's authorized scope.
-      throw new HttpError(403, "Sales Code is outside your authorized import scope or unavailable");
-    }
+    if (!ae || (actor.role !== "admin" && !ae.region_ids.some(id => actor.region_ids.includes(id))))
+      throw new HttpError(403, "Sales Code outside authorized import scope");
     return ae;
   }
-
   function resolveLegacyImportOwner(item, actor) {
-    if (validatePendingPartnerAssignment(item, actor)) return { ...item, owner_id: "" };
+    if (validatePendingPartnerAssignment(item, actor)) return {
+      ...item, owner_id: "", source_original_sales_code:
+        String(item.source_original_sales_code ?? item.source_sales_code ?? "")
+    };
+    const approved = verifiedApprovedOwner(item, actor);
+    if (approved) return {
+      ...item, owner_id: approved.ownerId,
+      current_handler_id: item.current_handler_id || approved.ownerId,
+      source_original_sales_code: approved.originalSalesCode
+    };
+    // An explicitly pending approval must not be bypassed using a coincidental
+    // employee-code match or a manually chosen owner.
+    if (approvalCasesFor(item).length)
+      throw new HttpError(409, "Historical AE mapping has no approved case for this source row");
     const code = String(item.source_sales_code ?? "").trim();
-    if (!code) return item;
+    if (!code) throw new HttpError(409, "Missing verified AE Owner (unless approved Pending AE partner)");
     const ae = legacyImportOwner(code, actor);
     if (item.owner_id && String(item.owner_id) !== ae.id)
-      throw new HttpError(400, "Sales Code conflicts with the selected Opportunity Owner");
-    // Historical name spellings are advisory. The unique active Sales Code is authoritative.
-    return { ...item, owner_id:ae.id,
-      current_handler_id:item.current_handler_id || ae.id };
+      throw new HttpError(400, "Source Employee ID conflicts with selected AE Owner");
+    return {
+      ...item, owner_id: ae.id,
+      current_handler_id: item.current_handler_id || ae.id,
+      source_original_sales_code: String(item.source_original_sales_code ?? code)
+    };
   }
-
   function resolveLegacyImportOwners(actor, input) {
     if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Only SM or Admin may resolve source Sales Codes");
-    const codes=input?.codes;
+    const codes = input?.codes;
     if (!Array.isArray(codes) || codes.length > 200 || codes.some(c => typeof c !== "string"))
       throw new HttpError(400, "Provide up to 200 Sales Codes");
-    const unique=[...new Set(codes.map(v => v.trim()).filter(Boolean))];
-    // Return no user details for out-of-scope or invalid identifiers.
-    return { owners:unique.map(code => {
+    const unique = [...new Set(codes.map(v => v.trim()).filter(Boolean))];
+    return { owners: unique.map(code => {
       try {
-        const owner=legacyImportOwner(code, actor);
-        return { code, found:true, id:owner.id, name:owner.name,
-          region_ids:owner.region_ids };
-      } catch {
-        return { code, found:false };
-      }
+        const owner = legacyImportOwner(code, actor);
+        return { code, found:true, id:owner.id, name:owner.name, region_ids:owner.region_ids };
+      } catch { return { code, found:false, approved_case_required:true }; }
     }) };
   }
 
   function validateImportEvidence(item, allowedTypes) {
     const status = String(item.status || "open").trim().toLowerCase();
+    const stage = String(item.stage_id || "").trim();
+    if ((stage === "STG001" || stage === "STG002") && status !== "open")
+      throw new HttpError(400, "Historical Stage 1/2 must map to Open");
+    if (stage === "STG003" && status !== "won")
+      throw new HttpError(400, "Historical Stage 3 must map to Won");
+    if (status === "won" && stage !== "STG003")
+      throw new HttpError(400, "Historical Won requires Stage 3");
+    if (status === "lost" && stage === "STG003")
+      throw new HttpError(400, "Historical Cancel must not be changed into Stage 3");
     if (!["open", "won", "lost"].includes(status)) throw new HttpError(400, "Import Status must be Open, Won or Lost");
     const fields = ["source_created_at", "source_stage_entered_at", "source_closed_at"];
     const dates = {};
@@ -631,14 +688,12 @@ export function createCore({ contract, store, now, uuid }) {
     const normalizedCustomerType = allowedTypes.find((type) => type.toLowerCase() === requestedType.toLowerCase());
     if (item.customer_type && !normalizedCustomerType)
       throw new HttpError(400, "Unknown Customer Type. Use an existing legacy type or active Field_Options value");
-    if (String(item.business_id ?? "").trim() && !/^\d{1,40}$/.test(String(item.business_id).trim()))
-      throw new HttpError(400, "Legacy Business ID must contain 1-40 digits");
-    const sourceSalesCode = String(item.source_sales_code || "").trim();
-    if (sourceSalesCode && item.pending_ae_assignment !== true) {
-      const owner = rows("users").find((r) => String(r.user_id) === String(item.owner_id));
-      if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
-        throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
-    }
+    if (String(item.business_id ?? "").length > 40)
+      throw new HttpError(400, "Historical Business ID exceeds 40 characters");
+    // Original Sales Code is evidence, not an Employee ID constraint.
+    // The approved owner was independently resolved against the live AE approval sheet.
+    const originalCode = String(item.source_original_sales_code ?? item.source_sales_code ?? "");
+    if (originalCode.length > 40) throw new HttpError(400, "Original Sales Code exceeds 40 characters");
     for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_sale_name", "source_product_id", "source_rc",
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
