@@ -28,8 +28,9 @@ test("regional workbook has all eight canonical Region ID mappings and exactly 3
   assert.equal(c.GEO_REPORT_HEADERS_[2],"Opportunity ID");
   assert.equal(c.GEO_REPORT_HEADERS_[19],"Net RC");
   assert.equal(c.GEO_REPORT_HEADERS_[28],"Working With");
-  assert.equal(c.GEO_TECHNICAL_SNAPSHOT_HEADERS_.length,50);
+  assert.equal(c.GEO_TECHNICAL_SNAPSHOT_HEADERS_.length,51);
   assert.equal(c.GEO_TECHNICAL_SNAPSHOT_HEADERS_[49],"working_with_id");
+  assert.equal(c.GEO_TECHNICAL_SNAPSHOT_HEADERS_[50],"import_source_sales_code");
 });
 
 test("server captures a frozen Working With assignment without changing original snapshot columns",()=>{
@@ -47,7 +48,7 @@ test("regional projection maps all 30 display fields with preserved identity and
     opportunity_id:"OPP_TEST",created_month:"2026-07",business_id:"0000123",
     customer_type:"Industrial",customer_name:"Synthetic Client",
     contact_name:"Test Contact",contact_phone:"0812345678",owner_sales_code:"00123",
-    owner_sale_name:"Synthetic AE",sales_channel:"AE B2B GEO",partner_name:"",
+    owner_sale_name:"Synthetic AE",import_source_sales_code:"12709836",sales_channel:"AE B2B GEO",partner_name:"",
     region_id:"NE1",customer_location_text:"Sample Province",
     product_category_id:"CAT001",product_details:"SIM Only",quantity:4,
     import_source_rc:"399",import_source_net_rc:"1,496.00",import_source_system:"Legacy Spreadsheet",pipeline_value:1496,oc:0,
@@ -61,7 +62,7 @@ test("regional projection maps all 30 display fields with preserved identity and
   assert.equal(output.length,30);
   assert.equal(output[4],"0000123");
   assert.equal(output[8],"0812345678");
-  assert.equal(output[9],"00123");
+  assert.equal(output[9],"12709836");
   assert.equal(output[13],"Northeast1");
   assert.equal(output[18],"399");
   assert.equal(output[19],"1,496.00");
@@ -93,7 +94,7 @@ test("reporting workbook fail-closes if canonical technical Snapshots tab is mis
   const book={getName:()=>c.GEO_REPORT_TITLE_,getSheetByName:n=>reportSheets.get(n)||null};
   assert.throws(()=>c.geoAssertRegionalSnapshotSchema_({_geoReportBook:book}),
     e=>e.status===503&&e.publicCode==="REQUIRED_SHEET_MISSING");
-  const canonical={getLastRow:()=>1,getLastColumn:()=>50,
+  const canonical={getLastRow:()=>1,getLastColumn:()=>51,
     getRange:()=>({getValues:()=>[Array.from(c.GEO_TECHNICAL_SNAPSHOT_HEADERS_)]})};
   reportSheets.set("Snapshots",canonical);
   assert.equal(c.geoAssertRegionalSnapshotSchema_({_geoReportBook:book}),canonical);
