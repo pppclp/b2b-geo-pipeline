@@ -854,3 +854,47 @@ test("historical import keeps nonnumeric reference text in provenance without fa
   assert.equal(stored.import_source_net_rc,"check original");
   assert.equal(stored.pipeline_value,null);
 });
+
+test("approved historical Partner source R8 imports with unassigned AE and correct East SM; later AE assignment is explicit",()=>{
+  const x=fixture();
+  x.store.table(ORG,"Users").rows.push(
+    {user_id:"U0033",employee_id:"90008518",role:"SM",status:"Active",display_name:"Songpol"},
+    {user_id:"E-AE1",employee_id:"90005501",role:"AE",status:"Active",display_name:"East AE"});
+  x.store.table(ORG,"User_Region").rows.push(
+    {user_region_id:"URE-SM",user_id:"U0033",region_id:"E",active:"Yes"},
+    {user_region_id:"URE-AE",user_id:"E-AE1",region_id:"E",active:"Yes"});
+  x.store.table(ORG,"Regions").rows.push({region_id:"E",active:"Yes"});
+  const data=input({
+    client_request_id:undefined, business_id:"0000000099201", region_id:"E",
+    owner_id:"",current_handler_id:"U0033",
+    source_system:"Legacy Spreadsheet",
+    source_sale_name:"บริษัท มายเซ็นเตอร์ จำกัด",
+    source_sales_code:"10045188",
+    source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R8",
+    pending_ae_assignment:true,sales_channel:"Premium Partner",
+    reference_net_rc:"710",quantity:2,price_per_sub:null,oc:120,
+  });
+  const invalid=[
+    [{...data,source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R777"},/not approved/],
+    [{...data,source_sale_name:"พีพี บริการ"},/does not match approved/],
+    [{...data,region_id:"R1"},/does not match approved/],
+    [{...data,current_handler_id:"SM1"},/does not match approved/],
+    [{...data,owner_id:"E-AE1"},/leave AE Owner blank/],
+  ];
+  for(const [row,message] of invalid)
+    assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
+      batch_id:"partner_sm_reject_case1",items:[row]}),e=>e.status===400&&message.test(e.message));
+  const count=x.store.table(DB,"Pipelines").rows.length;
+  const response=x.call("ADMIN","POST","imports/opportunities",{
+    batch_id:"partner_sm_approved_case_1",items:[data]});
+  const stored=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===response.opportunity_ids[0]);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,count+1);
+  assert.equal(stored.owner_user_id,"");
+  assert.equal(stored.original_owner_user_id,"");
+  assert.equal(stored.current_handler_user_id,"U0033");
+  assert.equal(stored.region_id,"E");
+  assert.equal(stored.pipeline_value,710);
+  assert.equal(stored.import_source_record_id,data.source_record_id);
+  x.call("ADMIN","PUT","entities/Opportunity/"+stored.opportunity_id,{owner_id:"E-AE1"});
+  assert.equal(stored.owner_user_id,"E-AE1");
+});
