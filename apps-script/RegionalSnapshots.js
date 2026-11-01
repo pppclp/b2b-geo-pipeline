@@ -130,9 +130,9 @@ function geoDisplay_(ref,key) {
   return geoNonblank_(key) ? (ref[String(key)] || String(key)) : "";
 }
 function geoProjectSnapshotRow_(r,lookups) {
-  // RC = original legacy RC when present, otherwise the canonical per-sub price.
-  // Net RC = canonical calculated pipeline_value; raw source Net RC remains in technical history.
-  // Do not invent missing created dates or historical Working With assignments.
+  // Historical financial evidence is distinct from new sales calculations.
+  // Never relabel price_per_sub as RC or calculated pipeline_value as the source Net RC.
+  // Missing historical RC / Net RC stay blank, never filled from later Pipeline state.
   var created=geoNonblank_(r.created_month)?r.created_month:
     (geoNonblank_(r.lead_created_at)?String(r.lead_created_at).slice(0,7):"");
   return [
@@ -143,8 +143,9 @@ function geoProjectSnapshotRow_(r,lookups) {
     GEO_REGION_SHEETS_[String(r.region_id)] || geoText_(r.region_id),
     geoNonblank_(r.customer_location_text)?r.customer_location_text:geoText_(r.territory_id),
     geoDisplay_(lookups.products,r.product_category_id),geoText_(r.product_details),
-    geoText_(r.quantity),geoNonblank_(r.import_source_rc)?r.import_source_rc:geoText_(r.price_per_sub),
-    geoText_(r.pipeline_value),geoText_(r.oc),geoText_(r.contract_period_months),
+    geoText_(r.quantity),geoText_(r.import_source_rc),
+    geoNonblank_(r.import_source_system)?geoText_(r.import_source_net_rc):geoText_(r.pipeline_value),
+    geoText_(r.oc),geoText_(r.contract_period_months),
     geoDisplay_(lookups.stages,r.stage_id),geoText_(r.status),geoText_(r.expected_close_month),
     geoDisplay_(lookups.scenarios,r.scenario_id),geoText_(r.ccp_check_result),
     geoDisplay_(lookups.users,r.current_handler_user_id),
