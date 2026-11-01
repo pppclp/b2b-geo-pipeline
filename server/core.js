@@ -19,6 +19,7 @@ import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from ".
 import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } from "./opportunityPolicy.js";
 import { pipelineTaskViews, validDays } from "../src/lib/taskOverdue.js";
 import { approvedUndatedHistoricalCancel } from "../src/lib/approvedHistoricalCancel.js";
+import { approvedHistoricalStage3 } from "../src/lib/approvedHistoricalStage3.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -670,6 +671,7 @@ export function createCore({ contract, store, now, uuid }) {
       sourceNetRc,
       numericNetRc,
       historicalQuantity: validQuantity ? Number(sourceQuantity) : null,
+      approvedHistoricalStage3: approvedHistoricalStage3(item),
       pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
@@ -1015,7 +1017,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Validate changed references only, allowing historical rows with retired
   // codes to receive unrelated updates. New values must be real and active.
-  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false } = {}) {
+  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false, allowApprovedHistoricalStage3 = false } = {}) {
     const changed = (col) => !prev || String(prev[col] ?? "") !== String(next[col] ?? "");
     const filled = (col) => String(next[col] ?? "").trim() !== "";
     const refs = [
@@ -1035,7 +1037,11 @@ export function createCore({ contract, store, now, uuid }) {
       if (!filled(col) || !bindings[entity]) continue;
       const b = bindings[entity];
       const master = rows(entity).find((r) => String(r[b.primary_key]) === String(next[col]));
-      if (!master || !isActive(master.active)) {
+      // Historical-only exception for approved, source-identifiable Stage 3
+      // records; STG003 remains inactive for new Pipelines and ordinary edits.
+      const allowLegacyStage = col === "stage_id" && allowApprovedHistoricalStage3 &&
+        String(next[col]) === "STG003" && !!master;
+      if (!master || (!isActive(master.active) && !allowLegacyStage)) {
         throw new HttpError(400, "Unknown or inactive " + label + ": " + next[col]);
       }
     }
@@ -1240,7 +1246,10 @@ export function createCore({ contract, store, now, uuid }) {
         if (bool.toUi(row.support_needed) &&
             (!String(row.support_type_id || "").trim() || !String(row.support_note || "").trim()))
           throw new HttpError(400,"Select Support Type and enter Support Note");
-        validateOpportunityRefs(row, null, actor, { allowPendingPartnerAe: importMeta?.pendingPartnerAe === true });
+        validateOpportunityRefs(row, null, actor, {
+          allowPendingPartnerAe: importMeta?.pendingPartnerAe === true,
+          allowApprovedHistoricalStage3: importMeta?.approvedHistoricalStage3 === true,
+        });
       }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
       if (b.entity === "users") validateUserMasterChange(row);

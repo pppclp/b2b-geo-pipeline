@@ -365,7 +365,10 @@ export default function Import() {
       if (!rec.source_record_id) errors.push("Source row identity missing");
       // Historical import must NOT derive unit pricing or invent OC, even when
       // a reference RC exists. New Pipeline forms keep live price validation.
-      if (!rec.stage_id) errors.push("Current Stage is required");
+      // Approved historical Cancel records have no verifiable last Stage.
+      // Preserve the blank instead of fabricating a live Stage.
+      if (!rec.stage_id && !approvedUndatedHistoricalCancel(rec))
+        errors.push("Current Stage is required");
       if (!rec.current_handler_id && rec.owner_id) rec.current_handler_id = rec.owner_id;
       if (rec.support_needed) rec.support_needed = ["yes", "true", "1", "y"].includes(rec.support_needed.toLowerCase());
       if (rec.business_id && legacyBusinessId(rec.business_id) === null) errors.push("Invalid Legacy Business ID");
