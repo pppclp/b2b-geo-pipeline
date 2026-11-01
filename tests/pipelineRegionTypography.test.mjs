@@ -25,10 +25,10 @@ test("Region chip styling stays neutral on Pipeline without changing shared Dash
  assert.ok(region.includes('bg-[#E9ECEF] text-[#202832]'));
 });
 
-test("Stage 1 Teal differs from Won Emerald, Stage 2 Blue and Working With Purple",()=>{
- assert.ok(pipeline.includes('stage1: "border-[#99D5CF] bg-[#E6F6F3] text-[#0D9488]"'));
+test("Stage 1 pastel green differs from Won Emerald, Stage 2 Blue and Working With Purple",()=>{
+ assert.ok(pipeline.includes('stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"'));
  assert.ok(pipeline.includes('stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"'));
- assert.ok(pipeline.includes('hover:bg-[#D4F0EB]'));
+ assert.ok(pipeline.includes('hover:bg-[#DCFCE7]'));
  assert.ok(pipeline.includes('hover:bg-[#DBEAFE]'));
  assert.ok(!pipeline.includes('ring-2 ring-offset-1 ring-foreground/20'));
  assert.ok(pipeline.includes('won: "border-emerald-100 bg-emerald-50 text-emerald-800"'));
