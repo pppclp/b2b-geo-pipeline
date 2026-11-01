@@ -13,6 +13,6 @@ export function calculateNetRc({ quantity, pricePerSub, oc = 0 }) {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 export function formatNetRc(value) {
-  if (value == null || !Number.isFinite(Number(value))) return "—";
+  if (value == null || value === "" || !Number.isFinite(Number(value))) return "—";
   return "฿" + Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

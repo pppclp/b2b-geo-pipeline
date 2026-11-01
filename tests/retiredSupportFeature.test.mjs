@@ -23,6 +23,21 @@ test("retired Support cannot be enabled by a legacy filter or exported by the cu
   assert.doesNotMatch(read("src/pages/Import.jsx"), /key: "support_needed"|key: "support_type"|key: "support_note"/);
 });
 
+test("retired Support_Types master is not a required runtime Sheet and cannot be re-enabled",()=>{
+ const core=read("server/core.js");
+ const contract=read("b2b_geo_pipeline.yaml");
+ const seed=read("server/seed.js");
+ assert.match(core, /if \(uiEntity === "SupportType"\) throw new HttpError\(410/);
+ assert.doesNotMatch(core, /support_type: \{ entity: "support_types"/);
+ assert.doesNotMatch(core, /\["support_type_id", "support_types", "Support Type"\]/);
+ const access=contract.split("access_control:").at(-1);
+ assert.doesNotMatch(access,/^        Support_Types:/m);
+ assert.doesNotMatch(seed,/      Support_Types:/);
+ // Historical support fields remain readable without Support_Types master.
+ assert.match(core,/RETIRED_SUPPORT_FIELDS/);
+ assert.match(contract,/support_type_id/);
+});
+
 test("retired backend write guard preserves legacy audit schema and blocks further changes", () => {
   const code = read("server/core.js");
   assert.ok(code.includes("function rejectRetiredSupportPayload(uiEntity, data)"));

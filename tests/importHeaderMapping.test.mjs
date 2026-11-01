@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {mapImportHeaders,normalizeImportHeader,needsExplicitCreatedMonthMapping} from "../src/lib/importHeaderMapping.js";
+import {mapImportHeaders,normalizeImportHeader,needsExplicitCreatedMonthMapping,resolveImportExpectedCloseMonth} from "../src/lib/importHeaderMapping.js";
+import {approvedUndatedHistoricalCancel, approvedRaw9DayMonthlyPlan} from "../src/lib/approvedHistoricalCancel.js";
 const fields=[{key:"customer_name",label:"Customer Name"},{key:"contact_name",label:"Contact Name"},{key:"business_id",label:"Business ID"},{key:"region",label:"Region"},{key:"stage",label:"Stage"}];
 test("maps distinct Thai headers without collapsing to empty",()=>{
   const headers=["ชื่อลูกค้า","ชื่อผู้ติดต่อ","เลขทะเบียนนิติบุคคล","ภูมิภาค","ขั้นตอนการขาย"];
@@ -59,4 +60,19 @@ test("legacy product / finance columns are not silently mistaken for live pricin
   assert.deepEqual(mapImportHeaders(["Owner User ID","Region ID"],
     [{key:"owner",label:"Opportunity Owner"},{key:"region",label:"Region"}]),
     {owner:0,region:1});
+});
+
+test("9 Day is raw source text only for approved Row 240; verified month is independent",()=>{
+  const row={source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R240"};
+  assert.equal(approvedRaw9DayMonthlyPlan(row,"9 Day"),true);
+  assert.equal(approvedRaw9DayMonthlyPlan({...row,source_record_id:"UNKNOWN"},"9 Day"),false);
+  assert.deepEqual(resolveImportExpectedCloseMonth("9 Day","2026-11"),{month:"2026-11",error:""});
+  assert.match(resolveImportExpectedCloseMonth("9 Day","").error,/not a close month/);
+  assert.match(resolveImportExpectedCloseMonth("2026-10","2026-11").error,/disagree/);
+});
+test("only eight approved historical Cancel source IDs bypass missing Original Closed Date",()=>{
+  for(const row of [32,80,146,218,221,232,233,240])assert.equal(
+    approvedUndatedHistoricalCancel({source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R"+row,status:"lost"}),true);
+  assert.equal(approvedUndatedHistoricalCancel({source_record_id:"SRC-UNKNOWN",status:"lost"}),false);
+  assert.equal(approvedUndatedHistoricalCancel({source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R240",status:"won"}),false);
 });

@@ -20,10 +20,11 @@ export function requiresStageReview(op, activeStages = []) {
 
 export function reviewSignals(op, activeStages, role = "") {
   if (!op) return { core: [], sm: false, stage: false, any: false };
-  // Closed history must remain Won/Lost, but unknown channels must still appear
-  // as read-only Incomplete Data for an authorized user to verify later.
+  // Closed historical pipelines retain Won/Lost. Missing AE Owner or Channel
+  // remains visible read-only for future authorized review; never auto-reopen.
   if (op.status !== "open") {
-    const core = missingPipelineCoreFields(op).filter(({ key }) => key === "sales_channel");
+    const core = missingPipelineCoreFields(op).filter(({ key }) =>
+      ["sales_channel", "owner_id", "quantity", "import_source_rc", "import_source_net_rc", "lost_at"].includes(key));
     return { core, sm: false, stage: false, any: core.length > 0 };
   }
   const core = missingPipelineCoreFields(op);
