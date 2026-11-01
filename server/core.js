@@ -33,7 +33,8 @@ const isActive = (v) => v === "" || v == null || bool.toUi(v);
 function validateLatestOpportunityFields(data, { requireRequired = false, previousBusinessId = null, additionalCustomerTypes = [], legacyImport = false } = {}) {
   const required = ["customer_name", "customer_type", "sales_channel", "product_category_id", "expected_close_month"];
   for (const key of required) {
-    if (legacyImport && key === "expected_close_month") continue;
+    // Historical blanks are preserved and surfaced in Incomplete Data.
+    if (legacyImport && (key === "expected_close_month" || key === "sales_channel")) continue;
     if ((requireRequired || key in data) && !String(data[key] ?? "").trim()) {
       throw new HttpError(400, key + " is required");
     }
