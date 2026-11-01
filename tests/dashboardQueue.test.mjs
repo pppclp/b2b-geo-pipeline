@@ -26,13 +26,31 @@ test("Management Action Queue preserves With Me and Region after Support retirem
   assert.ok(s.includes('const assigned = withMePipelines(cohort, profile?.id, {'));
   assert.ok(s.includes('title="With Me"'));
   assert.ok(s.includes('regionColumn={isManagement}'));
-  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">ภาค</th>}'));
+  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}'));
   assert.ok(s.includes('className="h-[76px] border-b border-border last:border-0"'));
   assert.ok(s.includes('min-h-[16px]'));
   assert.ok(s.includes('selectedTab === "with" ? "handler_since"'));
   assert.ok(s.includes('const withMeQuery = isManagement ? { with_me: "1" } : { handler: profile?.id };'));
   assert.ok(s.includes('...(selectedTab === "with" ? withMeQuery : {}),'));
   assert.ok(s.includes('onClick={() => toPipeline({ status: "open", ...withMeQuery })}'));
+});
+
+test("Dashboard KPI copy is concise, English controls are retained, and queue empty states describe the selected view", () => {
+  const dashboard = source("src/pages/Dashboard.jsx");
+  const layout = source("src/components/AppLayout.jsx");
+  assert.ok(dashboard.includes('title="มูลค่า Pipeline รวม"'));
+  assert.ok(dashboard.includes('note="Net RC · Open + Won"'));
+  assert.ok(dashboard.includes('title="With Me"'));
+  assert.ok(dashboard.includes('"มอบหมายให้ฉัน / ทีม Management"'));
+  assert.ok(dashboard.includes('>สถานะ Pipeline</div>'));
+  assert.ok(dashboard.includes('"Expected Close · All Months"'));
+  assert.ok(dashboard.includes('"No Pipelines in With Me"'));
+  assert.ok(dashboard.includes('emptyMessage={queueEmptyMessage}'));
+  assert.ok(dashboard.includes('placeholder="All Months"'));
+  assert.ok(dashboard.includes('>View All</Button>'));
+  assert.ok(layout.includes('Updated ${minutesSinceLoad} min ago'));
+  assert.ok(layout.includes('Sign out'));
+  assert.ok(dashboard.includes('"Management overview"'));
 });
 
 test("Management Working With makes open Pipelines visible to every authorized manager without changing Handler", () => {
