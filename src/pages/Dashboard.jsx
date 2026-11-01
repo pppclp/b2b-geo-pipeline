@@ -174,16 +174,16 @@ export default function Dashboard() {
       />
       {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric title="มูลค่า Pipeline รวม" value={formatTHB(closeValue)} note="Net RC · Open + Won" />
+        <Metric title="มูลค่า Pipeline รวม" subtitle="Total Pipeline Value" value={formatTHB(closeValue)} note="Net RC · Open + Won" />
         <Metric title={isAE ? "มูลค่างานที่ยังเปิดอยู่ของฉัน" : isSM ? "มูลค่างานที่ยังเปิดอยู่ในภาค" : "มูลค่างานที่ยังเปิดอยู่"}
-          value={formatTHB(sumValue(open))} note="Net RC"
+          subtitle="Open Pipeline Value" value={formatTHB(sumValue(open))} note="Net RC"
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
-        <Metric title="With Me"
+        <Metric title="งานที่ส่งให้ฉัน" subtitle="With Me"
           value={String(assigned.length)}
-          note={isManagement ? "มอบหมายให้ฉัน / ทีม Management" : WORK_VIEW_SUBTITLES.with}
+          note={isManagement ? "งานของฉัน / ทีม Management" : "งานที่รับผิดชอบ"}
           onClick={() => toPipeline({ status: "open", ...withMeQuery })} />
-        <Metric title={isManagement ? "Overdue" : "Overdue With Me"}
-          value={String(isManagement ? overdue.length : assignedOverdue.length)} note={WORK_VIEW_SUBTITLES.overdue}
+        <Metric title="งานเกินกำหนด" subtitle="Overdue"
+          value={String(isManagement ? overdue.length : assignedOverdue.length)} note="ต้องติดตาม"
           onClick={() => toPipeline({ status: "open", stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) })} />
       </div>
       <CloseStrip won={won} open={open} closeValue={closeValue} closeMonth={closeMonth}
@@ -264,9 +264,10 @@ function Panel({ title, meta, children }) {
   );
 }
 
-function Metric({ title, value, note, onClick }) {
+function Metric({ title, subtitle, value, note, onClick }) {
   const children = <>
     <div className="geo-metric-label">{title}</div>
+    {subtitle && <div className="text-[12px] leading-5 text-muted-foreground mt-0.5">{subtitle}</div>}
     <div className="geo-metric-value">{value}</div>
     <div className="geo-metric-note">{note}</div>
   </>;
