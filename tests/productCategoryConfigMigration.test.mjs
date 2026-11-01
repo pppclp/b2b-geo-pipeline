@@ -35,6 +35,7 @@ test("Frontend never fetches Products master and uses free-text product_details"
 
 test("Backend reads Config categories and persists arbitrary product description", () => {
   const seed = seedData(), tables = {};
+   seed[CFG].Field_Options=[{field_key:"sales_channel",option_value:"AE Self",option_label:"AE Self",sort_order:1,active:"Yes"}];
   const store = {
     table(file,sheet) {
       const key = file+"/"+sheet;
