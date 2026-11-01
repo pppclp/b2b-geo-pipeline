@@ -20,6 +20,8 @@ import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } f
 import { pipelineTaskViews, validDays } from "../src/lib/taskOverdue.js";
 import { approvedUndatedHistoricalCancel } from "../src/lib/approvedHistoricalCancel.js";
 import { approvedHistoricalStage3 } from "../src/lib/approvedHistoricalStage3.js";
+import { normalizeHistoricalDate, normalizeHistoricalMonth } from "../src/lib/historicalDateNormalization.js";
+import { historicalRegionForWorkbook, originalSourceIdentity } from "../src/lib/historicalSourceIdentity.js";
 
 export class HttpError extends Error {
   constructor(status, message) {
@@ -41,8 +43,8 @@ function validateLatestOpportunityFields(data, { requireRequired = false, previo
       throw new HttpError(400, key + " is required");
     }
   }
-  if (legacyImport && data.business_id && !/^\d{1,40}$/.test(String(data.business_id)))
-    throw new HttpError(400, "Legacy Business ID must be 1-40 digits; preserve the original value");
+  if (legacyImport && data.business_id != null && String(data.business_id).length > 40)
+    throw new HttpError(400, "Historical Business ID must be at most 40 characters; preserve raw value");
   if (!legacyImport && "business_id" in data && data.business_id &&
       (previousBusinessId === null || String(data.business_id) !== String(previousBusinessId))) {
     const error = businessIdError(data.business_id);
@@ -520,10 +522,18 @@ export function createCore({ contract, store, now, uuid }) {
   function validatePendingPartnerAssignment(item, actor) {
     if (item.pending_ae_assignment !== true) return false;
     const sourceSaleName = String(item.source_sale_name || "").trim();
-    const extra = ADDITIONAL_PENDING_AE_CASES.get(String(item.source_record_id || "").trim());
+    const originalId=String(item.source_legacy_record_id||item.source_record_id||"").trim();
+    const extra = ADDITIONAL_PENDING_AE_CASES.get(originalId);
     const isApprovedExistingGroup = PENDING_AE_PARTNER_GROUPS.has(sourceSaleName);
-    if (!isApprovedExistingGroup && !extra)
-      throw new HttpError(400, "Pending AE assignment is not approved for this source partner");
+    const reviewed = store.table("B2B_GEO_Pipeline_DB.xlsx","Partner_SM_Review_20261101").rows.find(r =>
+      String(r["Source Record ID"] || "").trim() === originalId &&
+      String(r["Partner Name"] || "").trim() === sourceSaleName &&
+      String(r["Temporary SM User ID"] || "").trim() === String(item.current_handler_id || "").trim() &&
+      String(r["Region"] || "").trim() === (rows("regions").find(x =>
+        x.region_id === String(item.region_id || ""))?.region_name || "") &&
+      String(r["Assignment Status"] || "").trim() === "SM_REVIEW_PENDING_AE");
+    if ((!isApprovedExistingGroup || !reviewed) && !extra)
+      throw new HttpError(400, "Pending AE assignment requires the approved exact source row and SM review record");
     if (extra && (sourceSaleName !== extra.name ||
         String(item.region_id || "") !== extra.region ||
         String(item.current_handler_id || "") !== extra.handler))
@@ -547,73 +557,165 @@ export function createCore({ contract, store, now, uuid }) {
     return true;
   }
 
-  // Import-only owner lookup. Search by the authoritative employee code,
-  // never by an approximate spelling of the person's display name.
+  // The live approval sheet is authoritative for historical source rows. It is
+  // accessed only by authenticated import/preview and is NEVER edited here.
+  const HISTORICAL_APPROVAL_PREFIX = "DOC-79e97612cde3acfee14cfb26a78e0ddd-R";
+  function approvalCasesFor(item) {
+    const id = String(item.source_legacy_record_id || item.source_record_id || "").trim();
+    if (!id.startsWith(HISTORICAL_APPROVAL_PREFIX)) return [];
+    const rowNumber = id.slice(HISTORICAL_APPROVAL_PREFIX.length);
+    if (!/^[1-9]\d*$/.test(rowNumber)) return [];
+    const candidates = store.table("B2B_GEO_Pipeline_DB.xlsx", "AE_Owner_Approval_20261027").rows;
+    const regionName = rows("regions").find(r => r.region_id === String(item.region_id || ""))?.region_name || "";
+    return candidates.filter(r => {
+      const rowNumbers = String(r["Source Row Numbers"] || "").split(/[,\s]+/).filter(Boolean);
+      return rowNumbers.includes(rowNumber) &&
+        String(r["Source Region"] || "").trim() === regionName;
+    });
+  }
+  function verifiedApprovedOwner(item, actor) {
+    const cases = approvalCasesFor(item);
+    // Reject a source-row identity which belongs to an existing approval case
+    // but is mislabeled with another Region. Never bypass via Employee ID.
+    const rawId=String(item.source_legacy_record_id||item.source_record_id||"").trim();
+    if(rawId.startsWith(HISTORICAL_APPROVAL_PREFIX)){
+      const suffix=rawId.slice(HISTORICAL_APPROVAL_PREFIX.length);
+      const anyRow=store.table("B2B_GEO_Pipeline_DB.xlsx","AE_Owner_Approval_20261027").rows
+        .some(r=>String(r["Source Row Numbers"]||"").split(/[,\s]+/).includes(suffix));
+      if(anyRow&&!cases.length)throw new HttpError(409,"Approval Source Row / Region mismatch");
+    }
+    if (!cases.length) return null;
+    const approved = cases.filter(c => String(c.Decision || "").trim().toLowerCase() === "approved" &&
+      String(c["Approved AE User ID"] || "").trim());
+    const ids = new Set(approved.map(c => String(c["Approved AE User ID"]).trim()));
+    if (ids.size !== 1) throw new HttpError(409, "Historical AE approval is pending or conflicting for this source row");
+    const approvedId = [...ids][0];
+    if (item.owner_id && String(item.owner_id) !== approvedId)
+      throw new HttpError(409, "Selected AE differs from the approved source-row mapping");
+    const ae = findUser(approvedId);
+    if (!ae || ae.role !== "ae") throw new HttpError(409, "Approved AE is not an active AE");
+    if (item.region_id && !ae.region_ids.includes(String(item.region_id)))
+      throw new HttpError(409, "Approved AE is not assigned to the source Region");
+    if (actor.role !== "admin" && (!item.region_id || !actor.region_ids.includes(String(item.region_id))))
+      throw new HttpError(403, "Source row is outside importer Region");
+    const approvedSourceCodes = new Set(approved.map(c => String(c["Source Sales Code"] ?? "").trim()));
+    if (approvedSourceCodes.size > 1)
+      throw new HttpError(409, "Source Sales Code differs across approved mapping cases");
+    const originalCode = [...approvedSourceCodes][0] || "";
+    if (String(item.source_original_sales_code ?? "").trim() &&
+        String(item.source_original_sales_code).trim() !== originalCode)
+      throw new HttpError(409, "Original Sales Code does not match approved source evidence");
+    return { ownerId: approvedId, originalSalesCode: originalCode };
+  }
+  // Original workbook filename, NOT owner Region, is authoritative.
+  function resolveHistoricalRegion(item) {
+    const filename=String(item.source_workbook||"").trim();
+    if(!filename)return item;
+    const authorized=historicalRegionForWorkbook(filename);
+    if(!authorized)throw new HttpError(409,"Unrecognized original source workbook");
+    const requested=String(item.region_id||"").trim();
+    if(requested&&requested!==authorized)
+      throw new HttpError(409,"Historical Region conflicts with original source workbook");
+    return {...item,region_id:authorized,source_region_raw:item.source_region_raw??requested};
+  }
+
+  // Employee-ID resolution is permitted only for a VERIFIED direct match.
+  // Never force a historically approved source Sales Code to equal an Employee ID.
   function legacyImportOwner(code, actor) {
     const value = String(code ?? "").trim();
-    if (!/^\d{1,40}$/.test(value)) throw new HttpError(400, "Sales Code must contain 1-40 digits");
-    const matches = rows("users").filter((r) => String(r.employee_id ?? "").trim() === value &&
+    if (!value || value.length > 40) throw new HttpError(400, "Sales Code must be 1-40 characters");
+    const matches = rows("users").filter(r => String(r.employee_id ?? "").trim() === value &&
       normalizeRole(r.role) === "ae" && String(r.status || "Active").toLowerCase() === "active");
-    if (matches.length !== 1) throw new HttpError(400, "Sales Code has no unique active AE match in Users Master: " + value);
+    if (matches.length !== 1) throw new HttpError(409, "Sales Code needs an approved AE mapping");
     const ae = findUser(matches[0].user_id);
-    if (!ae || (actor.role !== "admin" && !ae.region_ids.some((id) => actor.region_ids.includes(id)))) {
-      // Do not expose identities or regions outside the importer's authorized scope.
-      throw new HttpError(403, "Sales Code is outside your authorized import scope or unavailable");
-    }
+    if (!ae || (actor.role !== "admin" && !ae.region_ids.some(id => actor.region_ids.includes(id))))
+      throw new HttpError(403, "Sales Code outside authorized import scope");
     return ae;
   }
-
   function resolveLegacyImportOwner(item, actor) {
-    if (validatePendingPartnerAssignment(item, actor)) return { ...item, owner_id: "" };
+    if (validatePendingPartnerAssignment(item, actor)) return {
+      ...item, owner_id: "", source_original_sales_code:
+        String(item.source_original_sales_code ?? item.source_sales_code ?? "")
+    };
+    const approved = verifiedApprovedOwner(item, actor);
+    if (approved) return {
+      ...item, owner_id: approved.ownerId,
+      current_handler_id: item.current_handler_id || approved.ownerId,
+      source_original_sales_code: approved.originalSalesCode
+    };
+    // An explicitly pending approval must not be bypassed using a coincidental
+    // employee-code match or a manually chosen owner.
+    if (approvalCasesFor(item).length)
+      throw new HttpError(409, "Historical AE mapping has no approved case for this source row");
     const code = String(item.source_sales_code ?? "").trim();
-    if (!code) return item;
+    if (!code) {
+      // Backward-compatible import from other authenticated source systems:
+      // a selected *existing active AE* is acceptable if it is in scope.
+      // The approved Legacy Spreadsheet migration still requires verified evidence.
+      if (String(item.source_system || "") === "Legacy Spreadsheet")
+        throw new HttpError(409, "Historical Spreadsheet row requires approved AE mapping or verified Employee ID");
+      const ae=findUser(item.owner_id);
+      if(!ae||ae.role!=="ae"||
+         (actor.role!=="admin"&&!ae.region_ids.some(id=>actor.region_ids.includes(id))))
+        throw new HttpError(409, "No verified active AE Owner");
+      return {...item,current_handler_id:item.current_handler_id||ae.id,
+        source_original_sales_code:String(item.source_original_sales_code||"")};
+    }
     const ae = legacyImportOwner(code, actor);
     if (item.owner_id && String(item.owner_id) !== ae.id)
-      throw new HttpError(400, "Sales Code conflicts with the selected Opportunity Owner");
-    // Historical name spellings are advisory. The unique active Sales Code is authoritative.
-    return { ...item, owner_id:ae.id,
-      current_handler_id:item.current_handler_id || ae.id };
+      throw new HttpError(400, "Source Employee ID conflicts with selected AE Owner");
+    return {
+      ...item, owner_id: ae.id,
+      current_handler_id: item.current_handler_id || ae.id,
+      source_original_sales_code: String(item.source_original_sales_code ?? code)
+    };
   }
-
   function resolveLegacyImportOwners(actor, input) {
     if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Only SM or Admin may resolve source Sales Codes");
-    const codes=input?.codes;
+    const codes = input?.codes;
     if (!Array.isArray(codes) || codes.length > 200 || codes.some(c => typeof c !== "string"))
       throw new HttpError(400, "Provide up to 200 Sales Codes");
-    const unique=[...new Set(codes.map(v => v.trim()).filter(Boolean))];
-    // Return no user details for out-of-scope or invalid identifiers.
-    return { owners:unique.map(code => {
+    const unique = [...new Set(codes.map(v => v.trim()).filter(Boolean))];
+    return { owners: unique.map(code => {
       try {
-        const owner=legacyImportOwner(code, actor);
-        return { code, found:true, id:owner.id, name:owner.name,
-          region_ids:owner.region_ids };
-      } catch {
-        return { code, found:false };
-      }
+        const owner = legacyImportOwner(code, actor);
+        return { code, found:true, id:owner.id, name:owner.name, region_ids:owner.region_ids };
+      } catch { return { code, found:false, approved_case_required:true }; }
     }) };
   }
 
   function validateImportEvidence(item, allowedTypes) {
     const status = String(item.status || "open").trim().toLowerCase();
+    const stage = String(item.stage_id || "").trim();
+    if ((stage === "STG001" || stage === "STG002") && status !== "open")
+      throw new HttpError(400, "Historical Stage 1/2 must map to Open");
+    if (stage === "STG003" && status !== "won")
+      throw new HttpError(400, "Historical Stage 3 must map to Won");
+    if (status === "won" && stage !== "STG003")
+      throw new HttpError(400, "Historical Won requires Stage 3");
+    if (status === "lost" && stage === "STG003")
+      throw new HttpError(400, "Historical Cancel must not be changed into Stage 3");
     if (!["open", "won", "lost"].includes(status)) throw new HttpError(400, "Import Status must be Open, Won or Lost");
     const fields = ["source_created_at", "source_stage_entered_at", "source_closed_at"];
     const dates = {};
     for (const key of fields) {
       const value = item[key] == null ? "" : String(item[key]).trim();
-      const valid = validImportDate(value);
+      const normalized=normalizeHistoricalDate(value);
+      const valid=normalized===null?null:validImportDate(normalized);
       if (valid === null) throw new HttpError(400, key + " must be a real YYYY-MM-DD date (no guessed locale dates)");
       dates[key] = valid;
     }
-    const historicalMonth = String(item.source_created_month || "").trim();
-    if (historicalMonth && (!isMonthKey(historicalMonth) || Number(historicalMonth.slice(0, 4)) < 1900 ||
-        Number(historicalMonth.slice(0, 4)) > 2100)) throw new HttpError(400, "Invalid source_created_month");
+    const historicalMonth=normalizeHistoricalMonth(item.source_created_month);
+    if (historicalMonth === null || (historicalMonth && (!isMonthKey(historicalMonth) || Number(historicalMonth.slice(0, 4)) < 1900 ||
+        Number(historicalMonth.slice(0, 4)) > 2100))) throw new HttpError(400, "Invalid source_created_month");
     if (historicalMonth && dates.source_created_at && historicalMonth !== dates.source_created_at.slice(0, 7))
       throw new HttpError(400, "Source Created Date does not match Create Month");
     if (dates.source_created_at && dates.source_stage_entered_at &&
         dates.source_stage_entered_at < dates.source_created_at)
       throw new HttpError(400, "Stage Entered Date cannot precede Created Date");
     if (status !== "open") {
-      if (!dates.source_closed_at && !approvedUndatedHistoricalCancel(item) && !approvedHistoricalStage3(item))
+      if (!dates.source_closed_at && !approvedUndatedHistoricalCancel({...item,source_record_id:item.source_legacy_record_id||item.source_record_id}) &&
+          !approvedHistoricalStage3({...item,source_record_id:item.source_legacy_record_id||item.source_record_id}))
         throw new HttpError(400, "Historical Won/Lost requires an original Closed Date unless explicitly approved historical Cancel or Stage 3 service opening");
       if (dates.source_closed_at && dates.source_created_at && dates.source_closed_at < dates.source_created_at)
         throw new HttpError(400, "Closed Date cannot precede Created Date");
@@ -631,14 +733,12 @@ export function createCore({ contract, store, now, uuid }) {
     const normalizedCustomerType = allowedTypes.find((type) => type.toLowerCase() === requestedType.toLowerCase());
     if (item.customer_type && !normalizedCustomerType)
       throw new HttpError(400, "Unknown Customer Type. Use an existing legacy type or active Field_Options value");
-    if (String(item.business_id ?? "").trim() && !/^\d{1,40}$/.test(String(item.business_id).trim()))
-      throw new HttpError(400, "Legacy Business ID must contain 1-40 digits");
-    const sourceSalesCode = String(item.source_sales_code || "").trim();
-    if (sourceSalesCode && item.pending_ae_assignment !== true) {
-      const owner = rows("users").find((r) => String(r.user_id) === String(item.owner_id));
-      if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
-        throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
-    }
+    if (String(item.business_id ?? "").length > 40)
+      throw new HttpError(400, "Historical Business ID exceeds 40 characters");
+    // Original Sales Code is evidence, not an Employee ID constraint.
+    // The approved owner was independently resolved against the live AE approval sheet.
+    const originalCode = String(item.source_original_sales_code ?? item.source_sales_code ?? "");
+    if (originalCode.length > 40) throw new HttpError(400, "Original Sales Code exceeds 40 characters");
     for (const key of ["source_record_id", "source_system", "source_customer_type", "source_sales_code", "source_sale_name", "source_product_id", "source_rc",
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
@@ -651,9 +751,13 @@ export function createCore({ contract, store, now, uuid }) {
     const sourceNetNumber = sourceNetRc.replace(/,/g, "");
     const numericNetRc = sourceNetRc && /^\d+(?:\.\d{1,2})?$/.test(sourceNetNumber)
       && Number.isFinite(Number(sourceNetNumber)) ? Number(sourceNetNumber) : null;
-    const sourceQuantity = item.quantity;
+    const sourceQuantity = item.source_subs === undefined ? item.quantity : item.source_subs;
     const validQuantity = sourceQuantity !== "" && sourceQuantity != null &&
       Number.isSafeInteger(Number(sourceQuantity)) && Number(sourceQuantity) > 0;
+    const originalOc = String(item.source_oc ?? item.oc ?? "").trim();
+    const validOc=originalOc.replace(/,/g,"");
+    const numericOc=originalOc && /^\d+(?:\.\d{1,2})?$/.test(validOc) &&
+      Number.isFinite(Number(validOc)) ? Number(validOc) : null;
     return {
       normalizedCustomerType,
       status: status.charAt(0).toUpperCase() + status.slice(1),
@@ -662,6 +766,8 @@ export function createCore({ contract, store, now, uuid }) {
       sourceClosedAt: dates.source_closed_at,
       createdMonth: historicalMonth || (dates.source_created_at ? dates.source_created_at.slice(0, 7) : ""),
       sourceRecordId: String(item.source_record_id || "").trim(),
+      sourceLegacyRecordId:String(item.source_legacy_record_id || ""),
+      sourceRow:String(item.source_row ?? ""),
       sourceSystem: String(item.source_system || "").trim(),
       sourceProductId: String(item.source_product_id || "").trim(),
       sourceCustomerType: String(item.source_customer_type || item.customer_type || "").trim(),
@@ -671,7 +777,21 @@ export function createCore({ contract, store, now, uuid }) {
       sourceNetRc,
       numericNetRc,
       historicalQuantity: validQuantity ? Number(sourceQuantity) : null,
-      approvedHistoricalStage3: approvedHistoricalStage3(item),
+      numericOc,
+      originalSalesCode:String(item.source_original_sales_code ?? item.source_sales_code ?? ""),
+      originalSubs:String(sourceQuantity ?? ""),
+      originalOc,
+      originalBusinessId:String(item.source_business_id ?? item.business_id ?? ""),
+      originalChannel:String(item.source_sales_channel_raw ?? ""),
+      originalRegion:String(item.source_region_raw ?? ""),
+      originalStage:String(item.source_stage_raw ?? ""),
+      sourceWorkbook:String(item.source_workbook ?? ""),
+      originalCreatedDate:String(item.source_created_at_raw ?? item.source_created_at ?? ""),
+      originalCreatedMonth:String(item.source_created_month_raw ?? item.source_created_month ?? ""),
+      originalClosedDate:String(item.source_closed_at_raw ?? item.source_closed_at ?? ""),
+      originalStageEnteredDate:String(item.source_stage_entered_at_raw ?? item.source_stage_entered_at ?? ""),
+      approvedHistoricalStage3: stage === "STG003" && status === "won" &&
+        !!String(item.source_system || "").trim() && !!String(item.source_record_id || "").trim(),
       pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
@@ -695,73 +815,200 @@ export function createCore({ contract, store, now, uuid }) {
     ? JSON.stringify([String(system || "").trim().toLowerCase(), String(id).trim().toLowerCase()])
     : "";
 
-  function importOpportunities(actor, input) {
+  // One immutable Excel source row is one Opportunity. Business ID, customer name,
+  // product and stage similarity are NOT duplicate keys.
+  function validateImportEnvelope(actor, input, requireBatchId) {
     const b = binding("Opportunity");
-    need(actor, b, "import");
-    need(actor, b, "create");
-    if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Only SM or Admin may import Pipelines");
-    const batchId = String(input?.batch_id || "");
-    const items = input?.items;
-    if (!/^[A-Za-z0-9_-]{16,80}$/.test(batchId)) throw new HttpError(400, "Invalid import_batch_id");
-    if (!Array.isArray(items) || items.length < 1 || items.length > 200 ||
-      items.some((i) => !i || typeof i !== "object" || Array.isArray(i))) {
-      throw new HttpError(400, "Import must contain 1-200 Pipeline rows");
-    }
-    const sheet = tableOf(b).rows;
-    const previous = sheet.filter((r) => String(r.import_batch_id || "") === batchId);
-    if (previous.length) {
-      if (previous.length !== items.length ||
-          previous.some((r) => {
-            const n = Number(r.import_row_number);
-            return !Number.isInteger(n) || n < 1 || n > items.length ||
-              ![importFingerprint(items[n - 1]), oldImportFingerprint(items[n - 1]),
-                importCommercialFingerprint(items[n - 1])].includes(String(r.import_row_signature || ""));
-          })) throw new HttpError(409, "Import batch ID was already used with different or partial data");
-      return { imported: 0, already_imported: true, total: previous.length,
-        opportunity_ids: previous.slice().sort((a,b) => Number(a.import_row_number) - Number(b.import_row_number))
-          .map((r) => r.opportunity_id) };
-    }
-
-    const allowedTypes = importCustomerTypes();
-    const preparedItems = items.map(item => resolveLegacyImportOwner(item, actor));
-    const known = new Set(sheet.map((r) => sourceKey(r.import_source_system, r.import_source_record_id)).filter(Boolean));
-    const seen = new Set();
-    // Validate the complete batch and reconcile finance BEFORE any mutation.
-    const validated = preparedItems.map((item) => {
-      const evidence = validateImportEvidence(item, allowedTypes);
-      const key = sourceKey(evidence.sourceSystem, evidence.sourceRecordId);
-      if (key && (known.has(key) || seen.has(key))) {
-        throw new HttpError(409, "Source System + Source Opportunity ID already imported");
+    need(actor,b,"import");
+    need(actor,b,"create");
+    if (!["sm","admin"].includes(actor.role)) throw new HttpError(403,"Only SM or Admin may import Pipelines");
+    const items=input?.items;
+    if(!Array.isArray(items)||items.length<1||items.length>200||
+       items.some(i=>!i||typeof i!=="object"||Array.isArray(i)))
+      throw new HttpError(400,"Historical import requires 1-200 source rows");
+    const batchId=String(input?.batch_id||"");
+    if((requireBatchId||batchId) && !/^[A-Za-z0-9_-]{16,80}$/.test(batchId))
+      throw new HttpError(400,"Invalid import_batch_id");
+    return {binding:b,items,batchId};
+  }
+  const REQUIRED_HISTORICAL_EVIDENCE_HEADERS=[
+    "import_source_sales_code","import_source_subs","import_source_oc",
+    "import_source_business_id","import_source_sales_channel","import_source_region",
+    "import_source_stage","import_source_workbook",
+    "import_source_created_at_raw","import_source_created_month_raw",
+    "import_source_closed_at_raw","import_source_stage_entered_at_raw",
+    "import_source_legacy_record_id","import_source_row"
+  ];
+  function inspectImportBatch(actor,input,requireBatchId=false) {
+    const {binding:b,items,batchId}=validateImportEnvelope(actor,input,requireBatchId);
+    const missingHeaders=REQUIRED_HISTORICAL_EVIDENCE_HEADERS.filter(h=>!tableOf(b).headers.includes(h));
+    const known=new Map();
+    tableOf(b).rows.forEach(r=>{
+      const key=sourceKey(r.import_source_system,r.import_source_record_id);
+      if(key){
+        if(known.has(key))throw new HttpError(503,"Existing Production source key collision; reconcile before import");
+        known.set(key,r.opportunity_id);
       }
-      if (key) seen.add(key);
-      return evidence;
     });
-    const signatures = items.map(importFingerprint);
-    if (new Set(signatures).size !== signatures.length) {
-      throw new HttpError(409, "Identical source rows in one batch need distinct Source Opportunity IDs");
-    }
-    // In-memory rollback for validation errors on later rows. Google Sheets
-    // persists only after the full request succeeds; local adapters stay clean.
-    const transactionSheets = ["Pipelines", "Pipeline_Events", "Handoff_Notifications"];
-    const backups = transactionSheets.filter((name) => {
-      const rule = contract.access.files["B2B_GEO_Pipeline_DB.xlsx"]?.sheets?.[name];
-      return !!rule;
-    }).map((name) => {
-      const t = store.table("B2B_GEO_Pipeline_DB.xlsx", name);
-      return { name, t, rows: t.rows.slice(), headers: t.headers.slice() };
-    });
-    try {
-      const results = preparedItems.map((item, index) => entityApi.create("Opportunity", actor, item, {
-        batchId, rowNumber:index + 1, signature:signatures[index], ...validated[index], allowedTypes,
-      }));
-      return { imported: results.length, already_imported: false, total: results.length,
-        opportunity_ids: results.map((r) => r.id) };
-    } catch (error) {
-      for (const backup of backups) {
-        backup.t.rows = backup.rows;
-        backup.t.headers = backup.headers;
-        store.touch("B2B_GEO_Pipeline_DB.xlsx", backup.name);
+    const seen=new Set(),allowedTypes=importCustomerTypes();
+    const activeChannels=activeSalesChannelOptions().map(o=>o.value);
+    const prepared=[];
+    const results=items.map((raw,index)=>{
+      let normalized;
+      try { normalized=originalSourceIdentity(raw); }
+      catch(err){ return {row:index+1,status:"HOLD",source_system:String(raw.source_system||""),
+        source_record_id:String(raw.source_record_id||""),validation_errors:[err.message],financial_warnings:[]}; }
+      const system=String(normalized.source_system??"").trim();
+      const recordId=String(normalized.source_record_id??"").trim();
+      const key=sourceKey(system,recordId);
+      const result={row:index+1,source_system:system,source_record_id:recordId,
+        status:"HOLD",validation_errors:[],financial_warnings:[]};
+      if(!system||!recordId||
+         (system==="Legacy Spreadsheet" &&
+          !(/^(?:DOC-[a-f0-9]{32}-R[1-9]\d*|ROW\|PIPELINE [A-Z0-9 -]+\|Pipeline\|(?:[2-9]|[1-9]\d+))$/i.test(recordId)))){
+        result.validation_errors.push("Stable Source System + Source File/Original Row ID are required");
+        return result;
       }
+      if(system==="Legacy Spreadsheet"&&missingHeaders.length){
+        result.validation_errors.push("Import source-evidence columns not prepared: "+missingHeaders.join(", "));
+        result.validation_error_status=503;
+        return result;
+      }
+      if(seen.has(key)){
+        result.status="POTENTIAL_DUPLICATE";
+        result.validation_errors.push("Duplicate technical source key within this batch; use distinct original source rows");
+        return result;
+      }
+      seen.add(key);
+      if(known.has(key)){
+        result.status="ALREADY_IMPORTED";
+        result.opportunity_id=known.get(key);
+        return result;
+      }
+      // Legacy aliases may collide across distinct Excel rows. Only a
+      // separately reviewed Production ID can prove a prior import for this row.
+      const legacyKey=normalized.source_legacy_record_id
+        ? sourceKey(system,normalized.source_legacy_record_id) : "";
+      if(legacyKey&&known.has(legacyKey)){
+        const confirmed=String(raw.matched_production_opportunity_id||"").trim();
+        const existing=String(known.get(legacyKey));
+        if(confirmed&&confirmed===existing){
+          result.status="ALREADY_IMPORTED";result.opportunity_id=existing;return result;
+        }
+        result.status="POTENTIAL_DUPLICATE";
+        result.validation_errors.push("Legacy Source ID matches Production but exact original row lacks verified Production identity");
+        return result;
+      }
+      if(raw.matched_production_opportunity_id){
+        result.status="HOLD";
+        result.validation_errors.push("Reviewed matched Production ID has no matching existing technical source key");
+        return result;
+      }
+      try{
+        const item=resolveLegacyImportOwner(resolveHistoricalRegion(normalized),actor);
+        const evidence=validateImportEvidence(item,allowedTypes);
+        const mappedType=evidence.normalizedCustomerType||item.customer_type;
+        const mappedChannel=normalizeSalesChannel(item.sales_channel)||item.sales_channel;
+        validateLatestOpportunityFields({...item,customer_type:mappedType,sales_channel:mappedChannel},
+          {requireRequired:true,additionalCustomerTypes:allowedTypes,allowedSalesChannels:activeChannels,legacyImport:true});
+        const row=toSheet("Opportunity","opportunity_id",namesToIds("Opportunity",
+          {...item,customer_type:mappedType,sales_channel:mappedChannel}));
+        row.import_batch_id=batchId||"PREVIEW_READ_ONLY";
+        row.status=evidence.status;
+        row.current_handler_user_id=row.current_handler_user_id||row.owner_user_id;
+        validateOpportunityRefs(row,null,actor,{
+          allowPendingPartnerAe:evidence.pendingPartnerAe,
+          allowApprovedHistoricalStage3:evidence.approvedHistoricalStage3,
+          allowUnknownHistoricalRegion:true
+        });
+        validateCollaborators(row,row.region_id);
+        if(!scopedFilter(b,actor)(row))
+          throw new HttpError(403,"Historical Pipeline is outside your authorized Region");
+        if(evidence.historicalQuantity===null)
+          result.financial_warnings.push("SUBS_UNKNOWN");
+        if(evidence.numericNetRc===null)
+          result.financial_warnings.push("NET_RC_UNKNOWN");
+        if(String(item.source_rc??"").trim()==="")
+          result.financial_warnings.push("RC_UNKNOWN");
+        if(evidence.numericOc===null)
+          result.financial_warnings.push("OC_UNKNOWN_OR_NONNUMERIC");
+        result.status="READY";
+        prepared[index]={item,evidence};
+      }catch(error){
+        result.validation_errors.push(String(error.message||"Unknown import validation error"));
+        result.validation_error_status=error.status||400;
+      }
+      return result;
+    });
+    const summary={READY:0,ALREADY_IMPORTED:0,HOLD:0,POTENTIAL_DUPLICATE:0};
+    results.forEach(r=>{summary[r.status]++});
+    return {total:items.length,summary,results,prepared};
+  }
+  function previewImportOpportunities(actor,input) {
+    const inspected=inspectImportBatch(actor,input,false);
+    // This function never calls touch(), creates Events, writes Audit, or flushes.
+    return {read_only:true,total:inspected.total,summary:inspected.summary,results:inspected.results};
+  }
+  function importOpportunities(actor,input) {
+    const inspected=inspectImportBatch(actor,input,true);
+    const {binding:b,items,batchId}=validateImportEnvelope(actor,input,true);
+    if(inspected.summary.POTENTIAL_DUPLICATE)
+      throw new HttpError(409,"Multiple original Excel rows share a technical Source ID in this batch");
+    if(inspected.summary.HOLD){
+      const first=inspected.results.find(r=>r.status==="HOLD");
+      throw new HttpError(first.validation_error_status||400,
+        "Historical import row "+first.row+": "+first.validation_errors.join("; "));
+    }
+    const existingBatch=tableOf(b).rows.filter(r=>String(r.import_batch_id||"")===batchId);
+    const signatures=items.map(importFingerprint);
+    const sourceIdentities=items.map(i=>originalSourceIdentity(i));
+    // A batch ID may safely be retried only with identical row signatures.
+    existingBatch.forEach(r=>{
+      const i=Number(r.import_row_number)-1;
+      if(!Number.isInteger(i)||i<0||i>=items.length||
+        ![signatures[i],oldImportFingerprint(items[i]),importCommercialFingerprint(items[i])]
+          .includes(String(r.import_row_signature||"")) ||
+        sourceKey(r.import_source_system,r.import_source_record_id)!==
+          sourceKey(sourceIdentities[i].source_system,sourceIdentities[i].source_record_id))
+        throw new HttpError(409,"Import Batch ID already used for different source rows");
+    });
+    if(!inspected.summary.READY)
+      return {imported:0,skipped:inspected.summary.ALREADY_IMPORTED,failed:0,
+        already_imported:true,total:items.length,results:inspected.results,
+        opportunity_ids:inspected.results.map(r=>r.opportunity_id).filter(Boolean)};
+    // Every READY row passed the same evidence/ref checks as commit. No preflight
+    // operation touched the canonical Pipeline/Event/Audit data.
+    const transactionSheets=["Pipelines","Pipeline_Events","Handoff_Notifications"];
+    const backups=transactionSheets.filter(name=>
+      !!contract.access.files["B2B_GEO_Pipeline_DB.xlsx"]?.sheets?.[name])
+      .map(name=>{
+        const t=store.table("B2B_GEO_Pipeline_DB.xlsx",name);
+        return {name,t,rows:t.rows.slice(),headers:t.headers.slice()};
+      });
+    try{
+      const results=inspected.results.map((status,index)=>{
+        if(status.status!=="READY")return status;
+        const p=inspected.prepared[index];
+        const created=entityApi.create("Opportunity",actor,p.item,{
+          batchId,rowNumber:index+1,signature:signatures[index],
+          ...p.evidence,allowedTypes:importCustomerTypes()
+        });
+        return {...status,opportunity_id:created.id,status:"IMPORTED"};
+      });
+      return {imported:results.filter(r=>r.status==="IMPORTED").length,
+        skipped:results.filter(r=>r.status==="ALREADY_IMPORTED").length,
+        failed:0,already_imported:false,total:items.length,results,
+        opportunity_ids:results.filter(r=>r.status==="IMPORTED").map(r=>r.opportunity_id)};
+    }catch(error){
+      backups.forEach(backup=>{
+        backup.t.rows=backup.rows;
+        backup.t.headers=backup.headers;
+        // Clearing any dirtied tables before returning the exception is essential:
+        // the outer GAS transaction must never flush a failed batch's scratch rows.
+      });
+      // The outer request throws and must never call flush(). The original
+      // tables are restored in memory; pre-existing commit logic handles errors.
+      for(const backup of backups)store.touch("B2B_GEO_Pipeline_DB.xlsx",backup.name);
       throw error;
     }
   }
@@ -1017,7 +1264,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Validate changed references only, allowing historical rows with retired
   // codes to receive unrelated updates. New values must be real and active.
-  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false, allowApprovedHistoricalStage3 = false } = {}) {
+  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false, allowApprovedHistoricalStage3 = false, allowUnknownHistoricalRegion = false } = {}) {
     const changed = (col) => !prev || String(prev[col] ?? "") !== String(next[col] ?? "");
     const filled = (col) => String(next[col] ?? "").trim() !== "";
     const refs = [
@@ -1064,7 +1311,9 @@ export function createCore({ contract, store, now, uuid }) {
         !!String(next.import_batch_id || "").trim() &&
         !filledPrev(prev, "region_id") && !regionChanged &&
         !changed("owner_user_id") && !changed("current_handler_user_id");
-      if (!unchangedImportedRegion) throw new HttpError(400,
+      const authorizedUnknown = !prev && allowUnknownHistoricalRegion &&
+        actor?.role === "admin" && String(next.import_batch_id || "").trim();
+      if (!unchangedImportedRegion && !authorizedUnknown) throw new HttpError(400,
         "Region is required before assigning an Owner or Handler");
     }
     if (changed("owner_user_id") || regionChanged) {
@@ -1080,7 +1329,7 @@ export function createCore({ contract, store, now, uuid }) {
       } else {
         const owner = findUser(next.owner_user_id);
         if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
-        if (!owner.region_ids.includes(String(next.region_id))) {
+        if (filled("region_id") && !owner.region_ids.includes(String(next.region_id))) {
           throw new HttpError(400, "Owner AE is not assigned to this Pipeline's Region");
         }
       }
@@ -1098,7 +1347,7 @@ export function createCore({ contract, store, now, uuid }) {
             !handler.region_ids.includes(String(next.region_id))) {
           throw new HttpError(400, "Management Handler is not assigned to this Pipeline's Region");
         }
-      } else if (!["ae", "sm"].includes(handler.role) || !handler.region_ids.includes(String(next.region_id))) {
+      } else if (!["ae", "sm"].includes(handler.role) || (filled("region_id") && !handler.region_ids.includes(String(next.region_id)))) {
         throw new HttpError(400, "Current Handler AE/SM must be assigned to this Pipeline's Region");
       }
     }
@@ -1211,6 +1460,7 @@ export function createCore({ contract, store, now, uuid }) {
       const checked = uiEntity !== "Opportunity" ? data : importMeta
         ? { ...data, quantity: importMeta.historicalQuantity,
             price_per_sub: data.price_per_sub == null || data.price_per_sub === "" ? null : data.price_per_sub,
+            oc: importMeta.numericOc,
             pipeline_value: importMeta.numericNetRc }
         : normalizeOpportunityPricing(data);
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
@@ -1227,6 +1477,8 @@ export function createCore({ contract, store, now, uuid }) {
         if (importMeta) {
           const provenance = {
             import_source_record_id: importMeta.sourceRecordId,
+            import_source_legacy_record_id: importMeta.sourceLegacyRecordId,
+            import_source_row: importMeta.sourceRow,
             import_source_system: importMeta.sourceSystem,
             import_source_product_id: importMeta.sourceProductId,
             import_source_rc: importMeta.sourceRc,
@@ -1234,6 +1486,18 @@ export function createCore({ contract, store, now, uuid }) {
             import_source_monthly_sale_plan: importMeta.sourceMonthlySalePlan,
             import_source_net_rc: importMeta.sourceNetRc,
             import_source_customer_type: importMeta.sourceCustomerType,
+            import_source_sales_code: importMeta.originalSalesCode,
+            import_source_subs: importMeta.originalSubs,
+            import_source_oc: importMeta.originalOc,
+            import_source_business_id: importMeta.originalBusinessId,
+            import_source_sales_channel: importMeta.originalChannel,
+            import_source_region: importMeta.originalRegion,
+            import_source_stage: importMeta.originalStage,
+            import_source_workbook: importMeta.sourceWorkbook,
+            import_source_created_at_raw: importMeta.originalCreatedDate,
+            import_source_created_month_raw: importMeta.originalCreatedMonth,
+            import_source_closed_at_raw: importMeta.originalClosedDate,
+            import_source_stage_entered_at_raw: importMeta.originalStageEnteredDate,
           };
           for (const [key, value] of Object.entries(provenance)) if (value !== "") row[key] = value;
           if (importMeta.status === "Won") row.won_at = importMeta.sourceClosedAt;
@@ -1249,6 +1513,7 @@ export function createCore({ contract, store, now, uuid }) {
         validateOpportunityRefs(row, null, actor, {
           allowPendingPartnerAe: importMeta?.pendingPartnerAe === true,
           allowApprovedHistoricalStage3: importMeta?.approvedHistoricalStage3 === true,
+          allowUnknownHistoricalRegion: !!importMeta,
         });
       }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
@@ -1709,6 +1974,10 @@ export function createCore({ contract, store, now, uuid }) {
     if (parts[0] === "imports" && parts[1] === "customer-types" && method === "GET") {
       if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Import options require SM or Admin");
       return { values: importCustomerTypes() };
+    }
+    if (parts[0] === "imports" && parts[1] === "preview") {
+      if (method !== "POST") throw new HttpError(405, "Import preview requires POST");
+      return previewImportOpportunities(actor,req.body||{});
     }
     if (parts[0] === "imports" && parts[1] === "opportunities") {
       if (method !== "POST") throw new HttpError(405, "Import requires POST");
