@@ -13,7 +13,7 @@
 // "not executed" and retry.
 // Public non-secret release marker: compare this exact value against the
 // deployed /exec health response before enabling the new frontend.
-var GEO_RELEASE_TAG_ = "geo-write-audit-safe-20261027-r3";
+var GEO_RELEASE_TAG_ = "geo-regional-snapshot-routing-20261101-rc1";
 function doGet(e) {
   // Never accept serialized API requests over GET: tokens in query strings leak
   // into browser history and intermediaries. The authenticated client uses POST.
@@ -1133,6 +1133,7 @@ function sheetIdFor_(file) {
 function debugB2bSheetBindings() {
   var defs = [
     ["B2B_GEO_Pipeline_DB.xlsx", "B2B_GEO_Pipeline_DB"],
+    ["B2B_GEO_Regional_Reporting_Snapshots.xlsx", "B2B_GEO_Regional_Reporting_Snapshots"],
     ["B2B_GEO_Pipeline_Config.xlsx", "B2B_GEO_Pipeline_Config"],
     ["B2B_GEO_User_Org_Master.xlsx", "B2B_GEO_User_Org_Master"],
   ];
@@ -1168,7 +1169,7 @@ function debugPipelineDbBinding() {
   var id = sheetIdFor_(file);
   if (!id) throw new Error("Missing GEO_SHEET_ID_B2B_GEO_Pipeline_DB");
   var book = SpreadsheetApp.openById(id);
-  var expected = ["Pipelines", "Pipeline_Events", "Snapshots", "Admin_Audit"];
+  var expected = ["Pipelines", "Pipeline_Events", "Admin_Audit"];
   var details = expected.map(function (name) {
     var ws = book.getSheetByName(name);
     return {
@@ -1407,6 +1408,7 @@ SheetStore_.prototype.book_ = function (file) {
 // All configured runtime sheets must exist and retain their identity columns.
  // A missing workbook tab must never look like an empty Pipeline (zero records).
 var GEO_REQUIRED_RUNTIME_HEADERS_ = {
+  Snapshots: ["snapshot_id","snapshot_period","captured_at","opportunity_id","region_id","status"],
   Pipelines: ["opportunity_id","business_id","customer_name","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"],
   Pipeline_Events: ["event_id","opportunity_id","event_type","actor_user_id","event_at"],
   Pipeline_Tasks: ["task_instance_id","opportunity_id","task_id","scenario_id","stage_id","stage_entered_at","status","updated_at"],
@@ -1445,7 +1447,11 @@ function geoAssertSheetSchema_(file, sheet, headers) {
 SheetStore_.prototype.table = function (file, sheet) {
   var key = file + "|" + sheet;
   if (this.tables[key]) return this.tables[key];
-  var ws = this.book_(file).getSheetByName(sheet);
+  // Keep the original contract entity/file logical name, but route the physical
+  // Snapshots table to the separate reporting workbook.
+  var isRegionalSnapshot = file === "B2B_GEO_Pipeline_DB.xlsx" && sheet === "Snapshots";
+  var ws = isRegionalSnapshot ? geoAssertRegionalSnapshotSchema_(this)
+    : this.book_(file).getSheetByName(sheet);
   if (!ws) throw geoSchemaError_("REQUIRED_SHEET_MISSING", file + " / " + sheet);
   if (ws.getLastRow() < 1 || ws.getLastColumn() < 1) {
     throw geoSchemaError_("SCHEMA_MISMATCH", file + " / " + sheet + " has no header row");
@@ -1725,10 +1731,34 @@ SheetStore_.prototype.writeDirty_ = function (d) {
       Object.keys(r).forEach(function (k) { if (t.headers.indexOf(k) < 0) t.headers.push(k); });
     });
   }
-  var ws = this.book_(d.file).getSheetByName(d.sheet) || this.book_(d.file).insertSheet(d.sheet);
+  var isRegionalSnapshot = d.file === "B2B_GEO_Pipeline_DB.xlsx" && d.sheet === "Snapshots";
+  var ws = isRegionalSnapshot ? geoAssertRegionalSnapshotSchema_(this) :
+    (this.book_(d.file).getSheetByName(d.sheet) || this.book_(d.file).insertSheet(d.sheet));
   var toValues = function (r) {
     return t.headers.map(function (h) { return geoSafeSheetValue_(r[h]); });
   };
+  if (isRegionalSnapshot) {
+    // Immutable canonical history. Only rows appended by controlled capture.
+    // Existing snapshots cannot be re-enriched from later changes to Pipelines.
+    if (t.headers.join("\u0001") !== before.headers.join("\u0001") ||
+        t.rows.length < before.rows.length ||
+        before.json.some(function (json, i) { return JSON.stringify(t.rows[i]) !== json; })) {
+      throw geoSchemaError_("SNAPSHOT_IMMUTABLE","Cannot edit old snapshot history");
+    }
+    var appendedSnapshotRows = t.rows.slice(before.rows.length);
+    if (!appendedSnapshotRows.length) return;
+    var expectedStart = before.rows.length + 2;
+    if (ws.getLastRow() + 1 !== expectedStart)
+      throw geoSchemaError_("SNAPSHOT_CONCURRENT_EDIT","Snapshot storage changed since read");
+    var finalSnapshotRow = expectedStart + appendedSnapshotRows.length - 1;
+    if (ws.getMaxRows() < finalSnapshotRow) {
+      ws.insertRowsAfter(ws.getMaxRows(),finalSnapshotRow-ws.getMaxRows());
+    }
+    geoTextColumns_(ws,t.headers,expectedStart,appendedSnapshotRows.length);
+    ws.getRange(expectedStart,1,appendedSnapshotRows.length,t.headers.length)
+      .setValues(appendedSnapshotRows.map(toValues));
+    return;
+  }
   if (d.file === "B2B_GEO_Pipeline_DB.xlsx" &&
       (d.sheet === "Pipeline_Events" || d.sheet === "Admin_Audit")) {
     // Refuse any mutation to committed audit rows or sheet headers. This
@@ -1797,8 +1827,19 @@ SheetStore_.prototype.writeDirty_ = function (d) {
 SheetStore_.prototype.flush = function () {
   var self = this;
   var dirty = Object.keys(this.dirty).map(function (key) { return self.dirty[key]; });
-  var critical = dirty.filter(function (d) { return d.file === "B2B_GEO_Pipeline_DB.xlsx"; });
+  var snapshots = dirty.filter(function (d) {
+    return d.file === "B2B_GEO_Pipeline_DB.xlsx" && d.sheet === "Snapshots";
+  });
+  var critical = dirty.filter(function (d) {
+    return d.file === "B2B_GEO_Pipeline_DB.xlsx" && d.sheet !== "Snapshots";
+  });
   var derived = dirty.filter(function (d) { return d.file !== "B2B_GEO_Pipeline_DB.xlsx"; });
+  // Reject cross-workbook multi-table transactions: there is no atomic commit
+  // between the Pipeline DB and the separate regional Reporting workbook.
+  if (snapshots.length > 1 || (snapshots.length && (critical.length || derived.length))) {
+    throw geoSchemaError_("SNAPSHOT_MULTIWORKBOOK_WRITE","Snapshot capture requires an isolated commit");
+  }
+  if (snapshots.length) geoCommitCanonicalSnapshots_(this,snapshots[0]);
   if (critical.length) {
     var book = this.book_("B2B_GEO_Pipeline_DB.xlsx");
     var sheets = critical.map(function (d) { return d.sheet; });
