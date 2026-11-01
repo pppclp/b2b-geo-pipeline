@@ -71,7 +71,9 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
         owner_id: profile?.app_role === "ae" ? profile.id : "",
         current_handler_id: profile?.app_role === "ae" ? profile.id : "",
         stage_id: first?.id || "",
-        region_id: profile?.region_ids?.[0] || "",
+        // When an AE/SM can work in multiple Regions, require a conscious
+        // Region choice instead of silently picking their first permission.
+        region_id: profile?.region_ids?.length === 1 ? profile.region_ids[0] : "",
       });
     }
   }, [opportunity, open, activeStages, profile, salesChannelOptions]);
