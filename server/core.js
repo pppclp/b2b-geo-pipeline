@@ -469,6 +469,37 @@ export function createCore({ contract, store, now, uuid }) {
     return options;
   }
 
+  // The six approved historical partner groups have no verified AE. They may
+  // enter the Review Queue under a real, region-authorized SM only, never a
+  // fabricated AE owner. This does not waive other import/financial checks.
+  const PENDING_AE_PARTNER_GROUPS = new Set([
+    "บีทีโฟน", "ร้าน อั่งเปาโฟน", "ลดารัตน์ กุลพิสิทธิเจริญ",
+    "มณฑล รักศิริกิจ", "บริษัท บลูไวโอเล็ต จำกัด", "บริษัท 8 ริ้ว สมาร์ท จำกัด",
+  ]);
+
+  function validatePendingPartnerAssignment(item, actor) {
+    if (item.pending_ae_assignment !== true) return false;
+    if (!PENDING_AE_PARTNER_GROUPS.has(String(item.source_sale_name || "").trim()))
+      throw new HttpError(400, "Pending AE assignment is not approved for this source partner");
+    if (!["Premium Partner", "Retail Partner"].includes(normalizeSalesChannel(item.sales_channel)))
+      throw new HttpError(400, "Pending AE assignment requires a verified Partner sales channel");
+    if (String(item.owner_id || "").trim())
+      throw new HttpError(400, "Pending AE assignment must leave AE Owner blank");
+    if (!String(item.source_record_id || "").trim() || !String(item.region_id || "").trim())
+      throw new HttpError(400, "Pending AE assignment requires source identity and Region");
+    const handler = findUser(item.current_handler_id);
+    if (!handler || handler.role !== "sm" ||
+        !handler.region_ids.includes(String(item.region_id)))
+      throw new HttpError(400, "Pending AE assignment requires an authorized regional SM handler");
+    if (actor.role !== "admin" && !actor.region_ids.includes(String(item.region_id)))
+      throw new HttpError(403, "Pending AE assignment is outside your SM Region");
+    const sourceCode = String(item.source_sales_code || "").trim();
+    if (sourceCode && rows("users").some(u => String(u.employee_id || "").trim() === sourceCode &&
+        normalizeRole(u.role) === "ae" && String(u.status || "Active").toLowerCase() === "active"))
+      throw new HttpError(400, "An active AE Employee ID must not be treated as a Partner code");
+    return true;
+  }
+
   // Import-only owner lookup. Search by the authoritative employee code,
   // never by an approximate spelling of the person's display name.
   function legacyImportOwner(code, actor) {
@@ -486,6 +517,7 @@ export function createCore({ contract, store, now, uuid }) {
   }
 
   function resolveLegacyImportOwner(item, actor) {
+    if (validatePendingPartnerAssignment(item, actor)) return { ...item, owner_id: "" };
     const code = String(item.source_sales_code ?? "").trim();
     if (!code) return item;
     const ae = legacyImportOwner(code, actor);
@@ -554,7 +586,7 @@ export function createCore({ contract, store, now, uuid }) {
     if (String(item.business_id ?? "").trim() && !/^\d{1,40}$/.test(String(item.business_id).trim()))
       throw new HttpError(400, "Legacy Business ID must contain 1-40 digits");
     const sourceSalesCode = String(item.source_sales_code || "").trim();
-    if (sourceSalesCode) {
+    if (sourceSalesCode && item.pending_ae_assignment !== true) {
       const owner = rows("users").find((r) => String(r.user_id) === String(item.owner_id));
       if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
         throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
@@ -979,10 +1011,21 @@ export function createCore({ contract, store, now, uuid }) {
         "Region is required before assigning an Owner or Handler");
     }
     if (changed("owner_user_id") || regionChanged) {
-      const owner = findUser(next.owner_user_id);
-      if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
-      if (!owner.region_ids.includes(String(next.region_id))) {
-        throw new HttpError(400, "Owner AE is not assigned to this Pipeline's Region");
+      // Only a trusted historical import may start without a commercial owner.
+      // Its current handler MUST be an active SM in the Pipeline's Region.
+      if (!prev && String(next.import_batch_id || "").trim() &&
+          !String(next.owner_user_id || "").trim()) {
+        const custodian = findUser(next.current_handler_user_id);
+        if (!custodian || custodian.role !== "sm" ||
+            !custodian.region_ids.includes(String(next.region_id))) {
+          throw new HttpError(400, "Unassigned historical Pipeline requires a regional SM custodian");
+        }
+      } else {
+        const owner = findUser(next.owner_user_id);
+        if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
+        if (!owner.region_ids.includes(String(next.region_id))) {
+          throw new HttpError(400, "Owner AE is not assigned to this Pipeline's Region");
+        }
       }
     }
     if (changed("current_handler_user_id") || regionChanged) {
