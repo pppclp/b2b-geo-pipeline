@@ -24,7 +24,7 @@ export function reviewSignals(op, activeStages, role = "") {
   // remains visible read-only for future authorized review; never auto-reopen.
   if (op.status !== "open") {
     const core = missingPipelineCoreFields(op).filter(({ key }) =>
-      ["sales_channel", "owner_id", "quantity", "import_source_rc", "import_source_net_rc", "lost_at"].includes(key));
+      ["sales_channel", "owner_id", "quantity", "import_source_rc", "import_source_net_rc", "lost_at", "won_at"].includes(key));
     return { core, sm: false, stage: false, any: core.length > 0 };
   }
   const core = missingPipelineCoreFields(op);
