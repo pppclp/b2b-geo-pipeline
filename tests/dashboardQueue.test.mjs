@@ -24,7 +24,8 @@ test("Management Action Queue preserves With Me and Region after Support retirem
   assert.ok(s.includes('["with", "With Me"], ["overdue", "Overdue"]'));
   assert.ok(!s.includes('["support", "Needs Support"]'));
   assert.ok(s.includes('const assigned = withMePipelines(cohort, profile?.id, {'));
-  assert.ok(s.includes('title="With Me"'));
+  assert.ok(s.includes('["with", "With Me"]'), "The With Me quick-view tab remains in English");
+  assert.ok(s.includes('title="งานที่ส่งให้ฉัน"'), "The KPI card title is Thai-only");
   assert.ok(s.includes('regionColumn={isManagement}'));
   assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}'));
   assert.ok(s.includes('className="h-[76px] border-b border-border last:border-0"'));
@@ -38,13 +39,18 @@ test("Management Action Queue preserves With Me and Region after Support retirem
 test("Dashboard KPI copy is concise, English controls are retained, and queue empty states describe the selected view", () => {
   const dashboard = source("src/pages/Dashboard.jsx");
   const layout = source("src/components/AppLayout.jsx");
-  assert.ok(dashboard.includes('title="มูลค่า Pipeline รวม" subtitle="Total Pipeline Value"'));
+  assert.ok(dashboard.includes('title="มูลค่า Pipeline รวม"'));
   assert.ok(dashboard.includes('note="Net RC · Open + Won"'));
-  assert.ok(dashboard.includes('title="งานที่ส่งให้ฉัน" subtitle="With Me"'));
+  assert.ok(dashboard.includes('title="งานที่ส่งให้ฉัน"'));
   assert.ok(dashboard.includes('"งานของฉัน / ทีม Management"'));
-  assert.ok(dashboard.includes('title="งานเกินกำหนด" subtitle="Overdue"'));
+  assert.ok(dashboard.includes('title="งานเกินกำหนด"'));
   assert.ok(dashboard.includes('note="ต้องติดตาม"'));
-  assert.ok(dashboard.includes('function Metric({ title, subtitle, value, note, onClick })'));
+  assert.ok(dashboard.includes('function Metric({ title, value, note, onClick })'));
+  assert.ok(dashboard.includes('fontSize: "18px"'));
+  assert.ok(!dashboard.includes('subtitle="Total Pipeline Value"'));
+  assert.ok(!dashboard.includes('subtitle="Open Pipeline Value"'));
+  assert.ok(!dashboard.includes('subtitle="With Me"'));
+  assert.ok(!dashboard.includes('subtitle="Overdue"'));
   assert.ok(dashboard.includes('>สถานะ Pipeline</div>'));
   assert.ok(dashboard.includes('"Expected Close · All Months"'));
   assert.ok(dashboard.includes('"No Pipelines in With Me"'));
