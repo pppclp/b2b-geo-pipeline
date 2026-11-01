@@ -56,6 +56,6 @@ test("read-only integrity audit catches missing revisions, bad refs and orphan e
 test("integrity diagnostics never enter the public unauthenticated request router",()=>{
  const route=source.slice(source.indexOf("function handle_(req)"),source.indexOf("function uatLogin_("));
  assert.doesNotMatch(route,/debugGeoPipelineDataIntegrity/);
- assert.match(source,/var GEO_RELEASE_TAG_ = "geo-write-audit-safe-20261027-r3"/);
+ assert.match(source,/var GEO_RELEASE_TAG_ = "geo-regional-snapshot-routing-20261101-rc1"/);
  assert.match(source,/health: true/);
 });
