@@ -4,39 +4,42 @@ import { readFileSync } from "node:fs";
 
 const src=(name)=>readFileSync(new URL("../src/"+name,import.meta.url),"utf8");
 const page=src("pages/Pipeline.jsx");
+const tags=src("components/OverdueTags.jsx");
 
-test("Only Overdue work view owns the unique urgent emoji",()=>{
-  assert.equal((page.match(/🚨/gu)||[]).length,1,"one central emoji literal, not repeated in tags");
-  assert.match(page, /id: "stage-overdue"[^\n]*emoji: "🚨"/u);
-  assert.equal((page.match(/item\.emoji/g)||[]).length>=4,true,"mobile and desktop share emoji metadata");
-  const prefix=page.slice(page.indexOf('const quickViews = ['),page.indexOf('const activeQuickView'));
-  assert.equal((prefix.match(/emoji:/g)||[]).length,1);
-  assert.ok(!src("components/OverdueTags.jsx").includes("🚨"),"no duplicates in row alert chips");
+test("Overdue Quick Views have no emoji; siren lives only inside record alert tags",()=>{
+  assert.ok(page.includes('id: "stage-overdue"'));
+  assert.ok(page.includes('icon: null, urgent: true'));
+  assert.ok(!page.includes("🚨"),"no emoji in Pipeline header, status tab, or mobile cards");
+  assert.ok(!page.includes("item.emoji"),"old emoji presentation removed");
+  assert.ok(page.includes("{Icon && <Icon"),"mobile ordinary tab icons remain, Overdue has none");
+  assert.equal((tags.match(/🚨/gu)||[]).length,1,"single emoji source exclusively in alert tags");
+  assert.ok(tags.includes('const siren = <span aria-hidden="true"'));
+  assert.ok(tags.includes('{siren} Stage Aging'));
+  assert.ok(tags.includes('{!reasons.stageAging && siren} Stage SLA'));
+  assert.ok(tags.includes('{!reasons.stageAging && !reasons.stageSla && siren} Task Overdue'));
 });
 
-test("Overdue remains urgent red when not selected, on both desktop and mobile",()=>{
-  assert.ok(page.includes('bg-red-50/50 text-red-700 hover:bg-red-50'),"mobile inactive overdue red");
-  assert.ok(page.includes('border-transparent font-medium text-red-700 hover:border-red-200'),"desktop inactive overdue red");
-  assert.ok(page.includes('border-red-600 font-semibold text-red-700'),"desktop active overdue red");
-  assert.ok(page.includes('font-semibold text-red-700'),"overdue counts red");
-  assert.ok(page.includes('item.emoji && <span aria-hidden="true"'),"emoji decorative for screenreaders");
+test("Overdue stays visibly red by count, without emoji or red title in Quick Views",()=>{
+  assert.ok(page.includes('item.urgent ? "font-semibold text-red-700"'));
+  assert.ok(page.includes('item.urgent ? "text-red-700"'));
+  assert.ok(page.includes('border-red-500 font-semibold text-foreground'));
+  assert.ok(!page.includes("bg-red-50/50 text-red-700 hover:bg-red-50"));
+  assert.ok(tags.includes('bg-red-50 px-1.5 py-0.5 font-medium text-red-700'));
 });
 
-test("Lost is distinct cocoa in list, details, and close action while Won stays green",()=>{
+test("Lost cocoa and Won emerald remain independent of alert colors",()=>{
   const detail=src("pages/OpportunityDetail.jsx");
   const close=src("components/PipelineCloseActions.jsx");
   assert.ok(page.includes('lost: "border-[#D4C5BE] bg-[#EDE6E2] text-[#675149]"'));
   assert.ok(detail.includes('lost: "bg-[#EDE6E2] text-[#675149] border border-[#D4C5BE]"'));
   assert.ok(close.includes('border-[#D4C5BE] text-[#675149] hover:bg-[#EDE6E2]'));
-  assert.ok(close.includes('bg-[#675149] text-white hover:bg-[#56423A]'));
   assert.ok(page.includes('won: "border-emerald-100 bg-emerald-50 text-emerald-800"'));
 });
 
-test("Prior work views, actions and stage semantics survive visual-only edit",()=>{
- for(const label of ["All Open","With Me","Overdue","Due This Month","สร้าง Pipeline","Export Excel","Quick filter by Stage"])
-   assert.ok(page.includes(label),label);
+test("Original work views, actions, stage review, and calculations stay intact",()=>{
+ for(const label of ["All Open","With Me","Overdue","Due This Month","สร้าง Pipeline","Export Excel","Quick filter by Stage"])assert.ok(page.includes(label),label);
  assert.ok(page.includes('selectQuickView(item.id)'));
  assert.ok(page.includes('workCounts["stage-overdue"]'));
  assert.ok(page.includes('navigate("/review-queue?tab=stage")'));
- assert.ok(src("components/FilterBar.jsx").includes("Review Queue"));
+ assert.ok(src("lib/overdueSummary.js").includes('stageAging || stageSla || overdueTasks.length > 0'));
 });
