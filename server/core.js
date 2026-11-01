@@ -146,6 +146,8 @@ export function createCore({ contract, store, now, uuid }) {
   };
 
   function binding(uiEntity) {
+    // Retired UAT SupportType master has no runtime sheet dependency.
+    if (uiEntity === "SupportType") throw new HttpError(410, "Support feature has been retired");
     const def = ENTITIES[uiEntity];
     if (!def) throw new HttpError(404, `Unknown entity ${uiEntity}`);
     const b = bindings[def.entity];
@@ -245,7 +247,6 @@ export function createCore({ contract, store, now, uuid }) {
   // ---- Name <-> ID for fields the UI keeps as display names ----
   const NAME_REFS = {
     working_with: { entity: "working_with_options", id: "team_id", name: "team_name" },
-    support_type: { entity: "support_types", id: "support_type_id", name: "support_type_name" },
   };
   function refLookup(field, from, to, value) {
     if (!value) return value;
@@ -941,7 +942,6 @@ export function createCore({ contract, store, now, uuid }) {
       ["product_category_id", "product_categories", "Product Category"],
       ["scenario_id", "scenarios", "Scenario"],
       ["working_with_id", "working_with_options", "Working With"],
-      ["support_type_id", "support_types", "Support Type"],
     ];
     for (const [col, entity, label] of refs) {
       if (!changed(col)) continue;
