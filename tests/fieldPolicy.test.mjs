@@ -991,3 +991,75 @@ test("approved historical Cancel can retain unknown Stage and Original Closed Da
   assert.equal(row.lost_at,"");
   assert.equal(row.import_source_monthly_sale_plan,"9 Day");
 });
+
+
+test("P0 read-only preview reports READY, HOLD, duplicate and does not touch Production or Events",()=>{
+  const x=fixture();
+  const sample=input({client_request_id:undefined,source_system:"Synthetic Test",
+    source_record_id:"SYNTH-ROW-R101"});
+  const invalid={...sample,source_record_id:"SYNTH-ROW-R102",business_id:"X".repeat(41)};
+  const batch={batch_id:"preview_approved_20261101",items:[
+    sample,{...sample,source_record_id:"SYNTH-ROW-R101"},invalid]};
+  const before=x.store.table(DB,"Pipelines").rows.length;
+  const eventCount=x.events().length;
+  const touched=x.touched.length;
+  const result=x.call("SM1","POST","imports/preview",batch);
+  assert.equal(result.read_only,true);
+  assert.deepEqual(result.results.map(r=>r.status),["READY","POTENTIAL_DUPLICATE","HOLD"]);
+  assert.match(result.results[2].validation_errors.join(","),/Business ID/);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,before);
+  assert.equal(x.events().length,eventCount);
+  assert.equal(x.touched.length,touched);
+  assert.throws(()=>x.call("AE1","POST","imports/preview",batch),e=>e.status===403);
+  assert.throws(()=>x.call("SM1","POST","imports/opportunities",batch),e=>e.status===409);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,before);
+});
+
+test("P0 Approved AE mapping wins over mismatched historic source Sales Code and preserves original",()=>{
+  const x=fixture();
+  const region=x.store.table(ORG,"Regions").rows.find(r=>r.region_id==="R1");
+  region.region_name="North";
+  x.store.table(DB,"AE_Owner_Approval_20261027").rows.push({
+    "Case ID":"AE-SYNTH","Source Row Numbers":"888",
+    "Source Region":"North","Source Sales Code":"12709836",
+    "Decision":"Approved","Approved AE User ID":"AE1"
+  });
+  const record=input({client_request_id:undefined,
+    source_system:"Legacy Spreadsheet",
+    source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R888",
+    source_sales_code:"12709836",source_original_sales_code:"12709836",
+    owner_id:"AE1",source_sale_name:"Synthetic historical spelling",
+    status:"open"});
+  const before=x.store.table(DB,"Pipelines").rows.length;
+  const imported=x.call("SM1","POST","imports/opportunities",
+    {batch_id:"approved_ae_code_20261101",items:[record]});
+  assert.equal(imported.imported,1);
+  const row=x.store.table(DB,"Pipelines").rows.find(o=>o.opportunity_id===imported.opportunity_ids[0]);
+  assert.equal(row.owner_user_id,"AE1");
+  assert.equal(row.import_source_sales_code,"12709836");
+  assert.equal(row.business_id,record.business_id);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,before+1);
+  const preview=x.call("SM1","POST","imports/preview",
+    {batch_id:"approved_ae_code_replay_20261101",items:[{...record,customer_name:"Updated but must skip"}]});
+  assert.equal(preview.results[0].status,"ALREADY_IMPORTED");
+  const retry=x.call("SM1","POST","imports/opportunities",
+    {batch_id:"approved_ae_code_replay_20261101",items:[{...record,customer_name:"Changed payload but same original source row"}]});
+  assert.equal(retry.imported,0);
+  assert.equal(retry.skipped,1);
+  assert.equal(row.customer_name,record.customer_name);
+});
+
+test("P0 missing additive provenance schema blocks Legacy Spreadsheet capture in preview",()=>{
+  const x=fixture();
+  const t=x.store.table(DB,"Pipelines");
+  t.headers=t.headers.filter(h=>h!=="import_source_sales_code");
+  const record=input({client_request_id:undefined,
+    source_system:"Legacy Spreadsheet",
+    source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R999",
+    source_sales_code:"1001"});
+  const before=x.touched.length;
+  const res=x.call("SM1","POST","imports/preview",{items:[record]});
+  assert.equal(res.summary.HOLD,1);
+  assert.match(res.results[0].validation_errors.join(","),/Import source-evidence columns not prepared/);
+  assert.equal(x.touched.length,before);
+});
