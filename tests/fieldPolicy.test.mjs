@@ -250,9 +250,11 @@ test("import batch retry rejects changed source month; explicit source ID preven
   assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
     ...batch,items:[{...item,source_created_month:"2026-08"}]
   }),rejected(409));
-  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+  const replay=x.call("SM1","POST","imports/opportunities",{
     batch_id:"part4_legacy_import_00003",items:[{...item,source_created_month:"2026-09"}]
-  }),rejected(409));
+  });
+  assert.equal(replay.imported,0); // identity already exists; never overwrite source history
+  assert.equal(replay.skipped,1);
   assert.equal(x.store.table(DB,"Pipelines").rows.length,count);
   assert.equal(x.events().length,events);
 });
@@ -431,8 +433,10 @@ test("commercially similar deals are distinct unless source ID matches; identica
   const linked={...inputRow,source_system:"CRM",source_record_id:"REF-001"};
   assert.equal(x.call("SM1","POST","imports/opportunities",
     {batch_id:"similar_ledger_four_04",items:[linked]}).imported,1);
-  assert.throws(()=>x.call("SM1","POST","imports/opportunities",
-    {batch_id:"similar_ledger_five_05",items:[linked]}),rejected(409));
+  const duplicate=x.call("SM1","POST","imports/opportunities",
+    {batch_id:"similar_ledger_five_05",items:[linked]});
+  assert.equal(duplicate.imported,0);
+  assert.equal(duplicate.skipped,1);
 });
 
 test("real legacy imports preserve source facts and never forge Stage Aging or audit time",()=>{
@@ -493,11 +497,14 @@ test("legacy import and normal Create accept short or blank Business IDs",()=>{
   assert.equal(stored.find(r=>r.opportunity_id===blank.id)?.business_id,"");
   assert.throws(()=>x.call("AE1","POST","entities/Opportunity",
     input({business_id:"12-34",client_request_id:"invalid_business_id_2026"})),rejected(400));
-  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+  const historical=x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_bad_business_2026",
     items:[input({business_id:"12-34",client_request_id:undefined,source_system:"Legacy",
       source_record_id:"SHORT-2"})],
-  }),rejected(400));
+  });
+  assert.equal(historical.imported,1);
+  assert.equal(x.store.table(DB,"Pipelines").rows
+    .find(r=>r.opportunity_id===historical.opportunity_ids[0]).business_id,"12-34");
 });
 
 test("legacy Sales Code must match authoritative owner even when source name looks similar",()=>{
