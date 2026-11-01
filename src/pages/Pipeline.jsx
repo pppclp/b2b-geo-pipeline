@@ -197,8 +197,8 @@ export default function Pipeline() {
 
   const closedBoardRecords = sorted.filter((o) => o.status !== "open");
   const stageBadgeTones = {
-    stage1: "border-[#DFDAD4] bg-[#F0EFED] text-[#5A554F]",
-    stage2: "border-[#CBD5DC] bg-[#E7EBEE] text-[#41515F]",
+    stage1: "border-[#BDD0A7] bg-[#E8F1DC] text-[#435F30]",
+    stage2: "border-[#B6CDEA] bg-[#E3EEFB] text-[#265C8C]",
     review: "border-border bg-secondary text-foreground",
     won: "border-emerald-100 bg-emerald-50 text-emerald-800",
     lost: "border-[#D4C5BE] bg-[#EDE6E2] text-[#675149]",
@@ -207,7 +207,7 @@ export default function Pipeline() {
   const quickViews = [
     { id: "all", title: "All Open", subtitle: WORK_VIEW_SUBTITLES.all, count: workCounts.all, icon: Layers3 },
     { id: "assigned-to-me", title: "With Me", subtitle: WORK_VIEW_SUBTITLES.with, count: workCounts["assigned-to-me"], icon: UserRound },
-    { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"], emoji: "🚨" },
+    { id: "stage-overdue", title: "Overdue", subtitle: WORK_VIEW_SUBTITLES.overdue, count: workCounts["stage-overdue"], icon: null, urgent: true },
     { id: "due-this-month", title: filters.close_month ? "Due in Selected Month" : "Due This Month", subtitle: filters.close_month ? selectedCloseMonthSubtitle : WORK_VIEW_SUBTITLES.due, count: workCounts["due-this-month"], icon: CalendarDays },
   ];
   const activeQuickView = activePipelineView(filters, profile?.id, profile?.app_role);
@@ -275,11 +275,10 @@ export default function Pipeline() {
           return (
             <button key={item.id} type="button" onClick={() => selectQuickView(item.id)}
               aria-current={active ? "page" : undefined} aria-pressed={active}
-              className={`relative flex min-h-[94px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${item.emoji ? (active ? "bg-red-50 text-red-700 ring-1 ring-red-200" : "bg-red-50/50 text-red-700 hover:bg-red-50") : active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
+              className={`relative flex min-h-[94px] min-w-0 flex-col items-start justify-between gap-1 rounded-xl px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-brand-tint text-brand" : "bg-secondary/65 text-foreground hover:bg-secondary"}`}>
               <span className="max-w-[calc(100%-20px)] text-current"><span className="block text-[12px] font-semibold leading-4">{item.title}</span><span className="block mt-0.5 text-[11px] leading-4 opacity-75">{item.subtitle}</span></span>
-              <span className="text-xl font-semibold leading-none tabular-nums">{item.count}</span>
-              {item.emoji ? <span aria-hidden="true" className="absolute right-2.5 top-2.5 text-[17px] leading-none">{item.emoji}</span>
-                : <Icon className={`absolute right-2.5 top-2.5 h-4 w-4 ${active ? "text-brand" : "text-muted-foreground"}`} aria-hidden="true" />}
+              <span className={`text-xl font-semibold leading-none tabular-nums ${item.urgent ? "text-red-700" : ""}`}>{item.count}</span>
+              {Icon && <Icon className={`absolute right-2.5 top-2.5 h-4 w-4 ${active ? "text-brand" : "text-muted-foreground"}`} aria-hidden="true" />}
             </button>
           );
         })}
@@ -294,11 +293,9 @@ export default function Pipeline() {
                 aria-pressed={active} aria-current={active ? "page" : undefined}
                 title={item.subtitle}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[3px] px-0.5 py-2 text-[13px] transition-colors sm:text-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active
-                  ? (item.emoji ? "border-red-600 font-semibold text-red-700" : "border-red-500 font-semibold text-foreground")
-                  : (item.emoji ? "border-transparent font-medium text-red-700 hover:border-red-200" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border")}`}>
-                {item.emoji && <span aria-hidden="true" className="mr-0.5 text-[15px] leading-none">{item.emoji}</span>}
+                  ? "border-red-500 font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"}`}>
                 {item.title}
-                <span className={`tabular-nums ${item.emoji ? "font-semibold text-red-700" : active ? "font-semibold text-red-600" : "font-medium"}`}>{item.count}</span>
+                <span className={`tabular-nums ${item.urgent ? "font-semibold text-red-700" : active ? "font-semibold text-red-600" : "font-medium"}`}>{item.count}</span>
               </button>
             );
           })}
@@ -355,9 +352,9 @@ export default function Pipeline() {
               </button>
               {activeStages.map((stage) => {
                 const tone = stage.id === "STG001"
-                  ? "border-[#DFDAD4] bg-[#F0EFED] text-[#5A554F] hover:bg-[#E9E6E2]"
+                  ? "border-[#BDD0A7] bg-[#E8F1DC] text-[#435F30] hover:bg-[#DFEACC]"
                   : stage.id === "STG002"
-                    ? "border-[#CBD5DC] bg-[#E7EBEE] text-[#41515F] hover:bg-[#DDE3E8]"
+                    ? "border-[#B6CDEA] bg-[#E3EEFB] text-[#265C8C] hover:bg-[#D7E6F8]"
                     : "border-border bg-secondary text-foreground hover:bg-secondary/80";
                 return (
                   <button type="button" key={stage.id} onClick={() => onFilter("stage", stage.id)}
@@ -576,7 +573,7 @@ export default function Pipeline() {
                               </span>
                             )}
                             {teamLabels.length > 0 && (
-                              <span className="inline-flex max-w-[116px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-sky-100 bg-sky-50 px-1.5 text-[10px] leading-[16px] text-sky-800"
+                              <span className="inline-flex max-w-[116px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-[#D9C7EB] bg-[#F0EAF8] px-1.5 text-[10px] leading-[16px] text-[#634D86]"
                                 title={"Working With: " + teamLabels.join(", ")}>
                                 <span className="shrink-0 font-medium">With</span>
                                 <span className="min-w-0 truncate">{teamLabels[0]}</span>
