@@ -90,7 +90,7 @@ export default function ReviewQueue() {
         className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-3.5 w-3.5" /> Pipeline
       </button>
-      <PageHeader title="Review Queue" description="รายการที่ต้องตรวจสอบข้อมูลหรือ Stage รวมถึงข้อมูลช่องทางขายของงานที่ปิดแล้ว" className="mb-4" />
+      <PageHeader title="Review Queue" description="ตรวจสอบข้อมูลที่ยังไม่ครบ รวมถึง AE Owner ของ Partner ที่อยู่กับ SM ชั่วคราว" className="mb-4" />
       <nav aria-label="Review Queue categories" className="flex w-full min-w-0 gap-1 overflow-x-auto rounded-xl bg-secondary p-1 sm:w-fit">
         {MAIN_TABS.map(item => (
           <button key={item.value} type="button" onClick={() => changeTab(item.value)}
@@ -176,7 +176,9 @@ export default function ReviewQueue() {
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     {(signals.core.length > 0 || signals.sm) && canEdit && (
-                      <Button size="sm" variant="outline" type="button" onClick={() => setEditId(op.id)}>แก้ไขข้อมูล</Button>
+                      <Button size="sm" variant="outline" type="button" onClick={() => setEditId(op.id)}>
+                        {!op.owner_id && role === "sm" ? "Assign AE" : "แก้ไขข้อมูล"}
+                      </Button>
                     )}
                     {signals.stage && canEdit && (
                       <Button size="sm" type="button" onClick={() => setQuickViewId(op.id)}>ตรวจสอบ Stage</Button>
