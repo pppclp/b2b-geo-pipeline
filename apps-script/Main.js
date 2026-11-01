@@ -1725,6 +1725,12 @@ SheetStore_.prototype.writeDirty_ = function (d) {
       Object.keys(r).forEach(function (k) { if (t.headers.indexOf(k) < 0) t.headers.push(k); });
     });
   }
+  if (d.file === "B2B_GEO_Pipeline_DB.xlsx" && d.sheet === "Pipelines" &&
+      t.rows.some(function(row){return Object.prototype.hasOwnProperty.call(row,"import_source_sales_code");}) &&
+      t.headers.indexOf("import_source_sales_code") < 0) {
+    throw geoSchemaError_("IMPORT_PROVENANCE_SCHEMA_NOT_PREPARED",
+      "Run editor-only prepareGeoHistoricalImportProvenanceSchema before historical import");
+  }
   var ws = this.book_(d.file).getSheetByName(d.sheet) || this.book_(d.file).insertSheet(d.sheet);
   var toValues = function (r) {
     return t.headers.map(function (h) { return geoSafeSheetValue_(r[h]); });
@@ -2032,4 +2038,46 @@ function runGeoMonthEndSnapshot() {
 // Never create new tickets from existing support_needed flags.
 function backfillGeoPhase4SupportFlags() {
   throw Error("Retired: Needs Support is now a Pipeline toggle; do not backfill tickets.");
+}
+
+// Editor-only, manually approved and idempotent: append ONE historical import
+// provenance header to the existing Pipeline DB. This does not write data rows.
+// Never run setup(), and do not deploy the new import backend before this step.
+function prepareGeoHistoricalImportProvenanceSchema() {
+  var lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    var props=PropertiesService.getScriptProperties();
+    if(props.getProperty("GEO_HISTORICAL_PROVENANCE_SCHEMA_APPROVED")!=="YES")
+      throw Error("Explicit GEO_HISTORICAL_PROVENANCE_SCHEMA_APPROVED=YES is required");
+    var id=sheetIdFor_("B2B_GEO_Pipeline_DB.xlsx");
+    var expected=String(props.getProperty("GEO_APPROVED_PIPELINE_DB_ID")||"");
+    if(!id || !expected || id!==expected) throw Error("Unverified Pipeline DB binding");
+    var book=SpreadsheetApp.openById(id);
+    if(book.getName()!=="B2B_GEO_Pipeline_DB") throw Error("Unexpected live DB workbook");
+    var ws=book.getSheetByName("Pipelines");
+    if(!ws||ws.getLastColumn()<58||ws.getLastRow()<1)
+      throw Error("Pipeline schema or header row is unexpected");
+    var headers=ws.getRange(1,1,1,ws.getLastColumn()).getValues()[0].map(String);
+    if(headers.some(function(h){return !h;})||new Set(headers).size!==headers.length)
+      throw Error("Blank or duplicate existing Pipeline headers");
+    var col=headers.indexOf("import_source_sales_code");
+    if(col>=0) return {ok:true,alreadyPrepared:true,column:col+1};
+    var recovery=ws.copyTo(book);
+    var backupName="_GEO_IMPORT_SCHEMA_RECOVERY_"+new Date().getTime();
+    try{ recovery.setName(backupName);recovery.hideSheet(); }
+    catch(err){ try{book.deleteSheet(recovery);}catch(_ignored){} throw err; }
+    var next=headers.length+1;
+    try{
+      if(ws.getMaxColumns()<next)ws.insertColumnsAfter(ws.getMaxColumns(),next-ws.getMaxColumns());
+      ws.getRange(1,next).setValue("import_source_sales_code");
+      if(ws.getLastRow()>1)ws.getRange(2,next,ws.getLastRow()-1).setNumberFormat("@");
+      SpreadsheetApp.flush();
+      if(String(ws.getRange(1,next).getValue())!=="import_source_sales_code")
+        throw Error("Provenance header verification failed");
+      return {ok:true,alreadyPrepared:false,column:next,recoverySheet:backupName};
+    }catch(err){
+      console.error("IMPORT_SCHEMA_MANUAL_RECOVERY_REQUIRED: "+backupName);
+      throw err;
+    }
+  } finally {lock.releaseLock();}
 }
