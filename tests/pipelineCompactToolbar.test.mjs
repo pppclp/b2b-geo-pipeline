@@ -92,13 +92,15 @@ test("switching views preserves scope, search, stage, and independent advanced f
   assert.equal(activePipelineView(switchPipelineView(due,"all","MGMT1"),"MGMT1"),"all");
 });
 
-test("Pipeline UI uses scoped Region dropdown in compact controls and retains Product Category", () => {
+test("Pipeline UI restores scoped Region quick chips for multi-Region roles and retains a single dropdown fallback", () => {
   const source=(path)=>fs.readFileSync(new URL("../"+path,import.meta.url),"utf8");
   const page=source("src/pages/Pipeline.jsx");
   const toolbar=source("src/components/FilterBar.jsx");
   assert.ok(page.includes('compactLayout showStatusControl={false}'));
-  assert.ok(page.includes('stageChipsVisible={filters.status === "open"} showRegionControl'));
-  assert.ok(!page.includes('<RegionQuickFilter'));
+  assert.ok(page.includes('stageChipsVisible={filters.status === "open"} showRegionControl={!hasRegionQuickFilter}'));
+  assert.ok(page.includes('<RegionQuickFilter'));
+  assert.ok(page.includes('appearance="neutral"'));
+  assert.ok(page.includes('const hasRegionQuickFilter = quickRegions.length > 1'));
   assert.ok(toolbar.includes('showRegionControl = true'));
   assert.ok(toolbar.includes('compact={compactLayout} className={compactLayout'));
 
