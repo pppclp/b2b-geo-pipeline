@@ -44,13 +44,19 @@ test("Selecting Won/Lost removes stale Open filters, retaining real independent 
  assert.equal(nextPipelineStatusFilters(f,"archived").status,"archived");
  assert.equal(nextPipelineStatusFilters(f,"all").status,"all");
 });
-test("Stage 1 and Stage 2 semantic mapping remains intact independently of new color palette",()=>{
+test("Stage 1–4 semantic mapping uses distinct tones for active stages without changing status",()=>{
  assert.deepEqual(pipelineStageDisplay(rows[0],stages,map),{label:"Stage 1",tone:"stage1"});
  assert.deepEqual(pipelineStageDisplay(rows[1],stages,map),{label:"Stage 2",tone:"stage2"});
  assert.deepEqual(pipelineStageDisplay(rows[2],stages,map),{label:"รอยืนยัน Stage",tone:"review"});
  assert.deepEqual(pipelineStageDisplay(rows[3],stages,map),{label:"Won",tone:"won"});
  assert.deepEqual(pipelineStageDisplay(rows[4],stages,map),{label:"Lost",tone:"lost"});
- assert.equal(pipelineStageDisplay({...rows[0],stage_id:"STG004"},stages,map).tone,"review");
+ const futureStages=[...stages,{id:"STG003",name:"Stage 3",active:true},{id:"STG004",name:"Stage 4",active:true}];
+ const futureMap=Object.fromEntries(futureStages.map(stage=>[stage.id,stage]));
+ assert.deepEqual(pipelineStageDisplay(rows[2],futureStages,futureMap),{label:"Stage 3",tone:"stage3"});
+ assert.deepEqual(pipelineStageDisplay({...rows[0],stage_id:"STG004"},futureStages,futureMap),{label:"Stage 4",tone:"stage4"});
+ assert.deepEqual(pipelineStageDisplay({...rows[0],stage_id:"STG004"},stages,map),{label:"รอยืนยัน Stage",tone:"review"});
+ assert.deepEqual(pipelineStageDisplay({...rows[0],status:"won",stage_id:"STG004"},futureStages,futureMap),{label:"Won",tone:"won"});
+ assert.deepEqual(pipelineStageDisplay({...rows[0],status:"lost",stage_id:"STG003"},futureStages,futureMap),{label:"Lost",tone:"lost"});
 });
 test("Stage Review count only includes Open records with retired Stage",()=>{
  const c=reviewQueueCounts(rows,stages,"management");
@@ -78,12 +84,14 @@ test("Compact UI retains four work tabs, primary controls, all status tabs, Boar
  assert.ok(dashboard.includes('navigate("/review-queue?tab=stage")'));
  assert.ok(!dashboard.includes("Historical Stage · รอตรวจสอบ:"));
 });
-test("Hover paints whole row and its sticky company cell the same surface; stage hues follow approved pastel green and blue palette",()=>{
+test("Hover paints whole row and its sticky company cell the same surface; Stage 1–4 use pastel palette",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
  assert.ok(src.includes("cursor-pointer bg-card hover:bg-secondary transition-colors"));
  assert.ok(src.includes("bg-card px-3 py-2 transition-colors group-hover:bg-secondary"));
  assert.ok(!src.includes('group-hover:bg-secondary px-3 py-2'));
  assert.ok(src.includes("border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"));
  assert.ok(src.includes("border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"));
+ assert.ok(src.includes("border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"));
+ assert.ok(src.includes("border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D]"));
  assert.ok(src.includes('className="group h-[56px]'));
 });
