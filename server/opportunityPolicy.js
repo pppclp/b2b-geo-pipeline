@@ -24,6 +24,7 @@ export const OPPORTUNITY_COLUMNS = new Set([
   "import_source_stage", "import_source_workbook",
   "import_source_created_at_raw", "import_source_created_month_raw",
   "import_source_closed_at_raw", "import_source_stage_entered_at_raw",
+  "import_source_legacy_record_id", "import_source_row",
 ]);
 
 // UI names AND sheet names of fields the browser must never control.
