@@ -28,14 +28,17 @@ test("Overdue work tab matches the other tabs; alert tags use solid red",()=>{
   assert.ok(tags.includes('bg-[#C83F40] px-1.5 py-0.5 font-medium text-white'));
 });
 
-test("Lost cocoa and original Won remain independent from Stage and alerts",()=>{
+test("Approved pastel Won/Lost stay separate from Stage and solid-red Overdue tags",()=>{
   const detail=src("pages/OpportunityDetail.jsx");
   const close=src("components/PipelineCloseActions.jsx");
-  assert.ok(page.includes('lost: "border-[#D4C5BE] bg-[#EDE6E2] text-[#675149]"'));
-  assert.ok(detail.includes('lost: "bg-[#EDE6E2] text-[#675149] border border-[#D4C5BE]"'));
-  assert.ok(close.includes('border-[#D4C5BE] text-[#675149] hover:bg-[#EDE6E2]'));
-  assert.ok(page.includes('won: "border-emerald-100 bg-emerald-50 text-emerald-800"'));
-  assert.ok(detail.includes('won: "bg-emerald-100 text-emerald-700 border border-emerald-200"'));
+  assert.ok(page.includes('lost: "border-transparent bg-[#F3C4C4] text-[#9A3340]"'));
+  assert.ok(detail.includes('lost: "bg-[#F3C4C4] text-[#9A3340] border border-transparent"'));
+  assert.ok(close.includes('border-transparent bg-[#F3C4C4] text-[#9A3340] hover:bg-[#ECAFAF] hover:text-[#9A3340]'));
+  assert.ok(page.includes('won: "border-transparent bg-[#AFE0C2] text-[#166534]"'));
+  assert.ok(detail.includes('won: "bg-[#AFE0C2] text-[#166534] border border-transparent"'));
+  assert.ok(close.includes('border-transparent bg-[#AFE0C2] text-[#166534] hover:bg-[#96D5B0] hover:text-[#166534]'));
+  assert.ok(close.includes('bg-[#F3C4C4] text-[#9A3340] hover:bg-[#ECAFAF]'));
+  assert.ok(close.includes('bg-[#AFE0C2] text-[#166534] hover:bg-[#96D5B0]'));
 });
 
 test("Original work views, actions, stage review, and calculations stay intact",()=>{
