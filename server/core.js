@@ -953,7 +953,8 @@ export function createCore({ contract, store, now, uuid }) {
     });
     if(!inspected.summary.READY)
       return {imported:0,skipped:inspected.summary.ALREADY_IMPORTED,failed:0,
-        already_imported:true,total:items.length,results:inspected.results};
+        already_imported:true,total:items.length,results:inspected.results,
+        opportunity_ids:inspected.results.map(r=>r.opportunity_id).filter(Boolean)};
     // Every READY row passed the same evidence/ref checks as commit. No preflight
     // operation touched the canonical Pipeline/Event/Audit data.
     const transactionSheets=["Pipelines","Pipeline_Events","Handoff_Notifications"];
