@@ -8,7 +8,7 @@ import { readImportFile, parseImportCreatedMonth, parseImportSourceDate } from "
 import { calculateNetRc } from "@/lib/netRc";
 import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType, legacyProductCategory, legacySourceMonth, legacyBusinessId, legacyImportBusinessId, legacySourceDocumentId, legacyRowSourceId } from "@/lib/legacyImport";
 import { normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
-import { SALES_CHANNELS, normalizeSalesChannel } from "@/lib/salesChannel";
+import { normalizeSalesChannel } from "@/lib/salesChannel";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -77,7 +77,7 @@ function parseCSV(text) {
 }
 
 export default function Import() {
-  const { master, refresh, profile } = useData();
+  const { master, refresh, profile, salesChannelOptions } = useData();
   const [step, setStep] = useState("upload"); // upload | map | preview | done
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
@@ -220,9 +220,11 @@ export default function Import() {
         }
         if (!val) return;
         if (f.key === "sales_channel") {
-          const canonical = normalizeSalesChannel(val);
-          if (!canonical) errors.push(`Unknown Sales Channel "${val}" — review source, do not guess`);
-          else rec.sales_channel = canonical;
+          const canonical = normalizeSalesChannel(val) ||
+            salesChannelOptions.find(option => option.value.toLowerCase() === val.toLowerCase())?.value;
+          if (!canonical || !salesChannelOptions.some(option => option.value === canonical)) {
+            errors.push(`Unknown or inactive Sales Channel "${val}" — verify Config or review source, do not guess`);
+          } else rec.sales_channel = canonical;
           return;
         }
         if (f.key === "business_id") {
@@ -355,14 +357,14 @@ export default function Import() {
         reconciliation = netRcReconciliation({ expected: referenceNetRc, calculated });
         if (reconciliation.error) errors.push(reconciliation.error);
       }
-      if (rec.sales_channel && !SALES_CHANNELS.includes(rec.sales_channel)) errors.push("Sales Channel is invalid");
+      if (rec.sales_channel && !salesChannelOptions.some(option => option.value === rec.sales_channel)) errors.push("Sales Channel is inactive or invalid");
       if (rec.remark && rec.remark.length > 500) errors.push("Remark exceeds 500 characters");
       if (rec.quantity != null && (!Number.isSafeInteger(Number(rec.quantity)) || Number(rec.quantity) <= 0)) errors.push("Number of Subs must be a positive whole number");
       if (rec.price_per_sub != null && (!Number.isFinite(Number(rec.price_per_sub)) || Number(rec.price_per_sub) < 0)) errors.push("Price per Sub is invalid");
       if (rec.oc != null && (!Number.isFinite(Number(rec.oc)) || Number(rec.oc) < 0)) errors.push("OC is invalid");
       return { row: rowNumbers[i] || i + 2, rec, errors, reconciliation };
     });
-  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation, salesCodeLookup, layoutErrors]);
+  }, [rows, rowNumbers, headers, mapping, resolve, step, customerTypes, customerTypesError, documentId, rcInterpretation, salesCodeLookup, layoutErrors, salesChannelOptions]);
 
   if (profile?.app_role !== "admin" && profile?.app_role !== "sm") {
     return (
