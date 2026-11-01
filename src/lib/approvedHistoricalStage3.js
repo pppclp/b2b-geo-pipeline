@@ -20,7 +20,15 @@ export const APPROVED_HISTORICAL_STAGE3_SOURCE_IDS = new Set([
   DOCUMENT_PREFIX + "214",
 ]);
 export function approvedHistoricalStage3(item = {}) {
-  return APPROVED_HISTORICAL_STAGE3_SOURCE_IDS.has(String(item.source_record_id || "").trim()) &&
-    String(item.stage_id || "").trim() === "STG003" &&
-    String(item.status || "").toLowerCase() === "won";
+  const id = String(item.source_record_id || "").trim();
+  const raw = String(item.source_stage_raw || "").trim();
+  if (String(item.stage_id || "").trim() !== "STG003" ||
+      String(item.status || "").toLowerCase() !== "won") return false;
+  // The latest approved mapping applies to EVERY genuine historical Stage 3
+  // service-opening row, not just the initial fixed sample whitelist. A stable
+  // source-file hash + original row ID is mandatory for this wider exception.
+  if (APPROVED_HISTORICAL_STAGE3_SOURCE_IDS.has(id)) return true;
+  return String(item.source_system || "").trim() === "Legacy Spreadsheet" &&
+    /^DOC-[a-f0-9]{32}-R[1-9]\d*$/i.test(id) &&
+    (!raw || /^Stage\s*3(?:\b|\.|\s)/i.test(raw));
 }
