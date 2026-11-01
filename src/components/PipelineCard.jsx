@@ -64,7 +64,7 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
             ↳ {handler?.app_role === "sm" ? "SM: " : "Handler: "}{handler?.name || "Unassigned"}
           </span>}
           {teams.length > 0 && <span
-            className="inline-flex max-w-[120px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-[#D9C7EB] bg-[#F0EAF8] px-1.5 leading-[16px] text-[#634D86]"
+            className="inline-flex max-w-[120px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-1.5 leading-[16px] text-[#7C3AED]"
             title={"Working With: " + teams.join(", ")}>
             <span className="shrink-0 font-medium">With</span>
             <span className="min-w-0 truncate">{teams[0]}</span>
