@@ -737,6 +737,73 @@ export function createCore({ contract, store, now, uuid }) {
     ? JSON.stringify([String(system || "").trim().toLowerCase(), String(id).trim().toLowerCase()])
     : "";
 
+  // Server-side read-only preview. No entityApi.create(), store.touch(), or audit writes.
+  // The UI's local preview is advisory; commit must revalidate under the GAS lock.
+  function previewHistoricalImport(actor, input) {
+    const b=binding("Opportunity");
+    need(actor,b,"import");need(actor,b,"create");
+    if(!["sm","admin"].includes(actor.role))
+      throw new HttpError(403,"Only SM or Admin may preview historical imports");
+    const items=input?.items;
+    if(!Array.isArray(items)||items.length<1||items.length>200 ||
+       items.some(x=>!x||typeof x!=="object"||Array.isArray(x)))
+      throw new HttpError(400,"Preview requires 1-200 source rows");
+    const known=new Map(tableOf(b).rows.map(r=>[
+      sourceKey(r.import_source_system,r.import_source_record_id),r
+    ]).filter(x=>x[0]));
+    const seen=new Set(),types=importCustomerTypes(),channels=activeSalesChannelOptions().map(x=>x.value);
+    const rowsOut=items.map((original,index)=>{
+      const key=sourceKey(original.source_system,original.source_record_id);
+      const label={row:index+1,source_record_id:String(original.source_record_id||""),
+        status:"READY",errors:[],warnings:[]};
+      // New source workbooks must carry a stable original file-row technical identity.
+      if(!key){label.status="HOLD";label.errors.push("Source System and stable Source Record ID required");return label;}
+      if(seen.has(key)){
+        label.status="POTENTIAL_DUPLICATE";
+        label.errors.push("Same Source System + Source Record ID occurs twice in this batch");
+        return label;
+      }
+      seen.add(key);
+      if(known.has(key)){
+        const match=known.get(key);
+        label.status="ALREADY_IMPORTED";
+        label.opportunity_id=match.opportunity_id;
+        // A different name for the same technical key is not a reason to merge
+        // or mutate. It may be a source collision or a legitimate later edit.
+        if(original.customer_name && String(original.customer_name)!==String(match.customer_name))
+          label.warnings.push("Source ID already in Production; review changed customer name before retry");
+        return label;
+      }
+      try{
+        const item=resolveLegacyImportOwner(original,actor);
+        const evidence=validateImportEvidence(item,types);
+        validateLatestOpportunityFields({
+          ...item,customer_type:evidence.normalizedCustomerType||item.customer_type
+        },{requireRequired:true,legacyImport:true,
+           additionalCustomerTypes:types,allowedSalesChannels:channels});
+        const preflight=keepOpportunityColumns(toSheet("Opportunity",b.primary_key,
+          namesToIds("Opportunity",item)));
+        preflight.status=evidence.status;
+        preflight.import_batch_id="PREVIEW_ONLY_NOT_PERSISTED";
+        preflight.original_owner_user_id=preflight.owner_user_id||"";
+        preflight.current_handler_user_id=preflight.current_handler_user_id||preflight.owner_user_id||"";
+        validateOpportunityRefs(preflight,null,actor,{
+          allowPendingPartnerAe:evidence.pendingPartnerAe,
+          allowApprovedHistoricalStage3:evidence.approvedHistoricalStage3
+        });
+        if(item.reference_net_rc && evidence.numericNetRc===null)
+          label.warnings.push("Raw Net RC is not a validated numeric Pipeline Value");
+      }catch(error){
+        label.status=error.status===409?"POTENTIAL_DUPLICATE":"HOLD";
+        label.errors.push(String(error.message||"Import validation failed"));
+      }
+      return label;
+    });
+    const counts={READY:0,ALREADY_IMPORTED:0,HOLD:0,POTENTIAL_DUPLICATE:0};
+    rowsOut.forEach(x=>counts[x.status]++);
+    return {read_only:true,total:rowsOut.length,counts,rows:rowsOut};
+  }
+
   function importOpportunities(actor, input) {
     const b = binding("Opportunity");
     need(actor, b, "import");
@@ -1752,6 +1819,9 @@ export function createCore({ contract, store, now, uuid }) {
     if (parts[0] === "imports" && parts[1] === "customer-types" && method === "GET") {
       if (!["sm", "admin"].includes(actor.role)) throw new HttpError(403, "Import options require SM or Admin");
       return { values: importCustomerTypes() };
+    }
+    if (parts[0] === "imports" && parts[1] === "preview" && method === "POST") {
+      return previewHistoricalImport(actor,req.body);
     }
     if (parts[0] === "imports" && parts[1] === "opportunities") {
       if (method !== "POST") throw new HttpError(405, "Import requires POST");
