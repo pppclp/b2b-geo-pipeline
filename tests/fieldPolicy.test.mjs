@@ -307,10 +307,10 @@ test("invalid source month and unauthorized import fail before any Pipeline or e
   assert.equal(x.events().length,beforeEvents);
 });
 
-test("modern import and legacy month import keep source Business ID zeroes and Net RC calculation unchanged",()=>{
+test("historical import retains source Business ID zeroes and uses source Net RC, not a fabricated formula",()=>{
   const x=fixture();
   const item=input({business_id:"0000000000123",quantity:2,price_per_sub:350,oc:120,
-    client_request_id:undefined,source_created_month:"2025-12"});
+    reference_net_rc:"710",client_request_id:undefined,source_created_month:"2025-12"});
   const result=x.call("SM1","POST","imports/opportunities",{
     batch_id:"part4_zero_business_id",items:[item]
   });
@@ -376,7 +376,7 @@ test("historical imports reject fake dates, unsupported status and missing Lost 
   assert.equal(x.store.table(DB,"Pipelines").rows.length,1);
 });
 
-test("financial import preserves legacy fields while independently reconciling reference Net RC",()=>{
+test("financial import preserves original RC and Net RC even when the live formula disagrees",()=>{
   const x=fixture();
   const row=input({business_id:"0000000090001",client_request_id:undefined,
     quantity:2,price_per_sub:350,oc:120,reference_net_rc:"710",
@@ -393,9 +393,12 @@ test("financial import preserves legacy fields while independently reconciling r
   assert.equal(stored.import_source_net_rc,"710");
   assert.equal(stored.import_source_record_id,"SRC-9");
   assert.equal(stored.import_source_system,"CRM");
-  assert.throws(()=>x.call("SM1","POST","imports/opportunities",{
+  const unmatched=x.call("SM1","POST","imports/opportunities",{
     batch_id:"legacy_financial_000002",items:[{...row,source_record_id:"SRC-10",reference_net_rc:"999"}],
-  }),rejected(400));
+  });
+  const unmatchedRow=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===unmatched.opportunity_ids[0]);
+  assert.equal(unmatchedRow.pipeline_value,999);
+  assert.equal(unmatchedRow.import_source_net_rc,"999");
   x.call("AE1","PUT","entities/Opportunity/"+stored.opportunity_id,
     {import_source_rc:"999",source_created_at:"2020-01-01",remark:"Normal edit"});
   assert.equal(stored.import_source_rc,"700");
@@ -817,4 +820,78 @@ test("B: new Stage activated in Master becomes editable without any static Stage
  assert.equal(x.call("AE1","PUT","entities/Opportunity/OPP-1",{remark:"Keep legacy data"}).stage_id,"S4");
  assert.equal(x.call("AE1","PUT","entities/Opportunity/OPP-1",{stage_id:"S1"}).stage_id,"S1");
  assert.throws(()=>x.call("AE1","PUT","entities/Opportunity/OPP-1",{stage_id:"S4"}),rejected(400));
+});
+
+test("historical import retains blank RC, Net RC and Subs as unknown, never converts them into 0",()=>{
+  const x=fixture();
+  const row=input({business_id:"0000000091001",client_request_id:undefined,
+    quantity:null,price_per_sub:null,oc:40000,source_rc:"",
+    reference_net_rc:"",source_record_id:"HIST-BLANK-1",source_system:"CRM"});
+  const result=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"historical_blank_finance_1",items:[row]});
+  const stored=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===result.opportunity_ids[0]);
+  assert.equal(stored.quantity,null);
+  assert.equal(stored.price_per_sub,null);
+  assert.equal(stored.pipeline_value,null);
+  assert.equal(stored.oc,40000);
+  assert.equal(stored.import_source_record_id,"HIST-BLANK-1");
+  assert.throws(()=>x.call("AE1","POST","entities/Opportunity",
+    input({business_id:"0000000091002",price_per_sub:null,quantity:null})),rejected(400));
+});
+
+test("historical import keeps nonnumeric reference text in provenance without fake numeric pipeline value",()=>{
+  const x=fixture();
+  const row=input({business_id:"0000000091003",client_request_id:undefined,
+    source_rc:"150,200,250",reference_net_rc:"check original",
+    quantity:null,price_per_sub:null,source_record_id:"HIST-TEXT-1",source_system:"CRM"});
+  const result=x.call("SM1","POST","imports/opportunities",{
+    batch_id:"historical_unknown_rc_1",items:[row]});
+  const stored=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===result.opportunity_ids[0]);
+  assert.equal(stored.import_source_rc,"150,200,250");
+  assert.equal(stored.import_source_net_rc,"check original");
+  assert.equal(stored.pipeline_value,null);
+});
+
+test("approved historical Partner source R8 imports with unassigned AE and correct East SM; later AE assignment is explicit",()=>{
+  const x=fixture();
+  x.store.table(ORG,"Users").rows.push(
+    {user_id:"U0033",employee_id:"90008518",role:"SM",status:"Active",display_name:"Songpol"},
+    {user_id:"E-AE1",employee_id:"90005501",role:"AE",status:"Active",display_name:"East AE"});
+  x.store.table(ORG,"User_Region").rows.push(
+    {user_region_id:"URE-SM",user_id:"U0033",region_id:"E",active:"Yes"},
+    {user_region_id:"URE-AE",user_id:"E-AE1",region_id:"E",active:"Yes"});
+  x.store.table(ORG,"Regions").rows.push({region_id:"E",active:"Yes"});
+  const data=input({
+    client_request_id:undefined, business_id:"0000000099201", region_id:"E",
+    owner_id:"",current_handler_id:"U0033",
+    source_system:"Legacy Spreadsheet",
+    source_sale_name:"บริษัท มายเซ็นเตอร์ จำกัด",
+    source_sales_code:"10045188",
+    source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R8",
+    pending_ae_assignment:true,sales_channel:"Premium Partner",
+    reference_net_rc:"710",quantity:2,price_per_sub:null,oc:120,
+  });
+  const invalid=[
+    [{...data,source_record_id:"DOC-79e97612cde3acfee14cfb26a78e0ddd-R777"},/not approved/],
+    [{...data,source_sale_name:"พีพี บริการ"},/does not match approved/],
+    [{...data,region_id:"R1"},/does not match approved/],
+    [{...data,current_handler_id:"SM1"},/does not match approved/],
+    [{...data,owner_id:"E-AE1"},/leave AE Owner blank/],
+  ];
+  for(const [row,message] of invalid)
+    assert.throws(()=>x.call("ADMIN","POST","imports/opportunities",{
+      batch_id:"partner_sm_reject_case1",items:[row]}),e=>e.status===400&&message.test(e.message));
+  const count=x.store.table(DB,"Pipelines").rows.length;
+  const response=x.call("ADMIN","POST","imports/opportunities",{
+    batch_id:"partner_sm_approved_case_1",items:[data]});
+  const stored=x.store.table(DB,"Pipelines").rows.find(v=>v.opportunity_id===response.opportunity_ids[0]);
+  assert.equal(x.store.table(DB,"Pipelines").rows.length,count+1);
+  assert.equal(stored.owner_user_id,"");
+  assert.equal(stored.original_owner_user_id,"");
+  assert.equal(stored.current_handler_user_id,"U0033");
+  assert.equal(stored.region_id,"E");
+  assert.equal(stored.pipeline_value,710);
+  assert.equal(stored.import_source_record_id,data.source_record_id);
+  x.call("ADMIN","PUT","entities/Opportunity/"+stored.opportunity_id,{owner_id:"E-AE1"});
+  assert.equal(stored.owner_user_id,"E-AE1");
 });

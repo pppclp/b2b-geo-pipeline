@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {missingPipelineCoreFields,isPipelineCoreIncomplete} from "../src/lib/pipelineDataCompleteness.js";
 import {reviewQueueRows,reviewQueueCounts,reviewSignals} from "../src/lib/pipelineReviewQueue.js";
+import {formatNetRc} from "../src/lib/netRc.js";
 import {matchesPipelineFilters,quickViewCounts,switchPipelineView} from "../src/lib/pipelineListFilters.js";
 import {advancedFilterCount,visibleActiveFilters} from "../src/lib/pipelineFilterUi.js";
 
@@ -94,4 +95,42 @@ test("closed historical Pipeline with missing Sales Channel appears in read-only
   assert.equal(reviewQueueCounts(rows,[]).data,2);
   assert.equal(won.status,"won");
   assert.equal(lost.status,"lost");
+});
+
+test("open partner with blank AE Owner and SM handler is incomplete until AE assigned",()=>{
+  const pending={...complete,id:"P-SM-1",owner_id:"",current_handler_id:"SM1",sales_channel:"Premium Partner"};
+  assert.deepEqual(missingPipelineCoreFields(pending).map(f=>f.key),["owner_id"]);
+  assert.deepEqual(reviewQueueRows([pending],{tab:"data"}).map(x=>x.id),["P-SM-1"]);
+  const assigned={...pending,owner_id:"AE2",current_handler_id:"AE2"};
+  assert.equal(isPipelineCoreIncomplete(assigned),false);
+});
+
+test("closed historical partner without AE stays in read-only Incomplete Data",()=>{
+  const won={...complete,id:"WON-SM",status:"won",owner_id:"",current_handler_id:"SM1"};
+  assert.deepEqual(reviewQueueRows([won],{tab:"data"}).map(x=>x.id),["WON-SM"]);
+  assert.equal(reviewQueueRows([won],{tab:"stage"}).length,0);
+  assert.equal(won.status,"won");
+});
+
+test("historical-only missing financial values enter Incomplete Data without fabricated zero",()=>{
+  const unknown={...complete,id:"HIST-UNKNOWN",import_source_record_id:"DOC-1",
+    quantity:null,price_per_sub:null,pipeline_value:null,
+    import_source_rc:"",import_source_net_rc:""};
+  const labels=missingPipelineCoreFields(unknown).map(x=>x.key);
+  assert.deepEqual(labels,["quantity","import_source_rc","import_source_net_rc"]);
+  assert.deepEqual(reviewQueueRows([unknown],{tab:"data"}).map(x=>x.id),["HIST-UNKNOWN"]);
+  const approved={...unknown,quantity:1,import_source_rc:"200",import_source_net_rc:"200"};
+  assert.equal(isPipelineCoreIncomplete(approved),false);
+  assert.equal(isPipelineCoreIncomplete({...complete,quantity:null}),false);
+  assert.equal(formatNetRc(""),"—");
+  assert.equal(formatNetRc(null),"—");
+  assert.equal(formatNetRc(0),"฿0.00");
+});
+
+test("closed historical records with missing source finance remain Won/Lost and are read-only review",()=>{
+  const closed={...complete,id:"HIST-CLOSED",status:"won",import_source_record_id:"DOC-2",
+    quantity:null,import_source_rc:"",import_source_net_rc:""};
+  assert.deepEqual(reviewQueueRows([closed],{tab:"data"}).map(x=>x.id),["HIST-CLOSED"]);
+  assert.equal(reviewQueueRows([closed],{tab:"stage"}).length,0);
+  assert.equal(closed.status,"won");
 });

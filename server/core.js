@@ -470,6 +470,60 @@ export function createCore({ contract, store, now, uuid }) {
     return options;
   }
 
+  // The six approved historical partner groups have no verified AE. They may
+  // enter the Review Queue under a real, region-authorized SM only, never a
+  // fabricated AE owner. This does not waive other import/financial checks.
+  const PENDING_AE_PARTNER_GROUPS = new Set([
+    "บีทีโฟน", "ร้าน อั่งเปาโฟน", "ลดารัตน์ กุลพิสิทธิเจริญ",
+    "มณฑล รักศิริกิจ", "บริษัท บลูไวโอเล็ต จำกัด", "บริษัท 8 ริ้ว สมาร์ท จำกัด",
+  ]);
+
+  // User explicitly approved these eleven historical Source IDs on 2026-11-01.
+  // New approvals are source-record-specific: no name-based blanket exemption.
+  const ADDITIONAL_PENDING_AE_CASES = new Map([
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R8", { name: "บริษัท มายเซ็นเตอร์ จำกัด", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R19", { name: "หจก.โฟล์ อิน ซัพพลาย", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R20", { name: "น.ส.วรรณภา ฟ้าประทานชัย", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R22", { name: "บริษัท พีเอฟดี เทค จำกัด", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R23", { name: "บริษัท มายเซ็นเตอร์ จำกัด", region: "E", handler: "U0033" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R87", { name: "นางสาวทิพย์วรรณ เกาะทอง", region: "CW", handler: "U0030" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R92", { name: "พรพิมล วชิรมิตร", region: "CW", handler: "U0030" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R220", { name: "พีพี บริการ", region: "NE1", handler: "U0029" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R221", { name: "พีพี บริการ", region: "NE1", handler: "U0029" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R222", { name: "พีพี บริการ", region: "NE1", handler: "U0029" }],
+    ["DOC-79e97612cde3acfee14cfb26a78e0ddd-R234", { name: "น.ส.กิ่งทอง มะโนวรรณ์", region: "NE2", handler: "U0029" }],
+  ]);
+
+  function validatePendingPartnerAssignment(item, actor) {
+    if (item.pending_ae_assignment !== true) return false;
+    const sourceSaleName = String(item.source_sale_name || "").trim();
+    const extra = ADDITIONAL_PENDING_AE_CASES.get(String(item.source_record_id || "").trim());
+    const isApprovedExistingGroup = PENDING_AE_PARTNER_GROUPS.has(sourceSaleName);
+    if (!isApprovedExistingGroup && !extra)
+      throw new HttpError(400, "Pending AE assignment is not approved for this source partner");
+    if (extra && (sourceSaleName !== extra.name ||
+        String(item.region_id || "") !== extra.region ||
+        String(item.current_handler_id || "") !== extra.handler))
+      throw new HttpError(400, "Pending AE assignment does not match approved Source, Region and SM");
+    if (!["Premium Partner", "Retail Partner"].includes(normalizeSalesChannel(item.sales_channel)))
+      throw new HttpError(400, "Pending AE assignment requires a verified Partner sales channel");
+    if (String(item.owner_id || "").trim())
+      throw new HttpError(400, "Pending AE assignment must leave AE Owner blank");
+    if (!String(item.source_record_id || "").trim() || !String(item.region_id || "").trim())
+      throw new HttpError(400, "Pending AE assignment requires source identity and Region");
+    const handler = findUser(item.current_handler_id);
+    if (!handler || handler.role !== "sm" ||
+        !handler.region_ids.includes(String(item.region_id)))
+      throw new HttpError(400, "Pending AE assignment requires an authorized regional SM handler");
+    if (actor.role !== "admin" && !actor.region_ids.includes(String(item.region_id)))
+      throw new HttpError(403, "Pending AE assignment is outside your SM Region");
+    const sourceCode = String(item.source_sales_code || "").trim();
+    if (sourceCode && rows("users").some(u => String(u.employee_id || "").trim() === sourceCode &&
+        normalizeRole(u.role) === "ae" && String(u.status || "Active").toLowerCase() === "active"))
+      throw new HttpError(400, "An active AE Employee ID must not be treated as a Partner code");
+    return true;
+  }
+
   // Import-only owner lookup. Search by the authoritative employee code,
   // never by an approximate spelling of the person's display name.
   function legacyImportOwner(code, actor) {
@@ -487,6 +541,7 @@ export function createCore({ contract, store, now, uuid }) {
   }
 
   function resolveLegacyImportOwner(item, actor) {
+    if (validatePendingPartnerAssignment(item, actor)) return { ...item, owner_id: "" };
     const code = String(item.source_sales_code ?? "").trim();
     if (!code) return item;
     const ae = legacyImportOwner(code, actor);
@@ -555,7 +610,7 @@ export function createCore({ contract, store, now, uuid }) {
     if (String(item.business_id ?? "").trim() && !/^\d{1,40}$/.test(String(item.business_id).trim()))
       throw new HttpError(400, "Legacy Business ID must contain 1-40 digits");
     const sourceSalesCode = String(item.source_sales_code || "").trim();
-    if (sourceSalesCode) {
+    if (sourceSalesCode && item.pending_ae_assignment !== true) {
       const owner = rows("users").find((r) => String(r.user_id) === String(item.owner_id));
       if (!/^\d+$/.test(sourceSalesCode) || !owner || String(owner.employee_id || "").trim() !== sourceSalesCode)
         throw new HttpError(400, "Sales Code does not match the selected AE owner in Users Master");
@@ -564,15 +619,17 @@ export function createCore({ contract, store, now, uuid }) {
                        "source_discount_pct", "source_monthly_sale_plan"]) {
       if (String(item[key] ?? "").length > 160) throw new HttpError(400, key + " exceeds 160 characters");
     }
-    let sourceNetRc = "";
-    if (item.reference_net_rc !== undefined && String(item.reference_net_rc).trim() !== "") {
-      let computed;
-      try { computed = calculateNetRc({ quantity:item.quantity, pricePerSub:item.price_per_sub, oc:item.oc }); }
-      catch (error) { throw new HttpError(400, error.message); }
-      const check = netRcReconciliation({ expected:item.reference_net_rc, calculated:computed });
-      if (!check.matches) throw new HttpError(400, check.error || "Reference Net RC mismatch");
-      sourceNetRc = String(item.reference_net_rc).trim();
-    }
+    // Historical source values are evidence, not a request to reprice the deal.
+    // Unknown/ambiguous figures remain empty in numeric Pipeline fields, and
+    // the raw text stays in provenance for reconciliation and later SM review.
+    const sourceNetRc = String(item.reference_net_rc ?? "").trim();
+    if (sourceNetRc.length > 160) throw new HttpError(400, "Reference Net RC exceeds 160 characters");
+    const sourceNetNumber = sourceNetRc.replace(/,/g, "");
+    const numericNetRc = sourceNetRc && /^\d+(?:\.\d{1,2})?$/.test(sourceNetNumber)
+      && Number.isFinite(Number(sourceNetNumber)) ? Number(sourceNetNumber) : null;
+    const sourceQuantity = item.quantity;
+    const validQuantity = sourceQuantity !== "" && sourceQuantity != null &&
+      Number.isSafeInteger(Number(sourceQuantity)) && Number(sourceQuantity) > 0;
     return {
       normalizedCustomerType,
       status: status.charAt(0).toUpperCase() + status.slice(1),
@@ -588,6 +645,9 @@ export function createCore({ contract, store, now, uuid }) {
       sourceDiscountPct: String(item.source_discount_pct ?? "").trim(),
       sourceMonthlySalePlan: String(item.source_monthly_sale_plan ?? "").trim(),
       sourceNetRc,
+      numericNetRc,
+      historicalQuantity: validQuantity ? Number(sourceQuantity) : null,
+      pendingPartnerAe: item.pending_ae_assignment === true,
       lostReasonId: status === "lost" ? String(item.lost_reason_id || "").trim() : "",
     };
   }
@@ -932,7 +992,7 @@ export function createCore({ contract, store, now, uuid }) {
 
   // Validate changed references only, allowing historical rows with retired
   // codes to receive unrelated updates. New values must be real and active.
-  function validateOpportunityRefs(next, prev = null, actor = null) {
+  function validateOpportunityRefs(next, prev = null, actor = null, { allowPendingPartnerAe = false } = {}) {
     const changed = (col) => !prev || String(prev[col] ?? "") !== String(next[col] ?? "");
     const filled = (col) => String(next[col] ?? "").trim() !== "";
     const refs = [
@@ -979,10 +1039,21 @@ export function createCore({ contract, store, now, uuid }) {
         "Region is required before assigning an Owner or Handler");
     }
     if (changed("owner_user_id") || regionChanged) {
-      const owner = findUser(next.owner_user_id);
-      if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
-      if (!owner.region_ids.includes(String(next.region_id))) {
-        throw new HttpError(400, "Owner AE is not assigned to this Pipeline's Region");
+      // Only a trusted historical import may start without a commercial owner.
+      // Its current handler MUST be an active SM in the Pipeline's Region.
+      if (!prev && allowPendingPartnerAe && String(next.import_batch_id || "").trim() &&
+          !String(next.owner_user_id || "").trim()) {
+        const custodian = findUser(next.current_handler_user_id);
+        if (!custodian || custodian.role !== "sm" ||
+            !custodian.region_ids.includes(String(next.region_id))) {
+          throw new HttpError(400, "Unassigned historical Pipeline requires a regional SM custodian");
+        }
+      } else {
+        const owner = findUser(next.owner_user_id);
+        if (!owner || owner.role !== "ae") throw new HttpError(400, "Owner must be an active AE");
+        if (!owner.region_ids.includes(String(next.region_id))) {
+          throw new HttpError(400, "Owner AE is not assigned to this Pipeline's Region");
+        }
       }
     }
     if (changed("current_handler_user_id") || regionChanged) {
@@ -1105,7 +1176,14 @@ export function createCore({ contract, store, now, uuid }) {
           additionalCustomerTypes: importMeta?.allowedTypes || [], allowedSalesChannels: activeSalesChannelOptions().map(option => option.value), legacyImport:!!importMeta });
         if ("customer_type" in data) data = { ...data, customer_type: normalizeCustomerType(data.customer_type) || data.customer_type };
       }
-      const checked = uiEntity === "Opportunity" ? normalizeOpportunityPricing(data) : data;
+      // Only the trusted import API can bypass live price/quantity validation.
+      // Its financial value comes from verified numeric Net RC in the source,
+      // NEVER from a manufactured unit price, zero fallback or browser override.
+      const checked = uiEntity !== "Opportunity" ? data : importMeta
+        ? { ...data, quantity: importMeta.historicalQuantity,
+            price_per_sub: data.price_per_sub == null || data.price_per_sub === "" ? null : data.price_per_sub,
+            pipeline_value: importMeta.numericNetRc }
+        : normalizeOpportunityPricing(data);
       let row = toSheet(uiEntity, b.primary_key, namesToIds(uiEntity, checked));
       if (b.entity === "opportunities") {
         row = keepOpportunityColumns(row);
@@ -1139,7 +1217,7 @@ export function createCore({ contract, store, now, uuid }) {
         if (bool.toUi(row.support_needed) &&
             (!String(row.support_type_id || "").trim() || !String(row.support_note || "").trim()))
           throw new HttpError(400,"Select Support Type and enter Support Note");
-        validateOpportunityRefs(row, null, actor);
+        validateOpportunityRefs(row, null, actor, { allowPendingPartnerAe: importMeta?.pendingPartnerAe === true });
       }
       row[b.primary_key] = nextId(b, ENTITIES[uiEntity].idPrefix);
       if (b.entity === "users") validateUserMasterChange(row);
