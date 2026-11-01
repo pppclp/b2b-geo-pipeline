@@ -8,6 +8,7 @@ import { readImportFile, parseImportCreatedMonth, parseImportSourceDate } from "
 import { calculateNetRc } from "@/lib/netRc";
 import { legacyNumber, legacyContractMonths, legacyStageName, legacyCustomerType, legacyProductCategory, legacySourceMonth, legacyBusinessId, legacyImportBusinessId, legacySourceDocumentId, legacyRowSourceId } from "@/lib/legacyImport";
 import { normalizeCustomerType, netRcReconciliation, CUSTOMER_TYPES } from "@/lib/pipelineValidation";
+import { SALES_CHANNELS, normalizeSalesChannel } from "@/lib/salesChannel";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
@@ -218,6 +219,12 @@ export default function Import() {
           return;
         }
         if (!val) return;
+        if (f.key === "sales_channel") {
+          const canonical = normalizeSalesChannel(val);
+          if (!canonical) errors.push(`Unknown Sales Channel "${val}" — review source, do not guess`);
+          else rec.sales_channel = canonical;
+          return;
+        }
         if (f.key === "business_id") {
           const id = legacyImportBusinessId(val);
           if (id === null) errors.push("Legacy Business ID is malformed or columns shifted; check the source layout");
@@ -348,7 +355,7 @@ export default function Import() {
         reconciliation = netRcReconciliation({ expected: referenceNetRc, calculated });
         if (reconciliation.error) errors.push(reconciliation.error);
       }
-      if (rec.sales_channel && !["AE B2B GEO", "AE Self", "B2B Premium Partner"].includes(rec.sales_channel)) errors.push("Sales Channel is invalid");
+      if (rec.sales_channel && !SALES_CHANNELS.includes(rec.sales_channel)) errors.push("Sales Channel is invalid");
       if (rec.remark && rec.remark.length > 500) errors.push("Remark exceeds 500 characters");
       if (rec.quantity != null && (!Number.isSafeInteger(Number(rec.quantity)) || Number(rec.quantity) <= 0)) errors.push("Number of Subs must be a positive whole number");
       if (rec.price_per_sub != null && (!Number.isFinite(Number(rec.price_per_sub)) || Number(rec.price_per_sub) < 0)) errors.push("Price per Sub is invalid");
