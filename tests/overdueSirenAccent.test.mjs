@@ -20,6 +20,12 @@ test("Overdue tabs stay clean; every distinct record alert carries ⚠",()=>{
   assert.ok(tags.includes("SM Aging"));
   assert.ok(tags.includes("⚠ With "));
   assert.ok(tags.includes("⚠ Task Overdue"));
+  assert.ok(tags.includes("Stage SLA · {age}d"), "Stage tag shows total elapsed days");
+  assert.ok(tags.includes("} · {reasons.handler.age}d"), "Handler tag shows total elapsed days");
+  assert.ok(tags.includes("With {team.name} · {team.age}d"), "Team tag shows total elapsed days");
+  assert.ok(tags.includes("· Overdue:"), "Tooltip retains exceedance details");
+  assert.ok(!tags.includes("· +{slaExcess}d"), "No excess-day label on Stage tag");
+  assert.ok(!tags.includes("· +{reasons.handler.overdueDays}d"), "No excess-day label on Handler tag");
 });
 
 test("Overdue work tab matches the other tabs; alert tags use solid red",()=>{
