@@ -1,5 +1,5 @@
 import { isInternalSlaOverdue } from "./dashboardMetrics.js";
-import { overdueReasons } from "./overdueSummary.js";
+import { overdueReasons, overdueContext } from "./overdueSummary.js";
 import { monthOf, currentMonthKey } from "./pipeline.js";
 import { matchesPipelineSearch } from "./pipelineFilterUi.js";
 import { isWithMePipeline } from "./dashboardQueue.js";
@@ -38,7 +38,7 @@ export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = 
     const teamIds = String(o.working_with_team_ids || "").split(",").map(id => id.trim()).filter(Boolean);
     if (o.working_with !== f.working_with && (!teamId || !teamIds.includes(teamId))) return false;
   }
-  if (f.stuck === "1" && !overdueReasons(o, maps?.stage, config?.stage_watch_days, context.taskEntries).any) return false;
+  if (f.stuck === "1" && !overdueReasons(o, maps?.stage, config?.stage_watch_days, context.taskEntries, overdueContext(maps, master, config)).any) return false;
   if (f.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
   if (f.won_month && monthOf(o.won_at) !== f.won_month) return false;
   if (f.lost_month && monthOf(o.lost_at) !== f.lost_month) return false;
@@ -57,7 +57,7 @@ export function quickViewCounts(scopedRecords, filters, profileId, context) {
     "assigned-to-me": pool.filter(o => isWithMePipeline(o, profileId, {
       role: context.viewerRole, teams: context.master?.WorkingWithOption,
     })).length,
-    "stage-overdue": pool.filter(o => overdueReasons(o, context.maps?.stage, context.config?.stage_watch_days, context.taskEntries).any).length,
+    "stage-overdue": pool.filter(o => overdueReasons(o, context.maps?.stage, context.config?.stage_watch_days, context.taskEntries, overdueContext(context.maps, context.master, context.config)).any).length,
     "due-this-month": pool.filter(o => o.expected_close_month === (filters.close_month || context.nowMonth || currentMonthKey())).length,
   };
 }
