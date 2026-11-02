@@ -5,7 +5,7 @@ import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { currentMonthKey } from "@/lib/pipeline";
 import { dashboardCohort, dashboardMetrics } from "@/lib/dashboardMetrics";
-import { overdueReasons } from "@/lib/overdueSummary.js";
+import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import PageHeader from "@/components/PageHeader";
@@ -39,6 +39,7 @@ const DASHBOARD_STAGE_BADGE_TONES = {
 
 export default function Dashboard() {
   const { scopedOpportunities, maps, master, activeStages, profile, config, taskEntries, loading, error, refresh } = useData();
+  const alertCtx = overdueContext(maps, master, config);
   const navigate = useNavigate();
   const [createdMonth, setCreatedMonth] = useState("");
   const [closeMonth, setCloseMonth] = useState(() => currentMonthKey());
@@ -70,12 +71,12 @@ export default function Dashboard() {
   const { open, won } = dashboardMetrics(sales, {
     stages: maps.stage, internalTaskSlaDays: config?.internal_task_sla_days,
   });
-  const overdue = open.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
+  const overdue = open.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any);
   const legacyStageOpen = legacyOpenStageRecords(open, activeStages);
   const assigned = withMePipelines(cohort, profile?.id, {
     role, teams: master?.WorkingWithOption,
   });
-  const assignedOverdue = assigned.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
+  const assignedOverdue = assigned.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any);
   const withMeQuery = isManagement ? { with_me: "1" } : { handler: profile?.id };
 
   const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); setQueueTab("with"); };
