@@ -6,18 +6,20 @@ const src=(name)=>readFileSync(new URL("../src/"+name,import.meta.url),"utf8");
 const page=src("pages/Pipeline.jsx");
 const tags=src("components/OverdueTags.jsx");
 
-test("Overdue tabs have no emoji; only the record warning tag contains ⚠",()=>{
+test("Overdue tabs stay clean; every distinct record alert carries ⚠",()=>{
   assert.ok(page.includes('id: "stage-overdue"'));
   assert.ok(page.includes('icon: null'));
   assert.ok(!page.includes("🚨") && !page.includes("⚠"),"no emoji in desktop/mobile work-view tabs");
   assert.ok(!page.includes("item.urgent") && !page.includes("item.emoji"),"no special urgent coloring or emoji in work tabs");
   assert.ok(page.includes("{Icon && <Icon"),"mobile ordinary tab icons remain; Overdue has none");
-  assert.equal((tags.match(/⚠/gu)||[]).length,1,"single warning glyph source exclusively inside OverdueTags");
+  assert.ok((tags.match(/⚠/gu)||[]).length >= 4,"each alert type has its own warning");
   assert.ok(!tags.includes("🚨"));
-  assert.ok(tags.includes('const warning = <span aria-hidden="true"'));
-  assert.ok(tags.includes('{warning} Stage Aging'));
-  assert.ok(tags.includes('{!reasons.stageAging && warning} Stage SLA'));
-  assert.ok(tags.includes('{!reasons.stageAging && !reasons.stageSla && warning} Task Overdue'));
+  assert.ok(!tags.includes("Stage Aging ·"),"Stage Aging is informational, not an alert");
+  assert.ok(tags.includes("⚠ Stage SLA"));
+  assert.ok(tags.includes("AE Aging"));
+  assert.ok(tags.includes("SM Aging"));
+  assert.ok(tags.includes("⚠ With "));
+  assert.ok(tags.includes("⚠ Task Overdue"));
 });
 
 test("Overdue work tab matches the other tabs; alert tags use solid red",()=>{
@@ -46,5 +48,5 @@ test("Original work views, actions, stage review, and calculations stay intact",
   assert.ok(page.includes('selectQuickView(item.id)'));
   assert.ok(page.includes('workCounts["stage-overdue"]'));
   assert.ok(page.includes('navigate("/review-queue?tab=stage")'));
-  assert.ok(src("lib/overdueSummary.js").includes('stageAging || stageSla || overdueTasks.length > 0'));
+  assert.ok(src("lib/overdueSummary.js").includes('Boolean(stageSla || handler || workingWithTeams.length || overdueTasks.length)'));
 });
