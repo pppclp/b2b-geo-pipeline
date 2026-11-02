@@ -124,6 +124,7 @@ function validImportDate(value) {
 export function createCore({ contract, store, now, uuid }) {
   const ac = contract.access;
   const bindings = {}; // yaml entity -> { file, sheet, ...rule }
+  let teamEventIndex = null; // lazy read-only index, invalidated after audit writes
   const sheetRules = {}; // "file/sheet" -> { file, sheet, ...rule }
   const excluded = new Set(ac.excluded_sheets || []);
   for (const [file, f] of Object.entries(ac.files)) {
@@ -283,9 +284,55 @@ export function createCore({ contract, store, now, uuid }) {
     const { employee_id: ignored, ...publicMember } = record;
     return publicMember;
   }
+  // Compute independent team clocks from existing append-only Pipeline_Events.
+  // No Pipeline DB schema migration and no fabricated timestamps for imports.
+  function teamEventsFor(opportunityId) {
+    if (!teamEventIndex) {
+      teamEventIndex = new Map();
+      for (const event of rows("opportunity_events")) {
+        if (!["working_with_teams", "working_with"].includes(String(event.field_name))) continue;
+        const id = String(event.opportunity_id || "");
+        if (!teamEventIndex.has(id)) teamEventIndex.set(id, []);
+        teamEventIndex.get(id).push(event);
+      }
+    }
+    return teamEventIndex.get(String(opportunityId)) || [];
+  }
+  function teamStartTimes(op) {
+    const split = value => String(value || "").split(",").map(id => id.trim()).filter(Boolean);
+    const selected = split(op.working_with_team_ids);
+    if (!selected.length && op.working_with_id) selected.push(String(op.working_with_id));
+    if (!selected.length) return {};
+    const start = new Map();
+    const history = teamEventsFor(op.id).slice().sort((a,b) =>
+      (Date.parse(a.event_at) || 0) - (Date.parse(b.event_at) || 0));
+    for (const ev of history) {
+      if (!Number.isFinite(Date.parse(ev.event_at))) continue;
+      const previous = split(ev.previous_value), next = split(ev.new_value);
+      for (const id of previous) if (!next.includes(id)) start.delete(id);
+      for (const id of next) if (!previous.includes(id)) start.set(id, ev.event_at);
+    }
+    const out = {};
+    for (const id of selected) {
+      if (start.has(id)) out[id] = start.get(id);
+      else if (id === String(op.working_with_id || "") && op.working_with_since) {
+        out[id] = op.working_with_since;
+      } else if (!op.import_source_system && op.created_at && history.every(ev =>
+        !split(ev.previous_value).includes(id) || split(ev.new_value).includes(id))) {
+        // Original membership at creation; later audit entries did not remove it.
+        out[id] = op.created_at;
+      }
+    }
+    return out;
+  }
   function decorate(uiEntity, rec) {
     if (uiEntity === "TeamMember") rec.region_ids = regionIdsFor(rec.id);
-    if (uiEntity === "Opportunity") for (const f of Object.keys(NAME_REFS)) rec[f] = refLookup(f, "id", "name", rec[f]);
+    if (uiEntity === "Opportunity") {
+      // Retain the canonical primary team ID before converting its display name.
+      rec.working_with_primary_id = String(rec.working_with || "");
+      rec.working_with_team_since = teamStartTimes({ ...rec, working_with_id: rec.working_with_primary_id });
+      for (const f of Object.keys(NAME_REFS)) rec[f] = refLookup(f, "id", "name", rec[f]);
+    }
     return rec;
   }
 
@@ -368,16 +415,18 @@ export function createCore({ contract, store, now, uuid }) {
       { id: "aging_threshold_days", key: "aging_threshold_days", value: String(aging?.threshold_days ?? 14), read_only: true },
       { id: "internal_task_sla_days", key: "internal_task_sla_days", value: String(aging?.internal_task_sla_days ?? "") },
       { id: "stage_watch_days", key: "stage_watch_days", value: String(aging?.stage_watch_days ?? 7) },
+      { id: "handler_ae_sla_days", key: "handler_ae_sla_days", value: String(aging?.handler_ae_sla_days ?? aging?.handler_aging_days ?? "") },
+      { id: "handler_sm_sla_days", key: "handler_sm_sla_days", value: String(aging?.handler_sm_sla_days ?? aging?.handler_aging_days ?? "") },
       ...Object.entries(CONFIG_DEFAULTS).map(([key, value]) => ({ id: key, key, value, read_only: true })),
     ];
   }
   function appConfigSet(actor, key, value) {
     const b = bindings.pipeline_settings;
     need(actor, b, "update");
-    if (!["internal_task_sla_days","stage_watch_days"].includes(key)) throw new HttpError(400, `${key} is not editable`);
+    if (!["internal_task_sla_days","stage_watch_days","handler_ae_sla_days","handler_sm_sla_days"].includes(key)) throw new HttpError(400, `${key} is not editable`);
     const row = agingRow();
     if (!row) throw new HttpError(404, "Aging_Settings has no rows");
-    if ((key === "stage_watch_days" || (value !== "" && value != null)) && validDays(value) === null) {
+    if ((key !== "internal_task_sla_days" || (value !== "" && value != null)) && validDays(value) === null) {
       throw new HttpError(400, `${key} must be 1-365 calendar days`);
     }
     const before = { ...row };
@@ -405,6 +454,7 @@ export function createCore({ contract, store, now, uuid }) {
       };
       table.rows.push(row);
       touch(b);
+      teamEventIndex = null;
       return toUi("OpportunityHistory", b.primary_key, row);
     });
   }
@@ -1398,7 +1448,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
         throw new HttpError(403, "System-controlled entity; use the Pipeline or snapshot API");
       }
-      if (uiEntity === "Stage") validateStageSla(data);
+      if (uiEntity === "Stage" || uiEntity === "WorkingWithOption") validateStageSla(data);
       if (uiEntity === "TeamMember") validateTeamMemberInput(data);
       const stamp = now();
       let importedCreatedMonth = "";
@@ -1559,7 +1609,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (uiEntity === "OpportunityHistory" || uiEntity === "MonthlySnapshot") {
         throw new HttpError(403, "System-controlled entity");
       }
-      if (uiEntity === "Stage") validateStageSla(data);
+      if (uiEntity === "Stage" || uiEntity === "WorkingWithOption") validateStageSla(data);
       if (uiEntity === "TeamMember") validateTeamMemberInput(data);
       // A precondition refers to the authoritative row revision, not a field
       // supplied for persistence. Compare before any mutation, including audit.

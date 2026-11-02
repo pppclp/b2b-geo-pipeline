@@ -51,7 +51,7 @@ export default function Admin() {
         <TabsContent value="categories"><CategoryManager /></TabsContent>
         <TabsContent value="scenarios"><SimpleManager entity="Scenario" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
         <TabsContent value="lostreasons"><SimpleManager entity="LostReason" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
-        <TabsContent value="workingwith"><SimpleManager entity="WorkingWithOption" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }]} /></TabsContent>
+        <TabsContent value="workingwith"><SimpleManager entity="WorkingWithOption" fields={[{ key: "name", label: "Name" }, { key: "order", label: "Order", type: "number" }, { key: "sla_days", label: "Team SLA (days)", type: "number" }]} /></TabsContent>
         <TabsContent value="members"><TeamMemberManager /></TabsContent>
         <TabsContent value="snapshots"><SnapshotManager /></TabsContent>
         <TabsContent value="exports"><ExportsManager /></TabsContent>
@@ -195,14 +195,24 @@ function SimpleManager({ entity, fields }) {
   return (
     <Card>
       <Header>
-        {fields.map((f) => <span key={f.key} className={`col-span-${f.type === "number" ? 2 : 6}`}>{f.label}</span>)}
+        {fields.map((f) => <span key={f.key} className={f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6"}>{f.label}</span>)}
         <span className="col-span-2">Active</span>
         <span className="col-span-2"></span>
       </Header>
       {items.map((it) => (
         <Row key={it.id}>
           {fields.map((f) => (
-            <Input key={f.key} type={f.type || "text"} className={`col-span-${f.type === "number" ? 2 : 6} h-8`} defaultValue={it[f.key]} onBlur={(e) => updateMaster(entity, it.id, { [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value })} />
+            <Input key={f.key} type={f.type || "text"} min={f.key === "sla_days" ? 1 : undefined} max={f.key === "sla_days" ? 365 : undefined}
+              className={(f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6") + " h-8"} defaultValue={it[f.key] ?? ""}
+              onBlur={(e) => {
+                const raw = e.target.value.trim();
+                if (f.key === "sla_days" && (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 365)) {
+                  e.target.value = it[f.key] ?? 5;
+                  return;
+                }
+                const value = f.type === "number" ? Number(raw) : raw;
+                if (String(value) !== String(it[f.key] ?? "")) updateMaster(entity, it.id, { [f.key]: value });
+              }} />
           ))}
           <Toggle active={it.active} onToggle={(v) => updateMaster(entity, it.id, { active: v })} />
           <span className="col-span-2 text-xs text-muted-foreground">Deactivate only</span>
@@ -210,9 +220,12 @@ function SimpleManager({ entity, fields }) {
       ))}
       <AddBar>
         {fields.map((f) => (
-          <Input key={f.key} type={f.type || "text"} className={`col-span-${f.type === "number" ? 2 : 6} h-8`} placeholder={f.label} value={vals[f.key] || ""} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
+          <Input key={f.key} type={f.type || "text"} className={(f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6") + " h-8"} placeholder={f.label} value={vals[f.key] || ""} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
         ))}
-        <Button size="sm" onClick={() => { const data = { ...vals, active: true, order: items.length }; fields.forEach((f) => { if (f.type === "number") data[f.key] = Number(data[f.key]) || 0; }); createMaster(entity, data); setVals({}); }}><Plus className="w-4 h-4" /></Button>
+        <Button size="sm" onClick={() => { const data = { ...vals, active: true, order: items.length }; fields.forEach((f) => {
+          if (f.key === "sla_days") data[f.key] = /^\d+$/.test(String(data[f.key] || "")) && Number(data[f.key]) >= 1 && Number(data[f.key]) <= 365 ? Number(data[f.key]) : 5;
+          else if (f.type === "number") data[f.key] = Number(data[f.key]) || 0;
+        }); createMaster(entity, data); setVals({}); }}><Plus className="w-4 h-4" /></Button>
       </AddBar>
     </Card>
   );
@@ -278,6 +291,8 @@ function ConfigManager() {
   const cfg = Object.fromEntries((master?.AppConfig || []).map((c) => [c.key, c]));
   const [internalSla, setInternalSla] = useState(cfg.internal_task_sla_days?.value ?? "");
   const [stageWatch, setStageWatch] = useState(cfg.stage_watch_days?.value ?? "7");
+  const [aeHandlerSla, setAeHandlerSla] = useState(cfg.handler_ae_sla_days?.value ?? "5");
+  const [smHandlerSla, setSmHandlerSla] = useState(cfg.handler_sm_sla_days?.value ?? "5");
   const [metric, setMetric] = useState(cfg.pipeline_value_metric?.value || "pipeline_value");
   const [weighted, setWeighted] = useState(cfg.weighted_enabled?.value === "true");
 
@@ -290,7 +305,7 @@ function ConfigManager() {
     <Card>
       <div className="space-y-4 max-w-md">
         <div>
-          <Label>Stage Aging Warning (calendar days)</Label>
+          <Label>Stage Aging Reference (no alert tag)</Label>
           <Input type="number" min="1" max="365" step="1" value={stageWatch}
             onChange={(e) => setStageWatch(e.target.value)}
             onBlur={() => {
@@ -301,10 +316,29 @@ function ConfigManager() {
               }
               if (next !== String(cfg.stage_watch_days?.value ?? "7")) save("stage_watch_days", next);
             }} />
-          <p className="text-xs text-muted-foreground mt-1">Warning when an Open Pipeline stays in the current Stage beyond this limit. Independent from Stage SLA and Task SLA.</p>
+          <p className="text-xs text-muted-foreground mt-1">Aging is still available for sorting and inspection. This threshold no longer generates an Overdue tag.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { key: "handler_ae_sla_days", role: "AE", value: aeHandlerSla, setter: setAeHandlerSla },
+            { key: "handler_sm_sla_days", role: "SM", value: smHandlerSla, setter: setSmHandlerSla },
+          ].map(({ key, role, value, setter }) => (
+            <div key={key}>
+              <Label>{role} Handler SLA (calendar days)</Label>
+              <Input type="number" min="1" max="365" step="1" value={value}
+                onChange={e => setter(e.target.value)} onBlur={() => {
+                  const raw = String(value).trim();
+                  if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 365) {
+                    setter(cfg[key]?.value ?? "5");
+                    return;
+                  }
+                  if (raw !== String(cfg[key]?.value ?? "5")) save(key, raw);
+                }} />
+            </div>
+          ))}
         </div>
         <div>
-          <Label>Internal Working With SLA (calendar days)</Label>
+          <Label>Default Working With SLA (calendar days)</Label>
           <Input type="number" min="1" max="365" step="1" value={internalSla} onChange={(e) => setInternalSla(e.target.value)} onBlur={() => {
             const v = internalSla.trim();
             if (v !== "" && (!Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 365)) {
@@ -313,7 +347,7 @@ function ConfigManager() {
             }
             if (v !== String(cfg.internal_task_sla_days?.value ?? "")) save("internal_task_sla_days", v);
           }} placeholder="Not configured" />
-          <p className="text-xs text-muted-foreground mt-1">Starts when Working With is selected. Independent of Stage and Handler aging; blank disables this alert.</p>
+          <p className="text-xs text-muted-foreground mt-1">Fallback for teams without their own SLA. Set each team's threshold in the Working With tab; timers are independent.</p>
         </div>
         <div>
           <Label>Pipeline Value Metric</Label>

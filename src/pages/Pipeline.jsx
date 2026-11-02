@@ -7,7 +7,7 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
-import { overdueReasons } from "@/lib/overdueSummary.js";
+import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
@@ -41,6 +41,7 @@ const SORTS = [
 
 export default function Pipeline() {
   const { scopedOpportunities, opportunities, activeStages, maps, master, profile, config, taskEntries, loading, error, refresh } = useData();
+  const alertCtx = overdueContext(maps, master, config);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [view, setView] = useState("list");
@@ -458,7 +459,7 @@ export default function Pipeline() {
           <div className="space-y-2.5 md:hidden" role="list" aria-label="Pipeline records">
             {sorted.map((o) => {
               const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
-              const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any;
+              const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any;
               const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
               return (
                 <button key={o.id} type="button" role="listitem"
@@ -481,7 +482,7 @@ export default function Pipeline() {
                     )}
                     <span aria-hidden="true">·</span>
                     <span title={age === null ? "ไม่มีข้อมูลวันที่เข้า Stage" : `Days in current Stage: ${age}`} className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "—" : `${age}d in stage`}</span>
-                    <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} />
+                    <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} />
                   </span>
                   <ChevronRight className="pointer-events-none absolute right-2.5 bottom-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </button>
@@ -601,7 +602,7 @@ export default function Pipeline() {
                       <td className="bg-card px-2.5 py-1.5 text-right transition-colors group-hover:bg-secondary">
                         <div className="font-normal tabular-nums text-[11px] whitespace-nowrap"
                           title={age === null ? "ไม่มีข้อมูลวันที่เข้า Stage" : "Days in current Stage: " + age}>{age === null ? "—" : `${age}d` }</div>
-                        <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} /></div>
+                        <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} /></div>
                       </td>
                     </tr>
                   );

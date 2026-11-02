@@ -159,6 +159,10 @@ export function DataProvider({ children }) {
       stage_watch_days: Number(cfg.stage_watch_days || 7),
       internal_task_sla_days: cfg.internal_task_sla_days === "" || cfg.internal_task_sla_days == null
         ? null : Number(cfg.internal_task_sla_days),
+      handler_ae_sla_days: cfg.handler_ae_sla_days === "" || cfg.handler_ae_sla_days == null
+        ? null : Number(cfg.handler_ae_sla_days),
+      handler_sm_sla_days: cfg.handler_sm_sla_days === "" || cfg.handler_sm_sla_days == null
+        ? null : Number(cfg.handler_sm_sla_days),
       pipeline_value_metric: cfg.pipeline_value_metric || "pipeline_value",
       weighted_enabled: cfg.weighted_enabled === "true",
     };

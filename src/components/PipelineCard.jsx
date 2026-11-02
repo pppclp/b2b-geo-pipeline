@@ -2,7 +2,7 @@ import React from "react";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth } from "@/lib/pipeline";
-import { overdueReasons } from "@/lib/overdueSummary.js";
+import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import { smWorkingWithTeamLabels } from "@/lib/pipelineListPresentation";
 import { MoreHorizontal } from "lucide-react";
@@ -12,10 +12,11 @@ import { cn } from "@/lib/utils";
 // history stays available in the shared Pipeline Quick View.
 export default function PipelineCard({ op, onOpen, showRegion = false }) {
   const { maps, master, config, taskEntries } = useData();
+  const alertCtx = overdueContext(maps, master, config);
   const owner = maps.member[op.owner_id];
   const handler = maps.member[op.current_handler_id];
   const category = maps.category[op.product_category_id];
-  const overdue = overdueReasons(op, maps.stage, config?.stage_watch_days, taskEntries).any;
+  const overdue = overdueReasons(op, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any;
   const differentHandler = op.current_handler_id !== op.owner_id && Boolean(op.current_handler_id);
   const teams = smWorkingWithTeamLabels(op, handler, master?.WorkingWithOption || []);
 
@@ -56,7 +57,7 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
           <span className="text-[11px] font-medium truncate" title={"AE Owner: " + (owner?.name || "Unassigned")}>
             {owner?.name || "Unassigned"}
           </span>
-          <OverdueTags op={op} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} />
+          <OverdueTags op={op} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} />
         </div>
         <div className="flex h-[19px] min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
           {differentHandler && <span className="min-w-0 truncate"
