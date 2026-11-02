@@ -115,3 +115,17 @@ test("Legacy single-team Management rows remain visible; selected non-Management
   assert.equal(isWithMePipeline({status:"open",current_handler_id:"SM1",working_with_id:"WW007"},"MGMT1",context),true);
   assert.equal(isWithMePipeline({status:"open",current_handler_id:"SM1",working_with:"Management",working_with_team_ids:"WW001"},"MGMT1",context),false);
 });
+
+
+test("Dashboard queue uses compact rows and fixed numeric columns without overlapping names", () => {
+  const dashboard = source("src/pages/Dashboard.jsx");
+  assert.ok(dashboard.includes('h-[56px] border-b border-border last:border-0'));
+  assert.ok(dashboard.includes('min-h-[36px] min-w-0 flex-col'));
+  assert.ok(dashboard.includes('regionColumn ? "min-w-[560px]" : "min-w-[410px]"'));
+  assert.ok(dashboard.includes('<col className="w-[92px]" />'));
+  assert.ok(dashboard.includes('<col className="w-[150px]" />'));
+  assert.ok(dashboard.includes('{regionColumn && <col className="w-[118px]" />}'));
+  assert.ok(dashboard.includes('className="block truncate" title={maps.stage[o.stage_id]?.name || "—"}'));
+  assert.ok(dashboard.includes('overflow-x-auto'));
+  assert.ok(dashboard.includes('tabular-nums whitespace-nowrap'));
+});
