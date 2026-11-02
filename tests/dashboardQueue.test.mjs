@@ -27,7 +27,7 @@ test("Management Action Queue preserves With Me and Region after Support retirem
   assert.ok(s.includes('["with", "With Me"]'), "The With Me quick-view tab remains in English");
   assert.ok(s.includes('title="Pipeline ที่ส่งให้ฉัน"'), "KPI uses the canonical Pipeline noun");
   assert.ok(s.includes('regionColumn={isManagement}'));
-  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}'));
+  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-1.5 pr-2">Region</th>}'));
   assert.ok(s.includes('className="h-[56px] border-b border-border last:border-0"'));
   assert.ok(s.includes('min-h-[36px]'));
   assert.ok(s.includes('selectedTab === "with" ? "handler_since"'));
