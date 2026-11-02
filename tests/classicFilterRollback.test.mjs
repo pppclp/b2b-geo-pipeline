@@ -57,8 +57,8 @@ test("List is default while Sort and Stage quick filters share the canonical Pip
   assert.match(pipeline,/Quick filter by Stage/);
   assert.match(pipeline,/onClick=\{\(\) => onFilter\("stage", stage\.id\)\}/);
   assert.match(pipeline,/aria-pressed=\{filters\.stage === stage\.id\}/);
-  assert.match(pipeline,/min-w-\[1350px\]/);
-  assert.match(pipeline,/min-w-\[1210px\]/);
+  assert.match(pipeline,/min-w-\[1200px\]/);
+  assert.match(pipeline,/min-w-\[1085px\]/);
   assert.match(pipeline,/stageCounts\.get\(stage\.id\)/);
 });
 
