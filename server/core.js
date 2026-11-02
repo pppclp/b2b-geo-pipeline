@@ -328,8 +328,10 @@ export function createCore({ contract, store, now, uuid }) {
   function decorate(uiEntity, rec) {
     if (uiEntity === "TeamMember") rec.region_ids = regionIdsFor(rec.id);
     if (uiEntity === "Opportunity") {
+      // Retain the canonical primary team ID before converting its display name.
+      rec.working_with_primary_id = String(rec.working_with || "");
+      rec.working_with_team_since = teamStartTimes({ ...rec, working_with_id: rec.working_with_primary_id });
       for (const f of Object.keys(NAME_REFS)) rec[f] = refLookup(f, "id", "name", rec[f]);
-      rec.working_with_team_since = teamStartTimes(rec);
     }
     return rec;
   }
