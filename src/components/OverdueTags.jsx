@@ -12,16 +12,18 @@ export default function OverdueTags({ op, stages = {}, stageWatchDays = 7, tasks
   const tone = "inline-flex items-center gap-1 rounded bg-[#C83F40] px-1.5 py-0.5 font-medium text-white";
   return (
     <span className="inline-flex max-w-full flex-wrap justify-end gap-1 text-[10px] leading-4">
-      {reasons.stageSla && <span className={tone} title="Current Stage has exceeded its configured SLA">
-        ⚠ Stage SLA · +{slaExcess}d</span>}
-      {reasons.handler && <span className={tone} title={"Current " + reasons.handler.role.toUpperCase() + " Handler has exceeded " + reasons.handler.limit + " days"}>
-        ⚠ {reasons.handler.role === "ae" ? "AE Aging" : "SM Aging"} · +{reasons.handler.overdueDays}d</span>}
+      {reasons.stageSla && <span className={tone}
+        title={`Stage age: ${age} days · SLA: ${limit} days · Overdue: ${slaExcess} days`}>
+        ⚠ Stage SLA · {age}d</span>}
+      {reasons.handler && <span className={tone}
+        title={`${reasons.handler.role.toUpperCase()} Handler age: ${reasons.handler.age} days · SLA: ${reasons.handler.limit} days · Overdue: ${reasons.handler.overdueDays} days`}>
+        ⚠ {reasons.handler.role === "ae" ? "AE Aging" : "SM Aging"} · {reasons.handler.age}d</span>}
       {reasons.workingWithTeams.map(team => <span key={team.id} className={tone}
-        title={team.name + " Working With SLA exceeded by " + team.overdueDays + " days"}>
-        ⚠ With {team.name} · +{team.overdueDays}d</span>)}
+        title={`${team.name} Working With age: ${team.age} days · SLA: ${team.limit} days · Overdue: ${team.overdueDays} days`}>
+        ⚠ With {team.name} · {team.age}d</span>)}
       {reasons.overdueTaskCount > 0 && <span className={tone}
         title={reasons.overdueTasks.map(t => t.task_name).join(", ")}>
-        ⚠ Task Overdue · {reasons.overdueTaskCount}</span>}
+        ⚠ Task Overdue · {reasons.overdueTaskCount} tasks</span>}
     </span>
   );
 }
