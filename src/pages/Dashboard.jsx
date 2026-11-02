@@ -181,8 +181,9 @@ export default function Dashboard() {
       {showRegions && <RegionQuickFilter regions={regions} value={region} onChange={setRegionFilter} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Metric title="มูลค่า Pipeline รวม" value={formatTHB(closeValue)} note="Net RC · Open + Won" />
-        <Metric title={isAE ? "มูลค่า Pipeline ที่ยังเปิดอยู่ของฉัน" : isSM ? "มูลค่า Pipeline ที่ยังเปิดอยู่ในภาค" : "มูลค่า Pipeline ที่ยังเปิดอยู่"}
-          value={formatTHB(sumValue(open))} note="Net RC"
+        <Metric title="มูลค่า Pipeline ที่เปิดอยู่"
+          value={formatTHB(sumValue(open))}
+          note={isAE ? "Net RC · ของฉัน" : isSM ? "Net RC · ในภาค" : "Net RC"}
           onClick={() => toPipeline({ status: "open", ...(isAE ? { owner: profile.id } : {}) })} />
         <Metric title="Pipeline ที่ส่งให้ฉัน"
           value={String(assigned.length)}
@@ -272,7 +273,7 @@ function Panel({ title, meta, children }) {
 
 function Metric({ title, value, note, onClick }) {
   const children = <>
-    <div className="geo-metric-label" style={{ fontSize: "14px", lineHeight: "20px", fontWeight: 600 }}>{title}</div>
+    <div className="geo-metric-label truncate" title={title} style={{ fontSize: "13px", lineHeight: "18px", fontWeight: 600 }}>{title}</div>
     <div className="geo-metric-value">{value}</div>
     <div className="geo-metric-note">{note}</div>
   </>;
