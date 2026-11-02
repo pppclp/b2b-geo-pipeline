@@ -617,6 +617,8 @@ source_03_pipeline_config:
         referenced_by:
           - "opportunities.working_with_id"
 
+      sla_days:
+        description: "Per-team calendar-day Working With SLA (blank falls back to Aging_Settings.internal_task_sla_days)."
       team_name:
         UI_display:
           - "Opportunity Detail"
@@ -682,8 +684,12 @@ source_03_pipeline_config:
         description: "Legacy global aging threshold, retained for backwards compatibility; not used to flag Stage SLA."
       stage_watch_days:
         description: "Stage aging warning in calendar days; threshold 7 means >7 elapsed days. Independent from per-Stage SLA."
+      handler_ae_sla_days:
+        description: "Current Handler AE alert threshold in calendar days."
+      handler_sm_sla_days:
+        description: "Current Handler SM alert threshold in calendar days."
       internal_task_sla_days:
-        description: "Separate calendar-day SLA for active Working With handoffs; blank disables this alert."
+        description: "Fallback SLA for a Working With team without an explicit sla_days; blank disables fallback."
         used_to_calculate:
           formula: "internal_overdue = working_with != blank AND working_with_aging_days > internal_task_sla_days"
 
