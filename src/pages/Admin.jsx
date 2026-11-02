@@ -195,7 +195,7 @@ function SimpleManager({ entity, fields }) {
   return (
     <Card>
       <Header>
-        {fields.map((f) => <span key={f.key} className={f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6"}`}>{f.label}</span>)}
+        {fields.map((f) => <span key={f.key} className={f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6"}>{f.label}</span>)}
         <span className="col-span-2">Active</span>
         <span className="col-span-2"></span>
       </Header>
@@ -203,7 +203,7 @@ function SimpleManager({ entity, fields }) {
         <Row key={it.id}>
           {fields.map((f) => (
             <Input key={f.key} type={f.type || "text"} min={f.key === "sla_days" ? 1 : undefined} max={f.key === "sla_days" ? 365 : undefined}
-              className={f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6"} h-8`} defaultValue={it[f.key] ?? ""}
+              className={(f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6") + " h-8"} defaultValue={it[f.key] ?? ""}
               onBlur={(e) => {
                 const raw = e.target.value.trim();
                 if (f.key === "sla_days" && (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 365)) {
@@ -220,7 +220,7 @@ function SimpleManager({ entity, fields }) {
       ))}
       <AddBar>
         {fields.map((f) => (
-          <Input key={f.key} type={f.type || "text"} className={f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6"} h-8`} placeholder={f.label} value={vals[f.key] || ""} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
+          <Input key={f.key} type={f.type || "text"} className={(f.type === "number" ? "col-span-2" : fields.length > 2 ? "col-span-4" : "col-span-6") + " h-8"} placeholder={f.label} value={vals[f.key] || ""} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
         ))}
         <Button size="sm" onClick={() => { const data = { ...vals, active: true, order: items.length }; fields.forEach((f) => {
           if (f.key === "sla_days") data[f.key] = /^\d+$/.test(String(data[f.key] || "")) && Number(data[f.key]) >= 1 && Number(data[f.key]) <= 365 ? Number(data[f.key]) : 5;
