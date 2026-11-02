@@ -37,7 +37,7 @@ test("Dashboard cards keep concise Thai business headings and accurate Open + Wo
   assert.ok(source.includes('title="Pipeline ที่ส่งให้ฉัน"'));
   assert.ok(source.includes('title="Pipeline เกินกำหนด"'));
   assert.ok(source.includes('note="ต้องติดตาม"'));
-  assert.ok(source.includes('note="Net RC"'));
+  assert.ok(source.includes('note={isAE ? "Net RC · ของฉัน" : isSM ? "Net RC · ในภาค" : "Net RC"}'));
   assert.ok(source.includes('"Pipeline ที่ต้องดำเนินการ"'));
   assert.ok(!source.includes('"งานที่ส่งให้ฉัน"'));
   assert.ok(!source.includes('"งานเกินกำหนด"'));
