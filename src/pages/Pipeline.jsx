@@ -496,28 +496,29 @@ export default function Pipeline() {
               // Thead's background covers only the intrinsic table width.
               // Paint the remaining scroll-viewport gutter gray as well,
               // without coloring the body rows or increasing header height.
-              background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 40px, hsl(var(--card)) 40px, hsl(var(--card)) 100%)",
+              background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 36px, hsl(var(--card)) 36px, hsl(var(--card)) 100%)",
             }}
           >
-            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1350px]" : "min-w-[1210px]"}`}>
+            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1200px]" : "min-w-[1085px]"}`}>
               <colgroup>
-                <col className="w-[300px]" />
-                <col className="w-[185px]" />
+                {/* Compact content-based widths; horizontal scrolling protects narrow displays. */}
                 <col className="w-[280px]" />
-                {regionContext.showColumn && <col className="w-[125px]" />}
-                <col className={regionContext.showColumn ? "w-[115px]" : "w-[115px]"} />
-                <col className={regionContext.showColumn ? "w-[150px]" : "w-[145px]"} />
-                <col className={regionContext.showColumn ? "w-[195px]" : "w-[185px]"} />
+                <col className="w-[155px]" />
+                <col className="w-[240px]" />
+                {regionContext.showColumn && <col className="w-[115px]" />}
+                <col className="w-[114px]" />
+                <col className="w-[130px]" />
+                <col className="w-[165px]" />
               </colgroup>
               <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
-                <tr className="h-10">
-                  <th scope="col" className="sticky left-0 z-20 bg-secondary px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
-                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">{filters.status === "open" ? "Stage" : "Status"}</th>
-                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
-                  {regionContext.showColumn && <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Region</th>}
-                  <th scope="col" className="px-3 py-1.5 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
-                  <th scope="col" className="px-3 py-1.5 text-right align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Net RC</th>
-                  <th scope="col" className="bg-secondary px-3 py-1.5 text-right align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Stage Age / Alerts</th>
+                <tr className="h-9">
+                  <th scope="col" className="sticky left-0 z-20 bg-secondary px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
+                  <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">{filters.status === "open" ? "Stage" : "Status"}</th>
+                  <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
+                  {regionContext.showColumn && <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Region</th>}
+                  <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
+                  <th scope="col" className="px-2.5 py-1 text-right align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Net RC</th>
+                  <th scope="col" className="bg-secondary px-2.5 py-1 text-right align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Stage Age / Alerts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -536,7 +537,7 @@ export default function Pipeline() {
                   const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
                   return (
                     <tr key={o.id}
-                      className="group h-[56px] cursor-pointer bg-card transition-colors align-middle"
+                      className="group h-[52px] cursor-pointer bg-card transition-colors align-middle"
                       onClick={() => openQuickView(o.id)}
                       tabIndex={0}
                       onKeyDown={(event) => {
@@ -545,25 +546,25 @@ export default function Pipeline() {
                         }
                       }}
                       aria-label={"Open opportunity " + o.customer_name}>
-                      <td className="sticky left-0 z-10 bg-card px-3 py-2 transition-colors group-hover:bg-secondary">
+                      <td className="sticky left-0 z-10 bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary">
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="min-w-0 truncate font-medium text-[13px] leading-5" title={o.customer_name}>
                             {o.customer_name}
                           </span>
                           {categoryName && <span title={[categoryName, o.product_details].filter(Boolean).join(" · ")}
-                            className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            className="max-w-[148px] shrink-0 truncate rounded-md bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {categoryName}
                           </span>}
                         </div>
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
                         <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
                       </td>
-                      <td className="min-w-0 overflow-hidden bg-card px-3 py-2 text-[13px] transition-colors group-hover:bg-secondary">
+                      <td className="min-w-0 overflow-hidden bg-card px-2.5 py-1.5 text-[13px] transition-colors group-hover:bg-secondary">
                         <span title={stageDisplay.label} className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-0.5 text-[12px] font-medium ${stageBadgeTones[stageDisplay.tone]}`}>
                           <span className="min-w-0 truncate">{stageDisplay.label}</span>
                         </span>
                       </td>
-                      <td className="min-w-0 bg-card px-3 py-2 transition-colors group-hover:bg-secondary">
+                      <td className="min-w-0 bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary">
                         {/* Fixed two-line owner/handler layout for every Pipeline.
                             Working With stays inline with the SM, never a third row. */}
                         <div className="flex min-h-[32px] min-w-0 flex-col justify-center gap-0.5">
@@ -588,16 +589,16 @@ export default function Pipeline() {
                           </div>
                         </div>
                       </td>
-                      {regionContext.showColumn && <td className="bg-card px-3 py-2 text-[12px] font-normal text-muted-foreground transition-colors group-hover:bg-secondary" title={regionName}>
+                      {regionContext.showColumn && <td className="bg-card px-2.5 py-1.5 text-[12px] font-normal text-muted-foreground transition-colors group-hover:bg-secondary" title={regionName}>
                         <span className="line-clamp-2">{regionName}</span>
                       </td>}
-                      <td className="bg-card px-3 py-2 text-[12px] font-normal text-muted-foreground whitespace-nowrap transition-colors group-hover:bg-secondary">
+                      <td className="bg-card px-2.5 py-1.5 text-[12px] font-normal text-muted-foreground whitespace-nowrap transition-colors group-hover:bg-secondary">
                         {formatMonth(o.expected_close_month)}
                       </td>
-                      <td className="bg-card px-3 py-2 text-right font-medium tabular-nums whitespace-nowrap transition-colors group-hover:bg-secondary">
+                      <td className="bg-card px-2.5 py-1.5 text-right font-medium tabular-nums whitespace-nowrap transition-colors group-hover:bg-secondary">
                         {formatTHB(o.pipeline_value)}
                       </td>
-                      <td className="bg-card px-3 py-3 text-right transition-colors group-hover:bg-secondary">
+                      <td className="bg-card px-2.5 py-1.5 text-right transition-colors group-hover:bg-secondary">
                         <div className="font-normal tabular-nums text-[11px] whitespace-nowrap"
                           title={age === null ? "ไม่มีข้อมูลวันที่เข้า Stage" : "Days in current Stage: " + age}>{age === null ? "—" : `${age}d` }</div>
                         <div className="mt-0.5"><OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} /></div>

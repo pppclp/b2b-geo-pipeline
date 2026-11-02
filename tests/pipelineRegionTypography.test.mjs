@@ -81,11 +81,11 @@ test("Pipeline-specific Thai and English use real font weights without changing 
  assert.ok(css.includes('--font-body: "Inter", "LINE Seed Sans TH"'));
  assert.equal((pipeline.match(/className="geo-page pipeline-typography"/g)||[]).length,2);
  assert.ok(pipeline.includes('text-[13px] leading-5" title={o.customer_name}'));
- assert.ok(pipeline.includes('px-3 py-2 text-[12px] font-normal text-muted-foreground'));
+ assert.ok(pipeline.includes('px-2.5 py-1.5 text-[12px] font-normal text-muted-foreground'));
 });
 
 test("Uniform hover and all original actions remain; no data/backend contract touched",()=>{
  assert.ok(pipeline.includes('cursor-pointer bg-card transition-colors'));
- assert.ok(pipeline.includes('bg-card px-3 py-2 transition-colors group-hover:bg-secondary'));
+ assert.ok(pipeline.includes('bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary'));
  for(const name of ['Export Excel','สร้าง Pipeline','Quick filter by Stage','งานรอตรวจสอบ Stage','Pipeline work views','Open','Won','Lost'])assert.ok(pipeline.includes(name),name);
 });

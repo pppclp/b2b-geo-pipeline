@@ -27,9 +27,9 @@ test("Management Action Queue preserves With Me and Region after Support retirem
   assert.ok(s.includes('["with", "With Me"]'), "The With Me quick-view tab remains in English");
   assert.ok(s.includes('title="Pipeline ที่ส่งให้ฉัน"'), "KPI uses the canonical Pipeline noun");
   assert.ok(s.includes('regionColumn={isManagement}'));
-  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}'));
-  assert.ok(s.includes('className="h-[76px] border-b border-border last:border-0"'));
-  assert.ok(s.includes('min-h-[16px]'));
+  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-1.5 pr-2">Region</th>}'));
+  assert.ok(s.includes('className="h-[56px] border-b border-border last:border-0"'));
+  assert.ok(s.includes('min-h-[36px]'));
   assert.ok(s.includes('selectedTab === "with" ? "handler_since"'));
   assert.ok(s.includes('const withMeQuery = isManagement ? { with_me: "1" } : { handler: profile?.id };'));
   assert.ok(s.includes('...(selectedTab === "with" ? withMeQuery : {}),'));
@@ -114,4 +114,18 @@ test("Legacy single-team Management rows remain visible; selected non-Management
   assert.equal(isWithMePipeline({status:"open",current_handler_id:"SM1",working_with:"Management"},"MGMT1",context),true);
   assert.equal(isWithMePipeline({status:"open",current_handler_id:"SM1",working_with_id:"WW007"},"MGMT1",context),true);
   assert.equal(isWithMePipeline({status:"open",current_handler_id:"SM1",working_with:"Management",working_with_team_ids:"WW001"},"MGMT1",context),false);
+});
+
+
+test("Dashboard queue uses compact rows and fixed numeric columns without overlapping names", () => {
+  const dashboard = source("src/pages/Dashboard.jsx");
+  assert.ok(dashboard.includes('h-[56px] border-b border-border last:border-0'));
+  assert.ok(dashboard.includes('min-h-[36px] min-w-0 flex-col'));
+  assert.ok(dashboard.includes('regionColumn ? "min-w-[560px]" : "min-w-[410px]"'));
+  assert.ok(dashboard.includes('<col className="w-[92px]" />'));
+  assert.ok(dashboard.includes('<col className="w-[150px]" />'));
+  assert.ok(dashboard.includes('{regionColumn && <col className="w-[118px]" />}'));
+  assert.ok(dashboard.includes('className="block truncate" title={maps.stage[o.stage_id]?.name || "—"}'));
+  assert.ok(dashboard.includes('overflow-x-auto'));
+  assert.ok(dashboard.includes('tabular-nums whitespace-nowrap'));
 });
