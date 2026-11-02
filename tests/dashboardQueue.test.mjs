@@ -27,9 +27,9 @@ test("Management Action Queue preserves With Me and Region after Support retirem
   assert.ok(s.includes('["with", "With Me"]'), "The With Me quick-view tab remains in English");
   assert.ok(s.includes('title="Pipeline ที่ส่งให้ฉัน"'), "KPI uses the canonical Pipeline noun");
   assert.ok(s.includes('regionColumn={isManagement}'));
-  assert.ok(s.includes('{regionColumn && <th className="text-left font-medium py-1.5 pr-2">Region</th>}'));
-  assert.ok(s.includes('className="h-[56px] border-b border-border last:border-0"'));
-  assert.ok(s.includes('min-h-[36px]'));
+  assert.ok(s.includes('{regionColumn && <th className="py-1.5 pr-2 text-left font-medium">Region</th>}'));
+  assert.ok(s.includes('className="h-[52px] border-b border-border last:border-0"'));
+  assert.ok(s.includes('flex min-w-0 flex-col justify-center gap-0.5'));
   assert.ok(s.includes('selectedTab === "with" ? "handler_since"'));
   assert.ok(s.includes('const withMeQuery = isManagement ? { with_me: "1" } : { handler: profile?.id };'));
   assert.ok(s.includes('...(selectedTab === "with" ? withMeQuery : {}),'));
@@ -117,15 +117,38 @@ test("Legacy single-team Management rows remain visible; selected non-Management
 });
 
 
-test("Dashboard queue uses compact rows and fixed numeric columns without overlapping names", () => {
+test("Dashboard queue uses centered compact rows, fixed widths and colored Stage tags", () => {
   const dashboard = source("src/pages/Dashboard.jsx");
-  assert.ok(dashboard.includes('h-[56px] border-b border-border last:border-0'));
-  assert.ok(dashboard.includes('min-h-[36px] min-w-0 flex-col'));
+  assert.ok(dashboard.includes('h-[52px] border-b border-border last:border-0'));
+  assert.ok(dashboard.includes('flex min-w-0 flex-col justify-center gap-0.5'));
+  assert.ok(!dashboard.includes('min-h-[16px] min-w-0 flex-nowrap'), "No empty second line that shifts customer alignment");
   assert.ok(dashboard.includes('regionColumn ? "min-w-[560px]" : "min-w-[410px]"'));
-  assert.ok(dashboard.includes('<col className="w-[92px]" />'));
-  assert.ok(dashboard.includes('<col className="w-[150px]" />'));
+  assert.ok(dashboard.includes('<col className="w-[106px]" />'));
+  assert.ok(dashboard.includes('<col className="w-[116px]" />'));
   assert.ok(dashboard.includes('{regionColumn && <col className="w-[118px]" />}'));
-  assert.ok(dashboard.includes('className="block truncate" title={maps.stage[o.stage_id]?.name || "—"}'));
+  assert.ok(dashboard.includes('pipelineStageDisplay(o, activeStages, maps.stage)'));
+  assert.ok(dashboard.includes('DASHBOARD_STAGE_BADGE_TONES[stageDisplay.tone]'));
   assert.ok(dashboard.includes('overflow-x-auto'));
   assert.ok(dashboard.includes('tabular-nums whitespace-nowrap'));
+});
+
+test("Dashboard month-first defaults can be cleared and never invisibly filter Admin", () => {
+  const dashboard = source("src/pages/Dashboard.jsx");
+  assert.ok(dashboard.includes('useState(() => currentMonthKey())'));
+  assert.ok(dashboard.includes('const [queueTab, setQueueTab] = useState("due")'));
+  assert.ok(dashboard.includes('const effectiveCloseMonth = isAdmin ? "" : closeMonth'));
+  assert.ok(dashboard.includes('closeMonth: effectiveCloseMonth, region'));
+  assert.ok(dashboard.includes('if (!month) setQueueTab("with")'));
+  assert.ok(dashboard.includes('setCloseMonth(""); setRegionFilter(""); setQueueTab("with")'));
+  assert.ok(dashboard.includes('selectedTab === "due" && !closeMonth'));
+});
+
+test("Create Pipeline permits a blank Business ID, but validates an entered ID", () => {
+  const create = source("src/components/CreatePipelineModal.jsx");
+  const validation = source("src/lib/pipelineValidation.js");
+  assert.ok(create.includes('if (businessIdError(form.business_id))'));
+  assert.ok(create.includes('<Field label="รหัสธุรกิจ (Business ID)" error='));
+  assert.ok(!create.includes('<Field label="รหัสธุรกิจ (Business ID)" required'));
+  assert.ok(create.includes('maxLength={40} value={form.business_id}'));
+  assert.ok(validation.includes('if (!id) return ""'));
 });
