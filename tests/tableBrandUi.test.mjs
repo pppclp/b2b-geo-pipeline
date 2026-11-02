@@ -8,18 +8,18 @@ test("all roles share a compact, single-line Pipeline table header", () => {
   const src = read("src/pages/Pipeline.jsx");
   const header = src.match(/<thead className="border-b border-border\/70 bg-secondary[^]*?<\/thead>/)?.[0];
   assert.ok(header, "Pipeline table header exists");
-  assert.ok(header.includes('<tr className="h-10">'), "40px table header");
-  assert.ok(header.includes("py-1.5"), "compact header cell padding");
+  assert.ok(header.includes('<tr className="h-9">'), "36px table header");
+  assert.ok(header.includes("py-1"), "compact header cell padding");
   assert.ok(header.includes("leading-4 whitespace-nowrap"), "consistent single-line labels");
   assert.ok(header.includes(">Pipeline</th>"), "user-facing Pipeline terminology");
   assert.ok(!header.includes(">Opportunity</th>"));
-  assert.ok(src.includes('className="group h-[56px]'), "denser rows still allow two-line handling");
+  assert.ok(src.includes('className="group h-[52px]'), "denser rows still allow two-line handling");
   // The table can be narrower than its scroll viewport: paint any trailing
   // gutter in the same neutral gray without affecting white data rows.
   assert.ok(src.includes('hsl(var(--secondary)) 0px'));
-  assert.ok(src.includes('hsl(var(--secondary)) 40px'));
-  assert.ok(src.includes('hsl(var(--card)) 40px'));
-  assert.ok(header.includes('className="bg-secondary px-3 py-1.5 text-right'));
+  assert.ok(src.includes('hsl(var(--secondary)) 36px'));
+  assert.ok(src.includes('hsl(var(--card)) 36px'));
+  assert.ok(header.includes('className="bg-secondary px-2.5 py-1 text-right'));
 
 });
 
