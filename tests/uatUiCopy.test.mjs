@@ -23,12 +23,16 @@ test("Dashboard cards keep concise Thai business headings and accurate Open + Wo
   const source = file("src/pages/Dashboard.jsx");
   assert.ok(source.includes('title="มูลค่า Pipeline รวม"'));
   assert.ok(source.includes('note="Net RC · Open + Won"'));
-  assert.ok(source.includes('fontSize: "14px"'));
+  assert.ok(source.includes('fontSize: "13px"'));
   assert.ok(source.includes('meta={queue.length + " Pipelines"}'));
   assert.ok(source.includes('>สถานะ Pipeline</div>'));
   assert.ok(!source.includes('title="มูลค่างานรวม"'));
   assert.ok(!source.includes('>สถานะงาน</div>'));
-  assert.ok(source.includes('"มูลค่า Pipeline ที่ยังเปิดอยู่ของฉัน"'));
+  assert.ok(source.includes('title="มูลค่า Pipeline ที่เปิดอยู่"'));
+  assert.ok(source.includes('"Net RC · ของฉัน"'));
+  assert.ok(source.includes('"Net RC · ในภาค"'));
+  const css = file("src/index.css");
+  assert.ok(css.includes('font-size: clamp(22px, 1.9vw, 26px);'));
   assert.ok(!source.includes('subtitle="Open Pipeline Value"'));
   assert.ok(source.includes('title="Pipeline ที่ส่งให้ฉัน"'));
   assert.ok(source.includes('title="Pipeline เกินกำหนด"'));
