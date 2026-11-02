@@ -206,7 +206,7 @@ function SimpleManager({ entity, fields }) {
               className={`col-span-${f.type === "number" ? 2 : 6} h-8`} defaultValue={it[f.key] ?? ""}
               onBlur={(e) => {
                 const raw = e.target.value.trim();
-                if (f.key === "sla_days" && (!/^\\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 365)) {
+                if (f.key === "sla_days" && (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 365)) {
                   e.target.value = it[f.key] ?? 5;
                   return;
                 }
@@ -223,7 +223,7 @@ function SimpleManager({ entity, fields }) {
           <Input key={f.key} type={f.type || "text"} className={`col-span-${f.type === "number" ? 2 : 6} h-8`} placeholder={f.label} value={vals[f.key] || ""} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
         ))}
         <Button size="sm" onClick={() => { const data = { ...vals, active: true, order: items.length }; fields.forEach((f) => {
-          if (f.key === "sla_days") data[f.key] = /^\\d+$/.test(String(data[f.key] || "")) && Number(data[f.key]) >= 1 && Number(data[f.key]) <= 365 ? Number(data[f.key]) : 5;
+          if (f.key === "sla_days") data[f.key] = /^\d+$/.test(String(data[f.key] || "")) && Number(data[f.key]) >= 1 && Number(data[f.key]) <= 365 ? Number(data[f.key]) : 5;
           else if (f.type === "number") data[f.key] = Number(data[f.key]) || 0;
         }); createMaster(entity, data); setVals({}); }}><Plus className="w-4 h-4" /></Button>
       </AddBar>
@@ -328,7 +328,7 @@ function ConfigManager() {
               <Input type="number" min="1" max="365" step="1" value={value}
                 onChange={e => setter(e.target.value)} onBlur={() => {
                   const raw = String(value).trim();
-                  if (!/^\\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 365) {
+                  if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 365) {
                     setter(cfg[key]?.value ?? "5");
                     return;
                   }
