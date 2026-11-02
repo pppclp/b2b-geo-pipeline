@@ -11,6 +11,7 @@ import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import PageHeader from "@/components/PageHeader";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
 import { withMePipelines } from "@/lib/dashboardQueue";
+import { pipelineStageDisplay } from "@/lib/pipelineStatusTabs";
 
 import { legacyOpenStageRecords } from "@/lib/openStagePolicy";
 import { Button } from "@/components/ui/button";
@@ -25,14 +26,24 @@ const DASHBOARD_VIEW_SUBTITLES = {
   due: "Pipeline ที่คาดว่าจะปิดเดือนนี้",
 };
 const DASHBOARD_SELECTED_CLOSE_MONTH_SUBTITLE = "Pipeline ที่คาดว่าจะปิดเดือนที่เลือก";
+const DASHBOARD_STAGE_BADGE_TONES = {
+  stage1: "border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]",
+  stage2: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
+  stage3: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]",
+  stage4: "border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D]",
+  review: "border-border bg-secondary text-foreground",
+  won: "border-transparent bg-[#AFE0C2] text-[#166534]",
+  lost: "border-transparent bg-[#F3C4C4] text-[#9A3340]",
+  neutral: "border-border bg-secondary text-foreground",
+};
 
 export default function Dashboard() {
   const { scopedOpportunities, maps, master, activeStages, profile, config, taskEntries, loading, error, refresh } = useData();
   const navigate = useNavigate();
   const [createdMonth, setCreatedMonth] = useState("");
-  const [closeMonth, setCloseMonth] = useState("");
+  const [closeMonth, setCloseMonth] = useState(() => currentMonthKey());
   const [regionFilter, setRegionFilter] = useState("");
-  const [queueTab, setQueueTab] = useState("with");
+  const [queueTab, setQueueTab] = useState("due");
 
   const role = profile?.app_role || "ae";
   const isAdmin = role === "admin";
@@ -65,7 +76,7 @@ export default function Dashboard() {
   const assignedOverdue = assigned.filter(o => overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries).any);
   const withMeQuery = isManagement ? { with_me: "1" } : { handler: profile?.id };
 
-  const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); };
+  const reset = () => { setCreatedMonth(""); setCloseMonth(""); setRegionFilter(""); setQueueTab("with"); };
   const hasFilters = Boolean(createdMonth || closeMonth || region);
   const params = (extra = {}) => ({
     ...(createdMonth ? { created_month: createdMonth } : {}),
@@ -96,18 +107,19 @@ export default function Dashboard() {
       return { id: m.id, name: m.name, count: items.length, value: sumValue(items) };
     }).filter((r) => r.count > 0).sort((a, b) => b.value - a.value);
 
+  const dueLabel = closeMonth && closeMonth !== currentMonthKey() ? "Due in Selected Month" : "Due This Month";
   const tabs = isManagement
-    ? [["with", "With Me"], ["overdue", "Overdue"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
+    ? [["with", "With Me"], ["overdue", "Overdue"], ["due", dueLabel]]
     : isSM
-      ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]]
-      : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", closeMonth ? "Due in Selected Month" : "Due This Month"]];
-  const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : "with";
+      ? [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", dueLabel]]
+      : [["with", "With Me"], ["overdue", "Overdue With Me"], ["due", dueLabel]];
+  const selectedTab = tabs.some(([id]) => id === queueTab) ? queueTab : "due";
   const queue = selectedTab === "with" ? assigned
     : selectedTab === "overdue" ? (isManagement ? overdue : assignedOverdue)
     : open.filter((o) => o.expected_close_month === (closeMonth || currentMonthKey()));
   const queueEmptyMessage = selectedTab === "with" ? "ไม่มี Pipeline ที่ส่งให้ฉัน"
     : selectedTab === "overdue" ? "ไม่มี Pipeline เกินกำหนด"
-    : closeMonth ? "ไม่มี Pipeline ที่คาดว่าจะปิดเดือนที่เลือก" : "ไม่มี Pipeline ที่คาดว่าจะปิดเดือนนี้";
+    : dueLabel === "Due This Month" ? "ไม่มี Pipeline ที่คาดว่าจะปิดเดือนนี้" : "ไม่มี Pipeline ที่คาดว่าจะปิดเดือนที่เลือก";
   const queueItems = queue.slice().sort((a, b) => {
     const agingKey = selectedTab === "with" ? "handler_since" : "stage_entered_at";
     // Never rank an unknown timestamp as 1970 (oldest); handler aging
@@ -172,7 +184,7 @@ export default function Dashboard() {
           </div>
           <div className="w-[150px]">
             <label className="geo-filter-label block mb-1.5">เดือนที่คาดว่าจะปิด</label>
-            <MonthPicker value={closeMonth} onChange={setCloseMonth} placeholder="All Months" allowAll />
+            <MonthPicker value={closeMonth} onChange={(month) => { setCloseMonth(month); if (!month) setQueueTab("with"); }} placeholder="All Months" allowAll />
           </div>
             {hasFilters && <Button size="sm" variant="ghost" onClick={reset}><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>}
           </div>
@@ -206,7 +218,7 @@ export default function Dashboard() {
                   ? "px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-primary bg-brand-tint text-brand"
                   : "px-2.5 py-1.5 text-[11px] rounded-lg border border-border hover:bg-secondary"}>
                 <span className="block">{label}</span>
-                <span className="block text-[10px] font-normal opacity-75">{id === "due" && closeMonth ? DASHBOARD_SELECTED_CLOSE_MONTH_SUBTITLE : DASHBOARD_VIEW_SUBTITLES[id]}</span>
+                <span className="block text-[10px] font-normal opacity-75">{id === "due" && dueLabel !== "Due This Month" ? DASHBOARD_SELECTED_CLOSE_MONTH_SUBTITLE : DASHBOARD_VIEW_SUBTITLES[id]}</span>
               </button>
             )}
           </div>
@@ -215,7 +227,7 @@ export default function Dashboard() {
               Assigned to you or involving the Management team.
             </p>
           )}
-          <OpportunityTable rows={queueItems} maps={maps} emptyMessage={queueEmptyMessage}
+          <OpportunityTable rows={queueItems} maps={maps} activeStages={activeStages} emptyMessage={queueEmptyMessage}
             showRegion={isManagement || regionContext.showColumn}
             regionColumn={isManagement}
             onOpen={(id) => navigate("/opportunity/" + encodeURIComponent(id))} />
@@ -225,7 +237,7 @@ export default function Dashboard() {
                 status: "open",
                 ...(selectedTab === "with" ? withMeQuery : {}),
                 ...(selectedTab === "overdue" ? { stuck: "1", ...(!isManagement ? { handler: profile.id } : {}) } : {}),
-                ...(selectedTab === "due" ? { due_this_month: "1" } : {}),
+                ...(selectedTab === "due" && !closeMonth ? { due_this_month: "1" } : {}),
               })
             }>View All</Button>
           </div>
@@ -345,47 +357,55 @@ function BreakdownTable({ rows, label, onSelect }) {
   </div>;
 }
 
-function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false, emptyMessage = "ไม่มี Pipeline ในรายการนี้", onOpen }) {
+function OpportunityTable({ rows, maps, activeStages = [], showRegion = false, regionColumn = false, emptyMessage = "ไม่มี Pipeline ในรายการนี้", onOpen }) {
   if (!rows.length) return <EmptyRow message={emptyMessage} />;
   return <div className="overflow-x-auto">
     <table className={`w-full table-fixed text-[12px] ${regionColumn ? "min-w-[560px]" : "min-w-[410px]"}`}>
       <colgroup>
-        {/* Customer gets spare width; Region/Stage/Net RC remain compact and legible. */}
+        {/* Give customer names the remaining space without stretching Stage/Net RC. */}
         <col />
         {regionColumn && <col className="w-[118px]" />}
-        <col className="w-[92px]" />
-        <col className="w-[150px]" />
+        <col className="w-[106px]" />
+        <col className="w-[116px]" />
       </colgroup>
-      <thead><tr className="text-muted-foreground border-b border-border">
-        <th className="text-left font-medium py-1.5">Customer</th>
-        {regionColumn && <th className="text-left font-medium py-1.5 pr-2">Region</th>}
-        <th className="text-left font-medium py-1.5">Stage</th>
-        <th className="text-right font-medium py-1.5">Net RC</th>
+      <thead><tr className="border-b border-border text-muted-foreground">
+        <th className="py-1.5 text-left font-medium">Customer</th>
+        {regionColumn && <th className="py-1.5 pr-2 text-left font-medium">Region</th>}
+        <th className="py-1.5 text-left font-medium">Stage</th>
+        <th className="py-1.5 text-right font-medium">Net RC</th>
       </tr></thead>
-      <tbody>{rows.map((o) =>
-        <tr className="h-[56px] border-b border-border last:border-0" key={o.id}>
-          <td className="py-1.5 pr-2 align-middle">
-            <div className="flex min-h-[36px] min-w-0 flex-col justify-center">
-              <button type="button" className="block max-w-full truncate text-left font-medium hover:text-brand hover:underline"
-                title={o.customer_name} onClick={() => onOpen(o.id)}>{o.customer_name}</button>
-              <div className="mt-0.5 flex min-h-[16px] min-w-0 flex-nowrap items-center gap-x-2 overflow-hidden whitespace-nowrap text-[10px] leading-4">
+      <tbody>{rows.map((o) => {
+        const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
+        return (
+          <tr className="h-[52px] border-b border-border last:border-0" key={o.id}>
+            <td className="py-2 pr-2 align-middle">
+              <div className="flex min-w-0 flex-col justify-center gap-0.5">
+                <button type="button" className="block w-full min-w-0 truncate text-left font-medium leading-5 hover:text-brand hover:underline"
+                  title={o.customer_name} onClick={() => onOpen(o.id)}>{o.customer_name}</button>
                 {showRegion && !regionColumn && (
-                  <span className="min-w-0 truncate text-muted-foreground">
+                  <span className="block min-w-0 truncate text-[10px] leading-4 text-muted-foreground">
                     {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
                   </span>
                 )}
-                </div>
-            </div>
-          </td>
-          {regionColumn && <td className="py-1.5 pr-2 align-middle text-[11px] text-muted-foreground">
-            <span className="block truncate" title={maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}>
-              {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
-            </span>
-          </td>}
-          <td className="py-1.5 align-middle text-muted-foreground"><span className="block truncate" title={maps.stage[o.stage_id]?.name || "—"}>{maps.stage[o.stage_id]?.name || "—"}</span></td>
-          <td className="py-1.5 text-right align-middle font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
-        </tr>
-      )}</tbody>
+              </div>
+            </td>
+            {regionColumn && (
+              <td className="py-2 pr-2 align-middle text-[11px] text-muted-foreground">
+                <span className="block truncate" title={maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}>
+                  {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
+                </span>
+              </td>
+            )}
+            <td className="py-2 align-middle">
+              <span title={stageDisplay.label}
+                className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-[18px] ${DASHBOARD_STAGE_BADGE_TONES[stageDisplay.tone] || DASHBOARD_STAGE_BADGE_TONES.neutral}`}>
+                <span className="min-w-0 truncate">{stageDisplay.label}</span>
+              </span>
+            </td>
+            <td className="py-2 text-right align-middle font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
+          </tr>
+        );
+      })}</tbody>
     </table>
   </div>;
 }
