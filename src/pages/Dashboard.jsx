@@ -61,7 +61,9 @@ export default function Dashboard() {
   const region = regions.some((r) => r.id === regionFilter) ? regionFilter : "";
   // The same context rule applies to AE, SM, Management, and Admin.
   const showRegions = regions.length > 1;
-  const cohort = dashboardCohort(scopedOpportunities, { createdMonth, closeMonth, region });
+  // Admin has no visible month picker; never apply an invisible default month filter.
+  const effectiveCloseMonth = isAdmin ? "" : closeMonth;
+  const cohort = dashboardCohort(scopedOpportunities, { createdMonth, closeMonth: effectiveCloseMonth, region });
   const regionContext = regionDisplayContext(cohort, maps.region, region, regions.map(r => r.id));
   // Assigned work may belong to a different AE; never credit it to this AE's sales.
   const sales = isAE ? cohort.filter((o) => o.owner_id === profile?.id) : cohort;
@@ -80,7 +82,7 @@ export default function Dashboard() {
   const hasFilters = Boolean(createdMonth || closeMonth || region);
   const params = (extra = {}) => ({
     ...(createdMonth ? { created_month: createdMonth } : {}),
-    ...(closeMonth ? { close_month: closeMonth } : {}),
+    ...(effectiveCloseMonth ? { close_month: effectiveCloseMonth } : {}),
     ...(region ? { region } : {}),
     ...extra,
   });
