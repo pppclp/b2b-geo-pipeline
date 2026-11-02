@@ -37,7 +37,7 @@ test("Visual hierarchy remains intentional without changing access or calculatio
   }
   assert.match(css, /font-size: 24px/);
   assert.match(css, /font-size: 22px/);
-  assert.match(css, /font-size: clamp\(20px, 2vw, 26px\)/);
+  assert.match(css, /font-size: clamp\(22px, 1\.9vw, 26px\)/);
   assert.match(dashboard, /geo-metric-label/);
   assert.match(dashboard, /geo-metric-value/);
   assert.match(dashboard, /geo-panel-title/);
