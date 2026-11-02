@@ -17,7 +17,8 @@ export function workingWithSlaAlerts(op, teams = [], defaultDays = null, now = n
   if (op?.status !== "open") return [];
   const byId = new Map((teams || []).map(t => [String(t.id), t]));
   const ids = selectedIds(op.working_with_team_ids);
-  if (!ids.length && op.working_with_id) ids.push(String(op.working_with_id));
+  const primary = String(op.working_with_primary_id || op.working_with_id || "");
+  if (!ids.length && primary) ids.push(primary);
   if (!ids.length && op.working_with) {
     const legacy = (teams || []).find(t => String(t.name || "").toLowerCase() === String(op.working_with).toLowerCase());
     if (legacy) ids.push(String(legacy.id));
@@ -30,7 +31,7 @@ export function workingWithSlaAlerts(op, teams = [], defaultDays = null, now = n
     const limit = validSlaDays(team.sla_days) ?? validSlaDays(defaultDays);
     // Only the legacy PRIMARY team can use the single-team timestamp.
     // For any other team, require a verified timestamp from backend audit history.
-    const started = since[id] || (String(op.working_with_id || "") === id ? op.working_with_since : "");
+    const started = since[id] || (primary === id ? op.working_with_since : "");
     const age = ageInDays(started, now);
     if (limit === null || age === null || age <= limit) return [];
     return [{ id, name: team.name, age, limit, overdueDays: age - limit }];
