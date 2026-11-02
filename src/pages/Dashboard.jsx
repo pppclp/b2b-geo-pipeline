@@ -309,9 +309,9 @@ function CloseStrip({ won, open, closeValue, closeMonth, onWon, onOpen }) {
 function BarList({ rows, onSelect }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   if (!rows.some((r) => r.count)) return <EmptyRow />;
-  return <div className="space-y-3">
+  return <div className="space-y-2">
     {rows.map((row) =>
-      <button type="button" key={row.id} onClick={() => onSelect(row.id)} className="w-full text-left group rounded-md hover:bg-secondary/50 py-1">
+      <button type="button" key={row.id} onClick={() => onSelect(row.id)} className="w-full text-left group rounded-md hover:bg-secondary/50 py-0.5">
         <div className="flex justify-between items-center gap-2 text-[12px] mb-1">
           <span className="font-medium group-hover:text-brand">{row.name}</span>
           <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">{row.count} · {formatTHB(row.value)}</span>
@@ -331,14 +331,14 @@ function BreakdownTable({ rows, label, onSelect }) {
       <thead><tr className="text-muted-foreground border-b border-border">
         <th className="text-left font-medium py-2">{label}</th>
         <th className="text-right font-medium py-2">Pipelines</th>
-        <th className="text-right font-medium py-2">Net RC</th>
+        <th className="text-right font-medium py-1.5">Net RC</th>
       </tr></thead>
       <tbody>{rows.map((row) =>
         <tr key={row.id} className="border-b last:border-0 border-border">
-          <td className="py-3"><button type="button" className="font-medium text-left hover:text-brand hover:underline"
+          <td className="py-2"><button type="button" className="font-medium text-left hover:text-brand hover:underline"
             onClick={() => onSelect(row.id)}>{row.name}</button></td>
-          <td className="py-3 text-right tabular-nums">{row.count}</td>
-          <td className="py-3 text-right tabular-nums font-medium">{formatTHB(row.value)}</td>
+          <td className="py-2 text-right tabular-nums">{row.count}</td>
+          <td className="py-2 text-right tabular-nums font-medium">{formatTHB(row.value)}</td>
         </tr>
       )}</tbody>
     </table>
@@ -348,26 +348,27 @@ function BreakdownTable({ rows, label, onSelect }) {
 function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false, emptyMessage = "ไม่มี Pipeline ในรายการนี้", onOpen }) {
   if (!rows.length) return <EmptyRow message={emptyMessage} />;
   return <div className="overflow-x-auto">
-    <table className={`w-full table-fixed text-[12px] ${regionColumn ? "min-w-[510px]" : "min-w-[390px]"}`}>
+    <table className={`w-full table-fixed text-[12px] ${regionColumn ? "min-w-[560px]" : "min-w-[410px]"}`}>
       <colgroup>
-        <col style={{ width: regionColumn ? "40%" : "54%" }} />
-        {regionColumn && <col style={{ width: "21%" }} />}
-        <col style={{ width: regionColumn ? "15%" : "19%" }} />
-        <col style={{ width: regionColumn ? "24%" : "27%" }} />
+        {/* Customer gets spare width; Region/Stage/Net RC remain compact and legible. */}
+        <col />
+        {regionColumn && <col className="w-[118px]" />}
+        <col className="w-[92px]" />
+        <col className="w-[150px]" />
       </colgroup>
       <thead><tr className="text-muted-foreground border-b border-border">
-        <th className="text-left font-medium py-2">Customer</th>
-        {regionColumn && <th className="text-left font-medium py-2 pr-2">Region</th>}
-        <th className="text-left font-medium py-2">Stage</th>
-        <th className="text-right font-medium py-2">Net RC</th>
+        <th className="text-left font-medium py-1.5">Customer</th>
+        {regionColumn && <th className="text-left font-medium py-1.5 pr-2">Region</th>}
+        <th className="text-left font-medium py-1.5">Stage</th>
+        <th className="text-right font-medium py-1.5">Net RC</th>
       </tr></thead>
       <tbody>{rows.map((o) =>
-        <tr className="h-[76px] border-b border-border last:border-0" key={o.id}>
-          <td className="py-2 pr-2 align-middle">
-            <div className="flex min-h-[52px] flex-col justify-center">
+        <tr className="h-[56px] border-b border-border last:border-0" key={o.id}>
+          <td className="py-1.5 pr-2 align-middle">
+            <div className="flex min-h-[36px] min-w-0 flex-col justify-center">
               <button type="button" className="block max-w-full truncate text-left font-medium hover:text-brand hover:underline"
                 title={o.customer_name} onClick={() => onOpen(o.id)}>{o.customer_name}</button>
-              <div className="mt-0.5 flex min-h-[16px] flex-nowrap items-center gap-x-2 overflow-hidden whitespace-nowrap text-[10px] leading-4">
+              <div className="mt-0.5 flex min-h-[16px] min-w-0 flex-nowrap items-center gap-x-2 overflow-hidden whitespace-nowrap text-[10px] leading-4">
                 {showRegion && !regionColumn && (
                   <span className="min-w-0 truncate text-muted-foreground">
                     {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
@@ -376,13 +377,13 @@ function OpportunityTable({ rows, maps, showRegion = false, regionColumn = false
                 </div>
             </div>
           </td>
-          {regionColumn && <td className="py-2 pr-2 align-middle text-[11px] text-muted-foreground">
+          {regionColumn && <td className="py-1.5 pr-2 align-middle text-[11px] text-muted-foreground">
             <span className="block truncate" title={maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}>
               {maps.region[o.region_id]?.name || o.region_id || "Unassigned Region"}
             </span>
           </td>}
-          <td className="py-2 align-middle text-muted-foreground whitespace-nowrap">{maps.stage[o.stage_id]?.name || "—"}</td>
-          <td className="py-2 text-right align-middle font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
+          <td className="py-1.5 align-middle text-muted-foreground"><span className="block truncate" title={maps.stage[o.stage_id]?.name || "—"}>{maps.stage[o.stage_id]?.name || "—"}</span></td>
+          <td className="py-1.5 text-right align-middle font-medium tabular-nums whitespace-nowrap">{formatTHB(o.pipeline_value || 0)}</td>
         </tr>
       )}</tbody>
     </table>
