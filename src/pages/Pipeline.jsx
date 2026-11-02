@@ -496,7 +496,7 @@ export default function Pipeline() {
               // Thead's background covers only the intrinsic table width.
               // Paint the remaining scroll-viewport gutter gray as well,
               // without coloring the body rows or increasing header height.
-              background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 40px, hsl(var(--card)) 40px, hsl(var(--card)) 100%)",
+              background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 36px, hsl(var(--card)) 36px, hsl(var(--card)) 100%)",
             }}
           >
             <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1200px]" : "min-w-[1085px]"}`}>
