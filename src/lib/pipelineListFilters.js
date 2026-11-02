@@ -1,4 +1,3 @@
-import { isInternalSlaOverdue } from "./dashboardMetrics.js";
 import { overdueReasons, overdueContext } from "./overdueSummary.js";
 import { monthOf, currentMonthKey } from "./pipeline.js";
 import { matchesPipelineSearch } from "./pipelineFilterUi.js";
@@ -39,7 +38,8 @@ export function matchesPipelineFilters(o, f, context, { ignoreStage = false } = 
     if (o.working_with !== f.working_with && (!teamId || !teamIds.includes(teamId))) return false;
   }
   if (f.stuck === "1" && !overdueReasons(o, maps?.stage, config?.stage_watch_days, context.taskEntries, overdueContext(maps, master, config)).any) return false;
-  if (f.internal_overdue === "1" && !isInternalSlaOverdue(o, config?.internal_task_sla_days)) return false;
+  if (f.internal_overdue === "1" && !overdueReasons(o, maps?.stage, config?.stage_watch_days,
+    context.taskEntries, overdueContext(maps, master, config)).workingWithTeams.length) return false;
   if (f.won_month && monthOf(o.won_at) !== f.won_month) return false;
   if (f.lost_month && monthOf(o.lost_at) !== f.lost_month) return false;
   if (f.lost_reason && o.lost_reason_id !== f.lost_reason) return false;
