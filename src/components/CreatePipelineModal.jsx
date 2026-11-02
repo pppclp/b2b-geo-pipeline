@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import { useData } from "@/lib/dataContext";
 import { CUSTOMER_TYPES } from "@/lib/pipeline";
+import { businessIdError } from "@/lib/pipelineValidation";
 import { calculateNetRc, formatNetRc } from "@/lib/netRc";
 import MonthPicker from "@/components/MonthPicker";
 import { OVERLAPPING_NE_REGIONS, selectAuthorizedRegions, provinceCoverageOptions, provinceCoverageMatch } from "@/lib/aeProvinceCoverage";
@@ -122,7 +123,7 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
 
   const errors = {};
   if (!form.customer_name.trim()) errors.customer_name = "Required";
-  if (!/^\d+$/.test(form.business_id)) errors.business_id = "Enter digits only";
+  if (businessIdError(form.business_id)) errors.business_id = "กรอกตัวเลขไม่เกิน 40 หลัก หรือเว้นว่างไว้ได้";
   if (!form.customer_type) errors.customer_type = "Required";
   if (!salesChannelOptions.some(option => option.value === form.sales_channel)) errors.sales_channel = "Select an active Sales Channel";
   if (!form.product_category_id) errors.product_category_id = "Required";
@@ -251,8 +252,8 @@ export default function CreatePipelineModal({ open, onClose, onSaved }) {
                 <Field label="ชื่อลูกค้า" required error={submitted && errors.customer_name}>
                   <Input maxLength={200} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} placeholder="Enter customer name" aria-invalid={submitted && !!errors.customer_name} />
                 </Field>
-                <Field label="รหัสธุรกิจ (Business ID)" required error={submitted && errors.business_id}>
-                  <Input value={form.business_id} inputMode="numeric" onChange={(e) => set("business_id", e.target.value.replace(/\D/g, ""))} placeholder="Enter business ID" aria-invalid={submitted && !!errors.business_id}/>
+                <Field label="รหัสธุรกิจ (Business ID)" error={submitted && errors.business_id}>
+                  <Input type="text" inputMode="numeric" maxLength={40} value={form.business_id} onChange={(e) => set("business_id", e.target.value.replace(/\D/g, ""))} placeholder="ไม่บังคับกรอก (ไม่เกิน 40 หลัก)" aria-invalid={submitted && !!errors.business_id} />
                 </Field>
                 <Field label="ประเภทลูกค้า" required error={submitted && errors.customer_type}>
                   <Select value={form.customer_type} onValueChange={(v) => set("customer_type", v)}>
