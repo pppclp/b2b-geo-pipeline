@@ -86,10 +86,10 @@ test("Compact UI retains four work tabs, primary controls, all status tabs, Boar
 });
 test("Stage review badge stays inside Stage cell and clear of AE Owner column",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
- assert.ok(src.includes('regionContext.showColumn ? "min-w-[1350px]" : "min-w-[1210px]"'));
- assert.ok(src.includes('<col className="w-[185px]" />'));
- assert.ok(src.includes('<col className="w-[280px]" />'));
- assert.ok(src.includes('<td className="min-w-0 overflow-hidden bg-card px-3 py-2 text-[13px] transition-colors group-hover:bg-secondary">'));
+ assert.ok(src.includes('regionContext.showColumn ? "min-w-[1200px]" : "min-w-[1085px]"'));
+ assert.ok(src.includes('<col className="w-[155px]" />'));
+ assert.ok(src.includes('<col className="w-[240px]" />'));
+ assert.ok(src.includes('<td className="min-w-0 overflow-hidden bg-card px-2.5 py-1.5 text-[13px] transition-colors group-hover:bg-secondary">'));
  assert.ok(src.includes('title={stageDisplay.label}'));
  assert.ok(src.includes('inline-flex max-w-full items-center rounded-full border'));
  assert.ok(src.includes('<span className="min-w-0 truncate">{stageDisplay.label}</span>'));
@@ -99,11 +99,11 @@ test("Stage review badge stays inside Stage cell and clear of AE Owner column",(
 
 test("Responsive table reserves legible width per column and all hover cells match",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
- for (const px of [300,185,280,125,115,150,195,145]) assert.ok(src.includes(`w-[${px}px]`),px);
- assert.ok(src.includes('min-w-[1350px]'));
- assert.ok(src.includes('min-w-[1210px]'));
- assert.ok(src.includes('min-w-0 overflow-hidden bg-card px-3 py-2'));
- assert.ok(src.includes('px-3 py-3 text-right transition-colors group-hover:bg-secondary'));
+ for (const px of [280,155,240,115,114,130,165]) assert.ok(src.includes(`w-[${px}px]`),px);
+ assert.ok(src.includes('min-w-[1200px]'));
+ assert.ok(src.includes('min-w-[1085px]'));
+ assert.ok(src.includes('min-w-0 overflow-hidden bg-card px-2.5 py-1.5'));
+ assert.ok(src.includes('px-2.5 py-1.5 text-right transition-colors group-hover:bg-secondary'));
  assert.equal((src.match(/group-hover:bg-secondary/g)||[]).length,7);
  assert.ok(src.includes('age === null ? "—"'));
  assert.ok(src.includes('ไม่มีข้อมูลวันที่เข้า Stage'));
@@ -113,11 +113,11 @@ test("Responsive table reserves legible width per column and all hover cells mat
 test("Hover paints whole row and its sticky company cell the same surface; Stage 1–4 use pastel palette",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
  assert.ok(src.includes("cursor-pointer bg-card transition-colors"));
- assert.ok(src.includes("bg-card px-3 py-2 transition-colors group-hover:bg-secondary"));
- assert.ok(!src.includes('group-hover:bg-secondary px-3 py-2'));
+ assert.ok(src.includes("bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary"));
+ assert.ok(!src.includes('group-hover:bg-secondary px-2.5 py-1.5'));
  assert.ok(src.includes("border-[#B7E4C7] bg-[#ECFDF3] text-[#2F855A]"));
  assert.ok(src.includes("border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]"));
  assert.ok(src.includes("border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"));
  assert.ok(src.includes("border-[#FBCFE8] bg-[#FDF2F8] text-[#BE185D]"));
- assert.ok(src.includes('className="group h-[56px]'));
+ assert.ok(src.includes('className="group h-[52px]'));
 });
