@@ -16,3 +16,13 @@ test("loss reason and status are both audited, actor is not browser supplied", (
   assert.ok(events.every(x=>!("actor_user_id" in x)));
 });
 test("no state difference produces no event",()=>assert.equal(opportunityAuditEvents({a:1},{a:1,updated_at:"today"}).length,0));
+
+test("Working With multi-team change is captured once in immutable Change Log", () => {
+  const before = { opportunity_id:"OPP01",working_with_id:"WW001",working_with_team_ids:"WW001" };
+  const after = { ...before,working_with_team_ids:"WW001,WW002",updated_at:"2026-11-03" };
+  const events = opportunityAuditEvents(before,after);
+  assert.deepEqual(events.map(e=>e.field),["working_with_teams"]);
+  assert.equal(events[0].previous_value,"WW001");
+  assert.equal(events[0].new_value,"WW001,WW002");
+  assert.ok(!events.some(e=>e.field === "working_with_since"));
+});

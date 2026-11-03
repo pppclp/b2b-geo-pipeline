@@ -14,6 +14,7 @@ import { businessIdError, normalizeCustomerType, netRcReconciliation } from "../
 import { API_CONTRACT_VERSION, REQUIRED_CAPABILITIES, UAT_EMAIL_ACTIVATION_CAPABILITY } from "../src/lib/apiContract.js";
 import { normalizeClosureUpdate } from "./closure.js";
 import { opportunityAuditEvents } from "./opportunityAudit.js";
+import { workingWithStartByTeam, livePipelineAlertState } from "./livePipelineAlerts.js";
 import { buildTeamActivityLog } from "./activityLog.js";
 import { buildSnapshotRows, replaceSnapshotPeriod, snapshotPeriodValid } from "./snapshot.js";
 import { stripSystemFields, keepOpportunityColumns, isMonthKey, bangkokMonth } from "./opportunityPolicy.js";
@@ -299,31 +300,9 @@ export function createCore({ contract, store, now, uuid }) {
     return teamEventIndex.get(String(opportunityId)) || [];
   }
   function teamStartTimes(op) {
-    const split = value => String(value || "").split(",").map(id => id.trim()).filter(Boolean);
-    const selected = split(op.working_with_team_ids);
-    if (!selected.length && op.working_with_id) selected.push(String(op.working_with_id));
-    if (!selected.length) return {};
-    const start = new Map();
-    const history = teamEventsFor(op.id).slice().sort((a,b) =>
-      (Date.parse(a.event_at) || 0) - (Date.parse(b.event_at) || 0));
-    for (const ev of history) {
-      if (!Number.isFinite(Date.parse(ev.event_at))) continue;
-      const previous = split(ev.previous_value), next = split(ev.new_value);
-      for (const id of previous) if (!next.includes(id)) start.delete(id);
-      for (const id of next) if (!previous.includes(id)) start.set(id, ev.event_at);
-    }
-    const out = {};
-    for (const id of selected) {
-      if (start.has(id)) out[id] = start.get(id);
-      else if (id === String(op.working_with_id || "") && op.working_with_since) {
-        out[id] = op.working_with_since;
-      } else if (!op.import_source_system && op.created_at && history.every(ev =>
-        !split(ev.previous_value).includes(id) || split(ev.new_value).includes(id))) {
-        // Original membership at creation; later audit entries did not remove it.
-        out[id] = op.created_at;
-      }
-    }
-    return out;
+    // For all authorized rows, replay the real append-only Pipeline_Events.
+    // No source-created-date assumptions or side effects on historical records.
+    return workingWithStartByTeam(op, teamEventsFor(op.id), rows("working_with_options"));
   }
   function decorate(uiEntity, rec) {
     if (uiEntity === "TeamMember") rec.region_ids = regionIdsFor(rec.id);
@@ -331,6 +310,16 @@ export function createCore({ contract, store, now, uuid }) {
       // Retain the canonical primary team ID before converting its display name.
       rec.working_with_primary_id = String(rec.working_with || "");
       rec.working_with_team_since = teamStartTimes({ ...rec, working_with_id: rec.working_with_primary_id });
+      // The GAS/Core backend is authoritative for SLA flags on every Pipeline.
+      // Task-specific overdue is composed in the UI from the same Task records.
+      rec.alert_state = livePipelineAlertState(rec, {
+        stages: rows("stages"),
+        users: rows("users"),
+        teams: rows("working_with_options"),
+        settings: agingRow() || {},
+        teamStarts: rec.working_with_team_since,
+        now: now(),
+      });
       for (const f of Object.keys(NAME_REFS)) rec[f] = refLookup(f, "id", "name", rec[f]);
     }
     return rec;
@@ -1582,14 +1571,32 @@ export function createCore({ contract, store, now, uuid }) {
         if (importMeta) row.created_at = importMeta.sourceCreatedAt || "";
         row.created_by_user_id = actor.real.id;
         validateCollaborators(row, row.region_id);
+        // Multi-team input can populate its primary mirror during validation.
+        // On NEW live Pipelines only, initialize that legacy clock at creation.
+        // Never backdate or invent assignment timestamps for historical imports.
+        if (!importMeta && row.working_with_id && !row.working_with_since) {
+          row.working_with_since = stamp;
+        }
       }
       if (b.scoped && !scopedFilter(b, actor)(row)) throw new HttpError(403, `New ${b.sheet} row would be outside your scope`);
       const saved = fitColumns(b, row);
       tableOf(b).rows.push(saved);
       touch(b);
       if (uiEntity === "TeamMember") syncUserRegions(row[b.primary_key], data.region_ids);
+      const createEvents = b.entity === "opportunities" ? opportunityAuditEvents(null, saved) : [];
+      // New live Pipeline team selections need a real start event so all teams
+      // have independently verifiable clocks, not only the legacy primary team.
+      // Historical imports are not timestamped as if they had just been assigned.
+      if (b.entity === "opportunities" && !importMeta) {
+        const initialTeams = String(saved.working_with_team_ids || saved.working_with_id || "").trim();
+        if (initialTeams) createEvents.push({
+          event_type: "working_with_change", field: "working_with_teams",
+          previous_value: "", new_value: initialTeams,
+          remark: "Initial Working With assignment on Pipeline creation",
+        });
+      }
       const auditEvents = b.entity === "opportunities"
-        ? appendAudit(saved[b.primary_key], opportunityAuditEvents(null, saved).map((event) =>
+        ? appendAudit(saved[b.primary_key], createEvents.map(event =>
             importMeta ? { ...event, remark:"Historical bulk import; batch " + importMeta.batchId } : event), actor, stamp)
         : [];
       if (b.entity === "opportunities" && String(saved.status).toLowerCase() === "open") addCreationNotifications(saved, actor, stamp);
