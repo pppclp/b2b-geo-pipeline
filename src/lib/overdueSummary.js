@@ -28,9 +28,13 @@ export function overdueReasons(op, stageMap = {}, stageWatchDays = 7, taskEntrie
   const ctx = nowOrContext instanceof Date ? { now: nowOrContext } : (nowOrContext || {});
   const now = ctx.now || new Date();
   const stageAging = isStageAgingOverdue(op, stageWatchDays, now); // informational only
-  const stageSla = isStageSlaOverdue(op, stageMap, now);
-  const handler = handlerSlaAlert(op, ctx.members, ctx.config, now);
-  const workingWithTeams = workingWithSlaAlerts(op, ctx.teams, ctx.config?.internal_task_sla_days, now);
+  // Prefer authenticated Core/Apps Script results computed from live Pipeline
+  // and append-only Pipeline_Events; retain backwards-compatible UI fallback.
+  const live = op?.alert_state?.version === 1 ? op.alert_state : null;
+  const stageSla = live ? live.stageSla === true : isStageSlaOverdue(op, stageMap, now);
+  const handler = live ? live.handler : handlerSlaAlert(op, ctx.members, ctx.config, now);
+  const workingWithTeams = live ? live.workingWithTeams || []
+    : workingWithSlaAlerts(op, ctx.teams, ctx.config?.internal_task_sla_days, now);
   const tasks = op?.status === "open" ? currentPipelineTasks(op, taskEntries) : [];
   const overdueTasks = tasks.filter(t => t.overdue);
   return { stageAging, stageSla, handler, workingWithTeams, overdueTasks,
