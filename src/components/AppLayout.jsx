@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { useData } from "@/lib/dataContext";
 import { ROLE_LABELS } from "@/lib/pipeline";
-import { LayoutDashboard, KanbanSquare, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw, History } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, Settings, Upload, LogOut, Menu, X, HandHelping, RefreshCw, History, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DemoAsBar from "@/components/DemoAsBar";
 import HandoffBell from "@/components/HandoffBell";
@@ -23,6 +23,7 @@ const navFor = (role) => {
   if (role === "admin") {
     base.push({ to: "/admin", label: "Admin", icon: Settings });
     base.push({ to: "/import", label: "Import", icon: Upload });
+    base.push({ to: "/demo-preview", label: "Demo Preview", icon: ShieldCheck });
   }
   if (role === "sm") {
     base.push({ to: "/import", label: "Import", icon: Upload });
@@ -37,6 +38,7 @@ const sectionTitle = (pathname) => {
   if (pathname.startsWith("/opportunity")) return "Pipeline";
   if (pathname.startsWith("/activity-log")) return "Activity Log";
   if (pathname.startsWith("/admin")) return "Admin";
+  if (pathname.startsWith("/demo-preview")) return "Demo Preview";
   if (pathname.startsWith("/import")) return "Import";
   return "";
 };
@@ -141,7 +143,7 @@ export default function AppLayout() {
       { title: "WORKSPACE", links: items.filter((it) =>
         ["/", "/pipeline", "/pipeline?view=assigned-to-me", "/activity-log"].includes(it.to)) },
       { title: "TOOLS", links: items.filter((it) =>
-        ["/admin", "/import"].includes(it.to)) },
+        ["/admin", "/import", "/demo-preview"].includes(it.to)) },
     ].filter((section) => section.links.length > 0);
     return (
       <nav aria-label="Primary navigation" className="flex-1 px-3 py-3 space-y-4 overflow-y-auto">
