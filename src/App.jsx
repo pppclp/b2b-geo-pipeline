@@ -17,6 +17,7 @@ import Pipeline from '@/pages/Pipeline';
 const OpportunityDetail = lazy(() => import('@/pages/OpportunityDetail'));
 const Admin = lazy(() => import('@/pages/Admin'));
 const ActivityLog = lazy(() => import('@/pages/ActivityLog'));
+const DemoPreview = lazy(() => import('@/pages/DemoPreview'));
 const Import = lazy(() => import('@/pages/Import'));
 import Login from '@/pages/Login';
 import ActivateAccount from '@/pages/ActivateAccount';
@@ -74,6 +75,7 @@ const AuthenticatedApp = () => {
           <Route path="/opportunity/:id" element={<Suspense fallback={<RouteLoading />}><OpportunityDetail /></Suspense>} />
           <Route path="/admin" element={<Suspense fallback={<RouteLoading />}><Admin /></Suspense>} />
           <Route path="/activity-log" element={<Suspense fallback={<RouteLoading />}><ActivityLog /></Suspense>} />
+          <Route path="/demo-preview" element={<Suspense fallback={<RouteLoading />}><DemoPreview /></Suspense>} />
           <Route path="/import" element={<ImportErrorBoundary><Suspense fallback={<RouteLoading />}><Import /></Suspense></ImportErrorBoundary>} />
         </Route>
       </Route>
