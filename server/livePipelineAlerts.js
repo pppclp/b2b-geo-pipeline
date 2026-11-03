@@ -74,7 +74,7 @@ export function workingWithStartByTeam(op, events = [], teams = []) {
 export function livePipelineAlertState(op, {
   stages = [], users = [], teams = [], settings = {}, teamStarts = {}, now = new Date(),
 } = {}) {
-  const state = { stageSla: false, handler: null, workingWithTeams: [] };
+  const state = { version: 1, stageSla: false, handler: null, workingWithTeams: [] };
   if (String(op?.status || "").toLowerCase() !== "open") return state;
   const start = op.stage_entered_at;
   const stage = (stages || []).find(s => String(s.stage_id || s.id) === String(op.stage_id));
