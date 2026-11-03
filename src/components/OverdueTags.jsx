@@ -16,8 +16,8 @@ export default function OverdueTags({ op, stages = {}, stageWatchDays = 7, tasks
         title={`Stage age: ${age} days · SLA: ${limit} days · Overdue: ${slaExcess} days`}>
         ⚠ Stage SLA · {age}d</span>}
       {reasons.handler && <span className={tone}
-        title={`${reasons.handler.role.toUpperCase()} Handler age: ${reasons.handler.age} days · SLA: ${reasons.handler.limit} days · Overdue: ${reasons.handler.overdueDays} days`}>
-        ⚠ {reasons.handler.role === "ae" ? "AE Aging" : "SM Aging"} · {reasons.handler.age}d</span>}
+        title={`With ${reasons.handler.role.toUpperCase()}: ${reasons.handler.age} days · SLA: ${reasons.handler.limit} days · Overdue: ${reasons.handler.overdueDays} days`}>
+        ⚠ With {reasons.handler.role.toUpperCase()} · {reasons.handler.age} Days</span>}
       {reasons.workingWithTeams.map(team => <span key={team.id} className={tone}
         title={`${team.name} Working With age: ${team.age} days · SLA: ${team.limit} days · Overdue: ${team.overdueDays} days`}>
         ⚠ With {team.name} · {team.age}d</span>)}
