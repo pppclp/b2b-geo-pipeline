@@ -1571,6 +1571,12 @@ export function createCore({ contract, store, now, uuid }) {
         if (importMeta) row.created_at = importMeta.sourceCreatedAt || "";
         row.created_by_user_id = actor.real.id;
         validateCollaborators(row, row.region_id);
+        // Multi-team input can populate its primary mirror during validation.
+        // On NEW live Pipelines only, initialize that legacy clock at creation.
+        // Never backdate or invent assignment timestamps for historical imports.
+        if (!importMeta && row.working_with_id && !row.working_with_since) {
+          row.working_with_since = stamp;
+        }
       }
       if (b.scoped && !scopedFilter(b, actor)(row)) throw new HttpError(403, `New ${b.sheet} row would be outside your scope`);
       const saved = fitColumns(b, row);
