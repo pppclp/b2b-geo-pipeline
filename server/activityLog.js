@@ -40,7 +40,7 @@ export function buildTeamActivityLog({ actor, opportunities, events, users, user
   if (actionFilter && !ACTIONS.has(actionFilter)) throw Object.assign(new Error("Invalid activity action filter"),{status:400});
   const search = normalize(filters.search);
   if (search.length > 120) throw Object.assign(new Error("Activity search is too long"),{status:400});
-  if (role === "sm" && roleFilter && roleFilter !== "ae") throw Object.assign(new Error("SM may view AE activity only"),{status:403});
+  if (role === "sm" && roleFilter && !["ae","sm"].includes(roleFilter)) throw Object.assign(new Error("SM may view AE activity and their own deletion/restore actions only"),{status:403});
   if (role === "management" && roleFilter && !["ae","sm"].includes(roleFilter)) throw Object.assign(new Error("Management may view AE and SM activity only"),{status:403});
   const permittedRegions = new Set((actor.region_ids || []).map(String));
   // Scope by opportunity records FIRST. No caller-supplied region/actor can expand this set.
@@ -64,7 +64,12 @@ export function buildTeamActivityLog({ actor, opportunities, events, users, user
     if (!user) continue;
     const actorRole = normalizeRole(user.role);
     if (role === "management" && !["ae","sm"].includes(actorRole)) continue;
-    if (role === "sm" && (actorRole !== "ae" || !membership.get(String(user.user_id))?.has(String(op.region_id)))) continue;
+    if (role === "sm") {
+      const aeInRegion = actorRole === "ae" && membership.get(String(user.user_id))?.has(String(op.region_id));
+      const ownRecycleAction = actorRole === "sm" && String(user.user_id) === String(actor.id) &&
+        ["pipeline_deleted","pipeline_restored"].includes(String(event.event_type));
+      if (!aeInRegion && !ownRecycleAction) continue;
+    }
     const day = bangkokDay(event.event_at);
     if (!day || (from && day < from) || (to && day > to)) continue;
     eligible.push({
