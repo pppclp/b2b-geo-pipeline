@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { actionableErrorMessage } from "@/lib/actionFeedback";
-import { Maximize2 } from "lucide-react";
+import { Maximize2, Trash2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
+import DeletePipelineDialog from "@/components/DeletePipelineDialog";
 import { isActiveOpenStage } from "@/lib/openStagePolicy";
 import { salesChannelDisplay } from "@/lib/salesChannel";
 import { missingPipelineCoreFields } from "@/lib/pipelineDataCompleteness";
@@ -196,6 +197,7 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
 export default function PipelineQuickView({ op, open, onClose, onExpand, initialStageId }) {
   const { maps, profile } = useData();
   const [dirty, setDirty] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const requestClose = () => {
     if (!dirty || window.confirm("Discard unsaved Pipeline changes?")) onClose();
   };
@@ -206,12 +208,20 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
   const missingFields = missingPipelineCoreFields(op);
+  const canDelete = ["ae", "sm", "management", "admin"].includes(profile?.app_role) && (
+    profile.app_role === "ae"
+      ? op.owner_id === profile.id || op.current_handler_id === profile.id
+      : profile.app_role === "sm"
+        ? (profile.region_ids || []).includes(op.region_id)
+        : true
+  );
   const canClose = op.status === "open" && (
     profile?.app_role === "admin" || profile?.app_role === "sm" || profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[710px] max-h-[92vh] overflow-y-auto rounded-2xl p-0 gap-0 [&>button]:hidden">
         <DialogHeader className="border-b px-5 sm:px-7 py-5 text-left relative pr-28">
@@ -264,6 +274,15 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
               <div><dt className="text-xs text-muted-foreground">AE Owner</dt><dd className="font-medium mt-1">{textOrDash(owner?.name)}</dd></div>
             </dl>
           </div>
+          {canDelete && (
+            <div className="border-t border-border/60 pt-3">
+              <Button type="button" variant="ghost" size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => { if (!dirty || window.confirm("Discard unsaved changes and open Delete Pipeline?")) setDeleteOpen(true); }}>
+                <Trash2 className="mr-1.5 h-4 w-4" />ลบ Pipeline
+              </Button>
+            </div>
+          )}
           {/* Deliberately last and subdued: never a card, banner, or status change. */}
           {missingFields.length > 0 && (
             <details className="border-t border-border/50 pt-2 text-[11px] text-muted-foreground" aria-label="Incomplete Pipeline data">
@@ -282,5 +301,8 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
         </div>
       </DialogContent>
     </Dialog>
+    <DeletePipelineDialog op={op} open={deleteOpen} onClose={() => setDeleteOpen(false)}
+      onDeleted={() => { setDirty(false); onClose(); }} />
+    </>
   );
 }
