@@ -4,7 +4,7 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth } from "@/lib/pipeline";
 import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
-import { smWorkingWithTeamLabels } from "@/lib/pipelineListPresentation";
+import { workingWithTeamLabels } from "@/lib/pipelineListPresentation";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
   const category = maps.category[op.product_category_id];
   const overdue = overdueReasons(op, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any;
   const differentHandler = op.current_handler_id !== op.owner_id && Boolean(op.current_handler_id);
-  const teams = smWorkingWithTeamLabels(op, handler, master?.WorkingWithOption || []);
+  const teams = workingWithTeamLabels(op, master?.WorkingWithOption || []);
 
   return (
     <div role="button" tabIndex={0}
