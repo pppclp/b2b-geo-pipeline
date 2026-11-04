@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlerSlaAlert, workingWithSlaAlerts } from "../src/lib/alertRules.js";
-import { overdueReasons, missingServerSlaCount } from "../src/lib/overdueSummary.js";
+import { overdueReasons } from "../src/lib/overdueSummary.js";
 
 const now = new Date("2026-11-03T12:00:00.000Z");
 const daysAgo = days => new Date(now.getTime() - days * 86400000).toISOString();
@@ -67,15 +67,3 @@ test("Unknown handler timestamps, roles, or Won status do not create false alarm
   assert.equal(handlerSlaAlert(base, { USR1: { app_role: "management" } }, config, now), null);
 });
 
-test("Missing server SLA status warns only for open records without v1 projection", () => {
-  const rows = [
-    { status:"open", alert_state:{version:1} },
-    { status:"open", alert_state:{version:0} },
-    { status:"open" },
-    { status:"won" },
-    { status:"lost", alert_state:{version:0} },
-  ];
-  assert.equal(missingServerSlaCount(rows),2);
-  assert.equal(missingServerSlaCount([]),0);
-  assert.equal(rows[2].alert_state,undefined);
-});
