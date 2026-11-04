@@ -24,7 +24,7 @@ import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KanbanSquare, List, Plus, Download, AlertTriangle, ChevronRight, ClipboardCheck, Layers3, UserRound, CalendarDays } from "lucide-react";
+import { KanbanSquare, List, Plus, Download, Trash2, AlertTriangle, ChevronRight, ClipboardCheck, Layers3, UserRound, CalendarDays } from "lucide-react";
 
 const SORTS = [
   { value: "close_month", label: "Close Month ↑ · Net RC ↓", shortLabel: "Close Month ↑" },
@@ -259,6 +259,10 @@ export default function Pipeline() {
         className="mb-4"
         actions={
           <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+          <Button variant="outline" size="sm" className="h-10 rounded-xl px-2 text-xs sm:h-9 sm:px-3 sm:text-sm"
+            onClick={() => navigate("/pipeline-trash")} title="ดูรายการ Pipeline ที่ลบและกู้คืนได้">
+            <Trash2 className="w-4 h-4 mr-1.5" /> ถังขยะ
+          </Button>
           {canExport && (
             <Button variant="outline" size="sm" className="h-10 min-w-0 flex-1 rounded-xl px-2 text-xs sm:h-9 sm:flex-none sm:px-3 sm:text-sm" disabled={exporting} onClick={exportExcel}>
               <Download className="w-4 h-4 mr-1.5" /> {exporting ? "Generating Excel…" : "Export Excel"}
