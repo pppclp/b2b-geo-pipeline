@@ -309,6 +309,10 @@ export function createCore({ contract, store, now, uuid }) {
   }
   function decorate(uiEntity, rec) {
     if (uiEntity === "TeamMember") rec.region_ids = regionIdsFor(rec.id);
+    if (uiEntity === "OpportunityHistory") {
+      const who = rows("users").find((user) => String(user.user_id) === String(rec.actor_id));
+      rec.actor_name = who?.display_name || rec.actor_name || rec.actor_id || "";
+    }
     if (uiEntity === "Opportunity") {
       // Retain the canonical primary team ID before converting its display name.
       rec.working_with_primary_id = String(rec.working_with || "");
@@ -1883,7 +1887,7 @@ export function createCore({ contract, store, now, uuid }) {
     const b = binding("Opportunity");
     need(actor, b, "read");
     return tableOf(b).rows.filter(scopedFilter(b, actor)).filter(isSoftDeleted)
-      .map((row) => decorate("Opportunity", toUi("Opportunity", b.primary_key, row)))
+      .map((row) => toUi("Opportunity", b.primary_key, row))
       .sort((a,b) => Date.parse(b.deleted_at || "") - Date.parse(a.deleted_at || ""));
   }
 
