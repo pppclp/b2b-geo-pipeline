@@ -6,6 +6,7 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import { salesChannelDisplay } from "@/lib/salesChannel";
 import HistoryTimeline from "@/components/HistoryTimeline";
+import DeletePipelineDialog from "@/components/DeletePipelineDialog";
 import OpportunityForm from "@/components/OpportunityForm";
 import { PipelineQuickActions } from "@/components/PipelineQuickView";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
@@ -18,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, MoreHorizontal, Copy } from "lucide-react";
+import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, MoreHorizontal, Copy, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const statusColor = {
@@ -35,6 +36,7 @@ export default function OpportunityDetail() {
   const op = opportunities.find((o) => o.id === id);
 
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [action, setAction] = useState(null); // {type, ...}
   const [remark, setRemark] = useState("");
   const [saving, setSaving] = useState(false);
@@ -96,6 +98,13 @@ export default function OpportunityDetail() {
   );
   const canReassignOwner = ["sm", "management", "admin"].includes(profile?.app_role);
   const canChangeArchiveState = canReassignOwner;
+  const canSoftDelete = ["ae","sm","management","admin"].includes(profile?.app_role) && (
+    profile.app_role === "ae"
+      ? op.owner_id === profile.id || op.current_handler_id === profile.id
+      : profile.app_role === "sm"
+        ? (profile.region_ids || []).includes(op.region_id)
+        : true
+  );
 
   return (
     <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:p-8">
@@ -111,7 +120,7 @@ export default function OpportunityDetail() {
           <p className="mt-1.5 text-sm text-muted-foreground">{region?.name || "Not assigned"} · AE: {owner?.name || "Not assigned"}</p>
           <p className="mt-1 text-sm text-muted-foreground">{category?.name || "—"}{op.product_details ? ` · ${op.product_details}` : ""}</p>
         </div>
-        {(canEdit || canChangeArchiveState) && <div className="flex flex-wrap items-center gap-2">
+        {(canEdit || canChangeArchiveState || canSoftDelete) && <div className="flex flex-wrap items-center gap-2">
           {canEdit && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-4 w-4" />แก้ไข</Button>}
           {canEdit && canReassignOwner && <Button size="sm" variant="outline" onClick={() => setAction({ type: "reassign" })}><Users className="mr-1.5 h-4 w-4" />Reassign</Button>}
           {canEdit && <PipelineCloseActions op={op} compact />}
@@ -121,6 +130,7 @@ export default function OpportunityDetail() {
               {canEdit && <DropdownMenuItem onSelect={() => setAction({ type: "closemonth" })}><CalendarClock className="mr-2 h-4 w-4" />เปลี่ยนเดือนที่คาดว่าจะปิดงาน</DropdownMenuItem>}
               {canChangeArchiveState && op.status !== "archived" && <DropdownMenuItem onSelect={() => setAction({ type: "archive" })}><Archive className="mr-2 h-4 w-4" />Archive Pipeline</DropdownMenuItem>}
               {canChangeArchiveState && op.status !== "open" && <DropdownMenuItem onSelect={() => setAction({ type: "reopen" })}><RefreshCw className="mr-2 h-4 w-4" />Reopen Pipeline</DropdownMenuItem>}
+              {canSoftDelete && <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteOpen(true)}><Trash2 className="mr-2 h-4 w-4" />ลบ Pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>}
@@ -210,6 +220,8 @@ export default function OpportunityDetail() {
       </section>
 
       <OpportunityForm open={editOpen} onClose={() => setEditOpen(false)} opportunity={op} />
+      <DeletePipelineDialog op={op} open={deleteOpen} onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate("/pipeline", { replace: true })} />
 
       {/* Action dialog */}
       <Dialog open={!!action} onOpenChange={(o) => !o && closeAction()}>
