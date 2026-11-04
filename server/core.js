@@ -32,6 +32,9 @@ export class HttpError extends Error {
 }
 
 const isActive = (v) => v === "" || v == null || bool.toUi(v);
+// Recycle Bin is independent of Open/Won/Lost/Archived; the original status
+// remains intact and Pipelines + immutable Events are never physically deleted.
+const isSoftDeleted = (row) => Boolean(String(row?.deleted_at || "").trim());
 
 // Existing records without a unit price retain their original manual value
 // until an AE/SM explicitly enters unit pricing. Never silently backfill.
@@ -453,7 +456,7 @@ export function createCore({ contract, store, now, uuid }) {
     need(actor, b, "create");
     if (!snapshotPeriodValid(snapshotPeriod)) throw new HttpError(400, "Snapshot period must be YYYY-MM");
     // Capture source from backend; NEVER trust a browser-supplied Pipeline list.
-    const source = rows("opportunities");
+    const source = rows("opportunities").filter((row) => !isSoftDeleted(row));
     const stamp = now();
     // Resolve AE employee code/name on the server and freeze them in the capture.
     // Never let a browser-supplied lookup or current export alter prior snapshots.
@@ -1081,6 +1084,8 @@ export function createCore({ contract, store, now, uuid }) {
     const opportunity = tableOf(opportunityBinding).rows.find(o => o.opportunity_id === opportunityId);
     if (!opportunity || !scopedFilter(opportunityBinding, actor)(opportunity))
       throw new HttpError(404, "Pipeline not found or outside access scope");
+    if (isSoftDeleted(opportunity))
+      throw new HttpError(409, "Restore Pipeline before updating Tasks");
     if (String(opportunity.status).toLowerCase() !== "open")
       throw new HttpError(409, "Only Open Pipelines may update tasks");
     const item = taskRows(actor, opportunityId).find(t => t.task_id === taskId);
@@ -1414,6 +1419,7 @@ export function createCore({ contract, store, now, uuid }) {
       if (ENTITIES[uiEntity].virtual) return appConfigList();
       const inScope = scopedFilter(b, actor);
       let out = tableOf(b).rows.filter(inScope);
+      if (uiEntity === "Opportunity") out = out.filter((row) => !isSoftDeleted(row));
       if (uiEntity === "TeamMember") out = out.filter((r) => directoryVisible(actor, r.user_id));
       out = out.map((r) => visibleMember(actor, uiEntity, decorate(uiEntity, toUi(uiEntity, b.primary_key, r))));
       out = sortRows(out.filter((r) => matches(r, query)), sort);
@@ -1424,6 +1430,8 @@ export function createCore({ contract, store, now, uuid }) {
       need(actor, b, "read");
       if (ENTITIES[uiEntity].virtual) return appConfigList().find((c) => c.id === id);
       const row = findRow(b, actor, id);
+      if (uiEntity === "Opportunity" && isSoftDeleted(row))
+        throw new HttpError(404, "Pipeline is in Recycle Bin");
       if (uiEntity === "TeamMember" && !directoryVisible(actor, row.user_id)) {
         throw new HttpError(404, "Team member not found");
       }
@@ -1627,6 +1635,8 @@ export function createCore({ contract, store, now, uuid }) {
         if ("client_request_id" in data) throw new HttpError(403, "Request identity cannot be edited");
       }
       const row = findRow(b, actor, id);
+      if (uiEntity === "Opportunity" && isSoftDeleted(row))
+        throw new HttpError(409, "Pipeline is in Recycle Bin. Restore before editing.");
       if (uiEntity === "Opportunity") {
         // The empty string is still an explicit revision token for a legacy
         // row whose stored updated_at was blank. Compare-and-set below blocks
@@ -1786,6 +1796,10 @@ export function createCore({ contract, store, now, uuid }) {
       return b.entity === "opportunities" ? { ...updated, _audit_events: auditEvents } : updated;
     },
     remove(uiEntity, actor, id) {
+      // Pipeline deletion must ALWAYS use the authenticated, audited Recycle Bin
+      // endpoint, not the generic hard-delete API—even if YAML is misconfigured.
+      if (uiEntity === "Opportunity")
+        throw new HttpError(405, "Hard deletion is disabled. Use Recycle Bin soft delete.");
       if (uiEntity === "SupportType") throw new HttpError(410, "Support feature has been retired");
       const b = binding(uiEntity);
       need(actor, b, "delete");
@@ -1810,6 +1824,68 @@ export function createCore({ contract, store, now, uuid }) {
       throw new HttpError(405, "Bulk deletion is disabled. Delete individual records with audit checks.");
     },
   };
+
+  // ---- Recycle Bin: authenticated AE/SM-scoped soft delete + append-only audit ----
+  // Never invoke the generic remove() for Pipelines or change business status.
+  function recyclePipeline(actor, id, input = {}, restore = false) {
+    const b = binding("Opportunity");
+    need(actor, b, "read");
+    need(actor, b, "update");
+    if (!["ae", "sm", "management", "admin"].includes(actor.role))
+      throw new HttpError(403, "Pipeline deletion requires an authorized sales role");
+    // Demo-As is for inspection/training, not a means to delete real records.
+    if (actor.real?.id && String(actor.real.id) !== String(actor.id))
+      throw new HttpError(403, "Exit Demo As before deleting or restoring Pipelines");
+    const row = findRow(b, actor, id); // authoritative AE owner/handler, SM Region scope
+    const wasDeleted = isSoftDeleted(row);
+    if (restore ? !wasDeleted : wasDeleted)
+      throw new HttpError(409, restore ? "Pipeline is not in Recycle Bin" : "Pipeline already deleted");
+    const reason = String(input.reason || "").trim();
+    if (reason.length < 3 || reason.length > 500)
+      throw new HttpError(400, "A reason between 3 and 500 characters is required");
+    if (typeof input.expected_updated_at !== "string")
+      throw new HttpError(428, "Pipeline revision is required. Refresh before saving.");
+    if (input.expected_updated_at !== String(row.updated_at || ""))
+      throw new HttpError(409, "Pipeline changed. Refresh before retrying.");
+    const auditBinding = bindings.opportunity_events;
+    if (!auditBinding) throw new HttpError(503, "Pipeline_Events is required for deletion");
+    const original = { ...row };
+    const auditTable = tableOf(auditBinding);
+    const originalEventCount = auditTable.rows.length;
+    const stamp = now();
+    const oldMs = Date.parse(row.updated_at || "");
+    const newMs = Date.parse(stamp);
+    const revision = Number.isFinite(oldMs) && Number.isFinite(newMs) && newMs <= oldMs
+      ? new Date(oldMs + 1).toISOString() : stamp;
+    const fields = restore
+      ? { deleted_at: "", deleted_by_user_id: "", delete_reason: "" }
+      : { deleted_at: stamp, deleted_by_user_id: actor.real.id, delete_reason: reason };
+    try {
+      Object.assign(row, fields, { updated_at: revision });
+      touch(b);
+      const events = appendAudit(id, [{
+        event_type: restore ? "pipeline_restored" : "pipeline_deleted",
+        field: "soft_delete", previous_value: restore ? "Deleted" : "Active",
+        new_value: restore ? "Active" : "Deleted", remark: reason,
+      }], actor, stamp);
+      return { ok: true, pipeline_id: id, restored: restore, _audit_events: events };
+    } catch (error) {
+      Object.keys(row).forEach((key) => { if (!(key in original)) delete row[key]; });
+      Object.assign(row, original);
+      auditTable.rows.splice(originalEventCount);
+      teamEventIndex = null;
+      touch(b);
+      touch(auditBinding);
+      throw error;
+    }
+  }
+  function listDeletedPipelines(actor) {
+    const b = binding("Opportunity");
+    need(actor, b, "read");
+    return tableOf(b).rows.filter(scopedFilter(b, actor)).filter(isSoftDeleted)
+      .map((row) => decorate("Opportunity", toUi("Opportunity", b.primary_key, row)))
+      .sort((a,b) => Date.parse(b.deleted_at || "") - Date.parse(a.deleted_at || ""));
+  }
 
   // ---- Sheet API (generic row editor over any sheet bound in access_control) ----
   const actionsFor = (actor, rule) => Object.keys(rule.permissions || {}).filter((a) => can(actor.role, rule, a));
@@ -2039,6 +2115,13 @@ export function createCore({ contract, store, now, uuid }) {
     if (parts[0] === "imports" && parts[1] === "opportunities") {
       if (method !== "POST") throw new HttpError(405, "Import requires POST");
       return importOpportunities(actor, req.body);
+    }
+
+    if (parts[0] === "pipeline-trash") {
+      if (method === "GET" && parts.length === 1) return listDeletedPipelines(actor);
+      if (method === "POST" && parts.length === 3 && ["delete","restore"].includes(parts[2]))
+        return recyclePipeline(actor, parts[1], req.body || {}, parts[2] === "restore");
+      throw new HttpError(405, "Use Recycle Bin list, delete or restore");
     }
 
     if (parts[0] === "exports") {
