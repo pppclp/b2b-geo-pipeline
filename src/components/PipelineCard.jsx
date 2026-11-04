@@ -69,7 +69,7 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
             title={"Working With: " + teams.join(", ")}>
             <span className="shrink-0 font-medium">With</span>
             <span className="min-w-0 truncate">{teams[0]}</span>
-            {teams.length > 1 && <span className="shrink-0">+{teams.length - 1}</span>}
+            {teams.length > 1 && <span className="shrink-0">+{teams.length - 1} teams</span>}
           </span>}
         </div>
       </div>
