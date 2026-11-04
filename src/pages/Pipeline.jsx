@@ -505,7 +505,7 @@ export default function Pipeline() {
                       <span className="inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-1.5 py-0.5 text-[10px] text-[#7C3AED]"
                         title={"Working With: " + teamLabels.join(", ")}>
                         With <span className="min-w-0 truncate">{teamLabels[0]}</span>
-                        {teamLabels.length > 1 && <span>+{teamLabels.length - 1}</span>}
+                        {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1} teams</span>}
                       </span>
                     )}
                     <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} />
@@ -609,7 +609,7 @@ export default function Pipeline() {
                                 title={"Working With: " + teamLabels.join(", ")}>
                                 <span className="shrink-0 font-medium">With</span>
                                 <span className="min-w-0 truncate">{teamLabels[0]}</span>
-                                {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1}</span>}
+                                {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1} teams</span>}
                               </span>
                             )}
                           </div>
