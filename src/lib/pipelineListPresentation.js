@@ -44,14 +44,28 @@ export function workingWithTeamLabels(opportunity, teamOptions = []) {
   return [...new Set(names)];
 }
 
-// Working With is inline only when the Pipeline is currently handled by an SM.
-// Preserve the underlying collaboration data for the Quick View / detail page.
-export function smWorkingWithTeamLabels(opportunity, handler, teamOptions = []) {
-  const ownerId = opportunity?.owner_id;
-  const handlerId = opportunity?.current_handler_id;
-  if (!handlerId || ownerId === handlerId ||
-      String(handler?.app_role || "").toLowerCase() !== "sm") return [];
-  return workingWithTeamLabels(opportunity, teamOptions);
+// Summaries must be computed over the already authorized, fully filtered rows.
+// Sum persisted pipeline_value (Net RC), never recompute financials from pricing
+// fields or treat invalid/unknown historical values as zero.
+export function summarizeFilteredPipelines(rows = []) {
+  let cents = 0;
+  let priced = 0;
+  let missingValueCount = 0;
+  for (const op of rows) {
+    const raw = op?.pipeline_value;
+    const value = raw === "" || raw == null ? NaN : Number(raw);
+    if (!Number.isFinite(value)) {
+      missingValueCount += 1;
+      continue;
+    }
+    priced += 1;
+    cents += Math.round(value * 100);
+  }
+  return {
+    count: rows.length,
+    totalNetRc: priced ? cents / 100 : rows.length === 0 ? 0 : null,
+    missingValueCount,
+  };
 }
 
 export function regionDisplayContext(opportunities = [], regionMap = {}, selectedRegionId = "", accessibleRegionIds = []) {

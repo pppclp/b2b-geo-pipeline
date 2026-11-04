@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {sortPipelineRows, workingWithTeamLabels, smWorkingWithTeamLabels, regionDisplayContext} from "../src/lib/pipelineListPresentation.js";
+import {sortPipelineRows, workingWithTeamLabels, summarizeFilteredPipelines, regionDisplayContext} from "../src/lib/pipelineListPresentation.js";
 
 const sample = [
   {id:"B",expected_close_month:"2026-11",pipeline_value:500,stage_entered_at:"2026-10-10T00:00:00Z"},
@@ -44,13 +44,52 @@ test("All Regions scope stays visible even when filtered rows contain just one R
     {label:"Region: BMA East",showColumn:false,multi:false});
 });
 
-test("Working With is shown inline only for the actual SM handler",()=>{
-  const teams=[{id:"PRE",name:"Presales"}];
-  const op={owner_id:"AE1",current_handler_id:"SM1",working_with_team_ids:"PRE"};
-  assert.deepEqual(smWorkingWithTeamLabels(op,{app_role:"sm"},teams),["Presales"]);
-  assert.deepEqual(smWorkingWithTeamLabels(op,{app_role:"SM"},teams),["Presales"]);
-  assert.deepEqual(smWorkingWithTeamLabels(op,{app_role:"ae"},teams),[]);
-  assert.deepEqual(smWorkingWithTeamLabels(op,undefined,teams),[]);
-  assert.deepEqual(smWorkingWithTeamLabels({...op,current_handler_id:"AE1"},{app_role:"sm"},teams),[]);
-  assert.deepEqual(smWorkingWithTeamLabels({...op,working_with_team_ids:""},{app_role:"sm"},teams),[]);
+test("Working With is shown for AE and SM selections, including AE handling own Pipeline",()=>{
+  const teams=[{id:"PRE",name:"Pre-sales"},{id:"FIN",name:"Pricer"}];
+  const op={owner_id:"AE1",current_handler_id:"SM1",working_with_team_ids:"PRE,FIN"};
+  assert.deepEqual(workingWithTeamLabels(op,teams),["Pre-sales","Pricer"]);
+  assert.deepEqual(workingWithTeamLabels({...op,current_handler_id:"AE1"},teams),["Pre-sales","Pricer"]);
+  assert.deepEqual(workingWithTeamLabels({...op,owner_id:"AE2"},teams),["Pre-sales","Pricer"]);
+  assert.deepEqual(workingWithTeamLabels({...op,working_with_team_ids:"",working_with:"Pre-sales"},teams),["Pre-sales"]);
+  assert.deepEqual(workingWithTeamLabels({...op,working_with_team_ids:"",working_with:""},teams),[]);
+});
+
+test("filtered Net RC total counts only matching rows with known numeric persisted value",()=>{
+  const rows=[
+    {id:"P1", pipeline_value:100.1, status:"open"},
+    {id:"P2", pipeline_value:"200.20", status:"open"},
+    {id:"P3", pipeline_value:"", status:"open"},
+    {id:"P4", pipeline_value:null, status:"open"},
+    {id:"P5", pipeline_value:"bad", status:"open"},
+    {id:"P6", pipeline_value:9.7, status:"won"},
+  ];
+  const match = rows.filter(row => row.status === "open");
+  assert.deepEqual(summarizeFilteredPipelines(match),{
+    count:5,totalNetRc:300.3,missingValueCount:3,
+  });
+  assert.deepEqual(summarizeFilteredPipelines(rows.filter(row => row.id === "P6")),{
+    count:1,totalNetRc:9.7,missingValueCount:0,
+  });
+  assert.deepEqual(summarizeFilteredPipelines([]),{
+    count:0,totalNetRc:0,missingValueCount:0,
+  });
+  assert.deepEqual(summarizeFilteredPipelines([{pipeline_value:""}]),{
+    count:1,totalNetRc:null,missingValueCount:1,
+  });
+  assert.equal(rows[0].pipeline_value,100.1,"summarize does not mutate records");
+});
+
+test("Pipeline List, Board and mobile show chosen team irrespective of Handler role, with filtered totals",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const read=path=>readFileSync(new URL("../src/"+path,import.meta.url),"utf8");
+  const page=read("pages/Pipeline.jsx");
+  const card=read("components/PipelineCard.jsx");
+  assert.ok(page.includes("const teamLabels = workingWithTeamLabels(o, master?.WorkingWithOption || [])"));
+  assert.ok(card.includes("const teams = workingWithTeamLabels(op, master?.WorkingWithOption || [])"));
+  assert.ok(!page.includes("smWorkingWithTeamLabels"));
+  assert.ok(!card.includes("smWorkingWithTeamLabels"));
+  assert.ok(page.includes('aria-label="Filtered Pipeline summary"'));
+  assert.ok(page.includes("summarizeFilteredPipelines(filtered)"));
+  assert.ok(page.includes("formatTHB(filteredSummary.totalNetRc)"));
+  assert.ok(page.includes("filteredSummary.missingValueCount"));
 });
