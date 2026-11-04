@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 
 export default function PipelineTrash() {
   const navigate = useNavigate();
@@ -46,7 +46,7 @@ export default function PipelineTrash() {
       setItems(current => current.filter(op => op.id !== selected.id));
       closeAfterRestore();
       // Restore to the server-authorized list, Dashboard and reporting view.
-      await refresh();
+      refresh().catch((err) => setError(actionableErrorMessage(err)));
     } catch (err) { setActionError(actionableErrorMessage(err)); }
     finally { setSaving(false); }
   };
