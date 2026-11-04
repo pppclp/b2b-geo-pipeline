@@ -3,7 +3,7 @@
 // these are NOT historical actor/region snapshots. Never infer past assignments.
 const RETIRED_SUPPORT_TYPES = new Set(["support_on","support_off","SUPPORT_RAISED","SUPPORT_CLEARED"]);
 const RETIRED_SUPPORT_FIELDS = new Set(["support_needed","support_type","support_type_id","support_note"]);
-const ACTIONS = new Set(["create","stage_change","handler_change","reassign","working_with_change","won","lost","close_month_change","other"]);
+const ACTIONS = new Set(["create","stage_change","handler_change","reassign","working_with_change","won","lost","close_month_change","pipeline_deleted","pipeline_restored","other"]);
 const normalizeRole = (role) => String(role || "").trim().toLowerCase();
 const bangkokDay = (value) => {
   const ms = Date.parse(String(value || ""));
