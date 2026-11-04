@@ -7,7 +7,7 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
-import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
+import { overdueReasons, overdueContext, missingServerSlaCount } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
@@ -152,6 +152,7 @@ export default function Pipeline() {
   const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
   // Same authorized + filtered records as List/Board and filtered Excel export.
   const filteredSummary = useMemo(() => summarizeFilteredPipelines(filtered), [filtered]);
+  const missingSlaCount = useMemo(() => missingServerSlaCount(scopedOpportunities), [scopedOpportunities]);
   // This is a presentation-only selector, never a replacement for server RBAC.
   // Match Dashboard's region choices: Admin and Management see all active
   // Regions; SM and AE only see active User_Region assignments.
@@ -406,6 +407,14 @@ export default function Pipeline() {
           </span>
         )}
       </div>
+
+      {missingSlaCount > 0 && ["management", "admin"].includes(profile?.app_role) && (
+        <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-xs text-amber-800"
+          title="Some authorized Open Pipeline records do not have alert_state.version 1 from the deployed Apps Script backend. Stage-only tags are not a reliable complete Overdue count.">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>SLA alerts incomplete · Backend update required ({missingSlaCount.toLocaleString("en-US")} Open Pipelines without SLA data)</span>
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
