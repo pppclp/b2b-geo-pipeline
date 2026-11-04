@@ -1409,7 +1409,7 @@ SheetStore_.prototype.book_ = function (file) {
  // A missing workbook tab must never look like an empty Pipeline (zero records).
 var GEO_REQUIRED_RUNTIME_HEADERS_ = {
   Snapshots: ["snapshot_id","snapshot_period","captured_at","opportunity_id","region_id","status"],
-  Pipelines: ["opportunity_id","business_id","customer_name","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"],
+  Pipelines: ["opportunity_id","business_id","customer_name","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at","deleted_at","deleted_by_user_id","delete_reason"],
   Pipeline_Events: ["event_id","opportunity_id","event_type","actor_user_id","event_at"],
   Pipeline_Tasks: ["task_instance_id","opportunity_id","task_id","scenario_id","stage_id","stage_entered_at","status","updated_at"],
   Scenario_Tasks: ["task_id","scenario_id","stage_id","task_name","sort_order","sla_days","day_type","start_policy","active"],
@@ -1682,6 +1682,7 @@ var GEO_PLAIN_TEXT_HEADERS_ = {
   expected_close_month: true, snapshot_period: true, source_record_id: true,
   opportunity_id: true, event_id: true, snapshot_id: true,
   previous_value: true, new_value: true, lost_note: true, support_note: true,
+  delete_reason: true, deleted_at: true,
   remark: true, notes: true, customer_name: true, contact_name: true,
   owner_sales_code: true, owner_sale_name: true,
   partner_name: true, product_details: true, customer_location_text: true,
