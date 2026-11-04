@@ -472,6 +472,17 @@ export function DataProvider({ children }) {
     [opportunities, updateWithHistory, profile?.app_role, activeStages]
   );
 
+  const deletePipeline = useCallback(async (id, reason) => {
+    const record = opportunities.find((op) => op.id === id);
+    if (!record) throw new Error("Pipeline is unavailable. Refresh before deleting.");
+    const revision = record.updated_date;
+    if (typeof revision !== "string") throw new Error("Refresh Pipeline before deleting.");
+    const result = await db.pipelineTrash.delete(id, reason, revision);
+    // Hide from active Pipeline/Dashboard after the audited server transaction succeeds.
+    setOpportunities((current) => current.filter((op) => op.id !== id));
+    return result;
+  }, [opportunities]);
+
   const historyFor = useCallback((opId) => history.filter((h) => h.opportunity_id === opId), [history]);
 
   // Backend derives snapshot rows from authoritative Pipeline state. No client
@@ -544,6 +555,7 @@ export function DataProvider({ children }) {
     markWon,
     markLost,
     archiveOp,
+    deletePipeline,
     reopen,
     refreshOp,
     captureSnapshot,
