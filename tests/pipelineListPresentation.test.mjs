@@ -104,10 +104,11 @@ test("Working With +N means additional teams, never elapsed days", async () => {
   assert.ok(board.includes('"Working With: " + teams.join(", ")'), "board hover retains full team names");
 });
 
-test("Management can identify when real backend does not supply complete SLA state", async () => {
+test("Pipeline page does not show backend diagnostics or sample alerts", async () => {
   const { readFileSync } = await import("node:fs");
   const page = readFileSync(new URL("../src/pages/Pipeline.jsx", import.meta.url), "utf8");
-  assert.ok(page.includes("missingServerSlaCount(scopedOpportunities)"));
-  assert.ok(page.includes("Backend update required"));
-  assert.ok(page.includes('["management", "admin"].includes(profile?.app_role)'));
+  assert.ok(!page.includes("missingServerSlaCount("));
+  assert.ok(!page.includes("Backend update required"));
+  assert.ok(!page.includes("SLA alerts incomplete"));
+  assert.ok(page.includes("<OverdueTags op={o}"));
 });
