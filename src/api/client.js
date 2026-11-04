@@ -153,6 +153,17 @@ export const db = {
   activity: {
     list: (filters = {}) => request("GET", "/activity-log", { query: filters }),
   },
+  pipelineTrash: {
+    list: () => request("GET", "/pipeline-trash"),
+    delete: (id, reason, expected_updated_at) =>
+      request("POST", `/pipeline-trash/${encodeURIComponent(id)}/delete`, {
+        body: { reason, expected_updated_at },
+      }),
+    restore: (id, reason, expected_updated_at) =>
+      request("POST", `/pipeline-trash/${encodeURIComponent(id)}/restore`, {
+        body: { reason, expected_updated_at },
+      }),
+  },
   exports: {
     pipelines: () => request("GET", "/exports/pipelines"),
   },
