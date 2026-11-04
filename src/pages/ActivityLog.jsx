@@ -18,6 +18,8 @@ const ACTIONS = [
   ["close_month_change","เปลี่ยนเดือนที่คาดว่าจะปิด"],
   ["won","ปิดงานสำเร็จ"],
   ["lost","ปิดงานไม่สำเร็จ"],
+  ["pipeline_deleted","ลบ Pipeline"],
+  ["pipeline_restored","กู้คืน Pipeline"],
   ["other","อื่น ๆ"],
 ];
 const LABELS = Object.fromEntries(ACTIONS);
