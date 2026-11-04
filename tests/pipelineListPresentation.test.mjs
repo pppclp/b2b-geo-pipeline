@@ -93,3 +93,21 @@ test("Pipeline List, Board and mobile show chosen team irrespective of Handler r
   assert.ok(page.includes("formatTHB(filteredSummary.totalNetRc)"));
   assert.ok(page.includes("filteredSummary.missingValueCount"));
 });
+
+test("Working With +N means additional teams, never elapsed days", async () => {
+  const { readFileSync } = await import("node:fs");
+  const read = p => readFileSync(new URL("../src/" + p, import.meta.url), "utf8");
+  const page = read("pages/Pipeline.jsx"), board = read("components/PipelineCard.jsx");
+  assert.ok(page.includes("+{teamLabels.length - 1} teams"), "desktop/mobile team count has units");
+  assert.ok(board.includes("+{teams.length - 1} teams"), "board team count has units");
+  assert.ok(page.includes('"Working With: " + teamLabels.join(", ")'), "hover retains full team names");
+  assert.ok(board.includes('"Working With: " + teams.join(", ")'), "board hover retains full team names");
+});
+
+test("Management can identify when real backend does not supply complete SLA state", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../src/pages/Pipeline.jsx", import.meta.url), "utf8");
+  assert.ok(page.includes("missingServerSlaCount(scopedOpportunities)"));
+  assert.ok(page.includes("Backend update required"));
+  assert.ok(page.includes('["management", "admin"].includes(profile?.app_role)'));
+});

@@ -7,7 +7,7 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
-import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
+import { overdueReasons, overdueContext, missingServerSlaCount } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
@@ -152,6 +152,7 @@ export default function Pipeline() {
   const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
   // Same authorized + filtered records as List/Board and filtered Excel export.
   const filteredSummary = useMemo(() => summarizeFilteredPipelines(filtered), [filtered]);
+  const missingSlaCount = useMemo(() => missingServerSlaCount(scopedOpportunities), [scopedOpportunities]);
   // This is a presentation-only selector, never a replacement for server RBAC.
   // Match Dashboard's region choices: Admin and Management see all active
   // Regions; SM and AE only see active User_Region assignments.
@@ -407,6 +408,14 @@ export default function Pipeline() {
         )}
       </div>
 
+      {missingSlaCount > 0 && ["management", "admin"].includes(profile?.app_role) && (
+        <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-xs text-amber-800"
+          title="Some authorized Open Pipeline records do not have alert_state.version 1 from the deployed Apps Script backend. Stage-only tags are not a reliable complete Overdue count.">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>SLA alerts incomplete · Backend update required ({missingSlaCount.toLocaleString("en-US")} Open Pipelines without SLA data)</span>
+        </div>
+      )}
+
       {sorted.length === 0 ? (
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
       ) : view === "board" && filters.status === "open" ? (
@@ -505,7 +514,7 @@ export default function Pipeline() {
                       <span className="inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-1.5 py-0.5 text-[10px] text-[#7C3AED]"
                         title={"Working With: " + teamLabels.join(", ")}>
                         With <span className="min-w-0 truncate">{teamLabels[0]}</span>
-                        {teamLabels.length > 1 && <span>+{teamLabels.length - 1}</span>}
+                        {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1} teams</span>}
                       </span>
                     )}
                     <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} />
@@ -609,7 +618,7 @@ export default function Pipeline() {
                                 title={"Working With: " + teamLabels.join(", ")}>
                                 <span className="shrink-0 font-medium">With</span>
                                 <span className="min-w-0 truncate">{teamLabels[0]}</span>
-                                {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1}</span>}
+                                {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1} teams</span>}
                               </span>
                             )}
                           </div>

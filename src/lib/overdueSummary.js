@@ -41,3 +41,11 @@ export function overdueReasons(op, stageMap = {}, stageWatchDays = 7, taskEntrie
     overdueTaskCount: overdueTasks.length,
     any: Boolean(stageSla || handler || workingWithTeams.length || overdueTasks.length) };
 }
+
+/** Detect incomplete SLA projection on backend-authorized Open records.
+ * This is a read-only deployment diagnostic, not a replacement SLA calculator.
+ */
+export function missingServerSlaCount(opportunities = []) {
+  return (opportunities || []).filter(op =>
+    op?.status === "open" && op?.alert_state?.version !== 1).length;
+}
