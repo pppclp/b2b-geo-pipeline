@@ -15,7 +15,7 @@ import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
 import PageHeader from "@/components/PageHeader";
 import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
 import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipelineView } from "@/lib/pipelineListFilters";
-import { sortPipelineRows, smWorkingWithTeamLabels, regionDisplayContext } from "@/lib/pipelineListPresentation";
+import { sortPipelineRows, workingWithTeamLabels, summarizeFilteredPipelines, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import { PIPELINE_STATUS_TABS, pipelineStatusCounts, nextPipelineStatusFilters, pipelineStageDisplay } from "@/lib/pipelineStatusTabs";
@@ -150,6 +150,8 @@ export default function Pipeline() {
     (op) => requiresStageReview(op, activeStages)
   ).length, [filteredWithoutStage, activeStages]);
   const sorted = useMemo(() => sortPipelineRows(filtered, sort), [filtered, sort]);
+  // Same authorized + filtered records as List/Board and filtered Excel export.
+  const filteredSummary = useMemo(() => summarizeFilteredPipelines(filtered), [filtered]);
   // This is a presentation-only selector, never a replacement for server RBAC.
   // Match Dashboard's region choices: Admin and Management see all active
   // Regions; SM and AE only see active User_Region assignments.
@@ -389,6 +391,22 @@ export default function Pipeline() {
         </div>
       )}
 
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-y border-border/70 py-2 text-[12px]"
+        aria-label="Filtered Pipeline summary" aria-live="polite">
+        <span className="text-muted-foreground">
+          Filtered Pipelines <strong className="ml-1 font-semibold tabular-nums text-foreground">{filteredSummary.count.toLocaleString("en-US")}</strong>
+        </span>
+        <span className="text-muted-foreground">
+          Total Net RC <strong className="ml-1 font-semibold tabular-nums text-foreground">{formatTHB(filteredSummary.totalNetRc)}</strong>
+          <span className="ml-1">THB/month</span>
+        </span>
+        {filteredSummary.missingValueCount > 0 && (
+          <span className="text-muted-foreground" title="Records with blank or invalid existing Pipeline Value are excluded from the Net RC total.">
+            {filteredSummary.missingValueCount} without Net RC
+          </span>
+        )}
+      </div>
+
       {sorted.length === 0 ? (
         <EmptyState title="No Pipelines match" description="Try adjusting filters or create a new Pipeline." icon={KanbanSquare} />
       ) : view === "board" && filters.status === "open" ? (
@@ -461,6 +479,7 @@ export default function Pipeline() {
               const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
               const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any;
               const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
+              const teamLabels = workingWithTeamLabels(o, master?.WorkingWithOption || []);
               return (
                 <button key={o.id} type="button" role="listitem"
                   className="relative flex w-full min-w-0 flex-col gap-2 rounded-2xl border border-border bg-card px-3.5 py-4 text-left shadow-soft transition-colors hover:border-foreground/20 hover:bg-secondary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -482,6 +501,13 @@ export default function Pipeline() {
                     )}
                     <span aria-hidden="true">·</span>
                     <span title={age === null ? "ไม่มีข้อมูลวันที่เข้า Stage" : `Days in current Stage: ${age}`} className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "—" : `${age}d in stage`}</span>
+                    {teamLabels.length > 0 && (
+                      <span className="inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-1.5 py-0.5 text-[10px] text-[#7C3AED]"
+                        title={"Working With: " + teamLabels.join(", ")}>
+                        With <span className="min-w-0 truncate">{teamLabels[0]}</span>
+                        {teamLabels.length > 1 && <span>+{teamLabels.length - 1}</span>}
+                      </span>
+                    )}
                     <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} />
                   </span>
                   <ChevronRight className="pointer-events-none absolute right-2.5 bottom-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -530,10 +556,9 @@ export default function Pipeline() {
                   const categoryName = maps.category[o.product_category_id]?.name || "";
                   const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
                   const differentOwner = Boolean(o.current_handler_id && o.owner_id !== o.current_handler_id);
-                  // Working With is a supporting-team indicator, not ownership.
-                  // Inline it beside an assigned SM only; other collaborators
-                  // remain visible in Pipeline Quick View without adding rows.
-                  const teamLabels = smWorkingWithTeamLabels(o, handler, master?.WorkingWithOption || []);
+                  // Display selected collaborators regardless of whether AE or
+                  // SM is handling the Pipeline; assignment does not change ownership.
+                  const teamLabels = workingWithTeamLabels(o, master?.WorkingWithOption || []);
                   const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
                   const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
                   return (
@@ -567,7 +592,7 @@ export default function Pipeline() {
                       </td>
                       <td className="min-w-0 bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary">
                         {/* Fixed two-line owner/handler layout for every Pipeline.
-                            Working With stays inline with the SM, never a third row. */}
+                            Working With stays inline for AE and SM, never a third row. */}
                         <div className="flex min-h-[32px] min-w-0 flex-col justify-center gap-0.5">
                           <div className="min-w-0 truncate font-medium leading-[18px]"
                             title={"AE Owner: " + ownerName}>{ownerName}</div>
