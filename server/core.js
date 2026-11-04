@@ -1065,7 +1065,7 @@ export function createCore({ contract, store, now, uuid }) {
     const opportunityBinding = binding("Opportunity");
     need(actor, opportunityBinding, "read");
     const allowed = scopedFilter(opportunityBinding, actor);
-    let opportunities = tableOf(opportunityBinding).rows.filter(allowed);
+    let opportunities = tableOf(opportunityBinding).rows.filter(allowed).filter(o => !isSoftDeleted(o));
     if (opportunityId) {
       opportunities = opportunities.filter(o => o.opportunity_id === opportunityId);
       if (!opportunities.length) throw new HttpError(404, "Pipeline not found or outside access scope");
@@ -1088,6 +1088,8 @@ export function createCore({ contract, store, now, uuid }) {
     const opportunity = tableOf(opportunityBinding).rows.find(o => o.opportunity_id === opportunityId);
     if (!opportunity || !scopedFilter(opportunityBinding, actor)(opportunity))
       throw new HttpError(404, "Pipeline not found or outside access scope");
+    if (isSoftDeleted(opportunity))
+      throw new HttpError(409, "Restore Pipeline before updating Tasks");
     if (isSoftDeleted(opportunity))
       throw new HttpError(409, "Restore Pipeline before updating Tasks");
     if (String(opportunity.status).toLowerCase() !== "open")
@@ -1236,7 +1238,7 @@ export function createCore({ contract, store, now, uuid }) {
     const mine = notificationRows().filter((n) => n.recipient_user_id === actor.real.id);
     const visible = mine.filter((n) => {
       const op = opportunityById.get(n.opportunity_id);
-      return !!op && inScope(op);
+      return !!op && inScope(op) && !isSoftDeleted(op);
     });
     return {
       unread_count: visible.filter((n) => !n.read_at).length,
