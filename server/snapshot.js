@@ -6,7 +6,8 @@ export function snapshotPeriodValid(period) {
 export function buildSnapshotRows(opportunities, snapshotPeriod, capturedAt, newId, usersById = new Map()) {
   if (!snapshotPeriodValid(snapshotPeriod)) throw new Error("Snapshot period must be YYYY-MM");
   const ids = new Set();
-  return opportunities.filter((o) => ["open", "won", "lost"].includes(String(o.status || "").toLowerCase()))
+  return opportunities.filter((o) => !String(o.deleted_at || "").trim() &&
+    ["open", "won", "lost"].includes(String(o.status || "").toLowerCase()))
     .map((o) => {
       if (!o.opportunity_id || ids.has(String(o.opportunity_id))) throw new Error("Duplicate or missing Pipeline ID in snapshot source");
       ids.add(String(o.opportunity_id));
