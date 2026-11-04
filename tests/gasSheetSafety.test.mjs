@@ -110,7 +110,7 @@ test("runtime schema rejects missing columns and duplicate headers rather than r
     "B2B_GEO_Pipeline_DB.xlsx": {sheets: {Pipelines: {primary_key: "opportunity_id"}}},
   }}};
   const headers = ["opportunity_id","business_id","customer_name","region_id",
-    "owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"];
+    "owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at","deleted_at","deleted_by_user_id","delete_reason"];
   assert.doesNotThrow(() => ctx.geoAssertSheetSchema_("B2B_GEO_Pipeline_DB.xlsx", "Pipelines", headers));
   assert.throws(() => ctx.geoAssertSheetSchema_("B2B_GEO_Pipeline_DB.xlsx", "Pipelines",
     headers.filter(h => h !== "region_id")),
@@ -120,7 +120,7 @@ test("runtime schema rejects missing columns and duplicate headers rather than r
 });
 
 test("Apps Script refuses interior blank rows rather than overwriting the wrong physical row", () => {
-  const headers = ["opportunity_id","customer_name","business_id","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"];
+  const headers = ["opportunity_id","customer_name","business_id","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at","deleted_at","deleted_by_user_id","delete_reason"];
   const values = [headers,["OPP1","First"],["",""],["OPP3","Third"]];
   const ws = {
     getLastRow(){return values.length;},
@@ -138,7 +138,7 @@ test("Apps Script refuses interior blank rows rather than overwriting the wrong 
 });
 
 test("Apps Script refuses duplicate Pipeline IDs before attempting an update", () => {
-  const headers = ["opportunity_id","customer_name","business_id","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at"];
+  const headers = ["opportunity_id","customer_name","business_id","region_id","owner_user_id","current_handler_user_id","stage_id","status","expected_close_month","updated_at","deleted_at","deleted_by_user_id","delete_reason"];
   const values = [headers,["OPP1","First"],["OPP1","Second"]];
   const ws = {
     getLastRow(){return values.length;},
