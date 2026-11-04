@@ -41,7 +41,7 @@ test("SM gets only AE writes inside both Pipeline scope and current AE region; n
  assert.equal(result.total,2);
  assert.deepEqual(result.people.map(p=>p.id),["AE-N"]);
  assert.deepEqual(result.regions,["N"]);
- assert.throws(()=>call("sm",{role:"sm"}),e=>e.status===403);
+ assert.equal(call("sm",{role:"sm"}).total,0,"SM may filter their own recycle actions, not other SM activity");
  assert.equal(call("sm",{actor_id:"AE-S"}).total,0);
  assert.equal(call("sm",{region:"S"}).total,0);
 });
@@ -77,4 +77,24 @@ test("Activity Log has a dedicated route and nav but Dashboard remains untouched
  assert.match(read("src/components/AppLayout.jsx"),/to: "\/activity-log"/);
  assert.match(read("src/App.jsx"),/Route path="\/activity-log"/);
  assert.doesNotMatch(read("src/pages/Dashboard.jsx"),/ActivityLog|Recent Activity/);
+});
+
+test("SM sees their own audited Pipeline delete/restore but not other SM actions",()=>{
+ const log=buildTeamActivityLog({
+  actor:{id:"SM-N",role:"sm",region_ids:["N"]},
+  opportunities,
+  users:[...users,{user_id:"SM-X",role:"SM",display_name:"Other SM"}],
+  userRegions,
+  events:[...events,
+   {event_id:"E-8",opportunity_id:"P-N1",event_type:"pipeline_deleted",field_name:"soft_delete",
+    actor_user_id:"SM-N",event_at:"2026-10-29T10:00:00Z",remark:"Duplicate Pipeline"},
+   {event_id:"E-9",opportunity_id:"P-N1",event_type:"pipeline_restored",field_name:"soft_delete",
+    actor_user_id:"SM-N",event_at:"2026-10-29T11:00:00Z",remark:"Restored for audit"},
+   {event_id:"E-10",opportunity_id:"P-N1",event_type:"pipeline_deleted",field_name:"soft_delete",
+    actor_user_id:"SM-X",event_at:"2026-10-29T11:00:00Z",remark:"Other region"},
+  ],
+  filters:{role:"sm"},
+ });
+ assert.deepEqual(log.items.map(e=>e.id),["E-9","E-8"]);
+ assert.ok(log.items.every(e=>e.actor_id==="SM-N"));
 });

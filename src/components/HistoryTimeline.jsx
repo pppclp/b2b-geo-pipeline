@@ -12,6 +12,8 @@ import {
   Trophy,
   XCircle,
   Archive,
+  Trash2,
+  RotateCcw,
   RefreshCw,
 } from "lucide-react";
 
@@ -25,6 +27,8 @@ const EVENT_META = {
   won: { label: "Marked Won", icon: Trophy },
   lost: { label: "Marked Lost", icon: XCircle },
   archived: { label: "Archived", icon: Archive },
+  pipeline_deleted: { label: "ลบ Pipeline", icon: Trash2 },
+  pipeline_restored: { label: "กู้คืน Pipeline", icon: RotateCcw },
   status_change: { label: "Status changed", icon: RefreshCw },
 };
 

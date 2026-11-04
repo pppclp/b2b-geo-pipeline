@@ -1168,6 +1168,19 @@ opportunity_entity:
       user_editable: false
       description: "Server timestamp of the latest transition to Archived; the status history remains in Pipeline_Events."
 
+    deleted_at:
+      source: "SYSTEM"
+      user_editable: false
+      description: "Soft-delete timestamp; nonempty records are hidden from active Pipeline, export and future snapshots; original status and row are preserved."
+    deleted_by_user_id:
+      source: "Current authenticated user"
+      user_editable: false
+      description: "Authenticated actor who soft-deleted this Pipeline."
+    delete_reason:
+      source: "AE / SM / Management / Admin via audited Recycle Bin action"
+      user_editable: false
+      description: "Mandatory reason (3–500 characters). Original reason remains visible in Pipeline_Events after restoration."
+
     # App-owned Phase 2/4 extension fields. Existing UAT Pipeline workbook
     # receives these headers through prepareGeoPhase4Sheets() BEFORE deployment.
     import_batch_id:
