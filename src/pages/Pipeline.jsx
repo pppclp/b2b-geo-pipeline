@@ -49,7 +49,6 @@ export default function Pipeline() {
   const [formOpen, setFormOpen] = useState(false);
   const [quickView, setQuickView] = useState(null); // { id, targetStageId? }
   const [filters, setFilters] = useState({ status: "open" });
-  const [canExport, setCanExport] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
@@ -84,18 +83,6 @@ export default function Pipeline() {
     setFilters(f);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, profile?.id, profile?.app_role]);
-
-  useEffect(() => {
-    let active = true;
-    setCanExport(false);
-    db.access()
-      .then((access) => {
-        const actions = access?.allowed?.["B2B_GEO_Pipeline_DB.xlsx"]?.Pipelines || [];
-        if (active) setCanExport(actions.includes("export"));
-      })
-      .catch((error) => { if (active) { setExportError("Export permission check failed: " + error.message); setCanExport(false); } });
-    return () => { active = false; };
-  }, [profile?.id, profile?.app_role, profile?.isDemo]);
 
   const onFilter = (key, value) => {
     if (key === "status") {
@@ -175,8 +162,9 @@ export default function Pipeline() {
     setExportError("");
     setExporting(true);
     try {
-      // Server re-verifies export permission and user/region scope. UI filters
-      // are then intersected with those freshly authorized records.
+      // All four sales roles can use this button. Server STILL verifies
+      // export permission and user/region scope; then intersect with current
+      // UI filters. Never export the unrestricted local opportunities array.
       const authorized = await db.exports.pipelines();
       const filteredIds = new Set(sorted.map((o) => String(o.id)));
       const authorizedAndFiltered = authorized.filter((o) => filteredIds.has(String(o.id)));
@@ -263,11 +251,11 @@ export default function Pipeline() {
             onClick={() => navigate("/pipeline-trash")} title="ดูรายการ Pipeline ที่ลบและกู้คืนได้">
             <Trash2 className="w-4 h-4 mr-1.5" /> ถังขยะ
           </Button>
-          {canExport && (
-            <Button variant="outline" size="sm" className="h-10 min-w-0 flex-1 rounded-xl px-2 text-xs sm:h-9 sm:flex-none sm:px-3 sm:text-sm" disabled={exporting} onClick={exportExcel}>
-              <Download className="w-4 h-4 mr-1.5" /> {exporting ? "Generating Excel…" : "Export Excel"}
-            </Button>
-          )}
+          <Button variant="outline" size="sm" className="h-10 min-w-0 flex-1 rounded-xl px-2 text-xs sm:h-9 sm:flex-none sm:px-3 sm:text-sm"
+            disabled={exporting} onClick={exportExcel}
+            title="Export เฉพาะ Pipeline ที่คุณมีสิทธิ์เห็นและตรงกับ Filter ปัจจุบัน">
+            <Download className="w-4 h-4 mr-1.5" /> {exporting ? "Generating Excel…" : "Export Excel"}
+          </Button>
           <Button size="sm" className="h-10 min-w-0 flex-1 rounded-xl bg-primary px-2 text-xs text-primary-foreground sm:h-9 sm:flex-none sm:px-3 sm:text-sm" onClick={() => setFormOpen(true)}>
             <Plus className="w-4 h-4 mr-1.5" /> สร้าง Pipeline
           </Button>
