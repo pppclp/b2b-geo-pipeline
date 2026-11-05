@@ -34,8 +34,8 @@ export default function DeletePipelineDialog({ op, open, onClose, onDeleted }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Trash2 className="h-4 w-4 text-destructive" />ลบ Pipeline</DialogTitle>
           <DialogDescription>
-            นำ Pipeline ออกจากรายการปกติและยอดรายงาน โดยเก็บข้อมูลเดิมและ Change Log ไว้
-            สามารถกู้คืนได้จากถังขยะ
+            หลังยืนยัน ระบบจะลบ Pipeline จากรายการปกติทันที ไม่ต้องขออนุมัติ Admin
+            โดยเก็บข้อมูลเดิมและ Change Log ไว้ และสามารถกู้คืนได้จากถังขยะ
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
