@@ -12,6 +12,7 @@ import { Maximize2, Trash2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
 import DeletePipelineDialog from "@/components/DeletePipelineDialog";
+import { canDeletePipeline } from "@/lib/pipelineDeletePermission";
 import { isActiveOpenStage } from "@/lib/openStagePolicy";
 import { salesChannelDisplay } from "@/lib/salesChannel";
 import { missingPipelineCoreFields } from "@/lib/pipelineDataCompleteness";
@@ -208,13 +209,15 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
   const missingFields = missingPipelineCoreFields(op);
-  const canDelete = ["ae", "sm", "management", "admin"].includes(profile?.app_role) && (
-    profile.app_role === "ae"
-      ? op.owner_id === profile.id || op.current_handler_id === profile.id
-      : profile.app_role === "sm"
-        ? (profile.region_ids || []).includes(op.region_id)
-        : true
-  );
+  const canDelete = canDeletePipeline(profile, op);
+  const openDelete = () => {
+    // Not an Admin approval workflow: the owner/handler or region-authorized
+    // sales user can request the audited soft delete directly.
+    if (!dirty || window.confirm("Discard unsaved Pipeline changes before deleting?")) {
+      setDirty(false);
+      setDeleteOpen(true);
+    }
+  };
   const canClose = op.status === "open" && (
     profile?.app_role === "admin" || profile?.app_role === "sm" || profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
@@ -222,12 +225,20 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
 
   return (
     <>
-    <Dialog open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
+    <Dialog open={open && !deleteOpen} onOpenChange={(value) => { if (!value && !deleteOpen) requestClose(); }}>
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[710px] max-h-[92vh] overflow-y-auto rounded-2xl p-0 gap-0 [&>button]:hidden">
-        <DialogHeader className="border-b px-5 sm:px-7 py-5 text-left relative pr-28">
+        <DialogHeader className="border-b px-5 sm:px-7 py-5 text-left relative pr-40">
           <DialogTitle className="text-xl tracking-tight">{op.customer_name}</DialogTitle>
           <DialogDescription className="text-xs mt-1">{textOrDash(category?.name)}{op.product_details ? ` · ${op.product_details}` : ""} · {formatMonth(op.expected_close_month)}</DialogDescription>
           <div className="absolute right-5 top-4 flex items-center gap-1">
+            {canDelete && (
+              <Button type="button" variant="ghost" size="sm"
+                className="h-9 gap-1 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                title="ลบ Pipeline (ไม่ต้องขออนุมัติ Admin)" aria-label="ลบ Pipeline"
+                onClick={openDelete}>
+                <Trash2 className="h-4 w-4" />ลบ
+              </Button>
+            )}
             <Button type="button" variant="ghost" size="icon" className="h-9 w-9" title="Open Full Detail page" aria-label="Open Full Detail page" onClick={requestExpand}>
               <Maximize2 className="h-4 w-4"/>
             </Button>
@@ -274,15 +285,6 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
               <div><dt className="text-xs text-muted-foreground">AE Owner</dt><dd className="font-medium mt-1">{textOrDash(owner?.name)}</dd></div>
             </dl>
           </div>
-          {canDelete && (
-            <div className="border-t border-border/60 pt-3">
-              <Button type="button" variant="ghost" size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => { if (!dirty || window.confirm("Discard unsaved changes and open Delete Pipeline?")) setDeleteOpen(true); }}>
-                <Trash2 className="mr-1.5 h-4 w-4" />ลบ Pipeline
-              </Button>
-            </div>
-          )}
           {/* Deliberately last and subdued: never a card, banner, or status change. */}
           {missingFields.length > 0 && (
             <details className="border-t border-border/50 pt-2 text-[11px] text-muted-foreground" aria-label="Incomplete Pipeline data">

@@ -7,6 +7,7 @@ import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "@/lib/pipelin
 import { salesChannelDisplay } from "@/lib/salesChannel";
 import HistoryTimeline from "@/components/HistoryTimeline";
 import DeletePipelineDialog from "@/components/DeletePipelineDialog";
+import { canDeletePipeline } from "@/lib/pipelineDeletePermission";
 import OpportunityForm from "@/components/OpportunityForm";
 import { PipelineQuickActions } from "@/components/PipelineQuickView";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
@@ -98,13 +99,7 @@ export default function OpportunityDetail() {
   );
   const canReassignOwner = ["sm", "management", "admin"].includes(profile?.app_role);
   const canChangeArchiveState = canReassignOwner;
-  const canSoftDelete = ["ae","sm","management","admin"].includes(profile?.app_role) && (
-    profile.app_role === "ae"
-      ? op.owner_id === profile.id || op.current_handler_id === profile.id
-      : profile.app_role === "sm"
-        ? (profile.region_ids || []).includes(op.region_id)
-        : true
-  );
+  const canSoftDelete = canDeletePipeline(profile, op);
 
   return (
     <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:p-8">
@@ -124,15 +119,21 @@ export default function OpportunityDetail() {
           {canEdit && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-4 w-4" />แก้ไข</Button>}
           {canEdit && canReassignOwner && <Button size="sm" variant="outline" onClick={() => setAction({ type: "reassign" })}><Users className="mr-1.5 h-4 w-4" />Reassign</Button>}
           {canEdit && <PipelineCloseActions op={op} compact />}
-          <DropdownMenu>
+          {canSoftDelete && (
+            <Button type="button" size="sm" variant="outline"
+              className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="mr-1.5 h-4 w-4" />ลบ Pipeline
+            </Button>
+          )}
+          {(canEdit || canChangeArchiveState) && <DropdownMenu>
             <DropdownMenuTrigger asChild><Button size="sm" variant="outline"><MoreHorizontal className="mr-1.5 h-4 w-4" />More</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {canEdit && <DropdownMenuItem onSelect={() => setAction({ type: "closemonth" })}><CalendarClock className="mr-2 h-4 w-4" />เปลี่ยนเดือนที่คาดว่าจะปิดงาน</DropdownMenuItem>}
               {canChangeArchiveState && op.status !== "archived" && <DropdownMenuItem onSelect={() => setAction({ type: "archive" })}><Archive className="mr-2 h-4 w-4" />Archive Pipeline</DropdownMenuItem>}
               {canChangeArchiveState && op.status !== "open" && <DropdownMenuItem onSelect={() => setAction({ type: "reopen" })}><RefreshCw className="mr-2 h-4 w-4" />Reopen Pipeline</DropdownMenuItem>}
-              {canSoftDelete && <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteOpen(true)}><Trash2 className="mr-2 h-4 w-4" />ลบ Pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
         </div>}
       </div>
 
