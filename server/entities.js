@@ -9,6 +9,13 @@ export const bool = {
   toSheet: (v) => (v ? "Yes" : "No"),
 };
 
+// A few Config masters have no `active` column in the current YAML contract.
+// Keep those legacy choices selectable unless they are explicitly disabled.
+const optionalActive = {
+  toUi: (v) => v == null || String(v).trim() === "" ? true : bool.toUi(v),
+  toSheet: bool.toSheet,
+};
+
 const lower = {
   toUi: (v) => (v == null || v === "" ? v : String(v).toLowerCase()),
   toSheet: (v) => (v == null || v === "" ? v : String(v).charAt(0).toUpperCase() + String(v).slice(1)),
@@ -78,22 +85,22 @@ export const ENTITIES = {
   Scenario: {
     entity: "scenarios",
     idPrefix: "SCN",
-    fields: { name: "scenario_name", order: { col: "sort_order", ...number }, active: { col: "active", ...bool } },
+    fields: { name: "scenario_name", order: { col: "sort_order", ...number }, active: { col: "active", ...optionalActive } },
   },
   LostReason: {
     entity: "lost_reasons",
     idPrefix: "LRS",
-    fields: { name: "reason_name", order: { col: "sort_order", ...number }, active: { col: "active", ...bool } },
+    fields: { name: "reason_name", order: { col: "sort_order", ...number }, active: { col: "active", ...optionalActive } },
   },
   WorkingWithOption: {
     entity: "working_with_options",
     idPrefix: "TEAM",
-    fields: { name: "team_name", order: { col: "sort_order", ...number }, active: { col: "active", ...bool } },
+    fields: { name: "team_name", order: { col: "sort_order", ...number }, active: { col: "active", ...optionalActive } },
   },
   SupportType: {
     entity: "support_types",
     idPrefix: "SUP",
-    fields: { name: "support_type_name", order: { col: "sort_order", ...number }, active: { col: "active", ...bool } },
+    fields: { name: "support_type_name", order: { col: "sort_order", ...number }, active: { col: "active", ...optionalActive } },
   },
   AppConfig: {
     // Virtual key/value view over Aging_Settings (see appConfig in core.js).
