@@ -5,6 +5,7 @@ import { currentMonthKey } from "@/lib/pipeline";
 import { buildQuickActionChanges } from "@/lib/quickActionChanges";
 import { fetchStartupData } from "@/lib/entityBatch";
 import { activeOpenStages, isActiveOpenStage } from "@/lib/openStagePolicy";
+import { isVisibleWorkspacePipeline } from "@/lib/pipelineVisibility";
 
 const DataContext = createContext(null);
 
@@ -56,7 +57,10 @@ export function DataProvider({ children }) {
       const masterObj = {};
       MASTER_ENTITIES.forEach((e, i) => (masterObj[e] = results[i]));
       setMaster(masterObj);
-      setOpportunities(results[MASTER_ENTITIES.length] || []);
+      // The UI must not resurrect deleted demo Pipelines if the deployed Apps
+      // Script is older than the Soft Delete endpoint. Backend remains the
+      // authority for access scope and hard-delete protection.
+      setOpportunities((results[MASTER_ENTITIES.length] || []).filter(isVisibleWorkspacePipeline));
       setTaskEntries(taskEntries);
       setSalesChannelOptions(channels);
       setCcpCheckOptions(ccpOptions);
@@ -181,7 +185,7 @@ export function DataProvider({ children }) {
   // Permission scope predicate
   const scopeFilter = useCallback(
     (op) => {
-      if (!profile) return false;
+      if (!profile || !isVisibleWorkspacePipeline(op)) return false;
       if (profile.app_role === "admin") return true;
       if (profile.app_role === "management") {
         // Already filtered by backend RBAC; Management is nationwide by role.
@@ -230,7 +234,9 @@ export function DataProvider({ children }) {
   // ---- Opportunity CRUD with history ----
   const refreshOp = useCallback(async (id) => {
     const rec = await db.entities.Opportunity.get(id);
-    setOpportunities((ops) => ops.map((o) => (o.id === id ? rec : o)));
+    setOpportunities((ops) => isVisibleWorkspacePipeline(rec)
+      ? ops.map((o) => (o.id === id ? rec : o))
+      : ops.filter((o) => o.id !== id));
     return rec;
   }, []);
 
@@ -250,7 +256,9 @@ export function DataProvider({ children }) {
       if (!payload.stage_id && firstStage) payload.stage_id = firstStage.id;
       const rec = acceptPipelineResult(await db.entities.Opportunity.create(payload));
       // A successful retry may return an already-created Pipeline; do not duplicate it in browser state.
-      setOpportunities((ops) => [rec, ...ops.filter((op) => op.id !== rec.id)]);
+      setOpportunities((ops) => isVisibleWorkspacePipeline(rec)
+        ? [rec, ...ops.filter((op) => op.id !== rec.id)]
+        : ops.filter((op) => op.id !== rec.id));
       return rec;
     },
     [activeStages, acceptPipelineResult]
@@ -275,7 +283,9 @@ export function DataProvider({ children }) {
       };
       try {
         const rec = acceptPipelineResult(await db.entities.Opportunity.update(id, payload));
-        setOpportunities((ops) => ops.map((o) => (o.id === id ? rec : o)));
+        setOpportunities((ops) => isVisibleWorkspacePipeline(rec)
+          ? ops.map((o) => (o.id === id ? rec : o))
+          : ops.filter((o) => o.id !== id));
         return rec;
       } catch (error) {
         if (error.status === 409) {
