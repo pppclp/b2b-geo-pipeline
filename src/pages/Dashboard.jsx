@@ -8,6 +8,7 @@ import { dashboardCohort, dashboardMetrics } from "@/lib/dashboardMetrics";
 import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
 import MonthPicker from "@/components/MonthPicker";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
+import { isVisibleWorkspaceRegion } from "@/lib/pipelineVisibility";
 import PageHeader from "@/components/PageHeader";
 import { regionDisplayContext } from "@/lib/pipelineListPresentation";
 import { withMePipelines } from "@/lib/dashboardQueue";
@@ -54,7 +55,7 @@ export default function Dashboard() {
 
   // UI filters are not access controls: all charts begin with server-scoped opportunities.
   const regions = useMemo(
-    () => Object.values(maps.region || {}).filter((r) => r.active)
+    () => Object.values(maps.region || {}).filter(isVisibleWorkspaceRegion)
       .filter((r) => isAdmin || isManagement || (profile?.region_ids || []).includes(r.id))
       .sort((a, b) => (a.order || 0) - (b.order || 0)),
     [maps.region, profile?.region_ids, isAdmin, isManagement]
