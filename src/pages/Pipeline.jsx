@@ -12,6 +12,7 @@ import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
 import RegionQuickFilter from "@/components/dashboard/RegionQuickFilter";
+import { isVisibleWorkspaceRegion } from "@/lib/pipelineVisibility";
 import PageHeader from "@/components/PageHeader";
 import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
 import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipelineView } from "@/lib/pipelineListFilters";
@@ -143,7 +144,7 @@ export default function Pipeline() {
   // Match Dashboard's region choices: Admin and Management see all active
   // Regions; SM and AE only see active User_Region assignments.
   const quickRegions = useMemo(() => (master?.Region || [])
-    .filter((region) => region.active && (
+    .filter((region) => isVisibleWorkspaceRegion(region) && (
       ["admin", "management"].includes(profile?.app_role) || (profile?.region_ids || []).includes(region.id)
     ))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
