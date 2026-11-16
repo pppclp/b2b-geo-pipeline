@@ -1,6 +1,7 @@
 import {useNavigate} from "react-router-dom";
 import React, {useMemo, useState} from "react";
 import {useData} from "@/lib/dataContext";
+import { isVisibleWorkspaceRegion } from "@/lib/pipelineVisibility";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Button} from "@/components/ui/button";
@@ -45,7 +46,7 @@ export default function FilterBar({filters, onFilter, showCreatedMonth = true, s
   const navigate = useNavigate();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const regionOptions = useMemo(() =>
-    (master?.Region || []).filter(r=>r.active).sort((a,b)=>a.order-b.order),[master]);
+    (master?.Region || []).filter(isVisibleWorkspaceRegion).sort((a,b)=>a.order-b.order),[master]);
   const members = useMemo(() => (master?.TeamMember || []).filter(m=>m.active),[master]);
   const categories = useMemo(() => (master?.ProductCategory || []).filter(c=>c.active),[master]);
   const stages = useMemo(() =>
