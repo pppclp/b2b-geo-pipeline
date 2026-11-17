@@ -44,6 +44,32 @@ export function workingWithTeamLabels(opportunity, teamOptions = []) {
   return [...new Set(names)];
 }
 
+// A compact workspace summary, not a transfer of AE/SM ownership.
+// Working With takes display priority when teams are actively selected;
+// the real named Current Handler remains available in the tooltip/Quick View.
+export function currentHandlerSummary(opportunity, members = {}, teamOptions = []) {
+  const member = members?.[opportunity?.current_handler_id] || {};
+  const rawRole = String(member.app_role || "").toLowerCase();
+  const role = rawRole === "ae" ? "AE" : rawRole === "sm" ? "SM"
+    : rawRole === "management" ? "Management" : rawRole === "admin" ? "Admin" : "Handler";
+  const personName = String(member.name || "").trim() || "Unassigned";
+  const teams = workingWithTeamLabels(opportunity, teamOptions);
+  if (teams.length) {
+    return {
+      label: "Working With",
+      display: teams[0] + (teams.length > 1 ? ` +${teams.length - 1} teams` : ""),
+      title: `Working With: ${teams.join(", ")} · Current Handler: ${role} ${personName}`,
+      isWorkingWith: true,
+    };
+  }
+  return {
+    label: role,
+    display: personName,
+    title: `Current Handler: ${role} ${personName}`,
+    isWorkingWith: false,
+  };
+}
+
 // Summaries must be computed over the already authorized, fully filtered rows.
 // Sum persisted pipeline_value (Net RC), never recompute financials from pricing
 // fields or treat invalid/unknown historical values as zero.
