@@ -19,6 +19,8 @@ import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipe
 import { sortPipelineRows, currentHandlerSummary, summarizeFilteredPipelines, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
+import DeletePipelineDialog from "@/components/DeletePipelineDialog";
+import { canDeletePipeline } from "@/lib/pipelineDeletePermission";
 import { PIPELINE_STATUS_TABS, pipelineStatusCounts, nextPipelineStatusFilters, pipelineStageDisplay } from "@/lib/pipelineStatusTabs";
 import { requiresStageReview } from "@/lib/pipelineReviewQueue";
 import { WORK_VIEW_SUBTITLES, selectedCloseMonthSubtitle } from "@/lib/uiCopy";
@@ -49,6 +51,7 @@ export default function Pipeline() {
   const [sort, setSort] = useState("close_month");
   const [formOpen, setFormOpen] = useState(false);
   const [quickView, setQuickView] = useState(null); // { id, targetStageId? }
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [filters, setFilters] = useState({ status: "open" });
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -575,6 +578,16 @@ export default function Pipeline() {
                             className="max-w-[148px] shrink-0 truncate rounded-md bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {categoryName}
                           </span>}
+                          {canDeletePipeline(profile, o) && (
+                            <button type="button"
+                              className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={"ลบ Pipeline " + o.customer_name}
+                              title="ลบ Pipeline ได้เอง · บันทึก Audit Log อัตโนมัติ"
+                              onClick={(event) => { event.stopPropagation(); setDeleteTarget(o); }}
+                              onKeyDown={(event) => event.stopPropagation()}>
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                          )}
                         </div>
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
                         <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
@@ -623,6 +636,12 @@ export default function Pipeline() {
       )}
 
       <OpportunityForm open={formOpen} onClose={() => setFormOpen(false)} />
+      <DeletePipelineDialog
+        op={deleteTarget}
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => { setDeleteTarget(null); setQuickView(null); }}
+      />
       <PipelineQuickView
         key={quickView?.id || "closed"}
         open={!!quickView && !!selectedPipeline}
