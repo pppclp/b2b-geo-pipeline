@@ -63,7 +63,7 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
         <div className="flex min-w-0 items-center gap-1 text-[10px]" title={handlerSummary.title}>
           <span className="shrink-0 text-muted-foreground">Current Handler:</span>
           <span className={`min-w-0 truncate font-medium ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-foreground"}`}>
-            {handlerSummary.label} · {handlerSummary.display}
+            {handlerSummary.isWorkingWith ? handlerSummary.display : `${handlerSummary.label} · ${handlerSummary.display}`}
           </span>
         </div>
       </div>
