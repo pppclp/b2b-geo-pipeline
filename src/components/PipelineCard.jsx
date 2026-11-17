@@ -2,9 +2,9 @@ import React from "react";
 import { useData } from "@/lib/dataContext";
 import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth } from "@/lib/pipeline";
-import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
+import { hasOpenPipelineAlert, overdueContext } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
-import { workingWithTeamLabels } from "@/lib/pipelineListPresentation";
+import { currentHandlerSummary } from "@/lib/pipelineListPresentation";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,11 +14,9 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
   const { maps, master, config, taskEntries } = useData();
   const alertCtx = overdueContext(maps, master, config);
   const owner = maps.member[op.owner_id];
-  const handler = maps.member[op.current_handler_id];
   const category = maps.category[op.product_category_id];
-  const overdue = overdueReasons(op, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any;
-  const differentHandler = op.current_handler_id !== op.owner_id && Boolean(op.current_handler_id);
-  const teams = workingWithTeamLabels(op, master?.WorkingWithOption || []);
+  const overdue = hasOpenPipelineAlert(op, maps.stage, config?.stage_watch_days, taskEntries, alertCtx);
+  const handlerSummary = currentHandlerSummary(op, maps.member, master?.WorkingWithOption || []);
 
   return (
     <div role="button" tabIndex={0}
@@ -31,7 +29,10 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
       )}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="font-semibold text-[12px] leading-[1.4] line-clamp-2" title={op.customer_name}>{op.customer_name}</div>
+          <div className="flex min-w-0 items-start gap-1">
+            <span className="min-w-0 line-clamp-2 font-semibold text-[12px] leading-[1.4]" title={op.customer_name}>{op.customer_name}</span>
+            {overdue && <span className="shrink-0 text-[12px]" role="img" aria-label="Active Pipeline alert" title="Pipeline has an active alert">⚠️</span>}
+          </div>
           <div className="text-[11px] text-muted-foreground truncate mt-1"
             title={[category?.name, op.product_details].filter(Boolean).join(" · ")}>
             {category?.name || "—"}{op.product_details ? " · " + op.product_details : ""}
@@ -59,18 +60,11 @@ export default function PipelineCard({ op, onOpen, showRegion = false }) {
           </span>
           <OverdueTags op={op} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} />
         </div>
-        <div className="flex h-[19px] min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
-          {differentHandler && <span className="min-w-0 truncate"
-            title={"Current Handler: " + (handler?.name || "Unassigned")}>
-            ↳ {handler?.app_role === "sm" ? "SM: " : "Handler: "}{handler?.name || "Unassigned"}
-          </span>}
-          {teams.length > 0 && <span
-            className="inline-flex max-w-[120px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-1.5 leading-[16px] text-[#7C3AED]"
-            title={"Working With: " + teams.join(", ")}>
-            <span className="shrink-0 font-medium">With</span>
-            <span className="min-w-0 truncate">{teams[0]}</span>
-            {teams.length > 1 && <span className="shrink-0">+{teams.length - 1} teams</span>}
-          </span>}
+        <div className="flex min-w-0 items-center gap-1 text-[10px]" title={handlerSummary.title}>
+          <span className="shrink-0 text-muted-foreground">Current Handler:</span>
+          <span className={`min-w-0 truncate font-medium ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-foreground"}`}>
+            {handlerSummary.label} · {handlerSummary.display}
+          </span>
         </div>
       </div>
     </div>
