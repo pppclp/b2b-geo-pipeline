@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {sortPipelineRows, workingWithTeamLabels, summarizeFilteredPipelines, regionDisplayContext} from "../src/lib/pipelineListPresentation.js";
+import {sortPipelineRows, workingWithTeamLabels, currentHandlerSummary, summarizeFilteredPipelines, regionDisplayContext} from "../src/lib/pipelineListPresentation.js";
 
 const sample = [
   {id:"B",expected_close_month:"2026-11",pipeline_value:500,stage_entered_at:"2026-10-10T00:00:00Z"},
@@ -79,29 +79,52 @@ test("filtered Net RC total counts only matching rows with known numeric persist
   assert.equal(rows[0].pipeline_value,100.1,"summarize does not mutate records");
 });
 
-test("Pipeline List, Board and mobile show chosen team irrespective of Handler role, with filtered totals",async()=>{
+test("Current Handler summary prefers selected Working With without changing real user assignment", () => {
+  const members={AE1:{app_role:"ae",name:"Somchai"},SM1:{app_role:"sm",name:"Somying"}};
+  const teams=[{id:"PRE",name:"Pre-sales"},{id:"FIN",name:"Pricer"},{id:"PRO",name:"Product"}];
+  const none=currentHandlerSummary({current_handler_id:"AE1"},members,teams);
+  assert.deepEqual(none,{label:"AE",display:"Somchai",title:"Current Handler: AE Somchai",isWorkingWith:false});
+  const sm=currentHandlerSummary({current_handler_id:"SM1"},members,teams);
+  assert.equal(sm.label,"SM");
+  assert.equal(sm.display,"Somying");
+  const withOne=currentHandlerSummary({current_handler_id:"SM1",working_with_team_ids:"FIN"},members,teams);
+  assert.equal(withOne.label,"Working With");
+  assert.equal(withOne.display,"Pricer");
+  assert.ok(withOne.title.includes("Current Handler: SM Somying"),"actual handler is still discoverable");
+  const withThree=currentHandlerSummary({current_handler_id:"AE1",working_with_team_ids:"PRE,FIN,PRO"},members,teams);
+  assert.equal(withThree.display,"Pre-sales +2 teams");
+  assert.ok(withThree.title.includes("Pre-sales, Pricer, Product"));
+  assert.equal(withThree.isWorkingWith,true);
+  const historical=currentHandlerSummary({current_handler_id:"AE1",working_with:"Pricer"},members,teams);
+  assert.equal(historical.display,"Pricer");
+  assert.equal(currentHandlerSummary({current_handler_id:"AE1",working_with:"Unknown"},members,teams).label,"AE");
+});
+
+test("Pipeline list, mobile and Board use one handler summary and filtered totals",async()=>{
   const {readFileSync}=await import("node:fs");
   const read=path=>readFileSync(new URL("../src/"+path,import.meta.url),"utf8");
-  const page=read("pages/Pipeline.jsx");
-  const card=read("components/PipelineCard.jsx");
-  assert.ok(page.includes("const teamLabels = workingWithTeamLabels(o, master?.WorkingWithOption || [])"));
-  assert.ok(card.includes("const teams = workingWithTeamLabels(op, master?.WorkingWithOption || [])"));
-  assert.ok(!page.includes("smWorkingWithTeamLabels"));
-  assert.ok(!card.includes("smWorkingWithTeamLabels"));
+  const page=read("pages/Pipeline.jsx"),card=read("components/PipelineCard.jsx");
+  assert.ok(page.includes("const handlerSummary = currentHandlerSummary(o, maps.member, master?.WorkingWithOption || [])"));
+  assert.ok(card.includes("const handlerSummary = currentHandlerSummary(op, maps.member, master?.WorkingWithOption || [])"));
+  assert.ok(page.includes("Current Handler</th>"));
+  assert.ok(page.includes("AE Owner</th>"));
+  assert.ok(!page.includes("AE Owner / Handling"));
+  assert.ok(page.indexOf("AE Owner</th>")<page.indexOf("Current Handler</th>"));
+  assert.ok(page.indexOf("Current Handler</th>")<page.indexOf("Stage Age / Alerts</th>"));
   assert.ok(page.includes('aria-label="Filtered Pipeline summary"'));
   assert.ok(page.includes("summarizeFilteredPipelines(filtered)"));
   assert.ok(page.includes("formatTHB(filteredSummary.totalNetRc)"));
   assert.ok(page.includes("filteredSummary.missingValueCount"));
 });
 
-test("Working With +N means additional teams, never elapsed days", async () => {
-  const { readFileSync } = await import("node:fs");
-  const read = p => readFileSync(new URL("../src/" + p, import.meta.url), "utf8");
-  const page = read("pages/Pipeline.jsx"), board = read("components/PipelineCard.jsx");
-  assert.ok(page.includes("+{teamLabels.length - 1} teams"), "desktop/mobile team count has units");
-  assert.ok(board.includes("+{teams.length - 1} teams"), "board team count has units");
-  assert.ok(page.includes('"Working With: " + teamLabels.join(", ")'), "hover retains full team names");
-  assert.ok(board.includes('"Working With: " + teams.join(", ")'), "board hover retains full team names");
+test("Working With +N means additional teams and tooltip retains actual AE/SM", async () => {
+  const {readFileSync}=await import("node:fs");
+  const page=readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
+  const board=readFileSync(new URL("../src/components/PipelineCard.jsx",import.meta.url),"utf8");
+  assert.ok(page.includes("title={handlerSummary.title}"));
+  assert.ok(board.includes("title={handlerSummary.title}"));
+  assert.ok(!page.includes("+{teamLabels.length - 1}"));
+  assert.ok(!board.includes("+{teams.length - 1}"));
 });
 
 test("Pipeline page does not show backend diagnostics or sample alerts", async () => {
