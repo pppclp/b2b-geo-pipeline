@@ -84,11 +84,13 @@ test("Compact UI retains four work tabs, primary controls, all status tabs, Boar
  assert.ok(dashboard.includes('navigate("/review-queue?tab=stage")'));
  assert.ok(!dashboard.includes("Historical Stage · รอตรวจสอบ:"));
 });
-test("Stage review badge stays inside Stage cell and clear of AE Owner column",()=>{
+test("Stage review badge stays inside Stage cell and clear of dedicated AE Owner and Current Handler columns",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
- assert.ok(src.includes('regionContext.showColumn ? "min-w-[1200px]" : "min-w-[1085px]"'));
- assert.ok(src.includes('<col className="w-[155px]" />'));
- assert.ok(src.includes('<col className="w-[240px]" />'));
+ assert.ok(src.includes('regionContext.showColumn ? "min-w-[1365px]" : "min-w-[1250px]"'));
+ assert.ok(src.includes('<col className="w-[140px]" />'));
+ assert.ok(src.includes('<col className="w-[180px]" />'));
+ assert.ok(src.includes('<col className="w-[200px]" />'));
+ assert.ok(src.includes('Current Handler</th>'));
  assert.ok(src.includes('<td className="min-w-0 overflow-hidden bg-card px-2.5 py-1.5 text-[13px] transition-colors group-hover:bg-secondary">'));
  assert.ok(src.includes('title={stageDisplay.label}'));
  assert.ok(src.includes('inline-flex max-w-full items-center rounded-full border'));
@@ -99,12 +101,12 @@ test("Stage review badge stays inside Stage cell and clear of AE Owner column",(
 
 test("Responsive table reserves legible width per column and all hover cells match",()=>{
  const src=fs.readFileSync(new URL("../src/pages/Pipeline.jsx",import.meta.url),"utf8");
- for (const px of [280,155,240,115,114,130,165]) assert.ok(src.includes(`w-[${px}px]`),px);
- assert.ok(src.includes('min-w-[1200px]'));
- assert.ok(src.includes('min-w-[1085px]'));
+ for (const px of [285,140,180,200,115,120,210]) assert.ok(src.includes(`w-[${px}px]`),px);
+ assert.ok(src.includes('min-w-[1365px]'));
+ assert.ok(src.includes('min-w-[1250px]'));
  assert.ok(src.includes('min-w-0 overflow-hidden bg-card px-2.5 py-1.5'));
  assert.ok(src.includes('px-2.5 py-1.5 text-right transition-colors group-hover:bg-secondary'));
- assert.equal((src.match(/group-hover:bg-secondary/g)||[]).length,7);
+ assert.equal((src.match(/group-hover:bg-secondary/g)||[]).length,8);
  assert.ok(src.includes('age === null ? "—"'));
  assert.ok(src.includes('ไม่มีข้อมูลวันที่เข้า Stage'));
  assert.ok(!src.includes('age === null ? "Unknown"'));
