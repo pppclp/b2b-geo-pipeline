@@ -135,3 +135,16 @@ test("Pipeline page does not show backend diagnostics or sample alerts", async (
   assert.ok(!page.includes("SLA alerts incomplete"));
   assert.ok(page.includes("<OverdueTags op={o}"));
 });
+
+test("Working With prefix is hidden in Pipeline list and board display",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const load=path=>readFileSync(new URL("../src/"+path,import.meta.url),"utf8");
+  const list=load("pages/Pipeline.jsx");
+  const board=load("components/PipelineCard.jsx");
+  for(const content of [list,board]) {
+    assert.ok(content.includes("handlerSummary.isWorkingWith ? handlerSummary.display"));
+    assert.ok(!content.includes("{handlerSummary.label} · {handlerSummary.display}"));
+  }
+  assert.ok(list.includes("!handlerSummary.isWorkingWith && ("));
+  assert.ok(list.includes("title={handlerSummary.title}"),"real handler remains available on hover");
+});
