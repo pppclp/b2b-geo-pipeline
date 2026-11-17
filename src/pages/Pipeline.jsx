@@ -505,7 +505,7 @@ export default function Pipeline() {
                   <span className="flex min-w-0 items-center gap-1.5 text-[11px]" title={handlerSummary.title}>
                     <span className="shrink-0 text-muted-foreground">Current Handler:</span>
                     <span className={`min-w-0 truncate font-medium ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-foreground"}`}>
-                      {handlerSummary.label} · {handlerSummary.display}
+                      {handlerSummary.isWorkingWith ? handlerSummary.display : `${handlerSummary.label} · ${handlerSummary.display}` }
                     </span>
                   </span>
                   <ChevronRight className="pointer-events-none absolute right-2.5 bottom-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -596,10 +596,12 @@ export default function Pipeline() {
                       <td className="min-w-0 bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary" title={handlerSummary.title}>
                         <div className="flex min-w-0 items-center gap-1.5">
                           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <div className={`truncate text-[11px] font-medium leading-4 ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-muted-foreground"}`}>
-                              {handlerSummary.label}
-                            </div>
-                            <div className="truncate text-[13px] font-medium leading-[18px]">
+                            {!handlerSummary.isWorkingWith && (
+                              <div className="truncate text-[11px] font-medium leading-4 text-muted-foreground">
+                                {handlerSummary.label}
+                              </div>
+                            )}
+                            <div className={`truncate text-[13px] font-medium leading-[18px] ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : ""}`}>
                               {handlerSummary.display}
                             </div>
                           </div>
