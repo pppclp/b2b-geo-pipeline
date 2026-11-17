@@ -578,16 +578,7 @@ export default function Pipeline() {
                             className="max-w-[148px] shrink-0 truncate rounded-md bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {categoryName}
                           </span>}
-                          {canDeletePipeline(profile, o) && (
-                            <button type="button"
-                              className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              aria-label={"ลบ Pipeline " + o.customer_name}
-                              title="ลบ Pipeline ได้เอง · บันทึก Audit Log อัตโนมัติ"
-                              onClick={(event) => { event.stopPropagation(); setDeleteTarget(o); }}
-                              onKeyDown={(event) => event.stopPropagation()}>
-                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                            </button>
-                          )}
+
                         </div>
                         {o.status !== "open" && <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>}
                         <span className="sr-only">Product details: {o.product_details || "Not specified"}</span>
@@ -603,13 +594,25 @@ export default function Pipeline() {
                         </div>
                       </td>
                       <td className="min-w-0 bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary" title={handlerSummary.title}>
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <div className={`truncate text-[11px] font-medium leading-4 ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-muted-foreground"}`}>
-                            {handlerSummary.label}
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <div className={`truncate text-[11px] font-medium leading-4 ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-muted-foreground"}`}>
+                              {handlerSummary.label}
+                            </div>
+                            <div className="truncate text-[13px] font-medium leading-[18px]">
+                              {handlerSummary.display}
+                            </div>
                           </div>
-                          <div className="truncate text-[13px] font-medium leading-[18px]">
-                            {handlerSummary.display}
-                          </div>
+                          {canDeletePipeline(profile, o) && (
+                            <button type="button"
+                              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={"ลบ Pipeline " + o.customer_name}
+                              title="ลบ Pipeline ได้เอง · บันทึก Audit Log อัตโนมัติ"
+                              onClick={(event) => { event.stopPropagation(); setDeleteTarget(o); }}
+                              onKeyDown={(event) => event.stopPropagation()}>
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                          )}
                         </div>
                       </td>
                       {regionContext.showColumn && <td className="bg-card px-2.5 py-1.5 text-[12px] font-normal text-muted-foreground transition-colors group-hover:bg-secondary" title={regionName}>
