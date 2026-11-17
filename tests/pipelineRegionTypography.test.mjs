@@ -68,8 +68,8 @@ test("All four pastel stages stay distinct from approved solid pastel Won and Lo
  assert.ok(read('pages/OpportunityDetail.jsx').includes('won: "bg-[#AFE0C2] text-[#166534] border border-transparent"'));
  assert.ok(pipeline.includes('lost: "border-transparent bg-[#F3C4C4] text-[#9A3340]"'));
  assert.ok(read('pages/OpportunityDetail.jsx').includes('lost: "bg-[#F3C4C4] text-[#9A3340] border border-transparent"'));
- assert.ok(pipeline.includes('border-[#DDD6FE] bg-[#F5F3FF]'));
- assert.ok(read('components/PipelineCard.jsx').includes('border-[#DDD6FE] bg-[#F5F3FF]'));
+ assert.ok(pipeline.includes('handlerSummary.isWorkingWith ? "text-[#7C3AED]"'));
+ assert.ok(read('components/PipelineCard.jsx').includes('handlerSummary.isWorkingWith ? "text-[#7C3AED]"'));
  assert.ok(read('pages/OpportunityDetail.jsx').includes('border-[#DDD6FE] bg-[#F5F3FF]'));
 });
 
