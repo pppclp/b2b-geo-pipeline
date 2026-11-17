@@ -17,6 +17,12 @@ export function currentPipelineTasks(op, taskEntries = []) {
     t.stage_entered_at === op.stage_entered_at);
 }
 
+// Only genuinely open Pipelines receive the company-name alert marker.
+// The detailed alert computation is shared with OverdueTags and dashboard KPIs.
+export function hasOpenPipelineAlert(op, stages = {}, stageWatchDays = 7, tasks = [], context = {}) {
+  return op?.status === "open" && overdueReasons(op, stages, stageWatchDays, tasks, context).any;
+}
+
 // Reuse the same context for Pipeline, Dashboard, Kanban, and filters.
 export function overdueContext(maps = {}, master = {}, config = {}) {
   return { members: maps?.member || {}, teams: master?.WorkingWithOption || [], config: config || {} };
