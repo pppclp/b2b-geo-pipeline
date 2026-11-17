@@ -10,7 +10,7 @@ test("Overdue tabs stay clean; active customer warning is separate from the work
   assert.ok(page.includes('id: "stage-overdue"'));
   assert.ok(page.includes('icon: null'));
   assert.ok(!page.includes("🚨"),"no siren emoji anywhere");
-  const workViewArea = page.slice(page.indexOf('aria-label="Pipeline work views"'), page.indexOf('aria-label="Pipeline records table"'));
+  const workViewArea = page.slice(page.indexOf('aria-label="Pipeline work views"'), page.indexOf('className="space-y-2.5 md:hidden"'));
   assert.ok(!workViewArea.includes("⚠️"),"no emoji in desktop/mobile work-view tabs");
   assert.ok(page.includes("Active Pipeline alert"),"company name displays an alert marker instead");
   assert.ok(!page.includes("item.urgent") && !page.includes("item.emoji"),"no special urgent coloring or emoji in work tabs");
