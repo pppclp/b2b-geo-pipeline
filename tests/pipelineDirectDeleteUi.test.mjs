@@ -47,3 +47,16 @@ test("Delete remains an audited soft-delete API and never the generic hard-delet
   assert.ok(api.includes('request("POST", `/pipeline-trash/${encodeURIComponent(id)}/delete`'));
   assert.ok(!context.includes('db.entities.Opportunity.delete('));
 });
+
+test("Pipeline list has a scoped AE/SM direct-delete shortcut without an approval or extra column",()=> {
+  const list=load("pages/Pipeline.jsx");
+  assert.ok(list.includes("canDeletePipeline(profile, o)"));
+  assert.ok(list.includes('aria-label={"ลบ Pipeline " + o.customer_name}'));
+  assert.ok(list.includes("setDeleteTarget(o)"));
+  assert.ok(list.includes("event.stopPropagation()"),"Delete must not also open the Pipeline");
+  assert.ok(list.includes("onKeyDown={(event) => event.stopPropagation()}"));
+  assert.ok(list.includes("<DeletePipelineDialog"),"shared confirmation records a reason");
+  assert.ok(list.includes("onDeleted={() => { setDeleteTarget(null); setQuickView(null); }}"));
+  assert.ok(list.includes("Current Handler</th>"),"the approved table layout is preserved");
+  assert.ok(!list.includes("Admin approval"),"no admin workflow is added");
+});
