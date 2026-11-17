@@ -6,10 +6,13 @@ const src=(name)=>readFileSync(new URL("../src/"+name,import.meta.url),"utf8");
 const page=src("pages/Pipeline.jsx");
 const tags=src("components/OverdueTags.jsx");
 
-test("Overdue tabs stay clean; every distinct record alert carries ⚠",()=>{
+test("Overdue tabs stay clean; active customer warning is separate from the work views",()=>{
   assert.ok(page.includes('id: "stage-overdue"'));
   assert.ok(page.includes('icon: null'));
-  assert.ok(!page.includes("🚨") && !page.includes("⚠"),"no emoji in desktop/mobile work-view tabs");
+  assert.ok(!page.includes("🚨"),"no siren emoji anywhere");
+  const workViewArea = page.slice(page.indexOf('aria-label="Pipeline work views"'), page.indexOf('aria-label="Pipeline records table"'));
+  assert.ok(!workViewArea.includes("⚠️"),"no emoji in desktop/mobile work-view tabs");
+  assert.ok(page.includes("Active Pipeline alert"),"company name displays an alert marker instead");
   assert.ok(!page.includes("item.urgent") && !page.includes("item.emoji"),"no special urgent coloring or emoji in work tabs");
   assert.ok(page.includes("{Icon && <Icon"),"mobile ordinary tab icons remain; Overdue has none");
   assert.ok((tags.match(/⚠/gu)||[]).length >= 4,"each alert type has its own warning");
