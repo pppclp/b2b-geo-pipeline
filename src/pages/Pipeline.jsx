@@ -7,7 +7,7 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { agingDays, formatMonth, STATUS_LABELS } from "@/lib/pipeline";
 import { downloadPipelineExcel } from "@/lib/pipelineExport";
 import { db } from "@/api/client";
-import { overdueReasons, overdueContext } from "@/lib/overdueSummary.js";
+import { hasOpenPipelineAlert, overdueContext } from "@/lib/overdueSummary.js";
 import OverdueTags from "@/components/OverdueTags";
 import PipelineCard from "@/components/PipelineCard";
 import FilterBar from "@/components/FilterBar";
@@ -16,7 +16,7 @@ import { isVisibleWorkspaceRegion } from "@/lib/pipelineVisibility";
 import PageHeader from "@/components/PageHeader";
 import {shouldClearOwnerOnRegionChange} from "@/lib/pipelineFilterUi";
 import { matchesPipelineFilters, quickViewCounts, activePipelineView, switchPipelineView } from "@/lib/pipelineListFilters";
-import { sortPipelineRows, workingWithTeamLabels, summarizeFilteredPipelines, regionDisplayContext } from "@/lib/pipelineListPresentation";
+import { sortPipelineRows, currentHandlerSummary, summarizeFilteredPipelines, regionDisplayContext } from "@/lib/pipelineListPresentation";
 import OpportunityForm from "@/components/OpportunityForm";
 import PipelineQuickView from "@/components/PipelineQuickView";
 import { PIPELINE_STATUS_TABS, pipelineStatusCounts, nextPipelineStatusFilters, pipelineStageDisplay } from "@/lib/pipelineStatusTabs";
@@ -470,16 +470,19 @@ export default function Pipeline() {
           <div className="space-y-2.5 md:hidden" role="list" aria-label="Pipeline records">
             {sorted.map((o) => {
               const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
-              const overdue = overdueReasons(o, maps.stage, config?.stage_watch_days, taskEntries, alertCtx).any;
+              const overdue = hasOpenPipelineAlert(o, maps.stage, config?.stage_watch_days, taskEntries, alertCtx);
               const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
-              const teamLabels = workingWithTeamLabels(o, master?.WorkingWithOption || []);
+              const handlerSummary = currentHandlerSummary(o, maps.member, master?.WorkingWithOption || []);
               return (
                 <button key={o.id} type="button" role="listitem"
                   className="relative flex w-full min-w-0 flex-col gap-2 rounded-2xl border border-border bg-card px-3.5 py-4 text-left shadow-soft transition-colors hover:border-foreground/20 hover:bg-secondary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => openQuickView(o.id)}
                   aria-label={"Open Pipeline " + o.customer_name}>
                   <span className="flex min-w-0 items-start justify-between gap-3">
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold" title={o.customer_name}>{o.customer_name}</span>
+                    <span className="flex min-w-0 flex-1 items-center gap-1">
+                      <span className="min-w-0 truncate text-[13px] font-semibold" title={o.customer_name}>{o.customer_name}</span>
+                      {overdue && <span className="shrink-0" role="img" aria-label="Active Pipeline alert" title="Pipeline has an active alert">⚠️</span>}
+                    </span>
                     <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatTHB(o.pipeline_value)}</span>
                   </span>
                   <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1.5 pr-4 text-[11px] text-muted-foreground">
@@ -494,14 +497,13 @@ export default function Pipeline() {
                     )}
                     <span aria-hidden="true">·</span>
                     <span title={age === null ? "ไม่มีข้อมูลวันที่เข้า Stage" : `Days in current Stage: ${age}`} className={overdue ? "font-semibold text-amber-700" : ""}>{age === null ? "—" : `${age}d in stage`}</span>
-                    {teamLabels.length > 0 && (
-                      <span className="inline-flex max-w-[180px] items-center gap-1 rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-1.5 py-0.5 text-[10px] text-[#7C3AED]"
-                        title={"Working With: " + teamLabels.join(", ")}>
-                        With <span className="min-w-0 truncate">{teamLabels[0]}</span>
-                        {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1} teams</span>}
-                      </span>
-                    )}
                     <OverdueTags op={o} stages={maps.stage} stageWatchDays={config?.stage_watch_days} tasks={taskEntries} alertContext={alertCtx} />
+                  </span>
+                  <span className="flex min-w-0 items-center gap-1.5 text-[11px]" title={handlerSummary.title}>
+                    <span className="shrink-0 text-muted-foreground">Current Handler:</span>
+                    <span className={`min-w-0 truncate font-medium ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-foreground"}`}>
+                      {handlerSummary.label} · {handlerSummary.display}
+                    </span>
                   </span>
                   <ChevronRight className="pointer-events-none absolute right-2.5 bottom-3.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </button>
@@ -519,22 +521,24 @@ export default function Pipeline() {
               background: "linear-gradient(to bottom, hsl(var(--secondary)) 0px, hsl(var(--secondary)) 36px, hsl(var(--card)) 36px, hsl(var(--card)) 100%)",
             }}
           >
-            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1200px]" : "min-w-[1085px]"}`}>
+            <table className={`w-full table-fixed text-[13px] ${regionContext.showColumn ? "min-w-[1365px]" : "min-w-[1250px]"}`}>
               <colgroup>
                 {/* Compact content-based widths; horizontal scrolling protects narrow displays. */}
-                <col className="w-[280px]" />
-                <col className="w-[155px]" />
-                <col className="w-[240px]" />
+                <col className="w-[285px]" />
+                <col className="w-[140px]" />
+                <col className="w-[180px]" />
+                <col className="w-[200px]" />
                 {regionContext.showColumn && <col className="w-[115px]" />}
-                <col className="w-[114px]" />
-                <col className="w-[130px]" />
-                <col className="w-[165px]" />
+                <col className="w-[115px]" />
+                <col className="w-[120px]" />
+                <col className="w-[210px]" />
               </colgroup>
               <thead className="border-b border-border/70 bg-secondary text-muted-foreground">
                 <tr className="h-9">
                   <th scope="col" className="sticky left-0 z-20 bg-secondary px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Pipeline</th>
                   <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">{filters.status === "open" ? "Stage" : "Status"}</th>
-                  <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">AE Owner / Handling</th>
+                  <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">AE Owner</th>
+                  <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Current Handler</th>
                   {regionContext.showColumn && <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Region</th>}
                   <th scope="col" className="px-2.5 py-1 text-left align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Close Month</th>
                   <th scope="col" className="px-2.5 py-1 text-right align-middle text-[12px] font-semibold leading-4 whitespace-nowrap">Net RC</th>
@@ -544,14 +548,10 @@ export default function Pipeline() {
               <tbody className="divide-y divide-border/70">
                 {sorted.map((o) => {
                   const ownerName = maps.member[o.owner_id]?.name || "Unassigned";
-                  const handler = maps.member[o.current_handler_id];
-                  const handlerName = handler?.name || "Unassigned";
+                  const handlerSummary = currentHandlerSummary(o, maps.member, master?.WorkingWithOption || []);
                   const categoryName = maps.category[o.product_category_id]?.name || "";
                   const age = o.stage_entered_at ? agingDays(o.stage_entered_at) : null;
-                  const differentOwner = Boolean(o.current_handler_id && o.owner_id !== o.current_handler_id);
-                  // Display selected collaborators regardless of whether AE or
-                  // SM is handling the Pipeline; assignment does not change ownership.
-                  const teamLabels = workingWithTeamLabels(o, master?.WorkingWithOption || []);
+                  const overdue = hasOpenPipelineAlert(o, maps.stage, config?.stage_watch_days, taskEntries, alertCtx);
                   const regionName = maps.region[o.region_id]?.name || o.region_id || "Unassigned";
                   const stageDisplay = pipelineStageDisplay(o, activeStages, maps.stage);
                   return (
@@ -570,6 +570,7 @@ export default function Pipeline() {
                           <span className="min-w-0 truncate font-medium text-[13px] leading-5" title={o.customer_name}>
                             {o.customer_name}
                           </span>
+                          {overdue && <span className="shrink-0" role="img" aria-label="Active Pipeline alert" title="Pipeline has an active alert">⚠️</span>}
                           {categoryName && <span title={[categoryName, o.product_details].filter(Boolean).join(" · ")}
                             className="max-w-[148px] shrink-0 truncate rounded-md bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {categoryName}
@@ -584,27 +585,17 @@ export default function Pipeline() {
                         </span>
                       </td>
                       <td className="min-w-0 bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary">
-                        {/* Fixed two-line owner/handler layout for every Pipeline.
-                            Working With stays inline for AE and SM, never a third row. */}
-                        <div className="flex min-h-[32px] min-w-0 flex-col justify-center gap-0.5">
-                          <div className="min-w-0 truncate font-medium leading-[18px]"
-                            title={"AE Owner: " + ownerName}>{ownerName}</div>
-                          <div className="flex h-[18px] min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
-                            {differentOwner && (
-                              <span className="min-w-0 shrink truncate leading-[18px]"
-                                title={"Current Handler: " + handlerName}>
-                                <span aria-hidden="true" className="mr-0.5 text-brand">↳</span>
-                                {handler?.app_role === "sm" ? "SM: " : "Handler: "}{handlerName}
-                              </span>
-                            )}
-                            {teamLabels.length > 0 && (
-                              <span className="inline-flex max-w-[116px] shrink-0 items-center gap-1 overflow-hidden rounded-md border border-[#DDD6FE] bg-[#F5F3FF] px-1.5 text-[10px] leading-[16px] text-[#7C3AED]"
-                                title={"Working With: " + teamLabels.join(", ")}>
-                                <span className="shrink-0 font-medium">With</span>
-                                <span className="min-w-0 truncate">{teamLabels[0]}</span>
-                                {teamLabels.length > 1 && <span className="shrink-0">+{teamLabels.length - 1} teams</span>}
-                              </span>
-                            )}
+                        <div className="min-w-0 truncate text-[13px] font-medium" title={"AE Owner: " + ownerName}>
+                          {ownerName}
+                        </div>
+                      </td>
+                      <td className="min-w-0 bg-card px-2.5 py-1.5 transition-colors group-hover:bg-secondary" title={handlerSummary.title}>
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <div className={`truncate text-[11px] font-medium leading-4 ${handlerSummary.isWorkingWith ? "text-[#7C3AED]" : "text-muted-foreground"}`}>
+                            {handlerSummary.label}
+                          </div>
+                          <div className="truncate text-[13px] font-medium leading-[18px]">
+                            {handlerSummary.display}
                           </div>
                         </div>
                       </td>
