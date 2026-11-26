@@ -6,7 +6,6 @@ import { formatNetRc as formatTHB } from "@/lib/netRc";
 import { formatMonth, formatDate, agingDays, STATUS_LABELS } from "@/lib/pipeline";
 import { salesChannelDisplay } from "@/lib/salesChannel";
 import HistoryTimeline from "@/components/HistoryTimeline";
-import DeletePipelineDialog from "@/components/DeletePipelineDialog";
 import { canDeletePipeline } from "@/lib/pipelineDeletePermission";
 import OpportunityForm from "@/components/OpportunityForm";
 import { PipelineQuickActions } from "@/components/PipelineQuickView";
@@ -20,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, MoreHorizontal, Copy, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Users, Archive, RefreshCw, CalendarClock, MoreHorizontal, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const statusColor = {
@@ -37,7 +36,6 @@ export default function OpportunityDetail() {
   const op = opportunities.find((o) => o.id === id);
 
   const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [action, setAction] = useState(null); // {type, ...}
   const [remark, setRemark] = useState("");
   const [saving, setSaving] = useState(false);
@@ -116,16 +114,9 @@ export default function OpportunityDetail() {
           <p className="mt-1 text-sm text-muted-foreground">{category?.name || "—"}{op.product_details ? ` · ${op.product_details}` : ""}</p>
         </div>
         {(canEdit || canChangeArchiveState || canSoftDelete) && <div className="flex flex-wrap items-center gap-2">
-          {canEdit && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-4 w-4" />แก้ไข</Button>}
+          {(canEdit || canSoftDelete) && <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-4 w-4" />{canEdit ? "แก้ไข" : "จัดการ Pipeline"}</Button>}
           {canEdit && canReassignOwner && <Button size="sm" variant="outline" onClick={() => setAction({ type: "reassign" })}><Users className="mr-1.5 h-4 w-4" />Reassign</Button>}
           {canEdit && <PipelineCloseActions op={op} compact />}
-          {canSoftDelete && (
-            <Button type="button" size="sm" variant="outline"
-              className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="mr-1.5 h-4 w-4" />ลบ Pipeline
-            </Button>
-          )}
           {(canEdit || canChangeArchiveState) && <DropdownMenu>
             <DropdownMenuTrigger asChild><Button size="sm" variant="outline"><MoreHorizontal className="mr-1.5 h-4 w-4" />More</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -220,9 +211,8 @@ export default function OpportunityDetail() {
         <HistoryTimeline opportunityId={op.id} revision={op.updated_date} />
       </section>
 
-      <OpportunityForm open={editOpen} onClose={() => setEditOpen(false)} opportunity={op} />
-      <DeletePipelineDialog op={op} open={deleteOpen} onClose={() => setDeleteOpen(false)}
-        onDeleted={() => navigate("/pipeline", { replace: true })} />
+      <OpportunityForm open={editOpen} onClose={() => setEditOpen(false)} opportunity={op}
+        deleteOnly={!canEdit} onDeleted={() => navigate("/pipeline", { replace: true })} />
 
       {/* Action dialog */}
       <Dialog open={!!action} onOpenChange={(o) => !o && closeAction()}>

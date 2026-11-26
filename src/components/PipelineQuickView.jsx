@@ -8,11 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { actionableErrorMessage } from "@/lib/actionFeedback";
-import { Maximize2, Trash2 } from "lucide-react";
+import { Maximize2 } from "lucide-react";
 import WorkingWithMultiSelect from "@/components/WorkingWithMultiSelect";
 import PipelineCloseActions from "@/components/PipelineCloseActions";
-import DeletePipelineDialog from "@/components/DeletePipelineDialog";
-import { canDeletePipeline } from "@/lib/pipelineDeletePermission";
 import { isActiveOpenStage } from "@/lib/openStagePolicy";
 import { salesChannelDisplay } from "@/lib/salesChannel";
 import { missingPipelineCoreFields } from "@/lib/pipelineDataCompleteness";
@@ -198,7 +196,6 @@ export function PipelineQuickActions({ op, initialStageId, onSaved, onCancel, on
 export default function PipelineQuickView({ op, open, onClose, onExpand, initialStageId }) {
   const { maps, profile } = useData();
   const [dirty, setDirty] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const requestClose = () => {
     if (!dirty || window.confirm("Discard unsaved Pipeline changes?")) onClose();
   };
@@ -209,15 +206,6 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
   const owner = maps.member?.[op.owner_id];
   const category = maps.category?.[op.product_category_id];
   const missingFields = missingPipelineCoreFields(op);
-  const canDelete = canDeletePipeline(profile, op);
-  const openDelete = () => {
-    // Not an Admin approval workflow: the owner/handler or region-authorized
-    // sales user can request the audited soft delete directly.
-    if (!dirty || window.confirm("Discard unsaved Pipeline changes before deleting?")) {
-      setDirty(false);
-      setDeleteOpen(true);
-    }
-  };
   const canClose = op.status === "open" && (
     profile?.app_role === "admin" || profile?.app_role === "sm" || profile?.app_role === "management" ||
     (profile?.app_role === "ae" && (op.owner_id === profile.id || op.current_handler_id === profile.id))
@@ -225,20 +213,12 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
 
   return (
     <>
-    <Dialog open={open && !deleteOpen} onOpenChange={(value) => { if (!value && !deleteOpen) requestClose(); }}>
+    <Dialog open={open} onOpenChange={(value) => { if (!value) requestClose(); }}>
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[710px] max-h-[92vh] overflow-y-auto rounded-2xl p-0 gap-0 [&>button]:hidden">
-        <DialogHeader className="border-b px-5 sm:px-7 py-5 text-left relative pr-40">
+        <DialogHeader className="border-b px-5 sm:px-7 py-5 text-left relative pr-28">
           <DialogTitle className="text-xl tracking-tight">{op.customer_name}</DialogTitle>
           <DialogDescription className="text-xs mt-1">{textOrDash(category?.name)}{op.product_details ? ` · ${op.product_details}` : ""} · {formatMonth(op.expected_close_month)}</DialogDescription>
           <div className="absolute right-5 top-4 flex items-center gap-1">
-            {canDelete && (
-              <Button type="button" variant="ghost" size="sm"
-                className="h-9 gap-1 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                title="ลบ Pipeline (ไม่ต้องขออนุมัติ Admin)" aria-label="ลบ Pipeline"
-                onClick={openDelete}>
-                <Trash2 className="h-4 w-4" />ลบ
-              </Button>
-            )}
             <Button type="button" variant="ghost" size="icon" className="h-9 w-9" title="Open Full Detail page" aria-label="Open Full Detail page" onClick={requestExpand}>
               <Maximize2 className="h-4 w-4"/>
             </Button>
@@ -303,8 +283,6 @@ export default function PipelineQuickView({ op, open, onClose, onExpand, initial
         </div>
       </DialogContent>
     </Dialog>
-    <DeletePipelineDialog op={op} open={deleteOpen} onClose={() => setDeleteOpen(false)}
-      onDeleted={() => { setDirty(false); onClose(); }} />
     </>
   );
 }

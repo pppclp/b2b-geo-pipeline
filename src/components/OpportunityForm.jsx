@@ -1,6 +1,9 @@
 import { normalizeSalesChannel, salesChannelDisplay } from "@/lib/salesChannel";
 import React, { useState, useMemo, useEffect } from "react";
 import CreatePipelineModal from "@/components/CreatePipelineModal";
+import DeletePipelineDialog from "@/components/DeletePipelineDialog";
+import { canDeletePipeline } from "@/lib/pipelineDeletePermission";
+import { Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { actionableErrorMessage } from "@/lib/actionFeedback";
 import { Button } from "@/components/ui/button";
@@ -47,10 +50,13 @@ const empty = {
   working_with_user_ids: "",
 };
 
-function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
+function EditOpportunityForm({ open, onClose, opportunity, onSaved, onDeleted, deleteOnly = false }) {
   const { maps, master, activeStages, profile, createOpportunity, updateWithHistory, salesChannelOptions, ccpCheckOptions } = useData();
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const canDelete = canDeletePipeline(profile, opportunity);
+  useEffect(() => { if (!open) setDeleteOpen(false); }, [open]);
   const [saveError, setSaveError] = useState("");
   const canReview = ["sm", "admin"].includes(profile?.app_role);
   const closedAe = !!opportunity && opportunity.status !== "open" && profile?.app_role === "ae";
@@ -208,12 +214,19 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !saving && onClose()}>
+    <>
+    <Dialog open={open && !deleteOpen} onOpenChange={(o) => !o && !saving && !deleteOpen && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>แก้ไข Pipeline</DialogTitle>
+          <DialogTitle>{deleteOnly ? "จัดการ Pipeline" : "แก้ไข Pipeline"}</DialogTitle>
         </DialogHeader>
 
+        {deleteOnly ? (
+          <div className="space-y-2 py-2 text-sm">
+            <p className="font-medium">{opportunity.customer_name} · {opportunity.id}</p>
+            <p className="text-muted-foreground">Pipeline ที่ปิดแล้วไม่สามารถแก้ไขได้ แต่สามารถลบตามสิทธิ์เดิมได้</p>
+          </div>
+        ) : <>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
           <div className="sm:col-span-2">
             <Label>ชื่อลูกค้า *</Label>
@@ -407,14 +420,25 @@ function EditOpportunityForm({ open, onClose, opportunity, onSaved }) {
 
         {!valid && <p role="alert" className="text-xs text-amber-700">Check: {problems.join(", ")}</p>}
         {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>ยกเลิก</Button>
-          <Button onClick={submit} disabled={!valid || saving}>
-            {saving ? "กำลังบันทึก…" : opportunity ? "บันทึกการเปลี่ยนแปลง" : "สร้าง Pipeline"}
-          </Button>
+        </>}
+        <DialogFooter className="border-t pt-4 sm:items-center sm:justify-between">
+          {canDelete ? <Button type="button" variant="ghost" size="sm"
+            className="self-start gap-1.5 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive sm:self-auto"
+            disabled={saving} onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4" />ลบ Pipeline
+          </Button> : <span />}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>ยกเลิก</Button>
+            {!deleteOnly && <Button type="button" onClick={submit} disabled={!valid || saving}>
+              {saving ? "กำลังบันทึก…" : "บันทึกการเปลี่ยนแปลง"}
+            </Button>}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    {canDelete && <DeletePipelineDialog op={opportunity} open={open && deleteOpen}
+      onClose={() => setDeleteOpen(false)} onDeleted={() => { onClose(); onDeleted?.(); }} />}
+    </>
   );
 }
 // Keep historical-record editing unchanged while giving Create its dedicated modal.
